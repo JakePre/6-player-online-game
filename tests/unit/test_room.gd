@@ -51,6 +51,80 @@ func test_state_dict_never_leaks_session_tokens() -> void:
 		assert_false(member.has("peer_id"))
 
 
+func _ready_all(room: Room) -> void:
+	for member in room.members:
+		member.ready = true
+
+
+func test_round_count_defaults_to_standard() -> void:
+	var room := _room_with(2)
+	assert_eq(room.round_count, NetConfig.DEFAULT_ROUND_COUNT)
+
+
+func test_round_count_accepts_only_presets() -> void:
+	var room := _room_with(2)
+	for count in NetConfig.ROUND_COUNT_OPTIONS:
+		assert_true(room.set_round_count(count), "preset %d accepted" % count)
+		assert_eq(room.round_count, count)
+	assert_false(room.set_round_count(9))
+	assert_eq(room.round_count, 15, "invalid value leaves setting untouched")
+
+
+func test_round_count_locked_once_match_started() -> void:
+	var room := _room_with(2)
+	room.state = Room.State.IN_MATCH
+	assert_false(room.set_round_count(8))
+
+
+func test_cannot_start_alone() -> void:
+	var room := _room_with(1)
+	_ready_all(room)
+	assert_false(room.can_start())
+
+
+func test_cannot_start_until_everyone_ready() -> void:
+	var room := _room_with(3)
+	room.members[0].ready = true
+	room.members[1].ready = true
+	assert_false(room.can_start())
+	room.members[2].ready = true
+	assert_true(room.can_start())
+
+
+func test_disconnected_member_does_not_block_start() -> void:
+	var room := _room_with(3)
+	_ready_all(room)
+	room.members[2].ready = false
+	room.mark_disconnected(room.members[2], 1000)
+	assert_true(room.can_start())
+
+
+func test_cannot_start_twice() -> void:
+	var room := _room_with(2)
+	_ready_all(room)
+	assert_true(room.start_match())
+	assert_eq(room.state, Room.State.IN_MATCH)
+	assert_false(room.can_start())
+	assert_false(room.start_match())
+
+
+func test_start_consumes_ready_flags() -> void:
+	var room := _room_with(2)
+	_ready_all(room)
+	assert_true(room.start_match())
+	for member in room.members:
+		assert_false(member.ready)
+
+
+func test_state_dict_exposes_ready_and_round_count() -> void:
+	var room := _room_with(2)
+	room.members[0].ready = true
+	var state := room.to_state_dict()
+	assert_eq(state.round_count, NetConfig.DEFAULT_ROUND_COUNT)
+	assert_true(state.members[0].ready)
+	assert_false(state.members[1].ready)
+
+
 func test_expiry_clock() -> void:
 	var room := _room_with(2)
 	room.state = Room.State.IN_MATCH

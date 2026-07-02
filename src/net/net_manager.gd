@@ -21,6 +21,7 @@ signal pong_received(rtt_ms: int)
 # Server-side signals (server systems listen to these).
 signal peer_joined_room(room: Room, member: RoomMember)
 signal peer_left_room(room: Room)
+signal match_started(room: Room)
 
 const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
 
@@ -118,6 +119,18 @@ func request_leave_room() -> void:
 	_rpc_leave_room.rpc_id(1)
 
 
+func request_set_ready(ready: bool) -> void:
+	_rpc_set_ready.rpc_id(1, ready)
+
+
+func request_set_round_count(count: int) -> void:
+	_rpc_set_round_count.rpc_id(1, count)
+
+
+func request_start_match() -> void:
+	_rpc_start_match.rpc_id(1)
+
+
 func send_ping() -> void:
 	_rpc_ping.rpc_id(1, Time.get_ticks_msec())
 
@@ -168,6 +181,43 @@ func _rpc_leave_room() -> void:
 	if room != null:
 		_broadcast_room_state(room)
 		peer_left_room.emit(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_ready(ready: bool) -> void:
+	if not is_server:
+		return
+	var room: Room = room_manager.room_of_peer(multiplayer.get_remote_sender_id())
+	if room == null or room.state != Room.State.LOBBY:
+		return
+	var member := room.find_by_peer(multiplayer.get_remote_sender_id())
+	if member == null:
+		return
+	member.ready = ready
+	_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_round_count(count: int) -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null:
+		return
+	if room.set_round_count(count):
+		_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_start_match() -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null:
+		return
+	if room.start_match():
+		_broadcast_room_state(room)
+		match_started.emit(room)
 
 
 @rpc("any_peer", "call_remote", "unreliable")
@@ -319,6 +369,19 @@ func _drain_lag_queue() -> void:
 	while not _lag_queue.is_empty() and _lag_queue[0].deliver_at <= now:
 		var entry: Dictionary = _lag_queue.pop_front()
 		snapshot_received.emit(entry.snapshot)
+
+
+## Returns the sender's room only when the sender is that room's host: the
+## guard for host-only lobby controls (settings, start).
+func _room_of_host_sender() -> Room:
+	var peer_id := multiplayer.get_remote_sender_id()
+	var room: Room = room_manager.room_of_peer(peer_id)
+	if room == null:
+		return null
+	var host := room.host()
+	if host == null or host.peer_id != peer_id:
+		return null
+	return room
 
 
 func _reset_client_session() -> void:
