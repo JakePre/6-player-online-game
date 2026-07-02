@@ -7,6 +7,7 @@ extends Control
 const SCREENS := {
 	&"main_menu": "res://src/client/screens/main_menu.tscn",
 	&"settings": "res://src/client/screens/settings_menu.tscn",
+	&"credits": "res://src/client/screens/credits_screen.tscn",
 	&"room": "res://src/lobby/lobby.tscn",
 	&"match": "res://src/match/match_screen.tscn",
 }
