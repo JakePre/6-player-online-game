@@ -143,7 +143,11 @@ func _build_camera() -> void:
 	_camera_rig.name = "IsoCameraRig"
 	_camera_rig.ortho_size = _arena_half() * 2.4
 	arena.add_child(_camera_rig)
-	_camera_rig.camera().current = true
+	# _camera_rig.camera() reads an @onready var that's still null here — setup()
+	# runs before match_screen.gd adds this view to the tree, so IsoCameraRig's
+	# own _ready() hasn't fired yet. get_node() walks the already-instantiated
+	# scene structure directly, so it works regardless of _ready() timing.
+	(_camera_rig.get_node("Camera3D") as Camera3D).current = true
 
 
 func _build_floor() -> void:
