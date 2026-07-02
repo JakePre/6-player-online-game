@@ -112,7 +112,7 @@ Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
 ### M4 — Minigame production (all parallel after M3-06; each task: scene, server logic, 2/4/6-player balance pass, SFX hooks)
 FFA — [x] **M4-01** King of the Hill (M) · [x] **M4-02** Hot Potato (M) · [x] **M4-03** Thin Ice (M) · [x] **M4-04** Sumo Smash (M)
 Skill — [ ] **M4-05** Simon Stomp (M) · [x] **M4-06** Quick Draw (S) · [ ] **M4-07** Hurdle Dash (L) · [ ] **M4-08** Target Range (M, mouse+stick aim) · [ ] **M4-09** Beat Bounce (M)
-Team — [x] **M4-10** Tug of War (S) · [x] **M4-11** Relay Sprint (M) · [ ] **M4-12** Cart Push (L) · [x] **M4-13** Color Clash (M)
+Team — [x] **M4-10** Tug of War (S) · [x] **M4-11** Relay Sprint (M) · [x] **M4-12** Cart Push (L) · [x] **M4-13** Color Clash (M)
 Sabotage — [x] **M4-14** Poison Feast (M) · [ ] **M4-15** Trap Corridor (L) · [x] **M4-16** Heist Night (M)
 
 ### M5 — Finale
