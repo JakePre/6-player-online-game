@@ -42,3 +42,13 @@ static func total_round_award(placements: Array, pickup_coins: Dictionary) -> Di
 	for slot: int in pickup_coins:
 		awards[slot] = int(awards.get(slot, 0)) + mini(int(pickup_coins[slot]), PICKUP_CAP)
 	return awards
+
+
+## Team-game counterpart of total_round_award: team awards plus capped
+## pickup coins. `team_placements` is teams best-first, each an array of
+## member slots. Returns {slot: coins}.
+static func total_team_round_award(team_placements: Array, pickup_coins: Dictionary) -> Dictionary:
+	var awards := award_for_teams(team_placements)
+	for slot: int in pickup_coins:
+		awards[slot] = int(awards.get(slot, 0)) + mini(int(pickup_coins[slot]), PICKUP_CAP)
+	return awards

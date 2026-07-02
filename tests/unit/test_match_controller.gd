@@ -251,3 +251,52 @@ func test_play_snapshot_carries_minigame_id_for_late_mounts() -> void:
 	var playing := controller.get_snapshot()
 	assert_eq(playing.minigame, "slot_order")
 	assert_true(playing.has("game"))
+
+
+## Two fixed teams (evens vs odds, evens win) with team_mode set, so results
+## must route to Economy.award_for_teams (SPEC $5) instead of the FFA table.
+class TeamGame:
+	extends MinigameBase
+
+	func _setup() -> void:
+		team_mode = true
+
+	func _rank_players() -> Array:
+		var evens := slots.filter(func(slot: int) -> bool: return slot % 2 == 0)
+		var odds := slots.filter(func(slot: int) -> bool: return slot % 2 == 1)
+		return [evens, odds]
+
+
+func test_team_mode_results_award_team_tables() -> void:
+	MinigameCatalog.register(MinigameMeta.create({"id": &"team_game"}), TeamGame)
+	var room := _make_room(4)
+	var controller := (
+		MatchController
+		. new(
+			room,
+			{
+				"seed": 7,
+				"playlist": [&"team_game"],
+				"intro_sec": 0.1,
+				"results_sec": 0.1,
+				"podium_sec": 0.1,
+				"duration_override": 0.1,
+			}
+		)
+	)
+	controller.event_emitted.connect(func(event: Dictionary) -> void: events.append(event))
+	controller.start()
+	_run_until(
+		controller,
+		func() -> bool:
+			return events.any(
+				func(event: Dictionary) -> bool: return String(event.type) == "round_results"
+			)
+	)
+	var results := {}
+	for event: Dictionary in events:
+		if String(event.type) == "round_results":
+			results = event
+			break
+	# Winning team members (slots 0/2) get 20 each, losers (1/3) get 5.
+	assert_eq(results.awards, {0: 20, 2: 20, 1: 5, 3: 5})

@@ -48,3 +48,13 @@ func test_pickup_coins_for_slot_without_placement() -> void:
 	# Defensive: a pickup entry for a slot missing from placements still counts.
 	var totals := Economy.total_round_award([[0]], {7: 5})
 	assert_eq(totals, {0: 30, 7: 5})
+
+
+func test_team_total_combines_team_awards_and_capped_pickups() -> void:
+	var totals := Economy.total_team_round_award([[0, 1], [2, 3]], {0: 12, 2: 99})
+	assert_eq(totals, {0: 32, 1: 20, 2: 35, 3: 5})
+
+
+func test_three_team_total() -> void:
+	var totals := Economy.total_team_round_award([[0, 1], [2, 3], [4, 5]], {})
+	assert_eq(totals, {0: 25, 1: 25, 2: 15, 3: 15, 4: 5, 5: 5})

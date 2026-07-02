@@ -59,3 +59,11 @@ func test_early_finish_stops_the_clock() -> void:
 	var elapsed := game.elapsed
 	game.tick(TICK)
 	assert_eq(game.elapsed, elapsed)
+
+
+func test_results_report_team_mode_off_by_default() -> void:
+	var game := _make_game(0.5)
+	game.finish([[0], [2], [5]])
+	assert_false(game.get_results().team_mode)
+	game.team_mode = true
+	assert_true(game.get_results().team_mode)
