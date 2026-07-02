@@ -27,6 +27,7 @@ static func register_builtins() -> void:
 	register(QuickDraw.make_meta(), QuickDraw)
 	register(SumoSmash.make_meta(), SumoSmash)
 	register(HotPotato.make_meta(), HotPotato)
+	register(TugOfWar.make_meta(), TugOfWar)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
