@@ -1,0 +1,15 @@
+repos:
+  - repo: local
+    hooks:
+      - id: gdformat
+        name: gdformat
+        entry: gdformat
+        language: python
+        additional_dependencies: ["gdtoolkit==4.*"]
+        files: \.gd$
+      - id: gdlint
+        name: gdlint
+        entry: gdlint
+        language: python
+        additional_dependencies: ["gdtoolkit==4.*"]
+        files: \.gd$

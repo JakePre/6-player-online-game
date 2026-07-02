@@ -1,0 +1,4 @@
+# gdlint (gdtoolkit) configuration. Defaults apply unless overridden here.
+max-line-length: 100
+# NetManager/autoload scripts legitimately expose many small RPC handlers.
+max-public-methods: 40

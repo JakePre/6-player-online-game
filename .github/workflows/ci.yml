@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  GODOT_VERSION: 4.4.1
+
+jobs:
+  lint:
+    name: GDScript lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install "gdtoolkit==4.*"
+      - name: gdformat check
+        run: gdformat --check src tests
+      - name: gdlint
+        run: gdlint src tests
+
+  test:
+    name: Unit tests (GUT)
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import resources
+        run: godot --headless --import || true
+      - name: Run GUT
+        run: |
+          godot --headless -s addons/gut/gut_cmdln.gd \
+            -gdir=res://tests/unit -ginclude_subdirs -gexit
+
+  soak:
+    name: Multiplayer soak (server + 6 bots)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
+          chmod +x godot-bin
+      - name: Import resources
+        run: ./godot-bin --headless --import || true
+      - name: Run soak harness
+        run: python3 tests/soak/run_soak.py --godot ./godot-bin --duration 15
+
+  export:
+    name: Export ${{ matrix.preset }}
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    container:
+      image: barichello/godot-ci:4.4.1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: Windows Desktop
+            out_dir: build/windows
+            artifact: party-rush-windows
+          - preset: Linux
+            out_dir: build/linux
+            artifact: party-rush-linux
+          - preset: macOS
+            out_dir: build/macos
+            artifact: party-rush-macos
+          - preset: Linux Server
+            out_dir: build/server
+            artifact: party-rush-server
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare output directory
+        run: mkdir -p "${{ matrix.out_dir }}"
+      - name: Import resources
+        run: godot --headless --import || true
+      - name: Export
+        run: godot --headless --export-release "${{ matrix.preset }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.out_dir }}
+          if-no-files-found: error
