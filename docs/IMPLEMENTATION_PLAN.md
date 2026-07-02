@@ -93,8 +93,8 @@ Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
 - [x] **M1-05** (M) Fake-lag/loss test harness + 6-client headless soak script (`tests/soak/run_soak.py`, runs in CI) ⛓ M1-03
 
 ### M2 — Lobby & app shell
-- [ ] **M2-01** (M) Client app shell: main menu (Host / Join code / Settings), scene router, connection status UI ⛓ M1-02
-- [ ] **M2-02** (M) Lobby scene: player list, ready-up, round-count setting (8/12/15), start gating ⛓ M2-01
+- [x] **M2-01** (M) Client app shell: main menu (Host / Join code / Settings), scene router, connection status UI ⛓ M1-02
+- [x] **M2-02** (M) Lobby scene: player list, ready-up, round-count setting (8/12/15), start gating ⛓ M2-01
 - [ ] **M2-03** (M) Character select: 8-character roster resources, color assignment, duplicate handling ⛓ M2-01, M0-04
 - [ ] **M2-04** (M) Character rendering kit: orthographic camera rig, outline/nameplate-through-walls shader, shared animation proxy ⛓ M0-04
 - [ ] **M2-05** (S) Settings screen: audio, window mode, server address override

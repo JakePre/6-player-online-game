@@ -6,7 +6,7 @@ extends Node
 
 const SERVER_HOST_SCRIPT := "res://src/server/server_host.gd"
 const BOT_SCRIPT := "res://tests/soak/bot_client.gd"
-const DEV_MENU_SCRIPT := "res://src/client/dev_menu.gd"
+const APP_SHELL_SCENE := "res://src/client/app_shell.tscn"
 
 
 func _ready() -> void:
@@ -16,7 +16,9 @@ func _ready() -> void:
 	elif args.has("--bot"):
 		_spawn(BOT_SCRIPT, "BotClient")
 	else:
-		_spawn(DEV_MENU_SCRIPT, "DevMenu")
+		var shell: Node = (load(APP_SHELL_SCENE) as PackedScene).instantiate()
+		shell.name = "AppShell"
+		add_child(shell)
 
 
 func _spawn(script_path: String, node_name: String) -> void:

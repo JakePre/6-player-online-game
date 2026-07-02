@@ -11,6 +11,9 @@ enum State {
 var code := ""
 var state := State.LOBBY
 var members: Array[RoomMember] = []
+## Host-chosen number of rounds: Quick 8, Standard 12 (default), Marathon 15
+## (SPEC $4).
+var round_count := NetConfig.DEFAULT_ROUND_COUNT
 ## Milliseconds timestamp of the moment the last connected member dropped,
 ## or -1 while anyone is still connected. Drives the 5-minute expiry.
 var empty_since_ms := -1
@@ -87,6 +90,37 @@ func mark_reconnected(member: RoomMember, peer_id: int) -> void:
 	empty_since_ms = -1
 
 
+## Only lobby settings changes are legal, and only to one of the preset
+## values (SPEC $4).
+func set_round_count(count: int) -> bool:
+	if state != State.LOBBY or not NetConfig.ROUND_COUNT_OPTIONS.has(count):
+		return false
+	round_count = count
+	return true
+
+
+## Start gating (M2-02): a match needs at least 2 players and every connected
+## member ready. The caller checks that the requester is the host.
+func can_start() -> bool:
+	if state != State.LOBBY or connected_count() < NetConfig.MIN_PLAYERS_TO_START:
+		return false
+	for member in members:
+		if member.connected and not member.ready:
+			return false
+	return true
+
+
+## Flip to IN_MATCH and consume the ready flags so a later return to the
+## lobby starts from a clean slate.
+func start_match() -> bool:
+	if not can_start():
+		return false
+	state = State.IN_MATCH
+	for member in members:
+		member.ready = false
+	return true
+
+
 func is_expired(now_ms: int) -> bool:
 	if members.is_empty():
 		return true
@@ -106,6 +140,7 @@ func to_state_dict() -> Dictionary:
 		"code": code,
 		"state": state,
 		"host_slot": host_member.slot if host_member != null else -1,
+		"round_count": round_count,
 		"members": member_dicts,
 	}
 

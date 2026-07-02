@@ -1,0 +1,126 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/client/screens/main_menu.gd" id="1"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Column" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Center/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "Party Rush"
+horizontal_alignment = 1
+
+[node name="NameRow" type="HBoxContainer" parent="Center/Column"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="Center/Column/NameRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Name"
+
+[node name="NameEdit" type="LineEdit" parent="Center/Column/NameRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Player"
+max_length = 16
+
+[node name="HostButton" type="Button" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Host game"
+
+[node name="JoinRow" type="HBoxContainer" parent="Center/Column"]
+layout_mode = 2
+
+[node name="CodeEdit" type="LineEdit" parent="Center/Column/JoinRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "ROOM CODE"
+max_length = 6
+
+[node name="JoinButton" type="Button" parent="Center/Column/JoinRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Join"
+
+[node name="RejoinButton" type="Button" parent="Center/Column"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Rejoin last session"
+
+[node name="SettingsButton" type="Button" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Settings arrive in M2-05."
+disabled = true
+text = "Settings"
+
+[node name="QuitButton" type="Button" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Quit"
+
+[node name="AdvancedToggle" type="CheckButton" parent="Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Advanced"
+
+[node name="AdvancedBox" type="VBoxContainer" parent="Center/Column"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="AddressRow" type="HBoxContainer" parent="Center/Column/AdvancedBox"]
+layout_mode = 2
+
+[node name="AddressLabel" type="Label" parent="Center/Column/AdvancedBox/AddressRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Server address"
+
+[node name="AddressEdit" type="LineEdit" parent="Center/Column/AdvancedBox/AddressRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PortRow" type="HBoxContainer" parent="Center/Column/AdvancedBox"]
+layout_mode = 2
+
+[node name="PortLabel" type="Label" parent="Center/Column/AdvancedBox/PortRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Port"
+
+[node name="PortEdit" type="LineEdit" parent="Center/Column/AdvancedBox/PortRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StatusLabel" type="Label" parent="Center/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+autowrap_mode = 3
