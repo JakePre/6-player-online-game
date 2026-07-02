@@ -6,6 +6,7 @@ extends Control
 
 const SCREENS := {
 	&"main_menu": "res://src/client/screens/main_menu.tscn",
+	&"settings": "res://src/client/screens/settings_menu.tscn",
 	&"room": "res://src/lobby/lobby.tscn",
 	&"match": "res://src/match/match_screen.tscn",
 }
@@ -17,6 +18,7 @@ var _current_id := &""
 
 
 func _ready() -> void:
+	SettingsStore.apply(SettingsStore.load_settings(), get_window())
 	NetManager.joined_room.connect(_on_joined_room)
 	NetManager.room_updated.connect(_on_room_updated)
 	NetManager.left_room.connect(func() -> void: goto_screen(&"main_menu"))
@@ -31,6 +33,10 @@ func goto_screen(id: StringName) -> void:
 	var scene_path: String = SCREENS[id]
 	var scene: PackedScene = load(scene_path)
 	_current_screen = scene.instantiate()
+	# Screens request navigation (e.g. main menu -> settings) by declaring a
+	# `navigate(screen: StringName)` signal; server-driven routing stays above.
+	if _current_screen.has_signal("navigate"):
+		_current_screen.connect("navigate", goto_screen)
 	_screen_host.add_child(_current_screen)
 	_current_id = id
 

@@ -74,8 +74,6 @@ text = "Rejoin last session"
 [node name="SettingsButton" type="Button" parent="Center/Column"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Settings arrive in M2-05."
-disabled = true
 text = "Settings"
 
 [node name="QuitButton" type="Button" parent="Center/Column"]
