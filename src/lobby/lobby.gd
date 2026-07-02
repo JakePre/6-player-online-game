@@ -25,6 +25,10 @@ func _ready() -> void:
 	_round_option.item_selected.connect(_on_round_option_selected)
 	_code_label.text = "Room %s" % NetManager.my_room_code
 	_ready_button.grab_focus()
+	# Returning from a match: the routing broadcast fired before this scene
+	# existed, so seed from the mirror instead of waiting for the next one.
+	if NetManager.my_room_state.has("members"):
+		_on_room_updated(NetManager.my_room_state)
 
 
 func _on_round_option_selected(index: int) -> void:

@@ -1,0 +1,147 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/match/match_screen.gd" id="1"]
+
+[node name="MatchScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="PlayArea" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PlayCenter" type="CenterContainer" parent="PlayArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PlayPlaceholder" type="Label" parent="PlayArea/PlayCenter"]
+layout_mode = 2
+text = "Round in progress — minigame view lands with M3-06."
+horizontal_alignment = 1
+
+[node name="HudBar" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 16
+
+[node name="HudRow" type="HBoxContainer" parent="HudBar"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="RoundLabel" type="Label" parent="HudBar/HudRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
+[node name="TimerLabel" type="Label" parent="HudBar/HudRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
+[node name="TotalsRow" type="HBoxContainer" parent="HudBar/HudRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 10
+theme_override_constants/separation = 16
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="IntroCard" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 2
+
+[node name="IntroColumn" type="VBoxContainer" parent="Center/IntroCard"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="IntroTitle" type="Label" parent="Center/IntroCard/IntroColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+horizontal_alignment = 1
+
+[node name="IntroCategory" type="Label" parent="Center/IntroCard/IntroColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="IntroRules" type="Label" parent="Center/IntroCard/IntroColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="SkipButton" type="Button" parent="Center/IntroCard/IntroColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Skip intro"
+
+[node name="SkipVotesLabel" type="Label" parent="Center/IntroCard/IntroColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="ResultsPanel" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 2
+
+[node name="ResultsColumn" type="VBoxContainer" parent="Center/ResultsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ResultsTitle" type="Label" parent="Center/ResultsPanel/ResultsColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+
+[node name="ResultsList" type="VBoxContainer" parent="Center/ResultsPanel/ResultsColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="InterstitialPanel" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 2
+
+[node name="InterstitialColumn" type="VBoxContainer" parent="Center/InterstitialPanel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="InterstitialTitle" type="Label" parent="Center/InterstitialPanel/InterstitialColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+
+[node name="InterstitialList" type="VBoxContainer" parent="Center/InterstitialPanel/InterstitialColumn"]
+unique_name_in_owner = true
+layout_mode = 2
