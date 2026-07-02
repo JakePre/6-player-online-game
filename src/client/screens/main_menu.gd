@@ -28,6 +28,7 @@ var _pending_token := ""
 @onready var _join_button: Button = %JoinButton
 @onready var _rejoin_button: Button = %RejoinButton
 @onready var _settings_button: Button = %SettingsButton
+@onready var _credits_button: Button = %CreditsButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _advanced_toggle: CheckButton = %AdvancedToggle
 @onready var _advanced_box: Control = %AdvancedBox
@@ -45,6 +46,7 @@ func _ready() -> void:
 	_join_button.pressed.connect(_on_join_pressed)
 	_rejoin_button.pressed.connect(_on_rejoin_pressed)
 	_settings_button.pressed.connect(func() -> void: navigate.emit(&"settings"))
+	_credits_button.pressed.connect(func() -> void: navigate.emit(&"credits"))
 	_quit_button.pressed.connect(func() -> void: get_tree().quit())
 	_advanced_toggle.toggled.connect(func(on: bool) -> void: _advanced_box.visible = on)
 	_code_edit.text_changed.connect(_on_code_changed)
