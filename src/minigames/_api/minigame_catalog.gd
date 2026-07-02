@@ -30,6 +30,7 @@ static func register_builtins() -> void:
 	register(TugOfWar.make_meta(), TugOfWar)
 	register(ColorClash.make_meta(), ColorClash)
 	register(ThinIce.make_meta(), ThinIce)
+	register(RelaySprint.make_meta(), RelaySprint)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
