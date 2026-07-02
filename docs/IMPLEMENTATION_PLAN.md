@@ -113,7 +113,7 @@ Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
 FFA — [x] **M4-01** King of the Hill (M) · [ ] **M4-02** Hot Potato (M) · [ ] **M4-03** Thin Ice (M) · [x] **M4-04** Sumo Smash (M)
 Skill — [ ] **M4-05** Simon Stomp (M) · [x] **M4-06** Quick Draw (S) · [ ] **M4-07** Hurdle Dash (L) · [ ] **M4-08** Target Range (M, mouse+stick aim) · [ ] **M4-09** Beat Bounce (M)
 Team — [ ] **M4-10** Tug of War (S) · [ ] **M4-11** Relay Sprint (M) · [ ] **M4-12** Cart Push (L) · [ ] **M4-13** Color Clash (M)
-Sabotage — [ ] **M4-14** Poison Feast (M) · [ ] **M4-15** Trap Corridor (L) · [ ] **M4-16** Heist Night (M)
+Sabotage — [x] **M4-14** Poison Feast (M) · [ ] **M4-15** Trap Corridor (L) · [ ] **M4-16** Heist Night (M)
 
 ### M5 — Finale
 - [x] **M5-01** (M) Buy-in shop: 30 s timer, four purchasables, coin math + GUT tests (SPEC §6) ⛓ M3-03

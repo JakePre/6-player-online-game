@@ -23,6 +23,7 @@ static func register_builtins() -> void:
 		return
 	register(CoinScramble.make_meta(), CoinScramble)
 	register(KingOfTheHill.make_meta(), KingOfTheHill)
+	register(PoisonFeast.make_meta(), PoisonFeast)
 	register(QuickDraw.make_meta(), QuickDraw)
 	register(SumoSmash.make_meta(), SumoSmash)
 
