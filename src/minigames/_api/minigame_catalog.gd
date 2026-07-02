@@ -23,6 +23,8 @@ static func register_builtins() -> void:
 		return
 	register(CoinScramble.make_meta(), CoinScramble)
 	register(KingOfTheHill.make_meta(), KingOfTheHill)
+	register(QuickDraw.make_meta(), QuickDraw)
+	register(SumoSmash.make_meta(), SumoSmash)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
