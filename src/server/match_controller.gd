@@ -162,7 +162,11 @@ func _enter_results() -> void:
 	state = State.RESULTS
 	_state_left = _results_sec
 	var results := game.get_results()
-	var awards := Economy.total_round_award(results.placements, results.pickup_coins)
+	var awards := (
+		Economy.total_team_round_award(results.placements, results.pickup_coins)
+		if results.get("team_mode", false)
+		else Economy.total_round_award(results.placements, results.pickup_coins)
+	)
 	for member in room.members:
 		member.score += int(awards.get(member.slot, 0))
 	(

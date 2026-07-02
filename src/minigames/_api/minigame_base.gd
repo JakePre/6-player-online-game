@@ -13,6 +13,10 @@ var slots: Array[int] = []
 var rng := RandomNumberGenerator.new()
 var elapsed := 0.0
 var finished := false
+## Team minigames set this so the framework awards the SPEC $5 team tables
+## instead of FFA placements. An explicit flag (not the meta category)
+## because e.g. Color Clash plays FFA below 4 players.
+var team_mode := false
 ## Test-harness hook: when > 0, replaces meta.duration_sec for this instance.
 var duration_override := 0.0
 
@@ -46,7 +50,7 @@ func handle_input(slot: int, data: Dictionary) -> void:
 
 
 func get_results() -> Dictionary:
-	return {"placements": _placements, "pickup_coins": _pickup_coins}
+	return {"placements": _placements, "pickup_coins": _pickup_coins, "team_mode": team_mode}
 
 
 func get_snapshot() -> Dictionary:
