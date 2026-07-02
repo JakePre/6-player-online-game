@@ -6,6 +6,9 @@ extends Control
 ## podium get dedicated scenes (M3-05), rendered here as simple lists so the
 ## full loop is visible meanwhile.
 
+## Seconds an emote stays in the feed; tests shorten it.
+var emote_lifetime := 3.0
+
 var _names := {}
 var _totals := {}
 var _minigame_id := ""
@@ -26,13 +29,17 @@ var _minigame_view: MinigameView
 @onready var _results_title: Label = %ResultsTitle
 @onready var _results_list: VBoxContainer = %ResultsList
 @onready var _standings_panel: StandingsPanel = %StandingsPanel
+@onready var _emote_bar: HBoxContainer = %EmoteBar
+@onready var _emote_feed: VBoxContainer = %EmoteFeed
 
 
 func _ready() -> void:
 	NetManager.room_updated.connect(_on_room_updated)
 	NetManager.match_event_received.connect(_on_match_event)
 	NetManager.snapshot_received.connect(_on_snapshot)
+	NetManager.emote_received.connect(_on_emote_received)
 	_skip_button.pressed.connect(_on_skip_pressed)
+	_build_emote_bar()
 	# Waiting for the first event (or, for a mid-match rejoiner, a snapshot).
 	_show_panel(null)
 	if NetManager.my_room_state.has("members"):
@@ -91,6 +98,35 @@ func _on_skip_pressed() -> void:
 	NetManager.request_skip_intro()
 	_skip_button.disabled = true
 	_skip_button.text = "Waiting for others..."
+
+
+## Number keys 1-6 mirror the emote bar buttons.
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo:
+		return
+	var index := key.keycode - KEY_1
+	if Emotes.is_valid(index):
+		NetManager.request_send_emote(index)
+
+
+func _on_emote_received(slot: int, emote: int) -> void:
+	var toast := Label.new()
+	toast.text = "%s %s" % [MatchFormat.player_name(_names, slot), Emotes.text(emote)]
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	toast.add_theme_color_override("font_color", PlayerPalette.color_for_slot(slot))
+	_emote_feed.add_child(toast)
+	get_tree().create_timer(emote_lifetime).timeout.connect(toast.queue_free)
+
+
+func _build_emote_bar() -> void:
+	for i in Emotes.EMOTES.size():
+		var button := Button.new()
+		button.text = Emotes.EMOTES[i]
+		button.tooltip_text = "Send emote (%d)" % (i + 1)
+		button.focus_mode = Control.FOCUS_NONE
+		button.pressed.connect(func() -> void: NetManager.request_send_emote(i))
+		_emote_bar.add_child(button)
 
 
 func _show_intro(event: Dictionary) -> void:
