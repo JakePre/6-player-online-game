@@ -7,11 +7,12 @@
 ## 1. How agents should work in this repo
 
 1. **Read SPEC.md first.** Locked decisions in SPEC §2 are not negotiable; deviations need an explicit note in the PR description.
-2. **Claim a task** by opening a GitHub issue (or commenting on an existing one) named after the task ID below (e.g. `M4-07 Sumo Smash`), then branch as `feat/<task-id>-<slug>`.
-3. **One task = one PR.** Keep PRs reviewable; link the task ID. Update the checkbox in this file in the same PR.
-4. **Never break `main`.** `main` must always open in the Godot editor without errors and pass CI. Milestone M0/M1 land first; everything else builds on their interfaces.
-5. **Minigames are the parallel workhorse.** After M3 merges, all 17 minigame tasks (M4) are independent and can be built concurrently by different agents against the Minigame Contract.
-6. Assets: CC0/CC-BY only, log every import in `assets/CREDITS.md` (see SPEC §10).
+2. **Follow [AGENT_COORDINATION.md](AGENT_COORDINATION.md).** It is the binding procedure for claiming tasks, path ownership, hotspot files, and the serialized merge protocol that keeps parallel agents conflict-free.
+3. **Claim a task** by opening a GitHub issue (or commenting on an existing one) named after the task ID below (e.g. `M4-07 Sumo Smash`), then branch as `feat/<task-id>-<slug>`.
+4. **One task = one PR.** Keep PRs reviewable; link the task ID. Update the checkbox in this file in the same PR.
+5. **Never break `main`.** `main` must always open in the Godot editor without errors and pass CI. Milestone M0/M1 land first; everything else builds on their interfaces.
+6. **Minigames are the parallel workhorse.** After M3 merges, all 17 minigame tasks (M4) are independent and can be built concurrently by different agents against the Minigame Contract.
+7. Assets: CC0/CC-BY only, log every import in `assets/CREDITS.md` (see SPEC §10).
 
 ## 2. Tech baseline
 

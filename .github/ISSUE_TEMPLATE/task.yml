@@ -18,10 +18,24 @@ body:
       description: Brief outline; flag any expected deviation from SPEC.md here.
     validations:
       required: false
+  - type: textarea
+    id: hotspots
+    attributes:
+      label: Hotspot / shared files this task will touch
+      description: >
+        Per docs/AGENT_COORDINATION.md §4 — e.g. net_manager.gd (new RPCs),
+        project.godot (autoload), PROTOCOL_VERSION bump. Write "none" if none.
+      placeholder: none
+    validations:
+      required: true
   - type: checkboxes
     id: prereqs
     attributes:
       label: Prerequisites
       options:
         - label: The tasks this depends on (per the plan) are merged
+          required: true
+        - label: >-
+            I ran the claim check (open issues + open PRs + remote branches,
+            AGENT_COORDINATION.md §2) and this task is unclaimed
           required: true
