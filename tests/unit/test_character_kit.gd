@@ -25,6 +25,35 @@ func test_palette_wraps_out_of_range_slots() -> void:
 	assert_eq(PlayerPalette.color_for_slot(-1), PlayerPalette.COLORS[5])
 
 
+func test_roster_entries_have_distinct_ids_and_scenes() -> void:
+	var ids := CharacterRoster.ids()
+	var seen := {}
+	for id in ids:
+		seen[id] = true
+	assert_eq(seen.size(), ids.size(), "no duplicate roster ids")
+	for entry: Dictionary in CharacterRoster.ENTRIES:
+		assert_true(ResourceLoader.exists(entry.scene_path), "scene exists: %s" % entry.scene_path)
+
+
+func test_roster_default_id_is_valid() -> void:
+	assert_true(CharacterRoster.is_valid(CharacterRoster.DEFAULT_ID))
+
+
+func test_roster_rejects_unknown_id() -> void:
+	assert_false(CharacterRoster.is_valid(&"not_a_character"))
+	assert_eq(CharacterRoster.display_name_for(&"not_a_character"), "")
+	assert_null(CharacterRoster.scene_for(&"not_a_character"))
+
+
+func test_roster_scene_for_loads_matching_character() -> void:
+	var scene := CharacterRoster.scene_for(&"knight")
+	assert_not_null(scene)
+	var rig := RIG_SCENE.instantiate() as CharacterRig
+	add_child_autofree(rig)
+	rig.character_scene = scene
+	assert_true(rig.play(&"idle"))
+
+
 func test_rig_starts_idle() -> void:
 	var rig := _make_rig()
 	assert_eq(rig.current_action(), &"idle")
