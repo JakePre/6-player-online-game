@@ -128,10 +128,8 @@ Sabotage — [ ] **M4-14** Poison Feast (M) · [ ] **M4-15** Trap Corridor (L) �
 
 ### M7 — Deployment & release
 - [x] **M7-01** (M) Dockerfile + compose for the dedicated server; VPS deploy doc; version handshake (client/server protocol version) ⛓ M1-01
-- [ ] **M7-01** (M) Dockerfile + compose for the dedicated server; VPS deploy doc; version handshake (client/server protocol version) ⛓ M1-01
-- [ ] **M7-02** (M) Release pipeline: tagged builds → GitHub Releases artifacts for Win/Linux/macOS ⛓ M0-03
-- [x] **M7-03** (M) Playtest checklist automation: 6 headless bot clients complete a full 12-round match nightly in CI ⛓ M1-05, M3-01
 - [x] **M7-02** (M) Release pipeline: tagged builds → GitHub Releases artifacts for Win/Linux/macOS ⛓ M0-03
+- [x] **M7-03** (M) Playtest checklist automation: 6 headless bot clients complete a full 12-round match nightly in CI ⛓ M1-05, M3-01
 - [ ] **M7-03** (M) Playtest checklist automation: 6 headless bot clients complete a full 12-round match nightly in CI ⛓ M1-05, M3-01
 - [ ] **M7-04** (S) In-game credits screen generated from `assets/CREDITS.md`
 
