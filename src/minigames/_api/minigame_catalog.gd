@@ -22,6 +22,7 @@ static func register_builtins() -> void:
 	if not _entries.is_empty():
 		return
 	register(CoinScramble.make_meta(), CoinScramble)
+	register(SumoSmash.make_meta(), SumoSmash)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
