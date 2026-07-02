@@ -1,8 +1,11 @@
 extends Control
 ## Main menu (M2-01): host a room, join by code, or rejoin the last session
-## (SPEC $4, $9). The server address defaults to DEFAULT_ADDRESS and can be
-## overridden in the Advanced fold-out until the settings screen (M2-05)
-## takes over (SPEC $11). All traffic goes through the NetManager autoload.
+## (SPEC $4, $9). Connect defaults: last session > settings override (M2-05)
+## > DEFAULT_ADDRESS, tweakable per-launch in the Advanced fold-out. All
+## traffic goes through the NetManager autoload.
+
+## Picked up by the app shell router (see AppShell.goto_screen).
+signal navigate(screen: StringName)
 
 enum PendingRequest { NONE, HOST, JOIN, REJOIN }
 
@@ -24,6 +27,7 @@ var _pending_token := ""
 @onready var _host_button: Button = %HostButton
 @onready var _join_button: Button = %JoinButton
 @onready var _rejoin_button: Button = %RejoinButton
+@onready var _settings_button: Button = %SettingsButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _advanced_toggle: CheckButton = %AdvancedToggle
 @onready var _advanced_box: Control = %AdvancedBox
@@ -40,6 +44,7 @@ func _ready() -> void:
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_button.pressed.connect(_on_join_pressed)
 	_rejoin_button.pressed.connect(_on_rejoin_pressed)
+	_settings_button.pressed.connect(func() -> void: navigate.emit(&"settings"))
 	_quit_button.pressed.connect(func() -> void: get_tree().quit())
 	_advanced_toggle.toggled.connect(func(on: bool) -> void: _advanced_box.visible = on)
 	_code_edit.text_changed.connect(_on_code_changed)
@@ -51,6 +56,15 @@ func _ready() -> void:
 	if _rejoin_button.visible:
 		_address_edit.text = saved.address
 		_port_edit.text = str(saved.port)
+	# An explicit settings override (M2-05) beats the last-session prefill;
+	# the rejoin flow still uses the session's own address when pressed.
+	var overrides := SettingsStore.load_settings()
+	var override_address: String = overrides.server_address
+	var override_port: int = overrides.server_port
+	if not override_address.is_empty():
+		_address_edit.text = override_address
+	if override_port > 0:
+		_port_edit.text = str(override_port)
 	_host_button.grab_focus()
 
 
