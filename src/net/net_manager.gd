@@ -17,15 +17,21 @@ signal left_room
 signal room_updated(state: Dictionary)
 signal snapshot_received(snapshot: Dictionary)
 signal pong_received(rtt_ms: int)
+signal match_event_received(event: Dictionary)
+signal match_start_failed(reason: String)
 
 # Server-side signals (server systems listen to these).
 signal peer_joined_room(room: Room, member: RoomMember)
 signal peer_left_room(room: Room)
+signal match_started(room: Room)
 
 const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
 
 var is_server := false
 var room_manager: RoomManager
+
+# Server-only: live matches keyed by room code.
+var match_controllers := {}
 
 # Server-only: allows test harnesses to force room state via RPC. Enabled by
 # the `--debug-rpcs` user arg; never enable on a public server.
@@ -118,8 +124,30 @@ func request_leave_room() -> void:
 	_rpc_leave_room.rpc_id(1)
 
 
+func request_set_ready(ready: bool) -> void:
+	_rpc_set_ready.rpc_id(1, ready)
+
+
+func request_set_round_count(count: int) -> void:
+	_rpc_set_round_count.rpc_id(1, count)
+
+
 func send_ping() -> void:
 	_rpc_ping.rpc_id(1, Time.get_ticks_msec())
+
+
+## Host only; the round count comes from the lobby setting (room.round_count).
+## `config` (MatchController keys: "rounds", "seed", "playlist", timing
+## overrides) is for test harnesses and is ignored unless the server runs
+## with --debug-rpcs.
+func request_start_match(config: Dictionary = {}) -> void:
+	_rpc_start_match.rpc_id(1, config)
+
+
+## Per-frame gameplay intent for the minigame in progress; shape is defined by
+## each minigame's handle_input.
+func send_match_input(data: Dictionary) -> void:
+	_rpc_match_input.rpc_id(1, data)
 
 
 ## Test-harness only: asks the server to flip this room's state so rejoin
@@ -170,11 +198,72 @@ func _rpc_leave_room() -> void:
 		peer_left_room.emit(room)
 
 
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_ready(ready: bool) -> void:
+	if not is_server:
+		return
+	var room: Room = room_manager.room_of_peer(multiplayer.get_remote_sender_id())
+	if room == null or room.state != Room.State.LOBBY:
+		return
+	var member := room.find_by_peer(multiplayer.get_remote_sender_id())
+	if member == null:
+		return
+	member.ready = ready
+	_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_round_count(count: int) -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null:
+		return
+	if room.set_round_count(count):
+		_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_start_match(config: Dictionary) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var room := _room_of_host_sender()
+	if room == null:
+		_rpc_match_start_failed.rpc_id(peer_id, "not_host")
+		return
+	if not debug_rpcs_enabled:
+		config = {}
+	if not config.has("rounds"):
+		config["rounds"] = room.round_count
+	# Consumes the ready flags and flips the room to IN_MATCH (M2-02 gating).
+	if not room.start_match():
+		_rpc_match_start_failed.rpc_id(peer_id, "not_ready")
+		return
+	_start_match(room, config)
+
+
 @rpc("any_peer", "call_remote", "unreliable")
 func _rpc_ping(client_ms: int) -> void:
 	if not is_server:
 		return
 	_rpc_pong.rpc_id(multiplayer.get_remote_sender_id(), client_ms)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _rpc_match_input(data: Dictionary) -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var room: Room = room_manager.room_of_peer(peer_id)
+	if room == null:
+		return
+	var controller: MatchController = match_controllers.get(room.code)
+	if controller == null:
+		return
+	var member := room.find_by_peer(peer_id)
+	if member != null:
+		controller.handle_input(member.slot, data)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -230,10 +319,21 @@ func _rpc_pong(client_ms: int) -> void:
 	pong_received.emit(Time.get_ticks_msec() - client_ms)
 
 
+@rpc("authority", "call_remote", "reliable")
+func _rpc_match_event(event: Dictionary) -> void:
+	match_event_received.emit(event)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_match_start_failed(reason: String) -> void:
+	match_start_failed.emit(reason)
+
+
 # --- Server internals -------------------------------------------------------
 
 
 func _run_server_ticks(delta: float) -> void:
+	_tick_matches(delta)
 	_snapshot_accum += delta
 	if _snapshot_accum >= SNAPSHOT_INTERVAL:
 		_snapshot_accum = fmod(_snapshot_accum, SNAPSHOT_INTERVAL)
@@ -243,17 +343,47 @@ func _run_server_ticks(delta: float) -> void:
 	if _expiry_accum >= 30.0:
 		_expiry_accum = 0.0
 		for code in room_manager.expire_rooms(Time.get_ticks_msec()):
+			match_controllers.erase(code)
 			print("[server] room %s expired" % code)
 
 
-## M1 snapshots carry only tick/time to prove the pipe under load; the match
-## framework (M3) replaces the payload with per-room gameplay state.
+func _tick_matches(delta: float) -> void:
+	for code: String in match_controllers.keys():
+		if not room_manager.rooms.has(code):
+			# Room emptied or expired out from under the match.
+			match_controllers.erase(code)
+			continue
+		var controller: MatchController = match_controllers[code]
+		controller.tick(delta)
+		if controller.is_done():
+			match_controllers.erase(code)
+			_broadcast_room_state(controller.room)
+
+
 func _broadcast_snapshots() -> void:
-	var payload := {"tick": _server_tick, "server_ms": Time.get_ticks_msec()}
 	for room: Room in room_manager.rooms.values():
+		var payload := {"tick": _server_tick, "server_ms": Time.get_ticks_msec()}
+		var controller: MatchController = match_controllers.get(room.code)
+		if controller != null:
+			payload["match"] = controller.get_snapshot()
 		for member: RoomMember in room.members:
 			if member.connected:
 				_rpc_snapshot.rpc_id(member.peer_id, payload)
+
+
+func _start_match(room: Room, config: Dictionary) -> void:
+	var controller := MatchController.new(room, config)
+	match_controllers[room.code] = controller
+	controller.event_emitted.connect(_relay_match_event.bind(room))
+	controller.start()
+	_broadcast_room_state(room)
+	match_started.emit(room)
+
+
+func _relay_match_event(event: Dictionary, room: Room) -> void:
+	for member: RoomMember in room.members:
+		if member.connected:
+			_rpc_match_event.rpc_id(member.peer_id, event)
 
 
 func _deliver_join_outcome(peer_id: int, outcome: Dictionary) -> void:
@@ -319,6 +449,19 @@ func _drain_lag_queue() -> void:
 	while not _lag_queue.is_empty() and _lag_queue[0].deliver_at <= now:
 		var entry: Dictionary = _lag_queue.pop_front()
 		snapshot_received.emit(entry.snapshot)
+
+
+## Returns the sender's room only when the sender is that room's host: the
+## guard for host-only lobby controls (settings, start).
+func _room_of_host_sender() -> Room:
+	var peer_id := multiplayer.get_remote_sender_id()
+	var room: Room = room_manager.room_of_peer(peer_id)
+	if room == null:
+		return null
+	var host := room.host()
+	if host == null or host.peer_id != peer_id:
+		return null
+	return room
 
 
 func _reset_client_session() -> void:

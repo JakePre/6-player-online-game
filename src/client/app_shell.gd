@@ -6,7 +6,7 @@ extends Control
 
 const SCREENS := {
 	&"main_menu": "res://src/client/screens/main_menu.tscn",
-	&"room": "res://src/client/screens/lobby_placeholder.tscn",
+	&"room": "res://src/lobby/lobby.tscn",
 }
 
 var _current_screen: Node

@@ -1,0 +1,71 @@
+class_name MinigameCatalog
+extends RefCounted
+## Registry of playable minigames and the playlist builder (SPEC $4 selection
+## rules: player-count constraints, category variety, no repeats until the
+## eligible pool is exhausted).
+
+## Maximum consecutive rounds of the same category.
+const MAX_CATEGORY_STREAK := 2
+
+static var _entries := {}
+
+
+static func register(meta: MinigameMeta, script: GDScript) -> void:
+	_entries[meta.id] = {"meta": meta, "script": script}
+
+
+static func clear() -> void:
+	_entries.clear()
+
+
+static func register_builtins() -> void:
+	if not _entries.is_empty():
+		return
+	register(CoinScramble.make_meta(), CoinScramble)
+
+
+static func meta_of(id: StringName) -> MinigameMeta:
+	return _entries[id].meta
+
+
+static func instantiate(id: StringName) -> MinigameBase:
+	var game: MinigameBase = (_entries[id].script as GDScript).new()
+	game.meta = _entries[id].meta
+	return game
+
+
+## Builds the match playlist. Repeats only happen when the eligible pool is
+## smaller than the round count (pool resets when exhausted).
+static func build_playlist(rng: RandomNumberGenerator, rounds: int, player_count: int) -> Array:
+	var eligible: Array = []
+	for id: StringName in _entries:
+		var meta: MinigameMeta = _entries[id].meta
+		if player_count >= meta.min_players and player_count <= meta.max_players:
+			eligible.append(id)
+	assert(not eligible.is_empty(), "no minigames eligible for %d players" % player_count)
+
+	var playlist: Array = []
+	var pool := eligible.duplicate()
+	while playlist.size() < rounds:
+		if pool.is_empty():
+			pool = eligible.duplicate()
+		var candidates := _without_streak_violations(pool, playlist)
+		var pick: StringName = candidates[rng.randi_range(0, candidates.size() - 1)]
+		pool.erase(pick)
+		playlist.append(pick)
+	return playlist
+
+
+static func _without_streak_violations(pool: Array, playlist: Array) -> Array:
+	if playlist.size() < MAX_CATEGORY_STREAK:
+		return pool
+	var last_category: MinigameMeta.Category = meta_of(playlist[-1]).category
+	for i in range(2, MAX_CATEGORY_STREAK + 1):
+		if meta_of(playlist[-i]).category != last_category:
+			return pool
+	var filtered := pool.filter(
+		func(id: StringName) -> bool: return meta_of(id).category != last_category
+	)
+	# With a tiny catalog every option may violate the rule; variety yields to
+	# progress.
+	return filtered if not filtered.is_empty() else pool
