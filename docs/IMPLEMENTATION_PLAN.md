@@ -118,7 +118,7 @@ Sabotage — [ ] **M4-14** Poison Feast (M) · [ ] **M4-15** Trap Corridor (L) �
 ### M5 — Finale
 - [x] **M5-01** (M) Buy-in shop: 30 s timer, four purchasables, coin math + GUT tests (SPEC §6) ⛓ M3-03
 - [x] **M5-02** (L) The Gauntlet arena: shrinking platform, escalating hazards, lives/respawns, sabotage-token + grudge-vote hooks ⛓ M3-02
-- [ ] **M5-03** (S) Final ranking: elimination order → placement, coin tiebreaks; feeds podium ⛓ M5-02, M3-05
+- [x] **M5-03** (S) Final ranking: elimination order → placement, coin tiebreaks; feeds podium ⛓ M5-02, M3-05
 
 ### M6 — Polish & feel
 - [ ] **M6-01** (M) Audio pass: music loops (menu/round/finale), SFX for all shared chrome + per-minigame hooks
