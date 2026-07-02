@@ -78,6 +78,13 @@ jobs:
             artifact: party-rush-server
     steps:
       - uses: actions/checkout@v4
+      - name: Make export templates visible to the runner user
+        # The image stores templates under /root, but Actions containers run
+        # with HOME=/github/home.
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable \
+            ~/.local/share/godot/export_templates/
       - name: Prepare output directory
         run: mkdir -p "${{ matrix.out_dir }}"
       - name: Import resources
