@@ -1,0 +1,27 @@
+name: Claim a plan task
+description: Claim or discuss a task from docs/IMPLEMENTATION_PLAN.md
+title: "[M0-00] Task name"
+labels: [task]
+body:
+  - type: input
+    id: task-id
+    attributes:
+      label: Task ID
+      description: The ID from the plan's task board (e.g. M4-07)
+      placeholder: M4-07
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Planned approach
+      description: Brief outline; flag any expected deviation from SPEC.md here.
+    validations:
+      required: false
+  - type: checkboxes
+    id: prereqs
+    attributes:
+      label: Prerequisites
+      options:
+        - label: The tasks this depends on (per the plan) are merged
+          required: true

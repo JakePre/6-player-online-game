@@ -1,0 +1,24 @@
+# Normalize line endings to LF for all text files.
+* text=auto eol=lf
+
+# Godot text formats
+*.gd text eol=lf
+*.tscn text eol=lf
+*.tres text eol=lf
+*.godot text eol=lf
+*.cfg text eol=lf
+*.import text eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.webp binary
+*.glb binary
+*.gltf text eol=lf
+*.bin binary
+*.ogg binary
+*.wav binary
+*.mp3 binary
+*.ttf binary
+*.otf binary
+*.exe binary

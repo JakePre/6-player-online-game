@@ -79,18 +79,18 @@ class_name MinigameMeta extends Resource
 Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
 
 ### M0 — Repo & toolchain bootstrap
-- [ ] **M0-01** (M) Godot 4.4 project scaffold at repo root, folder layout §3, project settings (window, physics tick 30 Hz, input map for WASD/gamepad/mouse)
-- [ ] **M0-02** (S) gdtoolkit config + pre-commit; `.editorconfig`; `.gitignore`/`.gitattributes` for Godot
-- [ ] **M0-03** (M) GitHub Actions CI: lint + GUT + export presets (Win/Linux/macOS client, Linux `dedicated_server`) ⛓ M0-01
-- [ ] **M0-04** (S) `assets/CREDITS.md` template + first asset import: 2 KayKit character packs + Kenney prototype kit ⛓ M0-01
-- [ ] **M0-05** (S) Issue/PR templates referencing this plan's task IDs
+- [x] **M0-01** (M) Godot 4.4 project scaffold at repo root, folder layout §3, project settings (window, physics tick 30 Hz, input map for WASD/gamepad/mouse)
+- [x] **M0-02** (S) gdtoolkit config + pre-commit; `.editorconfig`; `.gitignore`/`.gitattributes` for Godot
+- [x] **M0-03** (M) GitHub Actions CI: lint + GUT + export presets (Win/Linux/macOS client, Linux `dedicated_server`) ⛓ M0-01
+- [x] **M0-04** (S) `assets/CREDITS.md` template + first asset import: 2 KayKit character packs (9 rigged+animated characters); Kenney kits deferred to first arena work (M3) ⛓ M0-01
+- [x] **M0-05** (S) Issue/PR templates referencing this plan's task IDs
 
 ### M1 — Networking core (the risk milestone — do first, keep small)
-- [ ] **M1-01** (L) ENet server/client bootstrap: headless entrypoint, connect/disconnect, peer registry, `--server` flag ⛓ M0-01
-- [ ] **M1-02** (M) Room manager: create/join by 6-char code, host role, room lifecycle + 5-min expiry ⛓ M1-01
-- [ ] **M1-03** (L) Replication spike: pick MultiplayerSynchronizer vs custom snapshots with 6 moving players; document decision in `docs/adr/001-replication.md` ⛓ M1-01
-- [ ] **M1-04** (M) Session tokens + rejoin flow (rejoin restores slot/score, sits out current round) ⛓ M1-02
-- [ ] **M1-05** (M) Fake-lag/loss test harness + 6-client headless soak script ⛓ M1-03
+- [x] **M1-01** (L) ENet server/client bootstrap: headless entrypoint, connect/disconnect, peer registry, `--server` flag ⛓ M0-01
+- [x] **M1-02** (M) Room manager: create/join by 6-char code, host role, room lifecycle + 5-min expiry ⛓ M1-01
+- [x] **M1-03** (L) Replication decision: custom room-scoped snapshots (rationale + revisit trigger in `docs/adr/001-replication.md`); validated by the M1-05 soak rather than a separate spike ⛓ M1-01
+- [x] **M1-04** (M) Session tokens + rejoin flow (rejoin restores slot/score, sits out current round) ⛓ M1-02
+- [x] **M1-05** (M) Fake-lag/loss test harness + 6-client headless soak script (`tests/soak/run_soak.py`, runs in CI) ⛓ M1-03
 
 ### M2 — Lobby & app shell
 - [ ] **M2-01** (M) Client app shell: main menu (Host / Join code / Settings), scene router, connection status UI ⛓ M1-02
