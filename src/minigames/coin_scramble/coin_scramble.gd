@@ -1,0 +1,153 @@
+class_name CoinScramble
+extends MinigameBase
+## Reference minigame (M3-06, SPEC $7 #1): coins rain onto an arena; grab the
+## most. Bumping into a richer player makes them scatter 20% of their haul.
+## Server-side simulation only — the client renders get_snapshot().
+
+const ARENA_HALF := 9.0
+const MOVE_SPEED := 6.0
+const PLAYER_RADIUS := 0.45
+const PICKUP_RADIUS := 0.8
+const COIN_WAVE_SEC := 1.5
+const COINS_PER_WAVE := 4
+const MAX_ACTIVE_COINS := 24
+const BUMP_DROP_FRACTION := 0.2
+const BUMP_COOLDOWN_SEC := 2.0
+
+var positions := {}
+var move_dirs := {}
+var collected := {}
+var coins: Array[Vector2] = []
+
+var _wave_accum := 0.0
+var _bump_cooldowns := {}
+
+
+static func make_meta() -> MinigameMeta:
+	return (
+		MinigameMeta
+		. create(
+			{
+				"id": &"coin_scramble",
+				"name": "Coin Scramble",
+				"category": MinigameMeta.Category.FFA,
+				"min_players": 2,
+				"max_players": 6,
+				"duration_sec": 60.0,
+				"rules":
+				"Coins rain from the sky — grab the most! Bump richer players to scatter their haul.",
+			}
+		)
+	)
+
+
+func _setup() -> void:
+	for i in slots.size():
+		var angle := TAU * i / slots.size()
+		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		move_dirs[slots[i]] = Vector2.ZERO
+		collected[slots[i]] = 0
+	_spawn_wave()
+
+
+func _handle_input(slot: int, data: Dictionary) -> void:
+	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
+	move_dirs[slot] = dir.limit_length(1.0)
+
+
+func _tick(delta: float) -> void:
+	for slot: int in slots:
+		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
+		positions[slot] = pos.clamp(
+			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+		)
+	_collect_coins()
+	_resolve_bumps(delta)
+	_wave_accum += delta
+	if _wave_accum >= COIN_WAVE_SEC:
+		_wave_accum -= COIN_WAVE_SEC
+		_spawn_wave()
+
+
+func get_snapshot() -> Dictionary:
+	var players := {}
+	for slot: int in slots:
+		var pos: Vector2 = positions[slot]
+		players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), collected[slot]]
+	var coin_list: Array = []
+	for coin in coins:
+		coin_list.append([snappedf(coin.x, 0.01), snappedf(coin.y, 0.01)])
+	return {"players": players, "coins": coin_list}
+
+
+func _rank_players() -> Array:
+	var by_coins := {}
+	for slot: int in slots:
+		var count: int = collected[slot]
+		if not by_coins.has(count):
+			by_coins[count] = []
+		by_coins[count].append(slot)
+	var counts := by_coins.keys()
+	counts.sort()
+	counts.reverse()
+	var placements: Array = []
+	for count: int in counts:
+		placements.append(by_coins[count])
+	# Collected coins double as capped pickup coins (SPEC $5).
+	_pickup_coins = collected.duplicate()
+	return placements
+
+
+func _spawn_wave() -> void:
+	for _i in COINS_PER_WAVE:
+		if coins.size() >= MAX_ACTIVE_COINS:
+			return
+		coins.append(
+			Vector2(
+				rng.randf_range(-ARENA_HALF, ARENA_HALF), rng.randf_range(-ARENA_HALF, ARENA_HALF)
+			)
+		)
+
+
+func _collect_coins() -> void:
+	for i in range(coins.size() - 1, -1, -1):
+		for slot: int in slots:
+			if positions[slot].distance_to(coins[i]) <= PICKUP_RADIUS:
+				collected[slot] += 1
+				coins.remove_at(i)
+				break
+
+
+func _resolve_bumps(delta: float) -> void:
+	for key: String in _bump_cooldowns.keys():
+		_bump_cooldowns[key] -= delta
+		if _bump_cooldowns[key] <= 0.0:
+			_bump_cooldowns.erase(key)
+	for i in slots.size():
+		for j in range(i + 1, slots.size()):
+			var a: int = slots[i]
+			var b: int = slots[j]
+			if positions[a].distance_to(positions[b]) > PLAYER_RADIUS * 2.0:
+				continue
+			var pair := "%d:%d" % [a, b]
+			if _bump_cooldowns.has(pair):
+				continue
+			_bump_cooldowns[pair] = BUMP_COOLDOWN_SEC
+			var victim := a if collected[a] > collected[b] else b
+			if collected[a] == collected[b]:
+				continue
+			_scatter(victim)
+
+
+func _scatter(slot: int) -> void:
+	var dropped := int(collected[slot] * BUMP_DROP_FRACTION)
+	collected[slot] -= dropped
+	for _i in dropped:
+		if coins.size() >= MAX_ACTIVE_COINS:
+			return
+		var offset := Vector2(rng.randf_range(-2.0, 2.0), rng.randf_range(-2.0, 2.0))
+		coins.append(
+			(positions[slot] + offset).clamp(
+				Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+			)
+		)
