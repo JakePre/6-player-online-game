@@ -89,3 +89,9 @@ func test_playlist_deterministic_for_seed() -> void:
 		MinigameCatalog.build_playlist(_seeded_rng(), 8, 4),
 		MinigameCatalog.build_playlist(_seeded_rng(), 8, 4)
 	)
+
+
+func test_view_scene_path_follows_convention_and_exists_for_coin_scramble() -> void:
+	var path := MinigameCatalog.view_scene_path(&"coin_scramble")
+	assert_eq(path, "res://src/minigames/coin_scramble/coin_scramble_view.tscn")
+	assert_true(ResourceLoader.exists(path), "reference minigame must ship its view")
