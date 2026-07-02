@@ -1,0 +1,11 @@
+# Party Rush dedicated server (M7-01). From this directory:
+#   docker compose up -d --build
+services:
+  party-rush-server:
+    build:
+      context: ../..
+      dockerfile: server/deploy/Dockerfile
+    image: party-rush-server:latest
+    restart: unless-stopped
+    ports:
+      - "7777:7777/udp"
