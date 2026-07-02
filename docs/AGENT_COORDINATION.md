@@ -52,6 +52,10 @@ A task's PR may create/edit files only in the areas the plan's repo layout (IMPL
 | M3-04/05/07 chrome, interstitials, emotes | `src/match/`, `src/ui/` |
 | M4-xx each minigame | `src/minigames/<minigame_id>/` **only**, + one `register(...)` line in `MinigameCatalog.register_builtins()`, + one row appended to `assets/CREDITS.md` if assets are added |
 | M5 finale | `src/finale/` |
+| M8-01/02 iso-arena framework + assets | `src/minigames/_api/`, additive-only in `src/characters/`, `assets/` (+ `assets/CREDITS.md` rows) |
+| M8-03..11 each minigame's view migration | `src/minigames/<minigame_id>/` **only**, same rule as M4-xx |
+| M8-12 finale view | `src/finale/` |
+| M8-13 lobby character-select wiring | `src/lobby/` |
 | M6 polish | declared per-PR in the claim issue (this milestone inherently crosses areas — extra care) |
 | M7 deploy/release | `server/deploy/`, `.github/workflows/` (coordinate — see §4) |
 
