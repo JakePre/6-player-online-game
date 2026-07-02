@@ -19,6 +19,17 @@ A 2–6 player online party game in the style of Mario Party's minigame mode: jo
 | Content | 17 minigames across 4 categories + "The Gauntlet" finale |
 | Assets | CC0/CC-BY only (KayKit + Kenney), tracked in `assets/CREDITS.md` |
 
+## Run it locally (dev)
+
+Needs the Godot 4.4.x editor binary installed (`godot` on PATH, or set `GODOT=/path/to/godot`). No export or Docker required — everything runs straight from source.
+
+```sh
+scripts/dev-server.sh          # terminal 1: headless dedicated server on 127.0.0.1:7777
+scripts/dev-client.sh          # terminal 2+: one client window per player
+```
+
+In each client's main menu, Host or Join a room; to test locally the server address is already `127.0.0.1` (override via Settings → Network, or the main menu's Advanced fold-out, if your dev server uses a different host/port). Run `dev-client.sh` again in another terminal for a second player. See [server/deploy/README.md](server/deploy/README.md) for deploying a real server instead.
+
 ## Contributing (agents & humans)
 
 1. Read the spec — decisions in SPEC §2 are locked.
