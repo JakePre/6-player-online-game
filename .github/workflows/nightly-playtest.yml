@@ -1,0 +1,30 @@
+name: Nightly playtest
+
+# M7-03: separate from ci.yml on purpose — this is a new workflow file, not
+# an edit to the locked ci.yml hotspot (docs/AGENT_COORDINATION.md §4).
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # 09:00 UTC nightly
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: 4.4.1
+
+jobs:
+  playtest:
+    name: Full match playtest (server + 6 bots)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
+          chmod +x godot-bin
+      - name: Import resources
+        run: ./godot-bin --headless --import || true
+      - name: Run playtest harness
+        run: python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12
