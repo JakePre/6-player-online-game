@@ -12,7 +12,7 @@ enum JoinResult {
 	ALREADY_IN_ROOM,
 }
 
-const PROTOCOL_VERSION := 3
+const PROTOCOL_VERSION := 4
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS_PER_ROOM := 6
 const MIN_PLAYERS_TO_START := 2

@@ -19,6 +19,7 @@ signal snapshot_received(snapshot: Dictionary)
 signal pong_received(rtt_ms: int)
 signal match_event_received(event: Dictionary)
 signal match_start_failed(reason: String)
+signal emote_received(slot: int, emote: int)
 
 # Server-side signals (server systems listen to these).
 signal peer_joined_room(room: Room, member: RoomMember)
@@ -26,6 +27,8 @@ signal peer_left_room(room: Room)
 signal match_started(room: Room)
 
 const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
+## Server-side floor between quick emotes from one player (anti-spam).
+const EMOTE_COOLDOWN_MS := 1000
 
 var is_server := false
 var room_manager: RoomManager
@@ -51,6 +54,8 @@ var my_room_state := {}
 var fake_lag_ms := 0
 var fake_loss := 0.0
 
+# Server-only: per-peer timestamp of the last relayed emote.
+var _emote_last_ms := {}
 var _lag_rng := RandomNumberGenerator.new()
 var _lag_queue: Array[Dictionary] = []
 var _snapshot_accum := 0.0
@@ -157,6 +162,12 @@ func send_match_input(data: Dictionary) -> void:
 ## every connected player in the room has voted (SPEC $4 "ready-skip").
 func request_skip_intro() -> void:
 	_rpc_skip_intro.rpc_id(1)
+
+
+## Broadcast a quick emote (Emotes index) to the room; the server enforces
+## a per-player cooldown.
+func request_send_emote(emote: int) -> void:
+	_rpc_send_emote.rpc_id(1, emote)
 
 
 ## Test-harness only: asks the server to flip this room's state so rejoin
@@ -292,6 +303,26 @@ func _rpc_skip_intro() -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _rpc_send_emote(emote: int) -> void:
+	if not is_server or not Emotes.is_valid(emote):
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var room: Room = room_manager.room_of_peer(peer_id)
+	if room == null:
+		return
+	var now := Time.get_ticks_msec()
+	if now - int(_emote_last_ms.get(peer_id, -EMOTE_COOLDOWN_MS)) < EMOTE_COOLDOWN_MS:
+		return
+	_emote_last_ms[peer_id] = now
+	var member := room.find_by_peer(peer_id)
+	if member == null:
+		return
+	for target: RoomMember in room.members:
+		if target.connected:
+			_rpc_emote.rpc_id(target.peer_id, member.slot, emote)
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_debug_set_match_state(active: bool) -> void:
 	if not is_server or not debug_rpcs_enabled:
 		return
@@ -354,6 +385,11 @@ func _rpc_match_event(event: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func _rpc_match_start_failed(reason: String) -> void:
 	match_start_failed.emit(reason)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_emote(slot: int, emote: int) -> void:
+	emote_received.emit(slot, emote)
 
 
 # --- Server internals -------------------------------------------------------

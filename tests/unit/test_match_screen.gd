@@ -197,3 +197,19 @@ func test_round_results_unmount_the_view() -> void:
 func test_rejoiner_snapshot_mounts_view_without_events() -> void:
 	NetManager.snapshot_received.emit(_play_snapshot({"players": {}, "coins": []}))
 	assert_not_null(_mounted_view(), "replicated PLAY state alone must mount the view")
+
+
+func test_emote_bar_has_one_button_per_emote() -> void:
+	var bar: HBoxContainer = screen.get_node("%EmoteBar")
+	assert_eq(bar.get_child_count(), Emotes.EMOTES.size())
+	assert_eq((bar.get_child(5) as Button).text, "GG")
+
+
+func test_emote_feed_shows_and_expires_toasts() -> void:
+	screen.emote_lifetime = 0.1
+	NetManager.emote_received.emit(1, 0)
+	var feed: VBoxContainer = screen.get_node("%EmoteFeed")
+	assert_eq(feed.get_child_count(), 1)
+	assert_eq((feed.get_child(0) as Label).text, "Bob %s" % Emotes.EMOTES[0])
+	await wait_seconds(0.4)
+	assert_eq(feed.get_child_count(), 0, "toasts expire after emote_lifetime")
