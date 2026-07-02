@@ -22,6 +22,7 @@ static func register_builtins() -> void:
 	if not _entries.is_empty():
 		return
 	register(CoinScramble.make_meta(), CoinScramble)
+	register(QuickDraw.make_meta(), QuickDraw)
 	register(SumoSmash.make_meta(), SumoSmash)
 
 
