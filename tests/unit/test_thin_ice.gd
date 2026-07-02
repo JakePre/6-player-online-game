@@ -1,0 +1,152 @@
+extends GutTest
+## Thin Ice (SPEC $7 #4): tile damage progression, falling through gone
+## tiles, fall ordering with ties, timeout ranking, and 2/4/6-player setup.
+
+const TICK := 1.0 / 30.0
+
+
+func _game(player_slots: Array[int] = [0, 1]) -> ThinIce:
+	var game := ThinIce.new()
+	game.meta = ThinIce.make_meta()
+	game.setup(player_slots, 42)
+	return game
+
+
+func test_meta() -> void:
+	var meta := ThinIce.make_meta()
+	assert_eq(meta.id, &"thin_ice")
+	assert_eq(meta.category, MinigameMeta.Category.FFA)
+	assert_eq(meta.min_players, 2)
+	assert_eq(meta.max_players, 6)
+
+
+func test_registered_in_catalog() -> void:
+	MinigameCatalog.clear()
+	MinigameCatalog.register_builtins()
+	var game := MinigameCatalog.instantiate(&"thin_ice")
+	assert_true(game is ThinIce)
+	assert_eq(game.meta.id, &"thin_ice")
+
+
+func test_spawns_scale_with_player_count() -> void:
+	for count: int in [2, 4, 6]:
+		var player_slots: Array[int] = []
+		for slot in count:
+			player_slots.append(slot)
+		var game := _game(player_slots)
+		assert_eq(game.positions.size(), count)
+		assert_eq(game.tiles.size(), ThinIce.GRID_SIZE * ThinIce.GRID_SIZE)
+		for slot: int in player_slots:
+			var pos: Vector2 = game.positions[slot]
+			assert_almost_eq(pos.length(), ThinIce.HALF_EXTENT * 0.6, 0.001, "%d players" % count)
+
+
+func test_starting_tiles_are_intact() -> void:
+	var game := _game()
+	for state: int in game.tiles:
+		assert_eq(state, ThinIce.TileState.INTACT)
+
+
+func test_movement() -> void:
+	var game := _game()
+	game.positions[0] = Vector2.ZERO
+	game.handle_input(0, {"mx": 1.0, "my": 0.0})
+	game.tick(1.0)
+	assert_almost_eq(game.positions[0].x, ThinIce.MOVE_SPEED, 0.2)
+
+
+func test_entering_a_tile_cracks_it() -> void:
+	var game := _game()
+	game.positions[0] = Vector2.ZERO
+	game.last_tile[0] = Vector2i(-1, -1)
+	game.tick(TICK)
+	var idx: int = game._tile_index(game._tile_of(Vector2.ZERO))
+	assert_eq(game.tiles[idx], ThinIce.TileState.CRACKED)
+
+
+func test_entering_a_cracked_tile_breaks_it_and_drops_the_walker() -> void:
+	var game := _game([0, 1] as Array[int])
+	var idx: int = game._tile_index(game._tile_of(Vector2.ZERO))
+	game.tiles[idx] = ThinIce.TileState.CRACKED
+	game.positions[0] = Vector2.ZERO
+	game.last_tile[0] = Vector2i(-1, -1)
+	game.tick(TICK)
+	assert_eq(game.tiles[idx], ThinIce.TileState.GONE)
+	assert_false(game._is_in(0), "the tile gave way under them")
+
+
+func test_standing_on_a_tile_that_gives_way_drops_you_too() -> void:
+	var game := _game([0, 1, 2] as Array[int])
+	var tile := game._tile_of(Vector2.ZERO)
+	var idx: int = game._tile_index(tile)
+	game.tiles[idx] = ThinIce.TileState.CRACKED
+	# Both 0 and 1 already stand on the doomed tile; only 1 steps onto it
+	# fresh this tick and breaks it — 0 should fall too.
+	game.positions[0] = Vector2.ZERO
+	game.last_tile[0] = tile
+	game.positions[1] = Vector2.ZERO
+	game.last_tile[1] = Vector2i(-1, -1)
+	game.tick(TICK)
+	assert_false(game._is_in(0))
+	assert_false(game._is_in(1))
+	assert_true(game.finished, "only slot 2 remains standing")
+	assert_eq(game.get_results().placements, [[2], [0, 1]])
+	assert_eq(game.fall_order, [[0, 1]])
+
+
+func test_fall_order_becomes_placements() -> void:
+	var game := _game([0, 1, 2] as Array[int])
+	for slot: Variant in [2, 0]:
+		var idx: int = game._tile_index(game._tile_of(game.positions[slot]))
+		game.tiles[idx] = ThinIce.TileState.GONE
+		game.last_tile[slot] = Vector2i(-1, -1)
+		game.tick(TICK)
+	assert_true(game.finished)
+	assert_eq(game.get_results().placements, [[1], [0], [2]])
+	assert_eq(game.get_results().pickup_coins, {})
+
+
+func test_fallen_players_ignore_input_and_snapshot() -> void:
+	var game := _game([0, 1, 2] as Array[int])
+	var idx: int = game._tile_index(game._tile_of(game.positions[0]))
+	game.tiles[idx] = ThinIce.TileState.GONE
+	game.last_tile[0] = Vector2i(-1, -1)
+	game.tick(TICK)
+	game.handle_input(0, {"mx": 1.0, "my": 0.0})
+	assert_eq(game.move_dirs[0], Vector2.ZERO, "fallen players cannot steer")
+	var snapshot := game.get_snapshot()
+	assert_false(snapshot.players.has(0))
+	assert_eq(snapshot.fallen, [[0]])
+
+
+func test_timeout_survivors_tie_ahead_of_fallen() -> void:
+	var game := _game([0, 1, 2] as Array[int])
+	var idx: int = game._tile_index(game._tile_of(game.positions[2]))
+	game.tiles[idx] = ThinIce.TileState.GONE
+	game.last_tile[2] = Vector2i(-1, -1)
+	game.tick(TICK)
+	game.duration_override = game.elapsed + TICK
+	game.tick(TICK)
+	assert_true(game.finished)
+	assert_eq(game.get_results().placements, [[0, 1], [2]])
+
+
+func test_last_one_standing_ends_the_round_early() -> void:
+	var game := _game([0, 1] as Array[int])
+	var idx: int = game._tile_index(game._tile_of(game.positions[0]))
+	game.tiles[idx] = ThinIce.TileState.GONE
+	game.last_tile[0] = Vector2i(-1, -1)
+	game.tick(TICK)
+	assert_true(game.finished)
+	assert_lt(game.elapsed, game.meta.duration_sec)
+
+
+func test_snapshot_shape() -> void:
+	var game := _game()
+	var snapshot := game.get_snapshot()
+	assert_eq(snapshot.grid_size, ThinIce.GRID_SIZE)
+	assert_eq(snapshot.tile_size, ThinIce.TILE_SIZE)
+	assert_eq(snapshot.tiles.size(), ThinIce.GRID_SIZE * ThinIce.GRID_SIZE)
+	assert_eq(snapshot.players.size(), 2)
+	assert_eq(snapshot.players[0].size(), 2)
+	assert_eq(snapshot.fallen, [])
