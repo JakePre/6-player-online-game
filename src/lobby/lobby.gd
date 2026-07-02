@@ -6,9 +6,17 @@ extends Control
 
 const ROUND_COUNT_LABELS := {8: "Quick", 12: "Standard", 15: "Marathon"}
 
+## Last broadcast room state, kept around so the character carousel buttons
+## know the current pick without waiting for a round trip.
+var _last_state: Dictionary = {}
+
 @onready var _code_label: Label = %CodeLabel
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _round_option: OptionButton = %RoundOption
+@onready var _character_label: Label = %CharacterLabel
+@onready var _prev_character_button: Button = %PrevCharacterButton
+@onready var _next_character_button: Button = %NextCharacterButton
+@onready var _color_swatch: ColorRect = %ColorSwatch
 @onready var _ready_button: Button = %ReadyButton
 @onready var _start_button: Button = %StartButton
 @onready var _leave_button: Button = %LeaveButton
@@ -20,10 +28,13 @@ func _ready() -> void:
 	_ready_button.toggled.connect(func(on: bool) -> void: NetManager.request_set_ready(on))
 	_start_button.pressed.connect(func() -> void: NetManager.request_start_match())
 	_leave_button.pressed.connect(func() -> void: NetManager.request_leave_room())
+	_prev_character_button.pressed.connect(_on_character_step.bind(-1))
+	_next_character_button.pressed.connect(_on_character_step.bind(1))
 	for count in NetConfig.ROUND_COUNT_OPTIONS:
 		_round_option.add_item("%s (%d rounds)" % [ROUND_COUNT_LABELS[count], count], count)
 	_round_option.item_selected.connect(_on_round_option_selected)
 	_code_label.text = "Room %s" % NetManager.my_room_code
+	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
 	_ready_button.grab_focus()
 	# Returning from a match: the routing broadcast fired before this scene
 	# existed, so seed from the mirror instead of waiting for the next one.
@@ -35,13 +46,35 @@ func _on_round_option_selected(index: int) -> void:
 	NetManager.request_set_round_count(_round_option.get_item_id(index))
 
 
+## Steps the local player's roster pick by `delta` (wraps around); the server
+## is the source of truth and echoes the accepted pick back via room_updated.
+func _on_character_step(delta: int) -> void:
+	var ids := CharacterRoster.ids()
+	var index := ids.find(_my_character_id())
+	if index < 0:
+		index = 0
+	NetManager.request_set_character(ids[posmod(index + delta, ids.size())])
+
+
+func _my_character_id() -> StringName:
+	for member: Dictionary in _last_state.get("members", []):
+		if member.slot == NetManager.my_slot:
+			return member.character_id
+	return CharacterRoster.DEFAULT_ID
+
+
 func _on_room_updated(state: Dictionary) -> void:
+	_last_state = state
 	var i_am_host: bool = state.host_slot == NetManager.my_slot
 	var in_match: bool = state.state == Room.State.IN_MATCH
 	_code_label.text = "Room %s" % state.code
 	_rebuild_player_list(state)
 	_round_option.select(_round_option.get_item_index(state.round_count))
 	_round_option.disabled = not i_am_host or in_match
+	_character_label.text = CharacterRoster.display_name_for(_my_character_id())
+	_prev_character_button.disabled = in_match
+	_next_character_button.disabled = in_match
+	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
 	_ready_button.set_pressed_no_signal(_my_ready(state))
 	_ready_button.disabled = in_match
 	_start_button.visible = i_am_host
@@ -55,15 +88,17 @@ func _rebuild_player_list(state: Dictionary) -> void:
 	for member: Dictionary in state.members:
 		var row := Label.new()
 		row.text = _member_line(member, state.host_slot)
+		row.modulate = PlayerPalette.color_for_slot(member.slot)
 		_player_list.add_child(row)
 
 
 func _member_line(member: Dictionary, host_slot: int) -> String:
 	var host_mark := " (host)" if member.slot == host_slot else ""
+	var character_name := CharacterRoster.display_name_for(member.character_id)
 	if not member.connected:
-		return "%s%s — disconnected" % [member.name, host_mark]
+		return "%s%s [%s] — disconnected" % [member.name, host_mark, character_name]
 	var ready_mark := "ready" if member.ready else "not ready"
-	return "%s%s — %s" % [member.name, host_mark, ready_mark]
+	return "%s%s [%s] — %s" % [member.name, host_mark, character_name, ready_mark]
 
 
 func _my_ready(state: Dictionary) -> bool:

@@ -125,6 +125,26 @@ func test_state_dict_exposes_ready_and_round_count() -> void:
 	assert_false(state.members[1].ready)
 
 
+func test_member_defaults_to_roster_default_character() -> void:
+	var room := _room_with(1)
+	assert_eq(room.members[0].character_id, CharacterRoster.DEFAULT_ID)
+
+
+func test_state_dict_exposes_character_id() -> void:
+	var room := _room_with(2)
+	room.members[0].character_id = &"mage"
+	var state := room.to_state_dict()
+	assert_eq(state.members[0].character_id, &"mage")
+	assert_eq(state.members[1].character_id, CharacterRoster.DEFAULT_ID)
+
+
+func test_duplicate_character_picks_allowed() -> void:
+	var room := _room_with(2)
+	room.members[0].character_id = &"knight"
+	room.members[1].character_id = &"knight"
+	assert_eq(room.members[0].character_id, room.members[1].character_id)
+
+
 func test_expiry_clock() -> void:
 	var room := _room_with(2)
 	room.state = Room.State.IN_MATCH

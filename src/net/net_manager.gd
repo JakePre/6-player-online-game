@@ -131,6 +131,10 @@ func request_set_ready(ready: bool) -> void:
 	_rpc_set_ready.rpc_id(1, ready)
 
 
+func request_set_character(character_id: StringName) -> void:
+	_rpc_set_character.rpc_id(1, character_id)
+
+
 func request_set_round_count(count: int) -> void:
 	_rpc_set_round_count.rpc_id(1, count)
 
@@ -218,6 +222,20 @@ func _rpc_set_ready(ready: bool) -> void:
 	if member == null:
 		return
 	member.ready = ready
+	_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_character(character_id: StringName) -> void:
+	if not is_server:
+		return
+	var room: Room = room_manager.room_of_peer(multiplayer.get_remote_sender_id())
+	if room == null or room.state != Room.State.LOBBY or not CharacterRoster.is_valid(character_id):
+		return
+	var member := room.find_by_peer(multiplayer.get_remote_sender_id())
+	if member == null:
+		return
+	member.character_id = character_id
 	_broadcast_room_state(room)
 
 

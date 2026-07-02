@@ -96,7 +96,7 @@ Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
 ### M2 — Lobby & app shell
 - [x] **M2-01** (M) Client app shell: main menu (Host / Join code / Settings), scene router, connection status UI ⛓ M1-02
 - [x] **M2-02** (M) Lobby scene: player list, ready-up, round-count setting (8/12/15), start gating ⛓ M2-01
-- [ ] **M2-03** (M) Character select: 8-character roster resources, color assignment, duplicate handling ⛓ M2-01, M0-04
+- [x] **M2-03** (M) Character select: 8-character roster resources, color assignment, duplicate handling ⛓ M2-01, M0-04
 - [x] **M2-04** (M) Character rendering kit: orthographic camera rig, outline/nameplate-through-walls shader, shared animation proxy ⛓ M0-04
 - [ ] **M2-05** (S) Settings screen: audio, window mode, server address override
 
@@ -105,7 +105,7 @@ Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
 - [x] **M3-02** (M) Minigame Contract: `MinigameMeta`, `MinigameBase`, `MinigameResults`, arena helpers, template minigame folder ⛓ M3-01
 - [x] **M3-03** (M) Economy: placement tables, team awards, pickup caps, tie handling — pure logic + GUT tests (SPEC §5) ⛓ M3-01
 - [x] **M3-04** (M) Round chrome: intro card (rules/controls/skip), countdown, results screen, running-total HUD ⛓ M3-02
-- [ ] **M3-05** (S) Leaderboard interstitial every 5 rounds + podium/match-summary scene ⛓ M3-04
+- [x] **M3-05** (S) Leaderboard interstitial every 5 rounds + podium/match-summary scene ⛓ M3-04
 - [x] **M3-06** (M) **Reference minigame: Coin Scramble (#1)** — proves the whole contract end-to-end; template for all M4 work ⛓ M3-02, M3-03, M3-04
 - [ ] **M3-07** (S) Quick-emote wheel (6 emotes, replicated) ⛓ M3-02
 
@@ -130,6 +130,8 @@ Sabotage — [ ] **M4-14** Poison Feast (M) · [ ] **M4-15** Trap Corridor (L) �
 - [ ] **M7-01** (M) Dockerfile + compose for the dedicated server; VPS deploy doc; version handshake (client/server protocol version) ⛓ M1-01
 - [ ] **M7-02** (M) Release pipeline: tagged builds → GitHub Releases artifacts for Win/Linux/macOS ⛓ M0-03
 - [x] **M7-03** (M) Playtest checklist automation: 6 headless bot clients complete a full 12-round match nightly in CI ⛓ M1-05, M3-01
+- [x] **M7-02** (M) Release pipeline: tagged builds → GitHub Releases artifacts for Win/Linux/macOS ⛓ M0-03
+- [ ] **M7-03** (M) Playtest checklist automation: 6 headless bot clients complete a full 12-round match nightly in CI ⛓ M1-05, M3-01
 - [ ] **M7-04** (S) In-game credits screen generated from `assets/CREDITS.md`
 
 ## 6. Suggested build order / critical path
