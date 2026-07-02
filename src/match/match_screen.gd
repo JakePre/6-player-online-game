@@ -25,9 +25,7 @@ var _minigame_view: MinigameView
 @onready var _results_panel: PanelContainer = %ResultsPanel
 @onready var _results_title: Label = %ResultsTitle
 @onready var _results_list: VBoxContainer = %ResultsList
-@onready var _interstitial_panel: PanelContainer = %InterstitialPanel
-@onready var _interstitial_title: Label = %InterstitialTitle
-@onready var _interstitial_list: VBoxContainer = %InterstitialList
+@onready var _standings_panel: StandingsPanel = %StandingsPanel
 
 
 func _ready() -> void:
@@ -115,10 +113,9 @@ func _show_results(event: Dictionary) -> void:
 	_show_panel(_results_panel)
 
 
-func _show_standings(title: String, totals: Dictionary) -> void:
-	_interstitial_title.text = title
-	_fill_list(_interstitial_list, MatchFormat.standings_lines(totals, _names))
-	_show_panel(_interstitial_panel)
+func _show_standings(title: String, totals: Dictionary, subtitle := "") -> void:
+	_standings_panel.show_lines(title, subtitle, MatchFormat.standings_lines(totals, _names))
+	_show_panel(_standings_panel)
 
 
 func _show_podium(standings: Array) -> void:
@@ -126,13 +123,16 @@ func _show_podium(standings: Array) -> void:
 	for row: Dictionary in standings:
 		totals[row.slot] = row.score
 		_names[row.slot] = row.name
-	_show_standings("Final standings", totals)
+	var subtitle := ""
+	if not standings.is_empty():
+		subtitle = "%s wins the match!" % standings[0].name
+	_show_standings("Final standings", totals, subtitle)
 
 
 ## Shows one center panel (or none, during play). The play area placeholder
 ## is only visible while a round runs so the chrome reads as distinct phases.
 func _show_panel(panel: PanelContainer) -> void:
-	for candidate: PanelContainer in [_intro_card, _results_panel, _interstitial_panel]:
+	for candidate: PanelContainer in [_intro_card, _results_panel, _standings_panel]:
 		candidate.visible = candidate == panel
 	_play_area.visible = panel == null
 

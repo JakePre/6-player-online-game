@@ -47,7 +47,7 @@ func _intro_event() -> Dictionary:
 func test_waits_hidden_until_first_event() -> void:
 	assert_false(screen.get_node("%IntroCard").visible)
 	assert_false(screen.get_node("%ResultsPanel").visible)
-	assert_false(screen.get_node("%InterstitialPanel").visible)
+	assert_false(screen.get_node("%StandingsPanel").visible)
 	assert_true(screen.get_node("%PlayArea").visible)
 
 
@@ -128,9 +128,11 @@ func test_match_ended_shows_final_standings() -> void:
 			}
 		)
 	)
-	assert_true(screen.get_node("%InterstitialPanel").visible)
-	assert_eq(screen.get_node("%InterstitialTitle").text, "Final standings")
-	var list: VBoxContainer = screen.get_node("%InterstitialList")
+	var panel: StandingsPanel = screen.get_node("%StandingsPanel")
+	assert_true(panel.visible)
+	assert_eq(panel.get_node("%StandingsTitle").text, "Final standings")
+	assert_eq(panel.get_node("%StandingsSubtitle").text, "Bob wins the match!")
+	var list: VBoxContainer = panel.get_node("%StandingsList")
 	assert_eq((list.get_child(0) as Label).text, "1st  Bob  50")
 	assert_eq((list.get_child(1) as Label).text, "2nd  Alice  40")
 

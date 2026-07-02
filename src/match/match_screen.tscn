@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://src/match/match_screen.gd" id="1"]
+[ext_resource type="PackedScene" path="res://src/match/standings_panel.tscn" id="2"]
 
 [node name="MatchScreen" type="Control"]
 layout_mode = 3
@@ -128,21 +129,6 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="InterstitialPanel" type="PanelContainer" parent="Center"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(460, 0)
-layout_mode = 2
-
-[node name="InterstitialColumn" type="VBoxContainer" parent="Center/InterstitialPanel"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="InterstitialTitle" type="Label" parent="Center/InterstitialPanel/InterstitialColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-horizontal_alignment = 1
-
-[node name="InterstitialList" type="VBoxContainer" parent="Center/InterstitialPanel/InterstitialColumn"]
+[node name="StandingsPanel" parent="Center" instance=ExtResource("2")]
 unique_name_in_owner = true
 layout_mode = 2
