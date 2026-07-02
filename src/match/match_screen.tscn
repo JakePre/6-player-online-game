@@ -29,8 +29,9 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="PlayPlaceholder" type="Label" parent="PlayArea/PlayCenter"]
+unique_name_in_owner = true
 layout_mode = 2
-text = "Round in progress — minigame view lands with M3-06."
+text = "Round in progress..."
 horizontal_alignment = 1
 
 [node name="HudBar" type="MarginContainer" parent="."]

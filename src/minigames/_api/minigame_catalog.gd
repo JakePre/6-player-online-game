@@ -34,6 +34,13 @@ static func instantiate(id: StringName) -> MinigameBase:
 	return game
 
 
+## Conventional location of a minigame's client view scene (root script
+## extends MinigameView). The match screen falls back to a placeholder when
+## the scene does not exist yet.
+static func view_scene_path(id: StringName) -> String:
+	return "res://src/minigames/%s/%s_view.tscn" % [id, id]
+
+
 ## Builds the match playlist. Repeats only happen when the eligible pool is
 ## smaller than the round count (pool resets when exhausted).
 static func build_playlist(rng: RandomNumberGenerator, rounds: int, player_count: int) -> Array:

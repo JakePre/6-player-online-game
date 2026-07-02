@@ -239,3 +239,15 @@ func test_skip_outside_intro_is_ignored() -> void:
 	var event_count := events.size()
 	controller.handle_skip(0)
 	assert_eq(events.size(), event_count, "skips during play emit nothing")
+
+
+func test_play_snapshot_carries_minigame_id_for_late_mounts() -> void:
+	var room := _make_room(2)
+	var controller := _make_controller(room, 1)
+	controller.start()
+	var intro := controller.get_snapshot()
+	assert_false(intro.has("minigame"), "id is only replicated while playing")
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
+	var playing := controller.get_snapshot()
+	assert_eq(playing.minigame, "slot_order")
+	assert_true(playing.has("game"))

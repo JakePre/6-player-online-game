@@ -120,6 +120,8 @@ func get_snapshot() -> Dictionary:
 	}
 	if state == State.PLAY:
 		snapshot.time_left = maxf(game.effective_duration() - game.elapsed, 0.0)
+		# The id lets late arrivals (rejoin, missed events) mount the right view.
+		snapshot["minigame"] = String(playlist[round_index])
 		snapshot["game"] = game.get_snapshot()
 	return snapshot
 

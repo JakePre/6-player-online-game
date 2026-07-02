@@ -8,11 +8,14 @@ extends Control
 
 var _names := {}
 var _totals := {}
+var _minigame_id := ""
+var _minigame_view: MinigameView
 
 @onready var _round_label: Label = %RoundLabel
 @onready var _timer_label: Label = %TimerLabel
 @onready var _totals_row: HBoxContainer = %TotalsRow
 @onready var _play_area: Control = %PlayArea
+@onready var _play_placeholder: Label = %PlayPlaceholder
 @onready var _intro_card: PanelContainer = %IntroCard
 @onready var _intro_title: Label = %IntroTitle
 @onready var _intro_category: Label = %IntroCategory
@@ -51,16 +54,21 @@ func _on_match_event(event: Dictionary) -> void:
 			_totals.clear()
 			_rebuild_totals_row()
 		"round_intro":
+			_unmount_view()
+			_minigame_id = event.minigame.id
 			_show_intro(event)
 		"skip_votes":
 			_skip_votes_label.text = "Skip votes: %d/%d" % [event.votes, event.needed]
 		"round_started":
+			_mount_view(_minigame_id)
 			_show_panel(null)
 		"round_results":
+			_unmount_view()
 			_show_results(event)
 		"leaderboard":
 			_show_standings("Leaderboard", event.totals)
 		"match_ended":
+			_unmount_view()
 			_show_podium(event.standings)
 
 
@@ -69,10 +77,16 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		return
 	var match_state: Dictionary = snapshot.match
 	_timer_label.text = MatchFormat.clock(float(match_state.time_left))
+	if int(match_state.state) != MatchController.State.PLAY:
+		return
 	# A rejoiner (or a client that raced the skip) may reach PLAY without the
 	# round_started event; the replicated state is authoritative.
-	if int(match_state.state) == MatchController.State.PLAY and _intro_card.visible:
+	if _intro_card.visible:
 		_show_panel(null)
+	if _minigame_view == null and match_state.has("minigame"):
+		_mount_view(match_state.minigame)
+	if _minigame_view != null and match_state.has("game"):
+		_minigame_view.render(match_state.game)
 
 
 func _on_skip_pressed() -> void:
@@ -121,6 +135,28 @@ func _show_panel(panel: PanelContainer) -> void:
 	for candidate: PanelContainer in [_intro_card, _results_panel, _interstitial_panel]:
 		candidate.visible = candidate == panel
 	_play_area.visible = panel == null
+
+
+## Mounts the minigame's view scene (MinigameCatalog convention path) into the
+## play area; games without a view yet keep the placeholder label.
+func _mount_view(id: String) -> void:
+	_unmount_view()
+	if id.is_empty():
+		return
+	var path := MinigameCatalog.view_scene_path(id)
+	if not ResourceLoader.exists(path):
+		return
+	_minigame_view = (load(path) as PackedScene).instantiate()
+	_minigame_view.setup(_names, NetManager.my_slot)
+	_play_area.add_child(_minigame_view)
+	_play_placeholder.visible = false
+
+
+func _unmount_view() -> void:
+	if _minigame_view != null:
+		_minigame_view.queue_free()
+		_minigame_view = null
+	_play_placeholder.visible = true
 
 
 func _rebuild_totals_row() -> void:

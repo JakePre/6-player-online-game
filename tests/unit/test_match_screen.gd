@@ -133,3 +133,65 @@ func test_match_ended_shows_final_standings() -> void:
 	var list: VBoxContainer = screen.get_node("%InterstitialList")
 	assert_eq((list.get_child(0) as Label).text, "1st  Bob  50")
 	assert_eq((list.get_child(1) as Label).text, "2nd  Alice  40")
+
+
+func _play_snapshot(game: Dictionary) -> Dictionary:
+	return {
+		"tick": 2,
+		"match":
+		{
+			"state": MatchController.State.PLAY,
+			"round": 0,
+			"rounds": 8,
+			"time_left": 30.0,
+			"minigame": "coin_scramble",
+			"game": game,
+		},
+	}
+
+
+func _mounted_view() -> MinigameView:
+	for child in screen.get_node("%PlayArea").get_children():
+		if child is MinigameView and not child.is_queued_for_deletion():
+			return child
+	return null
+
+
+func test_round_started_mounts_the_view_and_snapshots_reach_it() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	NetManager.match_event_received.emit({"type": "round_started", "round": 1})
+	var view := _mounted_view()
+	assert_not_null(view, "coin_scramble view must mount on round start")
+	assert_false(screen.get_node("%PlayPlaceholder").visible)
+	NetManager.snapshot_received.emit(
+		_play_snapshot({"players": {0: [1.0, 2.0, 3]}, "coins": [[0.5, -0.5]]})
+	)
+	assert_eq(view.players[0], [1.0, 2.0, 3])
+	assert_eq(view.coins.size(), 1)
+
+
+func test_round_results_unmount_the_view() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	NetManager.match_event_received.emit({"type": "round_started", "round": 1})
+	var view := _mounted_view()
+	(
+		NetManager
+		. match_event_received
+		. emit(
+			{
+				"type": "round_results",
+				"round": 1,
+				"placements": [[0], [1]],
+				"awards": {0: 30, 1: 20},
+				"totals": {0: 30, 1: 20},
+			}
+		)
+	)
+	assert_true(view.is_queued_for_deletion())
+	assert_null(_mounted_view())
+	assert_true(screen.get_node("%PlayPlaceholder").visible)
+
+
+func test_rejoiner_snapshot_mounts_view_without_events() -> void:
+	NetManager.snapshot_received.emit(_play_snapshot({"players": {}, "coins": []}))
+	assert_not_null(_mounted_view(), "replicated PLAY state alone must mount the view")
