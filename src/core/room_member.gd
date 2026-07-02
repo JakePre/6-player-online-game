@@ -10,6 +10,9 @@ var session_token := ""
 var score := 0
 var connected := true
 var join_order := 0
+## Lobby ready-up flag (M2-02). Only meaningful while the room is in LOBBY;
+## cleared when a match starts.
+var ready := false
 
 
 func to_dict() -> Dictionary:
@@ -18,4 +21,5 @@ func to_dict() -> Dictionary:
 		"name": display_name,
 		"score": score,
 		"connected": connected,
+		"ready": ready,
 	}
