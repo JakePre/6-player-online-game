@@ -13,6 +13,9 @@ var join_order := 0
 ## Lobby ready-up flag (M2-02). Only meaningful while the room is in LOBBY;
 ## cleared when a match starts.
 var ready := false
+## Selected roster character (M2-03, SPEC $8). Persists across rounds and
+## rejoin, unlike `ready`; duplicate picks across members are allowed.
+var character_id: StringName = CharacterRoster.DEFAULT_ID
 
 
 func to_dict() -> Dictionary:
@@ -22,4 +25,5 @@ func to_dict() -> Dictionary:
 		"score": score,
 		"connected": connected,
 		"ready": ready,
+		"character_id": character_id,
 	}
