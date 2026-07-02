@@ -180,3 +180,62 @@ func test_snapshot_shape_per_state() -> void:
 	var play := controller.get_snapshot()
 	assert_true(play.has("game"))
 	assert_between(float(play.time_left), 0.0, 0.1)
+
+
+func test_unanimous_skip_starts_the_round_early() -> void:
+	var room := _make_room(3)
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.handle_skip(0)
+	controller.handle_skip(0)  # Duplicate votes count once.
+	assert_eq(controller.state, MatchController.State.INTRO)
+	controller.handle_skip(1)
+	controller.handle_skip(2)
+	assert_eq(controller.state, MatchController.State.PLAY)
+	var votes: Array = events.filter(
+		func(event: Dictionary) -> bool: return event.type == "skip_votes"
+	)
+	assert_eq(votes.size(), 3)
+	assert_eq(votes[0].votes, 1, "duplicate vote must not double-count")
+	assert_eq(votes[-1].votes, 3)
+	assert_eq(votes[-1].needed, 3)
+
+
+func test_skip_from_disconnected_member_is_ignored() -> void:
+	var room := _make_room(3)
+	room.mark_disconnected(room.members[2], 0)
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.handle_skip(2)
+	assert_eq(controller.state, MatchController.State.INTRO)
+	controller.handle_skip(0)
+	controller.handle_skip(1)
+	assert_eq(controller.state, MatchController.State.PLAY, "only connected players count")
+
+
+func test_skip_votes_reset_each_round() -> void:
+	var room := _make_room(2)
+	var controller := _make_controller(room, 2)
+	controller.start()
+	controller.handle_skip(0)
+	controller.handle_skip(1)
+	assert_eq(controller.state, MatchController.State.PLAY)
+	_run_until(
+		controller,
+		func() -> bool:
+			return controller.round_index == 1 and controller.state == MatchController.State.INTRO
+	)
+	controller.handle_skip(0)
+	assert_eq(controller.state, MatchController.State.INTRO, "one vote of two must not skip")
+
+
+func test_skip_outside_intro_is_ignored() -> void:
+	var room := _make_room(2)
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.handle_skip(0)
+	controller.handle_skip(1)
+	assert_eq(controller.state, MatchController.State.PLAY)
+	var event_count := events.size()
+	controller.handle_skip(0)
+	assert_eq(events.size(), event_count, "skips during play emit nothing")

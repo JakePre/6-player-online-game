@@ -33,6 +33,7 @@ var _duration_override := 0.0
 var _state_left := 0.0
 var _rng := RandomNumberGenerator.new()
 var _round_slots: Array[int] = []
+var _skip_votes := {}
 
 
 ## config: rounds (int), seed (int), and for test harnesses only (server must
@@ -88,6 +89,24 @@ func handle_input(slot: int, data: Dictionary) -> void:
 		game.handle_input(slot, data)
 
 
+## Intro ready-skip (SPEC $4): the round starts early once every connected
+## player has voted. Votes reset with each intro card.
+func handle_skip(slot: int) -> void:
+	if state != State.INTRO:
+		return
+	var voters := _connected_slots()
+	if slot not in voters or _skip_votes.has(slot):
+		return
+	_skip_votes[slot] = true
+	var votes := 0
+	for voter in voters:
+		if _skip_votes.has(voter):
+			votes += 1
+	event_emitted.emit({"type": "skip_votes", "votes": votes, "needed": voters.size()})
+	if votes >= voters.size():
+		_enter_play()
+
+
 func is_done() -> bool:
 	return state == State.DONE
 
@@ -111,6 +130,7 @@ func get_snapshot() -> Dictionary:
 func _enter_intro() -> void:
 	state = State.INTRO
 	_state_left = _intro_sec
+	_skip_votes.clear()
 	var meta := MinigameCatalog.meta_of(playlist[round_index])
 	(
 		event_emitted
@@ -129,10 +149,7 @@ func _enter_play() -> void:
 	state = State.PLAY
 	# Members who joined the room by round start play; rejoiners who arrive
 	# mid-round sit out until the next one (SPEC $9).
-	_round_slots = []
-	for member in room.members:
-		if member.connected:
-			_round_slots.append(member.slot)
+	_round_slots = _connected_slots()
 	game = MinigameCatalog.instantiate(playlist[round_index])
 	game.duration_override = _duration_override
 	game.setup(_round_slots, _rng.randi())
@@ -184,6 +201,14 @@ func _next_round() -> void:
 func _finish_match() -> void:
 	state = State.DONE
 	room.state = Room.State.LOBBY
+
+
+func _connected_slots() -> Array[int]:
+	var slots: Array[int] = []
+	for member in room.members:
+		if member.connected:
+			slots.append(member.slot)
+	return slots
 
 
 func _totals() -> Dictionary:

@@ -41,6 +41,9 @@ var debug_rpcs_enabled := false
 var my_room_code := ""
 var my_slot := -1
 var my_session_token := ""
+# Last room state broadcast, kept so screens instantiated mid-session can
+# seed themselves (a node connected during an emission misses that emission).
+var my_room_state := {}
 
 # Artificial latency/loss applied to client-received snapshots, for testing
 # minigames under bad network conditions (M1-05). Configured via
@@ -148,6 +151,12 @@ func request_start_match(config: Dictionary = {}) -> void:
 ## each minigame's handle_input.
 func send_match_input(data: Dictionary) -> void:
 	_rpc_match_input.rpc_id(1, data)
+
+
+## Vote to skip the current round intro card; the round starts early once
+## every connected player in the room has voted (SPEC $4 "ready-skip").
+func request_skip_intro() -> void:
+	_rpc_skip_intro.rpc_id(1)
 
 
 ## Test-harness only: asks the server to flip this room's state so rejoin
@@ -267,6 +276,22 @@ func _rpc_match_input(data: Dictionary) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _rpc_skip_intro() -> void:
+	if not is_server:
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	var room: Room = room_manager.room_of_peer(peer_id)
+	if room == null:
+		return
+	var controller: MatchController = match_controllers.get(room.code)
+	if controller == null:
+		return
+	var member := room.find_by_peer(peer_id)
+	if member != null:
+		controller.handle_skip(member.slot)
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_debug_set_match_state(active: bool) -> void:
 	if not is_server or not debug_rpcs_enabled:
 		return
@@ -284,6 +309,7 @@ func _rpc_room_joined(code: String, slot: int, token: String, state: Dictionary)
 	my_room_code = code
 	my_slot = slot
 	my_session_token = token
+	my_room_state = state
 	joined_room.emit(code, slot, token)
 	room_updated.emit(state)
 
@@ -301,6 +327,7 @@ func _rpc_left_room() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_room_state(state: Dictionary) -> void:
+	my_room_state = state
 	room_updated.emit(state)
 
 
@@ -375,8 +402,10 @@ func _start_match(room: Room, config: Dictionary) -> void:
 	var controller := MatchController.new(room, config)
 	match_controllers[room.code] = controller
 	controller.event_emitted.connect(_relay_match_event.bind(room))
-	controller.start()
+	# Room state goes out first so clients are on the match screen before the
+	# match_started/round_intro events (all reliable, so order holds).
 	_broadcast_room_state(room)
+	controller.start()
 	match_started.emit(room)
 
 
@@ -468,6 +497,7 @@ func _reset_client_session() -> void:
 	my_room_code = ""
 	my_slot = -1
 	my_session_token = ""
+	my_room_state = {}
 
 
 static func _arg_value(args: PackedStringArray, key: String, fallback: String) -> String:
