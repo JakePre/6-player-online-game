@@ -1,69 +1,94 @@
-extends MinigameView
-## Color Clash client view (M4-13): the tile grid painted in faction colors
-## with players and names on top. Faction color is the painter's palette
-## color in FFA and the first teammate's palette color in team play.
+extends MinigameView3D
+## Color Clash client view (M8-10): renders the replicated paint grid in the
+## shared 2.5D iso-arena (M8-01, MinigameView3D) — one flat quad per tile via
+## a MultiMesh with per-instance faction colors, players as CharacterRig
+## instances. Presentation-tier swap only: state storage and the render
+## contract are unchanged from the 2D pass (M4-13).
 
-const UNPAINTED_COLOR := Color(0.16, 0.17, 0.2)
-const GRID_LINE := Color(0.1, 0.1, 0.12)
-const NAME_OFFSET := 14.0
+const UNPAINTED_COLOR := Color(0.22, 0.23, 0.26)
+const PAINT_LIFT := 0.02
+const PAINT_DARKEN := 0.15
 
 ## Latest replicated state, straight from ColorClash.get_snapshot().
 var players := {}
 var grid: Array = []
 var teams: Array = []
 
+var _tiles: MultiMeshInstance3D
+## Script-side copy of per-tile colors: the MultiMesh color buffer lives in
+## the RenderingServer and reads back empty under the headless test runner.
+var _tile_colors: Array = []
+
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
-func _render(game: Dictionary) -> void:
+func _arena_half() -> float:
+	return ColorClash.ARENA_HALF + 1.0
+
+
+func _setup_3d() -> void:
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(ColorClash.TILE_WORLD, ColorClash.TILE_WORLD) * 0.94
+	var material := StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	mesh.material = material
+
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.use_colors = true
+	multimesh.mesh = mesh
+	multimesh.instance_count = ColorClash.GRID_SIZE * ColorClash.GRID_SIZE
+	var start := -ColorClash.ARENA_HALF + ColorClash.TILE_WORLD * 0.5
+	for i in multimesh.instance_count:
+		var row := i / ColorClash.GRID_SIZE
+		var col := i % ColorClash.GRID_SIZE
+		var pos := Vector3(
+			start + col * ColorClash.TILE_WORLD, PAINT_LIFT, start + row * ColorClash.TILE_WORLD
+		)
+		multimesh.set_instance_transform(i, Transform3D(Basis(), pos))
+		multimesh.set_instance_color(i, UNPAINTED_COLOR)
+		_tile_colors.append(UNPAINTED_COLOR)
+
+	_tiles = MultiMeshInstance3D.new()
+	_tiles.name = "PaintTiles"
+	_tiles.multimesh = multimesh
+	arena.add_child(_tiles)
+
+
+func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
 	grid = game.get("grid", [])
 	teams = game.get("teams", [])
-	queue_redraw()
+	_update_tiles()
+	_update_players()
 
 
-func _draw() -> void:
-	var px_per_unit := _pixels_per_unit()
-	var tile_px := ColorClash.TILE_WORLD * px_per_unit
-	var origin := size / 2.0 - Vector2.ONE * ColorClash.ARENA_HALF * px_per_unit
-	for i in grid.size():
-		var row := i / ColorClash.GRID_SIZE
-		var col := i % ColorClash.GRID_SIZE
-		var rect := Rect2(origin + Vector2(col, row) * tile_px, Vector2(tile_px, tile_px))
-		draw_rect(rect, _faction_color(int(grid[i])))
-		draw_rect(rect, GRID_LINE, false, 1.0)
-	var font := get_theme_default_font()
-	var font_size := get_theme_default_font_size()
+func _update_tiles() -> void:
+	var multimesh := _tiles.multimesh
+	for i in mini(grid.size(), multimesh.instance_count):
+		var color := _faction_color(int(grid[i]))
+		_tile_colors[i] = color
+		multimesh.set_instance_color(i, color)
+
+
+func tile_color(index: int) -> Color:
+	return _tile_colors[index] if index < _tile_colors.size() else UNPAINTED_COLOR
+
+
+func _update_players() -> void:
 	for slot: int in players:
 		var state: Array = players[slot]
-		var pos := size / 2.0 + Vector2(state[0], state[1]) * px_per_unit
-		var color := player_color(slot)
-		var radius := ColorClash.PLAYER_RADIUS * px_per_unit
-		draw_circle(pos, radius, color)
-		draw_circle(pos, radius, Color.BLACK, false, 1.5)
-		var caption := player_name(slot)
-		var text_size := font.get_string_size(caption, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
-		draw_string(
-			font,
-			pos + Vector2(-text_size.x / 2.0, -radius - NAME_OFFSET),
-			caption,
-			HORIZONTAL_ALIGNMENT_CENTER,
-			-1,
-			font_size,
-			color
-		)
+		var rig := rig_for_slot(slot)
+		if rig == null:
+			continue
+		update_rig(slot, Vector2(state[0], state[1]))
 
 
 func _faction_color(faction: int) -> Color:
 	if faction == ColorClash.UNPAINTED:
 		return UNPAINTED_COLOR
 	if faction < teams.size() and not teams[faction].is_empty():
-		return player_color(int(teams[faction][0])).darkened(0.15)
-	return player_color(faction).darkened(0.15)
-
-
-func _pixels_per_unit() -> float:
-	var side := minf(size.x, size.y) - 2.0 * NAME_OFFSET
-	return maxf(side, 100.0) / (ColorClash.ARENA_HALF * 2.0)
+		return player_color(int(teams[faction][0])).darkened(PAINT_DARKEN)
+	return player_color(faction).darkened(PAINT_DARKEN)

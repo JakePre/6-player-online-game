@@ -143,7 +143,7 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 - [x] **M8-07** (S) Migrate Sumo Smash view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-08** (S) Migrate Quick Draw view to `MinigameView3D` ⛓ M8-01, M8-02
 - [x] **M8-09** (S) Migrate Tug of War view to `MinigameView3D` ⛓ M8-01, M8-02
-- [ ] **M8-10** (S) Migrate Color Clash view to `MinigameView3D` ⛓ M8-01, M8-02
+- [x] **M8-10** (S) Migrate Color Clash view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-11** (S) Migrate Poison Feast view to `MinigameView3D` ⛓ M8-01, M8-02
 - [x] **M8-12** (M) Finale Gauntlet client view — **new build, not a migration**: `gauntlet.gd` has server logic only today ⛓ M8-01, M5-02
 - [ ] **M8-13** (S) Audit + wire `CharacterRig` into the lobby character-select screen if not already live (M2-03/M2-04 built the pieces; confirm they're actually mounted) ⛓ M8-01
