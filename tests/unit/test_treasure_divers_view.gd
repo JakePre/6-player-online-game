@@ -38,12 +38,16 @@ func test_surfaced_rigs_swim_high_and_divers_sink() -> void:
 	assert_almost_eq(view.rig_for_slot(1).position.y, 0.0, 0.001, "diver on the seabed")
 
 
-func test_air_meter_rides_the_nameplate() -> void:
+## #235: air is a hovering bar fed from the replicated fraction; the ASCII
+## meter no longer rides the nameplate.
+func test_air_bar_tracks_the_replicated_fraction() -> void:
 	view.render({"players": {0: _player(0.0, 0.0, 4, 1, 1.0, 0.0)}, "treasure": []})
 	assert_string_contains(view.rig_for_slot(0).display_name, "4")
-	assert_string_contains(view.rig_for_slot(0).display_name, "|||||", "full air = full meter")
-	view.render({"players": {0: _player(0.0, 0.0, 4, 1, 0.0, 0.0)}, "treasure": []})
-	assert_string_contains(view.rig_for_slot(0).display_name, ".....", "empty air = empty meter")
+	assert_false("|" in view.rig_for_slot(0).display_name, "no ASCII meter on the plate")
+	assert_almost_eq(float(view._air_seen[0]), 1.0, 0.001)
+	assert_true(view._air_bars.has(0), "a bar exists for the slot")
+	view.render({"players": {0: _player(0.0, 0.0, 4, 1, 0.35, 0.0)}, "treasure": []})
+	assert_almost_eq(float(view._air_seen[0]), 0.35, 0.001)
 
 
 func test_fresh_blackout_flinches_and_shakes() -> void:
