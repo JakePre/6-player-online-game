@@ -140,7 +140,7 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 - [x] **M8-04** (S) Migrate King of the Hill view to `MinigameView3D` ⛓ M8-01, M8-02
 - [x] **M8-05** (S) Migrate Hot Potato view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-06** (S) Migrate Thin Ice view to `MinigameView3D` ⛓ M8-01, M8-02
-- [ ] **M8-07** (S) Migrate Sumo Smash view to `MinigameView3D` ⛓ M8-01, M8-02
+- [x] **M8-07** (S) Migrate Sumo Smash view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-08** (S) Migrate Quick Draw view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-09** (S) Migrate Tug of War view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-10** (S) Migrate Color Clash view to `MinigameView3D` ⛓ M8-01, M8-02
