@@ -200,6 +200,7 @@ func _tick_shoves(delta: float) -> void:
 		shove_windups[slot] = float(shove_windups[slot]) - delta
 		if float(shove_windups[slot]) > 0.0:
 			continue
+		shove_windups[slot] = 0.0
 		shove_cooldowns[slot] = SHOVE_COOLDOWN_SEC
 		_land_shove(slot)
 
