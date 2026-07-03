@@ -111,3 +111,17 @@ func test_registered_ids_lists_every_registration() -> void:
 	)
 	ids.sort()
 	assert_eq(ids, ["a", "b"])
+
+
+func test_even_players_games_skipped_at_odd_counts() -> void:
+	MinigameCatalog.clear()
+	MinigameCatalog.register(
+		MinigameMeta.create({"id": &"pairs_only", "even_players": true, "min_players": 4}),
+		MinigameBase
+	)
+	MinigameCatalog.register(MinigameMeta.create({"id": &"any_count"}), MinigameBase)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	assert_false(&"pairs_only" in MinigameCatalog.build_playlist(rng, 8, 5), "no 3v2 drafts (#178)")
+	assert_true(&"pairs_only" in MinigameCatalog.build_playlist(rng, 8, 6))
+	MinigameCatalog.clear()
