@@ -41,6 +41,7 @@ static func register_builtins() -> void:
 	register(TargetRange.make_meta(), TargetRange)
 	register(BeatBounce.make_meta(), BeatBounce)
 	register(MusicalPlatforms.make_meta(), MusicalPlatforms)
+	register(ShockTag.make_meta(), ShockTag)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
