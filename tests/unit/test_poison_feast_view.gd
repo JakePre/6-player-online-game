@@ -12,29 +12,27 @@ func before_each() -> void:
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
 
-func test_setup_pools_uniform_hidden_dishes() -> void:
-	assert_not_null(view.arena.get_node("Dish0"))
-	assert_not_null(view.arena.get_node("Dish%d" % (PoisonFeast.MAX_ACTIVE_DISHES - 1)))
-	for i in PoisonFeast.MAX_ACTIVE_DISHES:
-		assert_false(view.arena.get_node("Dish%d" % i).visible, "dishes start hidden")
+func test_dishes_appear_by_id_at_snapshot_positions() -> void:
+	# Sim contract: dish entries are [id, x, y, tier]; nodes are id-keyed so
+	# identity is stable however the array is ordered.
+	view.render({"players": {}, "dishes": [[7, 2.0, -3.0, 0], [3, 4.0, 5.0, 2]]})
+	var seven: Node3D = view.arena.get_node("Dish7")
+	var three: Node3D = view.arena.get_node("Dish3")
+	assert_almost_eq(seven.position.x, 2.0, 0.001)
+	assert_almost_eq(seven.position.z, -3.0, 0.001)
+	assert_almost_eq(three.position.x, 4.0, 0.001)
 
 
-func test_dishes_show_at_snapshot_positions() -> void:
-	view.render({"players": {}, "dishes": [[2.0, -3.0], [4.0, 5.0]]})
-	var first: Node3D = view.arena.get_node("Dish0")
-	var second: Node3D = view.arena.get_node("Dish1")
-	var third: Node3D = view.arena.get_node("Dish2")
-	assert_true(first.visible)
-	assert_almost_eq(first.position.x, 2.0, 0.001)
-	assert_almost_eq(first.position.z, -3.0, 0.001)
-	assert_true(second.visible)
-	assert_false(third.visible, "pool beyond the snapshot stays hidden")
-	view.render({"players": {}, "dishes": [[1.0, 1.0]]})
-	assert_false(second.visible, "eaten dishes disappear")
+func test_eaten_dishes_disappear() -> void:
+	view.render({"players": {}, "dishes": [[7, 2.0, -3.0, 0], [3, 4.0, 5.0, 2]]})
+	view.render({"players": {}, "dishes": [[3, 4.0, 5.0, 2]]})
+	# queue_free lands at frame end; the view's own registry drops it now.
+	assert_false(view._dish_nodes.has(7), "eaten dish leaves the registry")
+	assert_true(view._dish_nodes.has(3))
 
 
 func test_rig_follows_player_snapshot_with_score() -> void:
-	view.render({"players": {0: [3.0, -2.0, 4]}, "dishes": []})
+	view.render({"players": {0: [3.0, -2.0, 4, 0]}, "dishes": []})
 	var rig: CharacterRig = view.rig_for_slot(0)
 	assert_almost_eq(rig.position.x, 3.0, 0.001)
 	assert_almost_eq(rig.position.z, -2.0, 0.001)
@@ -43,10 +41,12 @@ func test_rig_follows_player_snapshot_with_score() -> void:
 
 
 func test_render_replaces_replicated_state() -> void:
-	view.render({"players": {0: [0.0, 0.0, 1], 1: [1.0, 1.0, 2]}, "dishes": [[0.0, 0.0]]})
+	view.render(
+		{"players": {0: [0.0, 0.0, 1, 0], 1: [1.0, 1.0, 2, 0]}, "dishes": [[1, 0.0, 0.0, 0]]}
+	)
 	assert_eq(view.players.size(), 2)
 	assert_eq(view.dishes.size(), 1)
-	view.render({"players": {0: [0.0, 0.0, 1]}, "dishes": []})
+	view.render({"players": {0: [0.0, 0.0, 1, 0]}, "dishes": []})
 	assert_eq(view.players.size(), 1, "each snapshot fully replaces the last")
 	assert_eq(view.dishes.size(), 0)
 
