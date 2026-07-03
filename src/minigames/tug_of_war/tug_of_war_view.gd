@@ -28,13 +28,16 @@ var _phase := -1
 var _last_rope := 0.0
 
 
-func _unhandled_input(event: InputEvent) -> void:
+## Polled (not event-driven): stick axis motion doesn't deliver discrete
+## pressed events reliably, which left gamepads unable to pull at all (#136).
+## is_action_just_pressed unifies keys, d-pad, and stick threshold crossings.
+func _process(_delta: float) -> void:
 	if NetManager.multiplayer.multiplayer_peer == null:
 		return
 	var phase := -1
-	if event.is_action_pressed(&"move_left"):
+	if Input.is_action_just_pressed(&"move_left"):
 		phase = 0
-	elif event.is_action_pressed(&"move_right"):
+	elif Input.is_action_just_pressed(&"move_right"):
 		phase = 1
 	if phase == -1 or phase == _phase:
 		return
