@@ -1,0 +1,232 @@
+class_name RumbleRing
+extends MinigameBase
+## Rumble Ring (M10-17, PHASE2.md $4 #34, owner-requested): arena brawler.
+## Quick swings chip 1 HP with light knockback; holding guard blocks all
+## damage (but you crawl), and releasing a full guard fires a charged smash —
+## 2 HP and a big radial shove. KOs score for the attacker and scatter the
+## victim's coins onto the floor for anyone to grab; victims respawn with
+## brief invulnerability. Most KO points wins. Server-side simulation only.
+
+const ARENA_HALF := 8.0
+const MOVE_SPEED := 6.0
+const GUARD_SPEED_MULT := 0.35
+const PLAYER_RADIUS := 0.45
+
+const MAX_HP := 3
+const SWING_RANGE := 1.5
+const SWING_ARC_DOT := 0.3
+const SWING_KNOCKBACK := 1.2
+const SWING_COOLDOWN_SEC := 0.6
+const SMASH_CHARGE_SEC := 0.8
+const SMASH_RANGE := 2.2
+const SMASH_KNOCKBACK := 3.0
+const SMASH_COOLDOWN_SEC := 2.5
+const KO_POINTS := 3
+const KO_COIN_SCATTER := 3
+const PICKUP_RADIUS := 0.8
+const RESPAWN_INVULN_SEC := 1.5
+
+var positions := {}
+var move_dirs := {}
+var facings := {}
+var hp := {}
+var points := {}
+var collected := {}
+var guarding := {}
+var swing_cooldown := {}
+var smash_cooldown := {}
+var invuln_left := {}
+## Floor coins scattered by KOs, each a Vector2.
+var coins: Array[Vector2] = []
+## Set for one tick after each event so the view can flash it.
+var last_events: Array[Dictionary] = []
+
+var _guard_held_sec := {}
+
+
+static func make_meta() -> MinigameMeta:
+	return (
+		MinigameMeta
+		. create(
+			{
+				"id": &"rumble_ring",
+				"controls":
+				"Move — WASD/stick · Swing — Space/Ⓐ · Guard/Smash — E/Ⓧ (hold, release)",
+				"name": "Rumble Ring",
+				"category": MinigameMeta.Category.FFA,
+				"min_players": 2,
+				"max_players": 6,
+				"duration_sec": 60.0,
+				"rules":
+				"Brawl! Swing fast, guard to block, release a full guard to SMASH. KOs score.",
+			}
+		)
+	)
+
+
+func _setup() -> void:
+	for i in slots.size():
+		var angle := TAU * i / slots.size()
+		var slot: int = slots[i]
+		positions[slot] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		move_dirs[slot] = Vector2.ZERO
+		facings[slot] = Vector2(-cos(angle), -sin(angle))
+		hp[slot] = MAX_HP
+		points[slot] = 0
+		collected[slot] = 0
+		guarding[slot] = false
+		swing_cooldown[slot] = 0.0
+		smash_cooldown[slot] = 0.0
+		invuln_left[slot] = 0.0
+		_guard_held_sec[slot] = 0.0
+
+
+func _handle_input(slot: int, data: Dictionary) -> void:
+	if data.has("attack"):
+		_swing(slot)
+		return
+	if data.has("guard"):
+		_set_guard(slot, bool(data.guard))
+		return
+	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
+	move_dirs[slot] = dir.limit_length(1.0)
+	if dir.length() > 0.1:
+		facings[slot] = dir.normalized()
+
+
+func _tick(delta: float) -> void:
+	last_events.clear()
+	for slot: int in slots:
+		swing_cooldown[slot] = maxf(float(swing_cooldown[slot]) - delta, 0.0)
+		smash_cooldown[slot] = maxf(float(smash_cooldown[slot]) - delta, 0.0)
+		invuln_left[slot] = maxf(float(invuln_left[slot]) - delta, 0.0)
+		if guarding[slot]:
+			_guard_held_sec[slot] = float(_guard_held_sec[slot]) + delta
+		var speed := MOVE_SPEED * (GUARD_SPEED_MULT if guarding[slot] else 1.0)
+		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
+		positions[slot] = pos.clamp(
+			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+		)
+	_collect_coins()
+
+
+func get_snapshot() -> Dictionary:
+	var players := {}
+	for slot: int in slots:
+		var pos: Vector2 = positions[slot]
+		var facing: Vector2 = facings[slot]
+		players[slot] = [
+			snappedf(pos.x, 0.01),
+			snappedf(pos.y, 0.01),
+			int(hp[slot]),
+			int(points[slot]),
+			1 if guarding[slot] else 0,
+			snappedf(invuln_left[slot], 0.01),
+			snappedf(facing.x, 0.01),
+			snappedf(facing.y, 0.01),
+		]
+	var coin_list: Array = []
+	for coin in coins:
+		coin_list.append([snappedf(coin.x, 0.01), snappedf(coin.y, 0.01)])
+	return {"players": players, "coins": coin_list, "events": last_events.duplicate(true)}
+
+
+## Most KO points wins, ties grouped; scattered coins collected double as
+## capped pickup coins (SPEC $5).
+func _rank_players() -> Array:
+	var by_points := {}
+	for slot: int in slots:
+		var score: int = points[slot]
+		if not by_points.has(score):
+			by_points[score] = []
+		by_points[score].append(slot)
+	var totals := by_points.keys()
+	totals.sort()
+	totals.reverse()
+	var placements: Array = []
+	for total: int in totals:
+		placements.append(by_points[total])
+	_pickup_coins = collected.duplicate()
+	return placements
+
+
+func _swing(slot: int) -> void:
+	if guarding[slot] or float(swing_cooldown[slot]) > 0.0:
+		return
+	swing_cooldown[slot] = SWING_COOLDOWN_SEC
+	last_events.append({"type": "swing", "slot": slot})
+	var facing: Vector2 = facings[slot]
+	for other: int in slots:
+		if other == slot:
+			continue
+		var to_other: Vector2 = positions[other] - positions[slot]
+		if to_other.length() > SWING_RANGE:
+			continue
+		if to_other.normalized().dot(facing) < SWING_ARC_DOT:
+			continue
+		_damage(other, slot, 1, facing * SWING_KNOCKBACK)
+
+
+func _set_guard(slot: int, on: bool) -> void:
+	if on == bool(guarding[slot]):
+		return
+	if on:
+		guarding[slot] = true
+		_guard_held_sec[slot] = 0.0
+		return
+	guarding[slot] = false
+	# Releasing a full charge fires the smash (if off cooldown).
+	if float(_guard_held_sec[slot]) >= SMASH_CHARGE_SEC and float(smash_cooldown[slot]) <= 0.0:
+		_smash(slot)
+
+
+func _smash(slot: int) -> void:
+	smash_cooldown[slot] = SMASH_COOLDOWN_SEC
+	last_events.append({"type": "smash", "slot": slot})
+	for other: int in slots:
+		if other == slot:
+			continue
+		var to_other: Vector2 = positions[other] - positions[slot]
+		if to_other.length() > SMASH_RANGE:
+			continue
+		var axis := to_other.normalized() if to_other.length() > 0.001 else Vector2.RIGHT
+		_damage(other, slot, 2, axis * SMASH_KNOCKBACK)
+
+
+func _damage(victim: int, attacker: int, amount: int, knockback: Vector2) -> void:
+	if float(invuln_left[victim]) > 0.0:
+		return
+	if guarding[victim]:
+		last_events.append({"type": "blocked", "slot": victim})
+		return
+	var pos: Vector2 = positions[victim] + knockback
+	positions[victim] = pos.clamp(
+		Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+	)
+	hp[victim] = int(hp[victim]) - amount
+	last_events.append({"type": "hit", "slot": victim})
+	if int(hp[victim]) > 0:
+		return
+	# KO: attacker scores, the victim's pockets hit the floor.
+	points[attacker] = int(points[attacker]) + KO_POINTS
+	last_events.append({"type": "ko", "slot": victim, "by": attacker})
+	for _i in KO_COIN_SCATTER:
+		var offset := Vector2(rng.randf_range(-1.5, 1.5), rng.randf_range(-1.5, 1.5))
+		coins.append(
+			((positions[victim] as Vector2) + offset).clamp(
+				Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+			)
+		)
+	hp[victim] = MAX_HP
+	guarding[victim] = false
+	invuln_left[victim] = RESPAWN_INVULN_SEC
+	positions[victim] = Vector2.ZERO
+
+
+func _collect_coins() -> void:
+	for i in range(coins.size() - 1, -1, -1):
+		for slot: int in slots:
+			if positions[slot].distance_to(coins[i]) <= PICKUP_RADIUS:
+				collected[slot] = int(collected[slot]) + 1
+				coins.remove_at(i)
+				break
