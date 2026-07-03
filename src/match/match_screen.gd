@@ -6,6 +6,17 @@ extends Control
 ## podium get dedicated scenes (M3-05), rendered here as simple lists so the
 ## full loop is visible meanwhile.
 
+## Fixed jiggle pattern scaled by the requested strength (M6-02); a fixed
+## pattern keeps the shake deterministic and cheap.
+const SHAKE_PATTERN: Array[Vector2] = [
+	Vector2(1.0, -0.6),
+	Vector2(-0.8, 0.4),
+	Vector2(0.5, 0.7),
+	Vector2(-0.3, -0.4),
+]
+const SHAKE_STEP_SEC := 0.04
+const COIN_FLY_SEC := 0.6
+
 ## Seconds an emote stays in the feed; tests shorten it.
 var emote_lifetime := 3.0
 
@@ -13,6 +24,8 @@ var _names := {}
 var _totals := {}
 var _minigame_id := ""
 var _minigame_view: MinigameView
+var _shake_tween: Tween
+var _shake_origin := Vector2.ZERO
 
 @onready var _round_label: Label = %RoundLabel
 @onready var _timer_label: Label = %TimerLabel
@@ -68,9 +81,14 @@ func _on_match_event(event: Dictionary) -> void:
 			_mount_view(_minigame_id)
 			_show_panel(null)
 		"round_results":
-			_unmount_view()
+			# The arena stays mounted and visible behind the results panel so
+			# the winners' victory dance plays out (M6-02); it unmounts on the
+			# next phase event instead.
+			if _minigame_view != null:
+				_minigame_view.celebrate(event.placements)
 			_show_results(event)
 		"leaderboard":
+			_unmount_view()
 			_show_standings("Leaderboard", event.totals)
 		"match_ended":
 			_unmount_view()
@@ -146,7 +164,8 @@ func _show_results(event: Dictionary) -> void:
 	_rebuild_totals_row()
 	_results_title.text = "Round %d results" % event.round
 	_fill_list(_results_list, MatchFormat.result_lines(event.placements, event.awards, _names))
-	_show_panel(_results_panel)
+	_show_panel(_results_panel, _minigame_view != null)
+	_fly_coins(event.awards)
 
 
 func _show_standings(title: String, totals: Dictionary, subtitle := "") -> void:
@@ -166,11 +185,13 @@ func _show_podium(standings: Array) -> void:
 
 
 ## Shows one center panel (or none, during play). The play area placeholder
-## is only visible while a round runs so the chrome reads as distinct phases.
-func _show_panel(panel: PanelContainer) -> void:
+## is only visible while a round runs so the chrome reads as distinct phases;
+## `keep_play_area` leaves the arena visible behind the panel (round results,
+## so celebrations stay on screen — M6-02).
+func _show_panel(panel: PanelContainer, keep_play_area := false) -> void:
 	for candidate: PanelContainer in [_intro_card, _results_panel, _standings_panel]:
 		candidate.visible = candidate == panel
-	_play_area.visible = panel == null
+	_play_area.visible = panel == null or keep_play_area
 
 
 ## Mounts the minigame's view scene (MinigameCatalog convention path) into the
@@ -184,6 +205,7 @@ func _mount_view(id: String) -> void:
 		return
 	_minigame_view = (load(path) as PackedScene).instantiate()
 	_minigame_view.setup(_names, NetManager.my_slot)
+	_minigame_view.shake_requested.connect(_on_shake_requested)
 	_play_area.add_child(_minigame_view)
 	_play_placeholder.visible = false
 
@@ -193,6 +215,47 @@ func _unmount_view() -> void:
 		_minigame_view.queue_free()
 		_minigame_view = null
 	_play_placeholder.visible = true
+
+
+## Decaying positional shake on the play area (M6-02). Impacts come from the
+## mounted view's shake_requested signal. A shake landing mid-shake reuses the
+## first shake's rest position so the play area never drifts.
+func _on_shake_requested(strength: float) -> void:
+	var origin := _play_area.position
+	if _shake_tween != null and _shake_tween.is_valid():
+		_shake_tween.kill()
+		origin = _shake_origin
+	_shake_origin = origin
+	_shake_tween = create_tween()
+	for i in SHAKE_PATTERN.size():
+		var falloff := 1.0 - float(i) / SHAKE_PATTERN.size()
+		_shake_tween.tween_property(
+			_play_area, "position", origin + SHAKE_PATTERN[i] * strength * falloff, SHAKE_STEP_SEC
+		)
+	_shake_tween.tween_property(_play_area, "position", origin, SHAKE_STEP_SEC)
+
+
+## "+N" coin chips fly from mid-screen to the running-total row (M6-02).
+## Pure decoration: totals are already correct before the flight starts.
+func _fly_coins(awards: Dictionary) -> void:
+	var slots: Array = awards.keys()
+	slots.sort()
+	for i in slots.size():
+		var slot: int = slots[i]
+		var amount := int(awards.get(slot, 0))
+		if amount <= 0:
+			continue
+		var coin := Label.new()
+		coin.name = "CoinFly%d" % slot
+		coin.text = "+%d" % amount
+		coin.add_theme_color_override("font_color", PlayerPalette.color_for_slot(slot))
+		add_child(coin)
+		coin.position = size / 2.0 + Vector2((i - slots.size() / 2.0) * 40.0, 0.0)
+		var target := _totals_row.position + Vector2(24.0 + i * 80.0, 0.0)
+		var tween := create_tween()
+		tween.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		tween.tween_property(coin, "position", target, COIN_FLY_SEC)
+		tween.tween_callback(coin.queue_free)
 
 
 func _rebuild_totals_row() -> void:

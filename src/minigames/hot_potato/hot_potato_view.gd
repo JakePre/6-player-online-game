@@ -19,6 +19,8 @@ var alive: Array = []
 
 var _bomb_node: MeshInstance3D
 var _downed := {}  # slot (int) -> true, once the ko pose + dim have been applied
+# -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
+var _alive_seen := -1
 
 
 func _physics_process(_delta: float) -> void:
@@ -53,6 +55,10 @@ func _render_3d(game: Dictionary) -> void:
 	alive = game.get("alive", [])
 	_update_players()
 	_update_bomb()
+	# The bomb going off is the game's big impact (M6-02).
+	if _alive_seen >= 0 and alive.size() < _alive_seen:
+		request_shake(12.0)
+	_alive_seen = alive.size()
 
 
 func _update_players() -> void:

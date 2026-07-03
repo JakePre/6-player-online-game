@@ -9,6 +9,10 @@ extends Control
 ## `src/minigames/<id>/<id>_view.tscn` (see MinigameCatalog.view_scene_path)
 ## with a root script extending this class.
 
+## Juice hook (M6-02): views raise this on impactful moments (KOs, ring-outs)
+## and the match screen shakes the play area. Strength is in pixels.
+signal shake_requested(strength: float)
+
 var names := {}
 var my_slot := -1
 
@@ -25,12 +29,27 @@ func render(game: Dictionary) -> void:
 
 
 ## Sends the shared WASD/stick move intent; movement minigames call this from
-## _physics_process. Safe when disconnected (drops the send).
+## _physics_process. Safe when disconnected (drops the send) — the engine
+## substitutes OfflineMultiplayerPeer when none is set, and RPCing through it
+## just logs errors.
 func send_move_intent() -> void:
-	if NetManager.multiplayer.multiplayer_peer == null:
+	var peer := NetManager.multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer:
 		return
 	var dir := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 	NetManager.send_match_input({"mx": dir.x, "my": dir.y})
+
+
+## Juice hook (M6-02): the match screen calls this on round_results while the
+## arena stays visible behind the results panel, so views can run winner
+## celebrations. `placements` is MinigameResults order: Array of tie groups
+## (Arrays of slots), winners first.
+func celebrate(placements: Array) -> void:
+	_celebrate(placements)
+
+
+func request_shake(strength: float = 8.0) -> void:
+	shake_requested.emit(strength)
 
 
 func player_color(slot: int) -> Color:
@@ -49,4 +68,8 @@ func _setup() -> void:
 
 
 func _render(_game: Dictionary) -> void:
+	pass
+
+
+func _celebrate(_placements: Array) -> void:
 	pass
