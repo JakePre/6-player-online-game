@@ -45,6 +45,8 @@ static func register_builtins() -> void:
 	register(TreasureDivers.make_meta(), TreasureDivers)
 	register(RumbleRing.make_meta(), RumbleRing)
 	register(MemoryMatch.make_meta(), MemoryMatch)
+	register(FishFrenzy.make_meta(), FishFrenzy)
+	register(LaserLimbo.make_meta(), LaserLimbo)
 	register(BullseyeBowl.make_meta(), BullseyeBowl)
 
 

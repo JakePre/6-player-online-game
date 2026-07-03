@@ -24,6 +24,8 @@ var _strikes := {}
 var _alive := {}
 var _last_hit := {}
 var _bounced_on := {}  # slot (int) -> last beat we played the jump pose for
+var _ticked_beat := -1  # last beat we played the audible cue for (#184)
+var _my_last_strikes := 0
 var _flinched := {}  # slot (int) -> strike count already flinched at
 
 var _lamp_material: StandardMaterial3D
@@ -56,6 +58,15 @@ func _render_3d(game: Dictionary) -> void:
 	_alive = game.get("alive", {})
 	_last_hit = game.get("last_hit", {})
 	_snapshot_at = _now_sec()
+	# Your own feedback (#184): confirm on a registered hit, error on a new
+	# strike — rhythm games live and die on knowing whether you landed it.
+	if int(_last_hit.get(my_slot, -1)) == _beat and _beat >= 0:
+		if _bounced_on.get(my_slot, -1) != _beat:
+			play_sfx(&"confirm")
+	var my_strikes := int(_strikes.get(my_slot, 0))
+	if my_strikes > _my_last_strikes:
+		play_sfx(&"error")
+	_my_last_strikes = my_strikes
 	_update_rigs()
 
 
@@ -131,6 +142,11 @@ func _animate_beat() -> void:
 	var remaining := _next_in - (_now_sec() - _snapshot_at)
 	var phase := clampf(remaining / _interval, 0.0, 1.0)
 	var pulsing := remaining < PULSE_SEC or _interval - remaining < PULSE_SEC
+	# The audible beat (#184): one tick per beat, at the pulse onset, so ears
+	# and lamp agree even when snapshots arrive between beats.
+	if pulsing and _beat != _ticked_beat:
+		_ticked_beat = _beat
+		play_sfx(&"tick")
 	var color := PULSE_COLOR if pulsing else IDLE_COLOR
 	_lamp_material.albedo_color = color
 	_lamp_material.emission = color
