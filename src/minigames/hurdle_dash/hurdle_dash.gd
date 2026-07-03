@@ -36,6 +36,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"hurdle_dash",
+				"controls": "Run — WASD / left stick · Jump — SPACE / pad A",
 				"name": "Hurdle Dash",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

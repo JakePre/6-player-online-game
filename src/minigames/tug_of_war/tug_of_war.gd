@@ -26,6 +26,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"tug_of_war",
+				"controls": "Alternate LEFT and RIGHT (A / D) as fast as you can",
 				"name": "Tug of War",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,

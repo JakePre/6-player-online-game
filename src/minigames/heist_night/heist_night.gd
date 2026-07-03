@@ -37,6 +37,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"heist_night",
+				"controls": "Move — WASD / left stick",
 				"name": "Heist Night",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 3,

@@ -39,6 +39,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"relay_sprint",
+				"controls": "Move — WASD / left stick",
 				"name": "Relay Sprint",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
