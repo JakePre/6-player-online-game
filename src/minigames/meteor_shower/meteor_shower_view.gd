@@ -1,0 +1,129 @@
+extends MinigameView3D
+## Meteor Shower client view (M10-01): renders the replicated arena in the
+## shared 2.5D iso-arena — players as CharacterRigs (knocked-out players
+## collapse and dim where the meteor caught them), the shrinking safe zone as
+## a cool translucent disc, telegraphed impact points as red discs that grow
+## to full impact size as the meteor closes in. Impacts shake the screen.
+
+const ZONE_COLOR := Color(0.45, 0.7, 0.95, 0.22)
+const ZONE_DISC_HEIGHT := 0.04
+const TELEGRAPH_COLOR := Color(0.9, 0.2, 0.12, 0.5)
+const TELEGRAPH_POOL := 12
+const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
+
+## Latest replicated state, straight from MeteorShower.get_snapshot().
+var players := {}
+var zone: Array = []
+var meteors: Array = []
+var fallen: Array = []
+
+var _zone_node: MeshInstance3D
+var _telegraph_pool: Array[MeshInstance3D] = []
+var _downed := {}  # slot (int) -> true, once the ko pose + dim have been applied
+# -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
+var _fallen_seen := -1
+
+
+func _physics_process(_delta: float) -> void:
+	send_move_intent()
+
+
+func _arena_half() -> float:
+	return MeteorShower.ARENA_HALF
+
+
+func _setup_3d() -> void:
+	_zone_node = _build_disc("Zone", ZONE_COLOR)
+	_zone_node.visible = false
+	for i in TELEGRAPH_POOL:
+		var marker := _build_disc("Telegraph%d" % i, TELEGRAPH_COLOR)
+		marker.visible = false
+		_telegraph_pool.append(marker)
+
+
+func _build_disc(disc_name: String, color: Color) -> MeshInstance3D:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 1.0
+	mesh.bottom_radius = 1.0
+	mesh.height = ZONE_DISC_HEIGHT
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = Color(color, 1.0)
+	material.emission_energy_multiplier = 0.3
+	mesh.material = material
+	var node := MeshInstance3D.new()
+	node.name = disc_name
+	node.mesh = mesh
+	arena.add_child(node)
+	return node
+
+
+func _render_3d(game: Dictionary) -> void:
+	players = game.get("players", {})
+	zone = game.get("zone", [])
+	meteors = game.get("meteors", [])
+	fallen = game.get("fallen", [])
+	_update_players()
+	_update_zone()
+	_update_telegraphs()
+	_shake_on_new_downs()
+
+
+func _update_players() -> void:
+	for slot: int in players:
+		var state: Array = players[slot]
+		var rig := rig_for_slot(slot)
+		if rig == null:
+			continue
+		update_rig(slot, Vector2(state[0], state[1]))
+	for group: Array in fallen:
+		for slot: int in group:
+			_down_rig(slot)
+
+
+## Knocked-out players collapse and dim where the meteor (or the zone edge)
+## caught them; the snapshot stops carrying their position.
+func _down_rig(slot: int) -> void:
+	if _downed.has(slot):
+		return
+	var rig := rig_for_slot(slot)
+	if rig == null:
+		return
+	_downed[slot] = true
+	rig.play(&"ko")
+	rig.player_color = ELIMINATED_COLOR
+
+
+func _update_zone() -> void:
+	_zone_node.visible = zone.size() == 3
+	if not _zone_node.visible:
+		return
+	_zone_node.position = to_arena(Vector2(zone[0], zone[1]), ZONE_DISC_HEIGHT / 2.0)
+	var radius := maxf(float(zone[2]), 0.001)
+	_zone_node.scale = Vector3(radius, 1.0, radius)
+
+
+## Telegraph discs grow from half to full impact size as the timer runs out,
+## so "how urgent" is readable at a glance.
+func _update_telegraphs() -> void:
+	for i in _telegraph_pool.size():
+		var marker := _telegraph_pool[i]
+		marker.visible = i < meteors.size()
+		if not marker.visible:
+			continue
+		var state: Array = meteors[i]
+		var urgency := 1.0 - clampf(float(state[2]) / MeteorShower.METEOR_TELEGRAPH_SEC, 0.0, 1.0)
+		var radius := MeteorShower.METEOR_RADIUS * lerpf(0.5, 1.0, urgency)
+		marker.position = to_arena(Vector2(state[0], state[1]), ZONE_DISC_HEIGHT)
+		marker.scale = Vector3(radius, 1.0, radius)
+
+
+func _shake_on_new_downs() -> void:
+	var fallen_count := 0
+	for group: Array in fallen:
+		fallen_count += group.size()
+	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
+		request_shake(11.0)
+	_fallen_seen = fallen_count
