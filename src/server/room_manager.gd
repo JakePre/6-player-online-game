@@ -80,18 +80,21 @@ func leave_room(peer_id: int, now_ms: int) -> Room:
 	return room
 
 
-## Connection dropped. In the lobby the slot is released (nothing to rejoin
-## into); mid-match the slot, score and token are kept for rejoin (SPEC $9).
+## Connection dropped. The seat (slot, name, character, score, token) is held
+## in every state so rejoin always lands somewhere sensible (#176): back in
+## the lobby pre-start, sitting out the round mid-match (SPEC $9). Abandoned
+## rooms are reaped by the 5-minute expiry; an explicit leave_room still
+## frees the seat immediately.
 func handle_disconnect(peer_id: int, now_ms: int) -> Room:
 	var room := room_of_peer(peer_id)
 	if room == null:
 		return null
 	var member := room.find_by_peer(peer_id)
 	if member != null:
-		if room.state == Room.State.LOBBY:
-			room.remove_member(member)
-		else:
-			room.mark_disconnected(member, now_ms)
+		room.mark_disconnected(member, now_ms)
+		# A held lobby seat comes back un-readied; the returning player
+		# confirms again rather than the room starting under them.
+		member.ready = false
 	_peer_rooms.erase(peer_id)
 	_cleanup_room(room, now_ms)
 	return room
