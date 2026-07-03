@@ -116,6 +116,26 @@ func test_start_consumes_ready_flags() -> void:
 		assert_false(member.ready)
 
 
+func test_force_start_bypasses_player_count_and_ready_gate() -> void:
+	var room := _room_with(1)
+	assert_false(room.can_start(), "sanity: a solo room could never normally start")
+	assert_true(room.force_start_match())
+	assert_eq(room.state, Room.State.IN_MATCH)
+
+
+func test_force_start_still_consumes_ready_flags() -> void:
+	var room := _room_with(1)
+	room.members[0].ready = true
+	assert_true(room.force_start_match())
+	assert_false(room.members[0].ready)
+
+
+func test_force_start_refuses_a_room_already_in_match() -> void:
+	var room := _room_with(1)
+	assert_true(room.force_start_match())
+	assert_false(room.force_start_match())
+
+
 func test_state_dict_exposes_ready_and_round_count() -> void:
 	var room := _room_with(2)
 	room.members[0].ready = true

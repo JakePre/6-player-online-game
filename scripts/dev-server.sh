@@ -9,6 +9,9 @@
 # Server args are forwarded as-is to src/server/server_host.gd, e.g.:
 #   scripts/dev-server.sh --port=9000
 #   scripts/dev-server.sh --fake-lag=80 --fake-loss=0.05   # simulate a bad connection
+#   scripts/dev-server.sh --debug-rpcs   # accept test-harness config from
+#     # clients (custom round timing/playlist, solo match start) — never use
+#     # on a public server. Pair with dev-client.sh --debug-minigame=<id>.
 #
 # Godot binary resolution: $GODOT env var, then `godot4`/`godot` on PATH,
 # then the macOS app bundle default install location.

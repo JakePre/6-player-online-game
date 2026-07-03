@@ -10,6 +10,10 @@
 #
 # Usage:
 #   scripts/dev-client.sh
+#   scripts/dev-client.sh --debug-minigame=coin_scramble   # skip menu/lobby,
+#     # solo-play one minigame round for view/UX iteration. Requires
+#     # scripts/dev-server.sh --debug-rpcs (see its usage comment). Add
+#     # --address=/--port=/--name= to point elsewhere or rename the player.
 #
 # Godot binary resolution: $GODOT env var, then `godot4`/`godot` on PATH,
 # then the macOS app bundle default install location.
@@ -38,4 +42,4 @@ if [[ -z "$GODOT_BIN" ]]; then
 fi
 
 echo "using Godot binary: $GODOT_BIN"
-exec "$GODOT_BIN" --path . "$@"
+exec "$GODOT_BIN" --path . -- "$@"
