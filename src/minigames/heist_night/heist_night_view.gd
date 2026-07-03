@@ -41,14 +41,31 @@ func _draw() -> void:
 		var state: Array = vaults[slot]
 		var pos := _to_px(Vector2(state[0], state[1]), px_per_unit)
 		draw_circle(pos, HeistNight.VAULT_RADIUS * px_per_unit, VAULT_COLOR)
-		draw_string(
+		var label := "%s: %d" % [player_name(slot), int(state[2])]
+		# Vault totals must stay readable through the dark phase (#177): a
+		# black outline under every label, and darker palette colors lifted
+		# toward white while the lights are out.
+		var label_color := player_color(slot)
+		if dark:
+			label_color = label_color.lerp(Color.WHITE, 0.6)
+		draw_string_outline(
 			font,
 			pos + Vector2(-20.0, 4.0),
-			"%s: %d" % [player_name(slot), int(state[2])],
+			label,
 			HORIZONTAL_ALIGNMENT_CENTER,
 			40,
 			font_size,
-			player_color(slot)
+			6,
+			Color(0.0, 0.0, 0.0, 0.9)
+		)
+		draw_string(
+			font,
+			pos + Vector2(-20.0, 4.0),
+			label,
+			HORIZONTAL_ALIGNMENT_CENTER,
+			40,
+			font_size,
+			label_color
 		)
 	for coin: Array in coins:
 		draw_circle(_to_px(Vector2(coin[0], coin[1]), px_per_unit), 0.3 * px_per_unit, COIN_COLOR)

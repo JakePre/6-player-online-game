@@ -278,3 +278,15 @@ func test_emote_feed_shows_and_expires_toasts() -> void:
 	assert_eq((feed.get_child(0) as Label).text, "Bob %s" % Emotes.EMOTES[0])
 	await wait_seconds(0.4)
 	assert_eq(feed.get_child_count(), 0, "toasts expire after emote_lifetime")
+
+
+## #181: the running game's name stays on the HUD bar during play so
+## playtesters can take notes without waiting for the next intro card.
+func test_game_name_shows_on_hud_from_intro_through_play() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	var label: Label = screen.get_node("%GameNameLabel")
+	assert_eq(label.text, "Coin Scramble")
+	NetManager.match_event_received.emit({"type": "round_started"})
+	assert_eq(label.text, "Coin Scramble")
+	NetManager.match_event_received.emit({"type": "leaderboard", "totals": {}})
+	assert_eq(label.text, "", "cleared once the round view unmounts")

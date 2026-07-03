@@ -28,6 +28,10 @@ const ACTIONS := {
 ## Base nameplate font size from the scene; scaled by the nameplate_scale
 ## setting (#143).
 const NAMEPLATE_BASE_FONT := 48
+## Every plate renders inside the same maximum text width (#180): names and
+## captions longer than this shrink to fit instead of dwarfing everyone
+## else's. Measured in font pixels at the base size.
+const NAMEPLATE_MAX_WIDTH := 320.0
 
 const OUTLINE_SHADER := preload("res://src/characters/player_outline.gdshader")
 const XRAY_SHADER := preload("res://src/characters/player_xray.gdshader")
@@ -49,12 +53,13 @@ var _anim_player: AnimationPlayer
 var _current_action: StringName = &""
 var _outline_material: ShaderMaterial
 var _xray_material: ShaderMaterial
+var _base_font_size := NAMEPLATE_BASE_FONT
 
 @onready var _nameplate: Label3D = $Nameplate
 
 
 func _ready() -> void:
-	_nameplate.font_size = int(
+	_base_font_size = int(
 		NAMEPLATE_BASE_FONT * float(SettingsStore.load_settings().nameplate_scale)
 	)
 	_outline_material = ShaderMaterial.new()
@@ -64,7 +69,7 @@ func _ready() -> void:
 	_outline_material.next_pass = _xray_material
 	_rebuild_character()
 	_apply_player_color()
-	_nameplate.text = display_name
+	_fit_nameplate()
 
 
 ## Plays a semantic action (see ACTIONS). Returns false for unknown actions
@@ -105,7 +110,24 @@ func set_player_color(color: Color) -> void:
 func set_display_name(value: String) -> void:
 	display_name = value
 	if is_node_ready():
-		_nameplate.text = value
+		_fit_nameplate()
+
+
+## Uniform plate width (#180): text wider than NAMEPLATE_MAX_WIDTH (at the
+## base size, so the nameplate_scale setting still applies) shrinks its font
+## to fit; shorter text keeps the base size. The outline scales along so the
+## through-walls silhouette stays proportional.
+func _fit_nameplate() -> void:
+	_nameplate.text = display_name
+	var font := _nameplate.font
+	if font == null:
+		font = ThemeDB.fallback_font
+	var text_width := (
+		font.get_string_size(display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, NAMEPLATE_BASE_FONT).x
+	)
+	var factor := minf(1.0, NAMEPLATE_MAX_WIDTH / maxf(text_width, 1.0))
+	_nameplate.font_size = maxi(1, int(_base_font_size * factor))
+	_nameplate.outline_size = maxi(1, int(20 * factor))
 
 
 func set_show_props(value: bool) -> void:

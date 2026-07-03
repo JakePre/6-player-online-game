@@ -108,3 +108,29 @@ func test_nameplate_reflects_identity() -> void:
 	assert_eq(nameplate.text, "P2")
 	assert_eq(nameplate.modulate, PlayerPalette.color_for_slot(1))
 	assert_true(nameplate.no_depth_test, "nameplate reads through occluders")
+
+
+## #180: plates share one maximum width — long names/captions shrink their
+## font to fit it, short names keep the base size.
+func test_nameplate_width_is_capped() -> void:
+	var rig := _make_rig()
+	var plate: Label3D = rig.get_node("Nameplate")
+	rig.display_name = "Bo"
+	var short_size := plate.font_size
+	rig.display_name = "Somebody With A Really Long Name  99  (false start!)"
+	var long_size := plate.font_size
+	assert_lt(long_size, short_size, "long captions shrink")
+	var font := plate.font if plate.font != null else ThemeDB.fallback_font
+	var rendered := (
+		font.get_string_size(rig.display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, long_size).x
+	)
+	# The rendered width lands at (or under) the cap, scaled by the same
+	# nameplate_scale factor the base size uses.
+	var scale := float(long_size) / maxf(float(short_size), 1.0)
+	assert_almost_eq(
+		rendered,
+		CharacterRig.NAMEPLATE_MAX_WIDTH * float(short_size) / CharacterRig.NAMEPLATE_BASE_FONT,
+		CharacterRig.NAMEPLATE_MAX_WIDTH * 0.1,
+		"long text fits the shared width cap"
+	)
+	assert_gt(scale, 0.0)
