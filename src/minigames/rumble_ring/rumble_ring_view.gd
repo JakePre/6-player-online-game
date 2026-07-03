@@ -7,6 +7,13 @@ const COIN_COLOR := Color(0.96, 0.79, 0.2)
 const SMASH_RING_COLOR := Color(1.0, 0.5, 0.2, 0.6)
 const GUARD_TINT := Color(0.6, 0.8, 1.0)
 const REACTION_HOLD_SEC := 0.6
+## The ring itself (#237): the sim clamps to a square, so the boundary is a
+## glowing rope box at the clamp edge with corner posts — otherwise the
+## knockback edge is invisible.
+const ROPE_COLOR := Color(0.95, 0.3, 0.3)
+const ROPE_HEIGHT := 0.9
+const ROPE_THICKNESS := 0.09
+const POST_COLOR := Color(0.85, 0.85, 0.9)
 
 ## Latest replicated state, straight from RumbleRing.get_snapshot().
 var players := {}
@@ -42,6 +49,7 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
+	_build_ring()
 	_coin_mesh = CylinderMesh.new()
 	_coin_mesh.top_radius = 0.3
 	_coin_mesh.bottom_radius = 0.3
@@ -57,6 +65,60 @@ func _setup_3d() -> void:
 	_banner.position.y -= 48.0
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_banner)
+
+
+## Ropes on all four sides at the movement clamp, plus corner posts and a
+## faint edge line on the floor — where the arena ends must be readable at
+## a glance (#237).
+func _build_ring() -> void:
+	var half := RumbleRing.ARENA_HALF
+	var rope_material := StandardMaterial3D.new()
+	rope_material.albedo_color = ROPE_COLOR
+	rope_material.emission_enabled = true
+	rope_material.emission = ROPE_COLOR
+	rope_material.emission_energy_multiplier = 0.5
+	var post_material := StandardMaterial3D.new()
+	post_material.albedo_color = POST_COLOR
+	for side in 4:
+		var along_x := side % 2 == 0
+		var offset := half if side < 2 else -half
+		var rope_mesh := BoxMesh.new()
+		rope_mesh.size = (
+			Vector3(half * 2.0, ROPE_THICKNESS, ROPE_THICKNESS)
+			if along_x
+			else Vector3(ROPE_THICKNESS, ROPE_THICKNESS, half * 2.0)
+		)
+		rope_mesh.material = rope_material
+		var rope := MeshInstance3D.new()
+		rope.name = "Rope%d" % side
+		rope.mesh = rope_mesh
+		rope.position = (
+			Vector3(0.0, ROPE_HEIGHT, offset) if along_x else Vector3(offset, ROPE_HEIGHT, 0.0)
+		)
+		arena.add_child(rope)
+		# Floor edge line under each rope, so the clamp reads even when the
+		# camera crops the ropes.
+		var line_mesh := BoxMesh.new()
+		line_mesh.size = (
+			Vector3(half * 2.0, 0.04, 0.18) if along_x else Vector3(0.18, 0.04, half * 2.0)
+		)
+		line_mesh.material = rope_material
+		var line := MeshInstance3D.new()
+		line.mesh = line_mesh
+		line.position = Vector3(rope.position.x, 0.03, rope.position.z)
+		arena.add_child(line)
+	var post_mesh := CylinderMesh.new()
+	post_mesh.top_radius = 0.14
+	post_mesh.bottom_radius = 0.18
+	post_mesh.height = ROPE_HEIGHT + 0.3
+	post_mesh.material = post_material
+	for corner: Vector2 in [
+		Vector2(-half, -half), Vector2(half, -half), Vector2(-half, half), Vector2(half, half)
+	]:
+		var post := MeshInstance3D.new()
+		post.mesh = post_mesh
+		post.position = Vector3(corner.x, (ROPE_HEIGHT + 0.3) / 2.0, corner.y)
+		arena.add_child(post)
 
 
 func _process(_delta: float) -> void:
