@@ -156,7 +156,7 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 - [x] **M7-04** (S) In-game credits screen generated from `assets/CREDITS.md`
 
 ### M9 — Mutators (Phase 2, [PHASE2.md](PHASE2.md) §3 — framework knobs only, host curates + rounds roll)
-- [ ] **M9-01** (M) Mutator framework: `Mutator` resource + `MutatorCatalog`, framework knobs (award multiplier, pickup-cap scale, duration scale, server-side input transform, view flags, round-end coin transfer), GUT tests ⛓ none
+- [x] **M9-01** (M) Mutator framework: `Mutator` resource + `MutatorCatalog`, framework knobs (award multiplier, pickup-cap scale, duration scale, server-side input transform, view flags, round-end coin transfer), GUT tests ⛓ none
 - [ ] **M9-02** (S) Lobby mutator pool: host-only toggles replicated like round count; PROTOCOL_VERSION bump ⛓ M9-01
 - [ ] **M9-03** (S) Per-round roll (~40% of rounds, no repeats back-to-back, never the finale) + intro-card announcement ⛓ M9-01, M9-02
 - [ ] **M9-04** (M) Mutator pack A: Double Coins, Golden Round, Short Fuse, Overdrive (economy/duration/speed knobs) ⛓ M9-03
