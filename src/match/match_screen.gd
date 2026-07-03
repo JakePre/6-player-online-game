@@ -37,6 +37,7 @@ var _shake_origin := Vector2.ZERO
 @onready var _intro_category: Label = %IntroCategory
 @onready var _intro_rules: Label = %IntroRules
 @onready var _intro_controls: Label = %IntroControls
+@onready var _intro_mutator: Label = %IntroMutator
 @onready var _skip_button: Button = %SkipButton
 @onready var _skip_votes_label: Label = %SkipVotesLabel
 @onready var _results_panel: PanelContainer = %ResultsPanel
@@ -162,6 +163,11 @@ func _show_intro(event: Dictionary) -> void:
 	# Control hints (M6-04); older servers may not send the key yet.
 	_intro_controls.text = String(minigame.get("controls", ""))
 	_intro_controls.visible = not _intro_controls.text.is_empty()
+	# Mutator announcement (M9-03) — no hidden modifiers.
+	var mutator: Dictionary = event.get("mutator", {})
+	_intro_mutator.visible = not mutator.is_empty()
+	if not mutator.is_empty():
+		_intro_mutator.text = "MUTATOR — %s: %s" % [mutator.name, mutator.blurb]
 	_skip_button.disabled = false
 	_skip_button.text = "Skip intro"
 	_skip_votes_label.text = ""

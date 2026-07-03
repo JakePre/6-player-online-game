@@ -158,7 +158,7 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 ### M9 — Mutators (Phase 2, [PHASE2.md](PHASE2.md) §3 — framework knobs only, host curates + rounds roll)
 - [x] **M9-01** (M) Mutator framework: `Mutator` resource + `MutatorCatalog`, framework knobs (award multiplier, pickup-cap scale, duration scale, server-side input transform, view flags, round-end coin transfer), GUT tests ⛓ none
 - [x] **M9-02** (S) Lobby mutator pool: host-only toggles replicated like round count; PROTOCOL_VERSION bump ⛓ M9-01
-- [ ] **M9-03** (S) Per-round roll (~40% of rounds, no repeats back-to-back, never the finale) + intro-card announcement ⛓ M9-01, M9-02
+- [x] **M9-03** (S) Per-round roll (~40% of rounds, no repeats back-to-back, never the finale) + intro-card announcement ⛓ M9-01, M9-02
 - [ ] **M9-04** (M) Mutator pack A: Double Coins, Golden Round, Short Fuse, Overdrive (economy/duration/speed knobs) ⛓ M9-03
 - [ ] **M9-05** (M) Mutator pack B: Mirror Mode, Blackout, Masquerade, Robin Hood (input/view/transfer knobs) ⛓ M9-03
 - [ ] **M9-06** (S) Nightly soak variant: full match with random mutators enabled ⛓ M9-04, M9-05, M7-03

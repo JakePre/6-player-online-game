@@ -74,6 +74,20 @@ func test_intro_card_shows_control_hints_when_present() -> void:
 	assert_false(controls.visible, "no controls key hides the hint row")
 
 
+## M9-03: the rolled mutator is announced on the intro card; unmutated rounds
+## hide the row.
+func test_intro_card_announces_mutator() -> void:
+	var event := _intro_event()
+	event["mutator"] = {"id": "double", "name": "Double Coins", "blurb": "All awards doubled."}
+	NetManager.match_event_received.emit(event)
+	var label: Label = screen.get_node("%IntroMutator")
+	assert_true(label.visible)
+	assert_string_contains(label.text, "Double Coins")
+	assert_string_contains(label.text, "All awards doubled.")
+	NetManager.match_event_received.emit(_intro_event())
+	assert_false(label.visible)
+
+
 func test_skip_votes_label_updates() -> void:
 	NetManager.match_event_received.emit(_intro_event())
 	NetManager.match_event_received.emit({"type": "skip_votes", "votes": 1, "needed": 2})
