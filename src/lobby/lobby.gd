@@ -17,6 +17,7 @@ var _last_state: Dictionary = {}
 @onready var _prev_character_button: Button = %PrevCharacterButton
 @onready var _next_character_button: Button = %NextCharacterButton
 @onready var _color_swatch: ColorRect = %ColorSwatch
+@onready var _character_preview: CharacterPreview = %CharacterPreview
 @onready var _ready_button: Button = %ReadyButton
 @onready var _start_button: Button = %StartButton
 @onready var _leave_button: Button = %LeaveButton
@@ -72,6 +73,9 @@ func _on_room_updated(state: Dictionary) -> void:
 	_round_option.select(_round_option.get_item_index(state.round_count))
 	_round_option.disabled = not i_am_host or in_match
 	_character_label.text = CharacterRoster.display_name_for(_my_character_id())
+	_character_preview.show_character(
+		_my_character_id(), PlayerPalette.color_for_slot(NetManager.my_slot), _my_ready(state)
+	)
 	_prev_character_button.disabled = in_match
 	_next_character_button.disabled = in_match
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
