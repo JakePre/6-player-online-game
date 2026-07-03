@@ -21,6 +21,13 @@ const FLOOR_TILE_THICKNESS := 0.195
 ## Below this per-snapshot displacement (world units), a rig is treated as
 ## stationary and plays "idle" instead of "walk".
 const MOVE_EPSILON := 0.01
+## Snapshot interpolation (M12-04). A jump beyond this distance (respawns,
+## round resets) snaps instead of sliding across the arena.
+const TELEPORT_SNAP_DISTANCE := 3.0
+## Fallback/clamp bounds for the measured inter-snapshot interval, so one
+## delayed packet cannot stretch the slide into slow motion.
+const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
+const MAX_SAMPLE_INTERVAL := 0.25
 ## Blackout view flag (M9-05): lights-out cadence, mirroring Heist Night's
 ## LIGHT_SEC/DARK_SEC feel (SPEC-level: reuse the established rhythm).
 const BLACKOUT_LIGHT_SEC := 8.0
@@ -35,6 +42,9 @@ var _viewport: SubViewport
 var _camera_rig: IsoCameraRig
 var _rigs := {}  # slot (int) -> CharacterRig
 var _rig_last_pos := {}  # slot (int) -> Vector2, for walk/idle + facing
+# slot (int) -> {from: Vector2, to: Vector2, at: float, interval: float};
+# per-frame interpolation targets (M12-04).
+var _rig_samples := {}
 
 
 func _setup() -> void:
@@ -44,6 +54,7 @@ func _setup() -> void:
 	_build_floor()
 	_build_character_rigs()
 	_apply_view_flags()
+	set_process_internal(true)
 	_setup_3d()
 
 
@@ -101,7 +112,7 @@ func update_rig(slot: int, world_pos: Vector2) -> void:
 		return
 	var last: Vector2 = _rig_last_pos.get(slot, world_pos)
 	var delta := world_pos - last
-	rig.position = to_arena(world_pos)
+	_record_rig_sample(slot, rig, world_pos)
 	var moving := delta.length() > MOVE_EPSILON
 	if moving:
 		rig.rotation.y = atan2(delta.x, delta.y)
@@ -109,6 +120,57 @@ func update_rig(slot: int, world_pos: Vector2) -> void:
 	if rig.current_action() != desired:
 		rig.play(desired)
 	_rig_last_pos[slot] = world_pos
+
+
+# --- Snapshot interpolation (M12-04) ------------------------------------------
+
+
+## 30 Hz snapshots land as per-slot samples; an internal-process pass slides
+## each rig from where it is on screen to the newest sample every frame, so
+## motion stays smooth at any display rate. Internal process is used so
+## subclasses keep _process/_physics_process for their own input. The first
+## sample for a slot snaps (the rig spawns in place), as do teleport-sized
+## jumps.
+func _record_rig_sample(slot: int, rig: CharacterRig, world_pos: Vector2) -> void:
+	var now := _now_sec()
+	var sample: Dictionary = _rig_samples.get(slot, {})
+	if sample.is_empty() or world_pos.distance_to(sample.to) > TELEPORT_SNAP_DISTANCE:
+		_rig_samples[slot] = {
+			"from": world_pos, "to": world_pos, "at": now, "interval": SNAPSHOT_INTERVAL
+		}
+		rig.position = to_arena(world_pos)
+		return
+	var interval := clampf(now - sample.at, SNAPSHOT_INTERVAL, MAX_SAMPLE_INTERVAL)
+	_rig_samples[slot] = {
+		# Start from the on-screen position, so jittery snapshot timing never
+		# pops the rig backwards.
+		"from": _sample_position(sample, now),
+		"to": world_pos,
+		"at": now,
+		"interval": interval,
+	}
+
+
+func _sample_position(sample: Dictionary, now: float) -> Vector2:
+	var t := clampf((now - float(sample.at)) / float(sample.interval), 0.0, 1.0)
+	return (sample.from as Vector2).lerp(sample.to, t)
+
+
+func _interpolate_rigs(now: float) -> void:
+	for slot: int in _rig_samples:
+		var rig: CharacterRig = _rigs.get(slot)
+		if rig == null or not rig.visible:
+			continue
+		rig.position = to_arena(_sample_position(_rig_samples[slot], now))
+
+
+func _now_sec() -> float:
+	return Time.get_ticks_usec() / 1_000_000.0
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_INTERNAL_PROCESS:
+		_interpolate_rigs(_now_sec())
 
 
 ## Victory dance (M6-02): the round's winners (first tie group) cheer while
