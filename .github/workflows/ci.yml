@@ -33,9 +33,18 @@ jobs:
       - name: Import resources
         run: godot --headless --import || true
       - name: Run GUT
+        # GUT skips (rather than fails) test scripts that do not parse, so a
+        # green run can silently drop tests (#88). Fail on any skipped script.
+        # bash explicitly: the container's default sh has no pipefail.
+        shell: bash
         run: |
+          set -o pipefail
           godot --headless -s addons/gut/gut_cmdln.gd \
-            -gdir=res://tests/unit -ginclude_subdirs -gexit
+            -gdir=res://tests/unit -ginclude_subdirs -gexit 2>&1 | tee gut-output.log
+          if grep -qE "Failed to load script|Ignoring script" gut-output.log; then
+            echo "::error::A test script failed to parse and was skipped by GUT"
+            exit 1
+          fi
 
   soak:
     name: Multiplayer soak (server + 6 bots)
