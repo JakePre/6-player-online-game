@@ -107,7 +107,7 @@ func _tick(delta: float) -> void:
 	for slot: int in slots:
 		staggers[slot] = maxf(0.0, float(staggers[slot]) - delta)
 		dash_cooldowns[slot] = maxf(0.0, float(dash_cooldowns[slot]) - delta)
-		var velocity := move_dirs[slot] * MOVE_SPEED
+		var velocity: Vector2 = move_dirs[slot] * MOVE_SPEED
 		if float(dash_timers[slot]) > 0.0:
 			dash_timers[slot] = maxf(0.0, float(dash_timers[slot]) - delta)
 			velocity = dash_dirs[slot] * DASH_SPEED
