@@ -16,6 +16,7 @@ func _ready() -> void:
 		return
 	# Machine-readable startup line; the soak harness waits for it.
 	print("SERVER READY port=%d protocol=%d" % [port, NetConfig.PROTOCOL_VERSION])
+	add_child(ServerUpdater.new())
 
 
 func _process(delta: float) -> void:
