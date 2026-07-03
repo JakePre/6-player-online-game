@@ -1,12 +1,21 @@
-extends MinigameView
-## Tug of War client view (M4-10): rope with a center marker between two team
-## rosters; alternate move_left/move_right to pull. Same 2D presentation tier
-## as the Coin Scramble reference view.
+extends MinigameView3D
+## Tug of War client view (M8-09): renders the replicated tug in the shared
+## 2.5D iso-arena (M8-01, MinigameView3D) — the rope as a stretched bar with
+## a marker knot tracking the replicated offset, teams lined up on their
+## sides as CharacterRigs leaning into the pull. Presentation-tier swap only:
+## state storage and the alternating pull input are unchanged from the 2D
+## pass (M4-10).
 
 const ROPE_COLOR := Color(0.72, 0.55, 0.3)
-const LINE_COLOR := Color(0.9, 0.25, 0.25)
 const MARKER_COLOR := Color(1.0, 0.9, 0.4)
-const ROW_SPACING := 22.0
+const LINE_COLOR := Color(0.9, 0.25, 0.25)
+const ROPE_HEIGHT := 0.9
+const ROPE_THICKNESS := 0.12
+## Rope world length is a little longer than the two win offsets.
+const ROPE_EXTRA := 4.0
+## Where teams stand relative to the rope line.
+const TEAM_ROW_Z := 1.6
+const TEAMMATE_SPACING := 1.4
 
 ## Latest replicated state, straight from TugOfWar.get_snapshot().
 var rope := 0.0
@@ -14,7 +23,9 @@ var win_offset := TugOfWar.WIN_OFFSET
 var team_a: Array = []
 var team_b: Array = []
 
+var _marker: MeshInstance3D
 var _phase := -1
+var _last_rope := 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -31,54 +42,77 @@ func _unhandled_input(event: InputEvent) -> void:
 	NetManager.send_match_input({"pull": phase})
 
 
-func _render(game: Dictionary) -> void:
+func _arena_half() -> float:
+	return TugOfWar.WIN_OFFSET + 4.0
+
+
+func _setup_3d() -> void:
+	var rope_mesh := BoxMesh.new()
+	rope_mesh.size = Vector3(TugOfWar.WIN_OFFSET * 2.0 + ROPE_EXTRA, ROPE_THICKNESS, ROPE_THICKNESS)
+	var rope_material := StandardMaterial3D.new()
+	rope_material.albedo_color = ROPE_COLOR
+	rope_mesh.material = rope_material
+	var rope_node := MeshInstance3D.new()
+	rope_node.name = "Rope"
+	rope_node.mesh = rope_mesh
+	rope_node.position = Vector3(0.0, ROPE_HEIGHT, 0.0)
+	arena.add_child(rope_node)
+
+	var marker_mesh := SphereMesh.new()
+	marker_mesh.radius = 0.3
+	marker_mesh.height = 0.6
+	var marker_material := StandardMaterial3D.new()
+	marker_material.albedo_color = MARKER_COLOR
+	marker_material.emission_enabled = true
+	marker_material.emission = MARKER_COLOR
+	marker_material.emission_energy_multiplier = 0.4
+	marker_mesh.material = marker_material
+	_marker = MeshInstance3D.new()
+	_marker.name = "Marker"
+	_marker.mesh = marker_mesh
+	_marker.position = Vector3(0.0, ROPE_HEIGHT, 0.0)
+	arena.add_child(_marker)
+
+	for side: float in [-1.0, 1.0]:
+		var line_mesh := BoxMesh.new()
+		line_mesh.size = Vector3(0.15, 0.02, 6.0)
+		var line_material := StandardMaterial3D.new()
+		line_material.albedo_color = LINE_COLOR
+		line_mesh.material = line_material
+		var line := MeshInstance3D.new()
+		line.name = "WinLineLeft" if side < 0.0 else "WinLineRight"
+		line.mesh = line_mesh
+		line.position = Vector3(side * TugOfWar.WIN_OFFSET, 0.01, 0.0)
+		arena.add_child(line)
+
+
+func _render_3d(game: Dictionary) -> void:
 	rope = float(game.get("rope", 0.0))
 	win_offset = float(game.get("win_offset", TugOfWar.WIN_OFFSET))
 	team_a = game.get("team_a", [])
 	team_b = game.get("team_b", [])
-	queue_redraw()
+	_marker.position.x = rope
+	_update_teams()
+	_last_rope = rope
 
 
-func _draw() -> void:
-	var center := size / 2.0
-	var half_px := size.x * 0.35
-	var px_per_unit := half_px / win_offset
-	var marker_x := center.x + rope * px_per_unit
-	draw_line(
-		Vector2(center.x - half_px, center.y),
-		Vector2(center.x + half_px, center.y),
-		ROPE_COLOR,
-		6.0
-	)
-	for side: float in [-1.0, 1.0]:
-		var line_x := center.x + side * half_px
-		draw_line(
-			Vector2(line_x, center.y - 40.0), Vector2(line_x, center.y + 40.0), LINE_COLOR, 3.0
-		)
-	draw_circle(Vector2(marker_x, center.y), 10.0, MARKER_COLOR)
-	var font := get_theme_default_font()
-	var font_size := get_theme_default_font_size()
-	_draw_roster(team_a, Vector2(center.x - half_px, center.y + 60.0), font, font_size)
-	_draw_roster(team_b, Vector2(center.x + half_px, center.y + 60.0), font, font_size)
-	draw_string(
-		font,
-		Vector2(center.x - 120.0, center.y - 60.0),
-		"Alternate ◀ ▶ to pull!",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		240,
-		font_size
-	)
+func _update_teams() -> void:
+	# Team A pulls toward -x and stands on the -x side; B mirrors.
+	_place_team(team_a, -1.0)
+	_place_team(team_b, 1.0)
 
 
-func _draw_roster(team: Array, at: Vector2, font: Font, font_size: int) -> void:
+func _place_team(team: Array, side: float) -> void:
+	var moving := absf(rope - _last_rope) > 0.001
 	for i in team.size():
 		var slot: int = team[i]
-		draw_string(
-			font,
-			at + Vector2(-40.0, ROW_SPACING * i),
-			player_name(slot),
-			HORIZONTAL_ALIGNMENT_CENTER,
-			80,
-			font_size,
-			player_color(slot)
-		)
+		var rig := rig_for_slot(slot)
+		if rig == null:
+			continue
+		var x := rope + side * (2.0 + i * TEAMMATE_SPACING)
+		update_rig(slot, Vector2(x, TEAM_ROW_Z * side))
+		# Everyone faces the rope's center line, leaning into the pull.
+		rig.rotation.y = atan2(-side, 0.0)
+		var desired: StringName = &"run" if moving else &"idle"
+		if rig.current_action() != desired:
+			rig.play(desired)
