@@ -128,10 +128,20 @@ func _on_room_updated(state: Dictionary) -> void:
 func _rebuild_player_list(state: Dictionary) -> void:
 	for child in _player_list.get_children():
 		child.queue_free()
+	var i_am_host: bool = state.host_slot == NetManager.my_slot
 	for member: Dictionary in state.members:
-		var row := Label.new()
-		row.text = _member_line(member, state.host_slot)
-		row.modulate = PlayerPalette.color_for_slot(member.slot)
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = _member_line(member, state.host_slot)
+		label.modulate = PlayerPalette.color_for_slot(member.slot)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(label)
+		# Host-only kick (#141) — never on your own row, lobby only.
+		if i_am_host and member.slot != NetManager.my_slot and state.state == Room.State.LOBBY:
+			var kick := Button.new()
+			kick.text = "Kick"
+			kick.pressed.connect(NetManager.request_kick.bind(int(member.slot)))
+			row.add_child(kick)
 		_player_list.add_child(row)
 
 

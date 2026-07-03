@@ -67,6 +67,13 @@ func find_by_peer(peer_id: int) -> RoomMember:
 	return null
 
 
+func find_by_slot(slot: int) -> RoomMember:
+	for member in members:
+		if member.slot == slot:
+			return member
+	return null
+
+
 func find_by_token(token: String) -> RoomMember:
 	if token.is_empty():
 		return null

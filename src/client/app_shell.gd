@@ -31,6 +31,9 @@ func _ready() -> void:
 	NetManager.room_updated.connect(_on_room_updated)
 	NetManager.join_failed.connect(_on_join_failed)
 	NetManager.match_start_failed.connect(_on_match_start_failed)
+	NetManager.kicked.connect(
+		func() -> void: _toasts.show_toast("Removed from the room by the host.")
+	)
 	NetManager.left_room.connect(func() -> void: goto_screen(&"main_menu"))
 	NetManager.server_disconnected.connect(_on_server_disconnected)
 	_reconnect_overlay.closed.connect(_on_reconnect_closed)
