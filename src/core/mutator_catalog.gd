@@ -31,5 +31,7 @@ static func is_registered(id: StringName) -> bool:
 
 static func registered_ids() -> Array:
 	var ids := _registry.keys()
-	ids.sort()
+	# Explicit String comparison: StringName sort order is lexicographic on
+	# Godot 4.6 but creation-ordered on the 4.4 CI runner.
+	ids.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
 	return ids
