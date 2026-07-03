@@ -306,6 +306,7 @@ func _build_character_rigs() -> void:
 		)
 		rig.player_color = player_color(slot)
 		rig.display_name = player_name(slot)
+		rig.nameplate_priority = 1 if slot == my_slot else 0
 		arena.add_child(rig)
 		_rigs[slot] = rig
 
