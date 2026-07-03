@@ -80,6 +80,10 @@ func tick(delta: float) -> void:
 	if state == State.DONE:
 		return
 	if state == State.PLAY:
+		# Overdrive (M9-04): the server scales the sim delta, so everything —
+		# movement, timers, the round clock — runs faster together.
+		if current_mutator != null:
+			delta = current_mutator.scaled_tick_delta(delta)
 		game.tick(delta)
 		if game.finished:
 			_enter_results()
@@ -185,6 +189,14 @@ func _enter_play() -> void:
 	_round_slots = _connected_slots()
 	game = MinigameCatalog.instantiate(playlist[round_index])
 	game.duration_override = _duration_override
+	# Short Fuse (M9-04): scale whatever duration would otherwise apply.
+	if current_mutator != null and not is_equal_approx(current_mutator.duration_scale, 1.0):
+		var base := (
+			_duration_override
+			if _duration_override > 0.0
+			else MinigameCatalog.meta_of(playlist[round_index]).duration_sec
+		)
+		game.duration_override = current_mutator.scaled_duration(base)
 	game.setup(_round_slots, _rng.randi())
 	event_emitted.emit({"type": "round_started", "round": round_index + 1})
 
@@ -193,11 +205,18 @@ func _enter_results() -> void:
 	state = State.RESULTS
 	_state_left = _results_sec
 	var results := game.get_results()
+	# Mutator economy knobs (M9-04): Golden Round scales the pickup cap,
+	# Double Coins multiplies the combined award.
+	var cap := Economy.PICKUP_CAP
+	if current_mutator != null:
+		cap = current_mutator.scaled_pickup_cap(Economy.PICKUP_CAP)
 	var awards := (
-		Economy.total_team_round_award(results.placements, results.pickup_coins)
+		Economy.total_team_round_award(results.placements, results.pickup_coins, cap)
 		if results.get("team_mode", false)
-		else Economy.total_round_award(results.placements, results.pickup_coins)
+		else Economy.total_round_award(results.placements, results.pickup_coins, cap)
 	)
+	if current_mutator != null:
+		awards = current_mutator.apply_award_multiplier(awards)
 	for member in room.members:
 		member.score += int(awards.get(member.slot, 0))
 	(

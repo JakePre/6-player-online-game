@@ -367,3 +367,79 @@ func test_snapshot_carries_mutator_for_late_arrivals() -> void:
 	_run_until(controller, func() -> bool: return controller.is_done())
 	assert_false(controller.get_snapshot().has("mutator"), "no mutator once the match is over")
 	MutatorCatalog.clear()
+
+
+## Times out ranking slot 0 first and hands them 100 raw pickup coins, so cap
+## behavior is observable in the awards.
+class PickupGame:
+	extends SlotOrderGame
+
+	func _rank_players() -> Array:
+		_pickup_coins = {0: 100}
+		return super()
+
+
+## Pins the round's mutator directly instead of fishing for the 40% roll.
+func _controller_with_mutator(room: Room, id: StringName) -> MatchController:
+	MutatorCatalog.clear()
+	MutatorCatalog.register_builtins()
+	assert_true(room.set_mutator_pool([String(id)]))
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.current_mutator = MutatorCatalog.mutator_of(id)
+	return controller
+
+
+func test_pack_a_registers_with_expected_knobs() -> void:
+	MutatorCatalog.clear()
+	MutatorCatalog.register_builtins()
+	MutatorCatalog.register_builtins()
+	assert_eq(
+		MutatorCatalog.registered_ids(),
+		[&"double_coins", &"golden_round", &"overdrive", &"short_fuse"]
+	)
+	assert_eq(MutatorCatalog.mutator_of(&"double_coins").award_multiplier, 2.0)
+	assert_eq(MutatorCatalog.mutator_of(&"golden_round").pickup_cap_scale, 2.0)
+	assert_eq(MutatorCatalog.mutator_of(&"short_fuse").duration_scale, 0.6)
+	assert_eq(MutatorCatalog.mutator_of(&"overdrive").speed_scale, 1.25)
+	MutatorCatalog.clear()
+
+
+func test_double_coins_doubles_round_awards() -> void:
+	var room := _make_room(2)
+	var controller := _controller_with_mutator(room, &"double_coins")
+	_run_until(controller, func() -> bool: return controller.is_done())
+	var results := events.filter(func(e: Dictionary) -> bool: return e.type == "round_results")
+	assert_eq(results[0].awards, {0: 60, 1: 40}, "30/20 placement awards doubled")
+	MutatorCatalog.clear()
+
+
+func test_golden_round_raises_the_pickup_cap() -> void:
+	MinigameCatalog.clear()
+	MinigameCatalog.register(
+		MinigameMeta.create({"id": &"slot_order", "duration_sec": 60.0}), PickupGame
+	)
+	var room := _make_room(2)
+	var controller := _controller_with_mutator(room, &"golden_round")
+	_run_until(controller, func() -> bool: return controller.is_done())
+	var results := events.filter(func(e: Dictionary) -> bool: return e.type == "round_results")
+	assert_eq(results[0].awards[0], 30 + 60, "100 raw pickups capped at the doubled 60")
+	MutatorCatalog.clear()
+
+
+func test_short_fuse_scales_the_round_duration() -> void:
+	var room := _make_room(2)
+	var controller := _controller_with_mutator(room, &"short_fuse")
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
+	assert_almost_eq(controller.game.duration_override, 0.06, 0.001, "0.1s override scaled by 0.6")
+	MutatorCatalog.clear()
+
+
+func test_overdrive_scales_the_sim_delta() -> void:
+	var room := _make_room(2)
+	var controller := _controller_with_mutator(room, &"overdrive")
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
+	var before: float = controller.game.elapsed
+	controller.tick(TICK)
+	assert_almost_eq(controller.game.elapsed - before, TICK * 1.25, 0.0001)
+	MutatorCatalog.clear()
