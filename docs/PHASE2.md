@@ -105,7 +105,23 @@ Both are FFA-category in the catalog (the selector has no ACTION category and do
 - **Input parity**: every minigame certified playable with a gamepad alone *and* keyboard/mouse alone. Known offender: Trap Corridor's trap placement is mouse-click-only — it gains a stick-driven tile cursor.
 - **Accessibility**: colorblind-safe palette variant (player identity must survive deuteranopia), input remapping UI, reduced-motion toggle (disables screen shake from M6-02).
 
-## 7. Sequencing
+## 7. Presentation tiers: 3D iso is the default, 2D arcade is a choice
+
+Owner direction (2026-07-03): some games are **deliberately 2D** — the flat
+arcade look is part of their identity, not a missing migration. Do not
+"upgrade" them to `MinigameView3D`; polish them as 2D.
+
+| Intentionally 2D | Why |
+|---|---|
+| Hurdle Dash | Side-view lane race — Track & Field arcade timing reads best flat |
+| Relay Sprint | Parallel lanes + sweeping hazards *are* the visual |
+| Heist Night | Top-down blueprint reads like a security feed; the blackout is stronger as a flat map going dark |
+
+Everything about spatial jockeying (Sumo, KotH, Thin Ice, Color Clash,
+Rumble Ring, Bullet Waltz, the Gauntlet, ...) stays on the 3D iso tier.
+Candidates may move between tiers only with an owner-approved issue.
+
+## 8. Sequencing
 
 ```
 M9 (mutator framework first — wave-2 games ship mutator-clean against it)
