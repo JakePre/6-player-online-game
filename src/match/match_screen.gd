@@ -78,6 +78,7 @@ func _on_match_event(event: Dictionary) -> void:
 		"skip_votes":
 			_skip_votes_label.text = "Skip votes: %d/%d" % [event.votes, event.needed]
 		"round_started":
+			AudioManager.play_sfx(&"round_start")
 			_mount_view(_minigame_id)
 			_show_panel(null)
 		"round_results":
@@ -86,11 +87,15 @@ func _on_match_event(event: Dictionary) -> void:
 			# next phase event instead.
 			if _minigame_view != null:
 				_minigame_view.celebrate(event.placements)
+			AudioManager.play_sfx(_result_sfx(event))
 			_show_results(event)
 		"leaderboard":
+			AudioManager.play_sfx(&"leaderboard")
 			_unmount_view()
 			_show_standings("Leaderboard", event.totals)
 		"match_ended":
+			AudioManager.play_music(&"finale")
+			AudioManager.play_sfx(&"podium")
 			_unmount_view()
 			_show_podium(event.standings)
 
@@ -157,6 +162,14 @@ func _show_intro(event: Dictionary) -> void:
 	_skip_button.text = "Skip intro"
 	_skip_votes_label.text = ""
 	_show_panel(_intro_card)
+
+
+## Winners hear the win jingle; everyone else the consolation one.
+func _result_sfx(event: Dictionary) -> StringName:
+	var placements: Array = event.placements
+	if not placements.is_empty() and NetManager.my_slot in placements[0]:
+		return &"round_win"
+	return &"round_lose"
 
 
 func _show_results(event: Dictionary) -> void:

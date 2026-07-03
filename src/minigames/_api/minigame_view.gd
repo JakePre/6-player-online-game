@@ -52,6 +52,12 @@ func request_shake(strength: float = 8.0) -> void:
 	shake_requested.emit(strength)
 
 
+## Per-minigame SFX hook (M6-01): fire a semantic AudioManager sound from
+## view code (e.g. on pickup/hit snapshots). Unknown names no-op.
+func play_sfx(name: StringName) -> void:
+	AudioManager.play_sfx(name)
+
+
 func player_color(slot: int) -> Color:
 	return PlayerPalette.color_for_slot(slot)
 

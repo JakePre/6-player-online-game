@@ -121,7 +121,7 @@ Sabotage — [x] **M4-14** Poison Feast (M) · [x] **M4-15** Trap Corridor (L) �
 - [x] **M5-03** (S) Final ranking: elimination order → placement, coin tiebreaks; feeds podium ⛓ M5-02, M3-05
 
 ### M6 — Polish & feel
-- [ ] **M6-01** (M) Audio pass: music loops (menu/round/finale), SFX for all shared chrome + per-minigame hooks
+- [x] **M6-01** (M) Audio pass: music loops (menu/round/finale), SFX for all shared chrome + per-minigame hooks
 - [x] **M6-02** (M) Juice pass: coin fly-to-HUD, screen shake, KO ragdolls, victory dances
 - [x] **M6-03** (S) Reconnect overlay + graceful error toasts (room full, bad code, version mismatch)
 - [ ] **M6-04** (M) UI theme unification + intro-card control diagrams for all 17 games
