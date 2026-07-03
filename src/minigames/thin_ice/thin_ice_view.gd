@@ -10,6 +10,7 @@ extends MinigameView3D
 
 const INTACT_COLOR := Color(0.55, 0.78, 0.95)
 const CRACKED_COLOR := Color(0.75, 0.68, 0.55)
+const BREAKING_COLOR := Color(1.0, 0.35, 0.25)
 const WATER_COLOR := Color(0.03, 0.05, 0.1)
 const TILE_THICKNESS := 0.3
 const WATER_DEPTH := 0.45
@@ -22,6 +23,7 @@ var fallen: Array = []
 var _tile_nodes: Array[MeshInstance3D] = []
 var _intact_material: StandardMaterial3D
 var _cracked_material: StandardMaterial3D
+var _breaking_material: StandardMaterial3D
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
 
@@ -53,6 +55,11 @@ func _build_floor() -> void:
 	_intact_material.roughness = 0.2
 	_cracked_material = StandardMaterial3D.new()
 	_cracked_material.albedo_color = CRACKED_COLOR
+	_breaking_material = StandardMaterial3D.new()
+	_breaking_material.albedo_color = BREAKING_COLOR
+	_breaking_material.emission_enabled = true
+	_breaking_material.emission = BREAKING_COLOR
+	_breaking_material.emission_energy_multiplier = 0.6
 	var tile_mesh := BoxMesh.new()
 	tile_mesh.size = Vector3(ThinIce.TILE_SIZE, TILE_THICKNESS, ThinIce.TILE_SIZE)
 
@@ -97,7 +104,9 @@ func _update_tiles() -> void:
 		node.visible = state != ThinIce.TileState.GONE
 		if node.visible:
 			node.material_override = (
-				_cracked_material if state == ThinIce.TileState.CRACKED else _intact_material
+				_breaking_material
+				if state == ThinIce.TileState.BREAKING
+				else (_cracked_material if state == ThinIce.TileState.CRACKED else _intact_material)
 			)
 
 
