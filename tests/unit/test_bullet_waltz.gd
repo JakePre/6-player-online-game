@@ -25,12 +25,27 @@ func test_meta_and_catalog() -> void:
 func test_patterns_are_deterministic_from_seed() -> void:
 	var a := _game()
 	var b := _game()
-	for _i in 90:
+	for _i in 150:
 		a.tick(TICK)
 		b.tick(TICK)
+	assert_gt(a.bullets.size(), 0, "past the grace the storm is live")
 	assert_eq(a.bullets.size(), b.bullets.size())
 	for i in a.bullets.size():
 		assert_eq(a.bullets[i].pos, b.bullets[i].pos, "same seed, same storm")
+
+
+## #208: the opening grace holds the first volley, then firing resumes on
+## the normal cadence.
+func test_opening_grace_delays_the_first_volley() -> void:
+	var game := _game()
+	var grace_ticks := int(BulletWaltz.SPAWN_GRACE_SEC / TICK) - 1
+	for _i in grace_ticks:
+		game.tick(TICK)
+	assert_true(game.bullets.is_empty(), "no bullets during the grace")
+	var until_first := int((BulletWaltz.FIRE_INTERVAL_START + 0.1) / TICK) + 2
+	for _i in until_first:
+		game.tick(TICK)
+	assert_gt(game.bullets.size(), 0, "first volley lands after grace + interval")
 
 
 func test_escalation_ramps_cadence_and_speed() -> void:
