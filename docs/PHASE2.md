@@ -15,7 +15,7 @@ Phase 1 shipped the complete v1 loop: 17 minigames, the coin economy, the Gauntl
 | P2-3 | Persistence | **Nothing persists** — identity stays name + character per session; no accounts, no server-side stats |
 | P2-4 | Session size | **2–6 players**, unchanged |
 | P2-5 | Mutators | **Both modes**: the host curates an enabled pool in the lobby; enabled mutators then roll randomly per round |
-| P2-6 | Roster growth | **+16 minigames → 33 total** (four new per category) — minigames stay the content engine |
+| P2-6 | Roster growth | **+18 minigames → 35 total** — minigames stay the content engine (amended +2 per owner feedback, 2026-07-03: more action verbs, fewer walk/stand/collect loops) |
 | P2-7 | Tournament | **Best-of-N series**: 3 or 5 chained matches with a series scoreboard and a grand champion |
 | P2-8 | Bots | **None.** Humans only; the soak bot stays a test tool |
 
@@ -45,7 +45,7 @@ A **mutator** is a round modifier that works on *framework knobs*, never on per-
 | Masquerade | view flag | Nameplates hidden — who's who is the puzzle |
 | Robin Hood | end transfer | At round end, last place takes 10 coins from first place |
 
-## 4. Roster wave 2 (M10): 17 → 33
+## 4. Roster wave 2 (M10): 17 → 35
 
 Same contract, same bar as Phase 1: server-authoritative sim + `MinigameView3D` view + GUT tests + catalog registration, one game per PR. The scaling rule from SPEC §7 still applies (≥10 eligible games at any player count — wave 2 keeps every category playable at 2–3 where the design allows).
 
@@ -73,6 +73,14 @@ Same contract, same bar as Phase 1: server-authoritative sim + `MinigameView3D` 
 | 28 | Snake Chain | Each team is a conga chain collecting pellets; grow long, don't collide | 2–6 |
 | 29 | Fort Siege | One team defends the fort, one storms it; swap and compare times | 4–6 |
 
+### Action (new category — owner feedback: games about fighting and dodging, not walking and standing)
+| # | Name | One-liner | Players |
+|---|---|---|---|
+| 34 | Rumble Ring | Arena brawler: swing (quick), charge smash (slow, big knockback), block; KOs score, victims drop coins; respawns keep everyone swinging | 2–6 |
+| 35 | Bullet Waltz | Bullet-hell survival: turrets fire seeded spiral/wall/aimed patterns that escalate; last standing wins, near-miss grazing earns pickup coins | 2–6 |
+
+Both are FFA-category in the catalog (the selector has no ACTION category and doesn't need one), must run pad-only and mouse/keyboard-only (see M12-05), and take the standard mutator knobs — Overdrive on Bullet Waltz is the intended nightmare.
+
 ### Sabotage / betrayal
 | # | Name | One-liner | Players |
 |---|---|---|---|
@@ -94,6 +102,7 @@ Same contract, same bar as Phase 1: server-authoritative sim + `MinigameView3D` 
 - **Balance**: play data from the M7-03 nightly full-match runs plus targeted 2/4/6 sims for every wave-2 game; tuning-only PRs.
 - **Sound adoption**: every minigame wires the M6-01 `play_sfx` hook (pickups, hits, KOs) — the hook shipped, adoption is per-game.
 - **Latency feel**: client-side snapshot interpolation in `MinigameView3D` so 30 Hz snapshots read as smooth motion at 60+ fps.
+- **Input parity**: every minigame certified playable with a gamepad alone *and* keyboard/mouse alone. Known offender: Trap Corridor's trap placement is mouse-click-only — it gains a stick-driven tile cursor.
 - **Accessibility**: colorblind-safe palette variant (player identity must survive deuteranopia), input remapping UI, reduced-motion toggle (disables screen shake from M6-02).
 
 ## 7. Sequencing
