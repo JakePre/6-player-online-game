@@ -38,6 +38,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"poison_feast",
+				"controls": "Move — WASD / left stick (eat by touch)",
 				"name": "Poison Feast",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 4,

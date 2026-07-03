@@ -52,6 +52,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"gauntlet",
+				"controls": "Move — WASD / left stick · Sabotage — E / pad X",
 				"name": "The Gauntlet",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

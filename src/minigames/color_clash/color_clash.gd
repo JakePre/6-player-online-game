@@ -30,6 +30,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"color_clash",
+				"controls": "Move — WASD / left stick (paint by walking)",
 				"name": "Color Clash",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,

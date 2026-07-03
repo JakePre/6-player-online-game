@@ -17,6 +17,9 @@ var min_players := 2
 var max_players := 6
 var duration_sec := 60.0
 var rules_text := ""
+## One-line control hint for the intro card (M6-04), e.g.
+## "Move — WASD / left stick". Keyboard first, then the gamepad equivalent.
+var controls_text := ""
 
 
 static func create(values: Dictionary) -> MinigameMeta:
@@ -28,6 +31,7 @@ static func create(values: Dictionary) -> MinigameMeta:
 	meta.max_players = values.get("max_players", 6)
 	meta.duration_sec = values.get("duration_sec", 60.0)
 	meta.rules_text = values.get("rules", "")
+	meta.controls_text = values.get("controls", "")
 	return meta
 
 
@@ -38,4 +42,5 @@ func to_dict() -> Dictionary:
 		"category": category,
 		"duration_sec": duration_sec,
 		"rules": rules_text,
+		"controls": controls_text,
 	}
