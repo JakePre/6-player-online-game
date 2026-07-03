@@ -54,6 +54,9 @@ func _ready() -> void:
 	# An explicit settings override (M2-05) beats the last-session prefill;
 	# the rejoin flow still uses the session's own address when pressed.
 	var overrides := SettingsStore.load_settings()
+	if not String(overrides.player_name).is_empty():
+		_name_edit.text = overrides.player_name
+	_name_edit.text_changed.connect(_save_player_name)
 	var override_address: String = overrides.server_address
 	var override_port: int = overrides.server_port
 	if not override_address.is_empty():
@@ -61,6 +64,12 @@ func _ready() -> void:
 	if override_port > 0:
 		_port_edit.text = str(override_port)
 	_host_button.grab_focus()
+
+
+func _save_player_name(text: String) -> void:
+	var settings := SettingsStore.load_settings()
+	settings.player_name = text
+	SettingsStore.save_settings(settings)
 
 
 func _on_host_pressed() -> void:
