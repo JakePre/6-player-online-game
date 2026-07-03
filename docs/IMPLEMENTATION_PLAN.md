@@ -168,6 +168,7 @@ FFA — [ ] **M10-01** Meteor Shower (M) · [ ] **M10-02** Musical Platforms (M)
 Skill — [ ] **M10-05** Memory Match (M) · [ ] **M10-06** Laser Limbo (M) · [ ] **M10-07** Bullseye Bowl (M) · [ ] **M10-08** Count Quick (S)
 Team — [ ] **M10-09** Basket Brawl (L) · [ ] **M10-10** Wall Builders (M) · [ ] **M10-11** Snake Chain (M) · [ ] **M10-12** Fort Siege (L)
 Sabotage — [ ] **M10-13** The Mole (M) · [ ] **M10-14** Pickpocket Plaza (M) · [ ] **M10-15** Bomb Courier (M) · [ ] **M10-16** Faulty Wiring (M)
+Action — [ ] **M10-17** Rumble Ring (M, arena brawler: swing/charge/block, KO scoring) · [ ] **M10-18** Bullet Waltz (M, bullet-hell survival: seeded patterns, graze coins)
 
 ### M11 — Series mode (Phase 2, PHASE2.md §5 — best-of-N, ephemeral)
 - [ ] **M11-01** (M) Series controller wrapping match flow: Single/Bo3/Bo5 lobby setting, 10/7/5/4/3/2 series points with SPEC §5 tie sharing, champion decision + coin tiebreak ⛓ none
@@ -179,6 +180,7 @@ Sabotage — [ ] **M10-13** The Mole (M) · [ ] **M10-14** Pickpocket Plaza (M) 
 - [ ] **M12-02** (S) `play_sfx` hook adoption in every minigame view (pickups/hits/KOs) ⛓ M6-01, M10 complete
 - [ ] **M12-03** (M) Accessibility: colorblind-safe palette variant, input remapping UI, reduced-motion toggle ⛓ M6-02
 - [ ] **M12-04** (M) Latency feel: client-side snapshot interpolation in `MinigameView3D` (30 Hz snapshots → smooth 60+ fps motion) ⛓ M8-01
+- [ ] **M12-05** (S) Input parity audit: every minigame playable gamepad-only and keyboard/mouse-only; add a stick-driven tile cursor to Trap Corridor's trap placement ⛓ M10 complete
 
 ## 6. Suggested build order / critical path
 
