@@ -282,7 +282,13 @@ func _next_round() -> void:
 	else:
 		state = State.PODIUM
 		_state_left = _podium_sec
-		event_emitted.emit({"type": "match_ended", "standings": _standings()})
+		var standings := _standings()
+		# Best-of-N accumulation (M11-01): the room's tracker carries points
+		# and the coin tiebreak across matches; idle at series length 1.
+		room.series.record_match(standings)
+		event_emitted.emit(
+			{"type": "match_ended", "standings": standings, "series": room.series.to_dict()}
+		)
 
 
 func _finish_match() -> void:
