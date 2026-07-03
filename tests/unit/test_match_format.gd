@@ -38,3 +38,15 @@ func test_result_lines_ties_share_rank_and_skip_past() -> void:
 func test_standings_lines_sorted_with_shared_ranks() -> void:
 	var lines := MatchFormat.standings_lines({0: 20, 1: 45, 2: 20}, NAMES)
 	assert_eq(lines, ["1st  Bob  45", "2nd  Alice  20", "2nd  Cleo  20"])
+
+
+func test_series_lines_rank_and_tie() -> void:
+	var rows := [
+		{"slot": 1, "points": 17, "coins": 120},
+		{"slot": 0, "points": 17, "coins": 120},
+		{"slot": 2, "points": 9, "coins": 40},
+	]
+	var lines := MatchFormat.series_lines(rows, {0: "Alice", 1: "Bob", 2: "Cid"})
+	assert_eq(lines[0], "1st  Bob — 17 pts")
+	assert_eq(lines[1], "1st  Alice — 17 pts", "identical points+coins share the rank")
+	assert_eq(lines[2], "3rd  Cid — 9 pts")

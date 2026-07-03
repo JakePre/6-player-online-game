@@ -5,6 +5,7 @@ extends Control
 ## broadcasts and sends requests through NetManager.
 
 const ROUND_COUNT_LABELS := {8: "Quick", 12: "Standard", 15: "Marathon"}
+const SERIES_LABELS := {1: "Single match", 3: "Best of 3", 5: "Best of 5"}
 
 ## Last broadcast room state, kept around so the character carousel buttons
 ## know the current pick without waiting for a round trip.
@@ -13,6 +14,8 @@ var _last_state: Dictionary = {}
 @onready var _code_label: Label = %CodeLabel
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _round_option: OptionButton = %RoundOption
+@onready var _series_option: OptionButton = %SeriesOption
+@onready var _series_board: Label = %SeriesBoard
 @onready var _mutator_box: VBoxContainer = %MutatorBox
 @onready var _mutator_toggles: VBoxContainer = %MutatorToggles
 @onready var _character_label: Label = %CharacterLabel
@@ -36,6 +39,12 @@ func _ready() -> void:
 	for count in NetConfig.ROUND_COUNT_OPTIONS:
 		_round_option.add_item("%s (%d rounds)" % [ROUND_COUNT_LABELS[count], count], count)
 	_round_option.item_selected.connect(_on_round_option_selected)
+	for length in NetConfig.SERIES_LENGTH_OPTIONS:
+		_series_option.add_item(SERIES_LABELS[length], length)
+	_series_option.item_selected.connect(
+		func(index: int) -> void:
+			NetManager.request_set_series_length(_series_option.get_item_id(index))
+	)
 	_build_mutator_toggles()
 	_code_label.text = "Room %s" % NetManager.my_room_code
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
@@ -110,6 +119,11 @@ func _on_room_updated(state: Dictionary) -> void:
 	_rebuild_player_list(state)
 	_round_option.select(_round_option.get_item_index(state.round_count))
 	_round_option.disabled = not i_am_host or in_match
+	var series: Dictionary = state.get("series", {})
+	var series_length := int(series.get("length", 1))
+	_series_option.select(_series_option.get_item_index(series_length))
+	_series_option.disabled = not i_am_host or in_match
+	_update_series_board(series)
 	_sync_mutator_toggles(state, i_am_host and not in_match)
 	_character_label.text = CharacterRoster.display_name_for(_my_character_id())
 	_character_preview.show_character(
@@ -123,6 +137,32 @@ func _on_room_updated(state: Dictionary) -> void:
 	_start_button.visible = i_am_host
 	_start_button.disabled = in_match or not _can_start(state)
 	_status_label.text = _status_text(state, i_am_host, in_match)
+
+
+## Running series scoreboard between matches (M11-02).
+func _update_series_board(series: Dictionary) -> void:
+	var rows: Array = series.get("standings", [])
+	if int(series.get("length", 1)) <= 1 or rows.is_empty():
+		_series_board.visible = false
+		return
+	var names := {}
+	for member: Dictionary in _last_state.get("members", []):
+		names[int(member.slot)] = member.name
+	var header := (
+		"Series — match %d of %d"
+		% [
+			(
+				int(series.get("matches_played", 0))
+				+ (0 if bool(series.get("complete", false)) else 1)
+			),
+			int(series.get("length", 1)),
+		]
+	)
+	if bool(series.get("complete", false)):
+		header = "Series complete!"
+	var lines := MatchFormat.series_lines(rows, names)
+	_series_board.text = header + "\n" + "\n".join(lines)
+	_series_board.visible = true
 
 
 func _rebuild_player_list(state: Dictionary) -> void:

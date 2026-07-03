@@ -114,7 +114,7 @@ func _on_match_event(event: Dictionary) -> void:
 			AudioManager.play_music(&"finale")
 			AudioManager.play_sfx(&"podium")
 			_unmount_view()
-			_show_podium(event.standings)
+			_show_podium(event.standings, event.get("series", {}))
 
 
 func _on_snapshot(snapshot: Dictionary) -> void:
@@ -239,7 +239,7 @@ func _show_standings(title: String, totals: Dictionary, subtitle := "") -> void:
 	_show_panel(_standings_panel)
 
 
-func _show_podium(standings: Array) -> void:
+func _show_podium(standings: Array, series: Dictionary = {}) -> void:
 	var totals := {}
 	for row: Dictionary in standings:
 		totals[row.slot] = row.score
@@ -247,6 +247,16 @@ func _show_podium(standings: Array) -> void:
 	var subtitle := ""
 	if not standings.is_empty():
 		subtitle = "%s wins the match!" % standings[0].name
+	# Series context (M11-02): champion banner on the final match, running
+	# series score otherwise.
+	if int(series.get("length", 1)) > 1:
+		var rows: Array = series.get("standings", [])
+		if bool(series.get("complete", false)) and not rows.is_empty():
+			subtitle = "🏆 SERIES CHAMPION: %s!" % MatchFormat.player_name(_names, int(rows[0].slot))
+		elif not rows.is_empty():
+			subtitle += (
+				"  ·  series: " + " / ".join(MatchFormat.series_lines(rows, _names).slice(0, 3))
+			)
 	_show_standings("Final standings", totals, subtitle)
 
 
