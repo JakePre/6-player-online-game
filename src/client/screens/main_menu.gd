@@ -14,6 +14,11 @@ const DEFAULT_ADDRESS := "127.0.0.1"
 var _pending := PendingRequest.NONE
 var _pending_code := ""
 var _pending_token := ""
+## Self-update flow (#144): filled by the checker, consumed by the button.
+var _update_version := ""
+var _update_url := ""
+var _update_checker: UpdateChecker
+var _updater: Updater
 
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _code_edit: LineEdit = %CodeEdit
@@ -28,6 +33,7 @@ var _pending_token := ""
 @onready var _address_edit: LineEdit = %AddressEdit
 @onready var _port_edit: LineEdit = %PortEdit
 @onready var _status_label: Label = %StatusLabel
+@onready var _update_button: Button = %UpdateButton
 
 
 func _ready() -> void:
@@ -63,7 +69,60 @@ func _ready() -> void:
 		_address_edit.text = override_address
 	if override_port > 0:
 		_port_edit.text = str(override_port)
+	_setup_update_flow()
 	_host_button.grab_focus()
+
+
+## Self-update (#144): check quietly on menu load; the button only appears
+## when a newer release exists, and every step after that is user-confirmed.
+func _setup_update_flow() -> void:
+	_update_checker = UpdateChecker.new()
+	add_child(_update_checker)
+	_update_checker.update_available.connect(_on_update_available)
+	_updater = Updater.new()
+	add_child(_updater)
+	_updater.staged.connect(_on_update_staged)
+	_updater.failed.connect(
+		func(reason: String) -> void:
+			_update_button.disabled = false
+			_show_error(reason)
+	)
+	_update_button.pressed.connect(_on_update_pressed)
+	_update_checker.check()
+
+
+func _on_update_available(version: String, download_url: String) -> void:
+	_update_version = version
+	_update_url = download_url
+	_update_button.text = "Update to v%s" % version
+	_update_button.visible = true
+
+
+func _on_update_pressed() -> void:
+	if _update_url.is_empty():
+		return
+	_update_button.disabled = true
+	_status_label.text = "Downloading v%s ..." % _update_version
+	_updater.download_and_stage(_update_version, _update_url)
+
+
+func _on_update_staged(version: String) -> void:
+	_status_label.text = ""
+	var dialog := ConfirmationDialog.new()
+	dialog.dialog_text = (
+		"v%s is ready. Restart now to finish updating?\n(You can keep playing and update later.)"
+		% version
+	)
+	dialog.ok_button_text = "Restart and update"
+	dialog.cancel_button_text = "Later"
+	add_child(dialog)
+	dialog.confirmed.connect(_updater.apply_and_restart)
+	dialog.canceled.connect(
+		func() -> void:
+			_update_button.disabled = false
+			dialog.queue_free()
+	)
+	dialog.popup_centered()
 
 
 func _save_player_name(text: String) -> void:
@@ -142,6 +201,10 @@ func _on_joined_room(code: String, _slot: int, token: String) -> void:
 func _on_join_failed(reason: int) -> void:
 	_set_busy(false)
 	_show_error(JoinFailureText.describe(reason))
+	# A protocol mismatch usually means we're the stale side — surface the
+	# update button if a newer release exists (#144).
+	if reason == NetConfig.JoinResult.VERSION_MISMATCH:
+		_update_checker.check()
 
 
 func _on_code_changed(new_text: String) -> void:
