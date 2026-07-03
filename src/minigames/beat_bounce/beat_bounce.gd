@@ -75,14 +75,17 @@ func _tick(_delta: float) -> void:
 func _handle_input(slot: int, data: Dictionary) -> void:
 	if not data.get("press", false) or not alive.get(slot, false):
 		return
-	if not _prev_closed and not _hit_this_beat.has(slot):
-		_hit_this_beat[slot] = true
-		last_hit[slot] = beat_index
+	if not _prev_closed:
+		# Inside the open beat's window: first press hits, repeats are
+		# swallowed (double-press leniency, never an off-beat strike).
+		if not _hit_this_beat.has(slot):
+			_hit_this_beat[slot] = true
+			last_hit[slot] = beat_index
 		return
 	if absf(next_beat - elapsed) <= HIT_WINDOW_SEC:
+		# Early press for the upcoming beat: credit it now so the close
+		# pass does not double-count; repeats are swallowed the same way.
 		if not _hit_this_beat.has(slot):
-			# Early press for the upcoming beat: credit it now so the close
-			# pass does not double-count.
 			_hit_this_beat[slot] = true
 			last_hit[slot] = beat_index + 1
 		return
