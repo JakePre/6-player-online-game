@@ -24,6 +24,7 @@ var _cooldown := 0.0
 
 var _target_nodes := {}  # id (int) -> MeshInstance3D
 var _crosshairs := {}  # slot (int) -> MeshInstance3D
+var _aim_beams := {}  # slot (int) -> MeshInstance3D (#214 aim lines)
 
 
 func _arena_half() -> float:
@@ -126,6 +127,7 @@ func _update_crosshairs(aim_list: Dictionary) -> void:
 			var wire: Array = aim_list.get(slot, [0.0, 0.0])
 			aim = Vector2(float(wire[0]), float(wire[1]))
 		ring.position = to_arena(aim, CROSSHAIR_HEIGHT)
+		_update_aim_beam(slot, ring)
 		if slot == my_slot:
 			var material := ring.mesh.surface_get_material(0) as StandardMaterial3D
 			material.albedo_color.a = COOLDOWN_ALPHA if _cooldown > 0.0 else 1.0
@@ -152,6 +154,19 @@ func _build_target(id: int, radius: float, kind: int) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = "Target%d" % id
 	node.mesh = mesh
+	# Worth is invisible from color alone (#214): float the point value over
+	# every target, tinted to its kind.
+	var value := Label3D.new()
+	value.text = "+%d" % int(TargetRange.KIND_STATS[kind].value)
+	value.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	value.no_depth_test = true
+	value.fixed_size = true
+	value.pixel_size = 0.002
+	value.font_size = 40
+	value.outline_size = 14
+	value.modulate = color.lightened(0.35)
+	value.position = Vector3(0.0, radius + 0.55, 0.0)
+	node.add_child(value)
 	arena.add_child(node)
 	_target_nodes[id] = node
 	return node
@@ -159,8 +174,9 @@ func _build_target(id: int, radius: float, kind: int) -> MeshInstance3D:
 
 func _build_crosshair(slot: int) -> MeshInstance3D:
 	var mesh := TorusMesh.new()
-	mesh.inner_radius = 0.16
-	mesh.outer_radius = 0.28
+	# Big enough to find at camera distance (#214); your own is largest.
+	mesh.inner_radius = 0.42 if slot == my_slot else 0.36
+	mesh.outer_radius = 0.62 if slot == my_slot else 0.52
 	var material := StandardMaterial3D.new()
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = player_color(slot)
@@ -171,5 +187,48 @@ func _build_crosshair(slot: int) -> MeshInstance3D:
 	ring.name = "Crosshair%d" % slot
 	ring.mesh = mesh
 	ring.position = to_arena(Vector2.ZERO, CROSSHAIR_HEIGHT)
+	var dot_mesh := SphereMesh.new()
+	dot_mesh.radius = 0.09
+	dot_mesh.height = 0.18
+	dot_mesh.material = material
+	var dot := MeshInstance3D.new()
+	dot.mesh = dot_mesh
+	ring.add_child(dot)
 	arena.add_child(ring)
+	_aim_beams[slot] = _build_aim_beam(slot)
 	return ring
+
+
+## Thin player-colored beam from the shooter to their reticle, so whose aim
+## is whose reads instantly (#214). The local player's is the most opaque.
+func _build_aim_beam(slot: int) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.06, 0.06, 1.0)
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var color := player_color(slot)
+	color.a = 0.7 if slot == my_slot else 0.3
+	material.albedo_color = color
+	mesh.material = material
+	var beam := MeshInstance3D.new()
+	beam.name = "AimBeam%d" % slot
+	beam.mesh = mesh
+	arena.add_child(beam)
+	return beam
+
+
+func _update_aim_beam(slot: int, ring: MeshInstance3D) -> void:
+	var beam: MeshInstance3D = _aim_beams.get(slot)
+	var rig := rig_for_slot(slot)
+	if beam == null or rig == null:
+		return
+	var from := rig.position + Vector3(0.0, 0.9, 0.0)
+	var to := ring.position
+	var length := from.distance_to(to)
+	if length < 0.1:
+		beam.visible = false
+		return
+	beam.visible = true
+	beam.look_at_from_position((from + to) / 2.0, to, Vector3.UP)
+	beam.scale = Vector3(1.0, 1.0, length)
