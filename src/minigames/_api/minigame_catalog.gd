@@ -44,6 +44,7 @@ static func register_builtins() -> void:
 	register(ShockTag.make_meta(), ShockTag)
 	register(TreasureDivers.make_meta(), TreasureDivers)
 	register(RumbleRing.make_meta(), RumbleRing)
+	register(LaserLimbo.make_meta(), LaserLimbo)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
