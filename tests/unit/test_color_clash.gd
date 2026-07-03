@@ -44,17 +44,22 @@ func test_ffa_below_four_players() -> void:
 			assert_eq(game.faction_of[slot], slot)
 
 
-func test_teams_at_four_plus_players() -> void:
-	for count: int in [4, 5, 6]:
+func test_odd_counts_fall_back_to_ffa() -> void:
+	var game := _game([0, 1, 2, 3, 4] as Array[int])
+	assert_false(game.team_mode, "3v2 paint is never fun (#178)")
+	assert_eq(game.teams, [])
+
+
+func test_teams_at_even_counts_from_four() -> void:
+	for count: int in [4, 6]:
 		var player_slots: Array[int] = []
 		for slot in count:
 			player_slots.append(slot)
 		var game := _game(player_slots)
 		assert_true(game.team_mode, "%d players is teams" % count)
 		assert_eq(game.teams.size(), 2)
-		var sizes := [game.teams[0].size(), game.teams[1].size()]
-		sizes.sort()
-		assert_eq(sizes, [count / 2, count - count / 2], "%d players" % count)
+		assert_eq(game.teams[0].size(), count / 2, "%d players" % count)
+		assert_eq(game.teams[1].size(), count / 2, "%d players" % count)
 
 
 func test_walking_paints_tiles() -> void:

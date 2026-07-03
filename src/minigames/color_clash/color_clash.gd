@@ -45,7 +45,8 @@ static func make_meta() -> MinigameMeta:
 func _setup() -> void:
 	grid.resize(GRID_SIZE * GRID_SIZE)
 	grid.fill(UNPAINTED)
-	team_mode = slots.size() >= TEAM_THRESHOLD
+	# Odd counts play FFA — a 3v2 paint race is never fun (#178).
+	team_mode = slots.size() >= TEAM_THRESHOLD and slots.size() % 2 == 0
 	if team_mode:
 		var shuffled := slots.duplicate()
 		for i in range(shuffled.size() - 1, 0, -1):
