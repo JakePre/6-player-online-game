@@ -81,10 +81,16 @@ jobs:
           Desktop builds for Windows, Linux, and macOS, plus the headless
           dedicated server (Linux). Unzip and run.
 
-          **macOS:** the app is unsigned — right-click the app and choose
-          "Open" the first time to bypass Gatekeeper.
+          **macOS:** the app is unsigned, and macOS quarantines downloads as
+          "damaged" (right-click → Open is no longer enough). Clear the
+          quarantine once in Terminal, then open normally:
 
-          **Server:** run with `--server` (see README / docs).
+          ```
+          xattr -cr "/path/to/Party Rush.app"
+          ```
+
+          **Server:** run with `--server`, or use the Docker deploy in
+          `server/deploy/` (see README there).
           EOF
           gh release create "$GITHUB_REF_NAME" dist/*.zip \
             --repo "$GITHUB_REPOSITORY" \
