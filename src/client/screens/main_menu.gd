@@ -10,13 +10,6 @@ signal navigate(screen: StringName)
 enum PendingRequest { NONE, HOST, JOIN, REJOIN }
 
 const DEFAULT_ADDRESS := "127.0.0.1"
-const JOIN_FAILURE_TEXT := {
-	NetConfig.JoinResult.NOT_FOUND: "Room not found. Check the code and try again.",
-	NetConfig.JoinResult.FULL: "That room is full.",
-	NetConfig.JoinResult.BAD_TOKEN: "Rejoin expired. Join with the room code instead.",
-	NetConfig.JoinResult.VERSION_MISMATCH: "Your game version does not match the server.",
-	NetConfig.JoinResult.ALREADY_IN_ROOM: "You are already in a room.",
-}
 
 var _pending := PendingRequest.NONE
 var _pending_code := ""
@@ -139,8 +132,7 @@ func _on_joined_room(code: String, _slot: int, token: String) -> void:
 
 func _on_join_failed(reason: int) -> void:
 	_set_busy(false)
-	var text: String = JOIN_FAILURE_TEXT.get(reason, NetConfig.join_result_name(reason))
-	_show_error(text)
+	_show_error(JoinFailureText.describe(reason))
 
 
 func _on_code_changed(new_text: String) -> void:

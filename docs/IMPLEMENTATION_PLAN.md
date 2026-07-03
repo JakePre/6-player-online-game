@@ -112,7 +112,7 @@ Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
 ### M4 — Minigame production (all parallel after M3-06; each task: scene, server logic, 2/4/6-player balance pass, SFX hooks)
 FFA — [x] **M4-01** King of the Hill (M) · [x] **M4-02** Hot Potato (M) · [x] **M4-03** Thin Ice (M) · [x] **M4-04** Sumo Smash (M)
 Skill — [ ] **M4-05** Simon Stomp (M) · [x] **M4-06** Quick Draw (S) · [ ] **M4-07** Hurdle Dash (L) · [ ] **M4-08** Target Range (M, mouse+stick aim) · [ ] **M4-09** Beat Bounce (M)
-Team — [x] **M4-10** Tug of War (S) · [x] **M4-11** Relay Sprint (M) · [ ] **M4-12** Cart Push (L) · [x] **M4-13** Color Clash (M)
+Team — [x] **M4-10** Tug of War (S) · [x] **M4-11** Relay Sprint (M) · [x] **M4-12** Cart Push (L) · [x] **M4-13** Color Clash (M)
 Sabotage — [x] **M4-14** Poison Feast (M) · [ ] **M4-15** Trap Corridor (L) · [x] **M4-16** Heist Night (M)
 
 ### M5 — Finale
@@ -123,7 +123,7 @@ Sabotage — [x] **M4-14** Poison Feast (M) · [ ] **M4-15** Trap Corridor (L) �
 ### M6 — Polish & feel
 - [ ] **M6-01** (M) Audio pass: music loops (menu/round/finale), SFX for all shared chrome + per-minigame hooks
 - [ ] **M6-02** (M) Juice pass: coin fly-to-HUD, screen shake, KO ragdolls, victory dances
-- [ ] **M6-03** (S) Reconnect overlay + graceful error toasts (room full, bad code, version mismatch)
+- [x] **M6-03** (S) Reconnect overlay + graceful error toasts (room full, bad code, version mismatch)
 - [ ] **M6-04** (M) UI theme unification + intro-card control diagrams for all 17 games
 
 ### M8 — 3D iso-arena visual overhaul (closes the SPEC §2 visual gap; see `docs/adr/002-iso-arena-rendering.md`)
@@ -153,7 +153,6 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 - [x] **M7-01** (M) Dockerfile + compose for the dedicated server; VPS deploy doc; version handshake (client/server protocol version) ⛓ M1-01
 - [x] **M7-02** (M) Release pipeline: tagged builds → GitHub Releases artifacts for Win/Linux/macOS ⛓ M0-03
 - [x] **M7-03** (M) Playtest checklist automation: 6 headless bot clients complete a full 12-round match nightly in CI ⛓ M1-05, M3-01
-- [ ] **M7-03** (M) Playtest checklist automation: 6 headless bot clients complete a full 12-round match nightly in CI ⛓ M1-05, M3-01
 - [x] **M7-04** (S) In-game credits screen generated from `assets/CREDITS.md`
 
 ## 6. Suggested build order / critical path

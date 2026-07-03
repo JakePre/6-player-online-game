@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://src/client/app_shell.gd" id="1"]
 [ext_resource type="PackedScene" path="res://src/client/connection_status.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://src/client/reconnect_overlay.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://src/client/toasts.tscn" id="4"]
 
 [node name="AppShell" type="Control"]
 layout_mode = 3
@@ -21,4 +23,10 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="ConnectionStatus" parent="." instance=ExtResource("2")]
+layout_mode = 1
+
+[node name="ReconnectOverlay" parent="." instance=ExtResource("3")]
+layout_mode = 1
+
+[node name="Toasts" parent="." instance=ExtResource("4")]
 layout_mode = 1
