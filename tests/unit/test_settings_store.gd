@@ -16,6 +16,9 @@ func test_sanitize_clamps_volumes() -> void:
 	assert_eq(SettingsStore.sanitize({"nameplate_scale": 9.0}).nameplate_scale, 2.0)
 	assert_eq(SettingsStore.sanitize({"nameplate_scale": 0.1}).nameplate_scale, 0.5)
 	assert_eq(SettingsStore.DEFAULTS.master_volume, 0.2, "ships quiet (#143)")
+	var named := SettingsStore.sanitize({"player_name": "  Jake  "})
+	assert_eq(named.player_name, "Jake", "name is trimmed and persisted (#142)")
+	assert_eq(SettingsStore.sanitize({"player_name": "x".repeat(99)}).player_name.length(), 24)
 	assert_eq(clean.music_volume, 0.0)
 	assert_eq(clean.sfx_volume, 1.0, "missing key falls back to default")
 
@@ -45,6 +48,7 @@ func test_save_load_round_trip() -> void:
 		"server_address": "play.example.com",
 		"server_port": 4242,
 		"nameplate_scale": 1.5,
+		"player_name": "Jake",
 	}
 	SettingsStore.save_settings(settings)
 	assert_eq(SettingsStore.load_settings(), settings)

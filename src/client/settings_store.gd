@@ -22,6 +22,8 @@ const DEFAULTS := {
 	"sfx_volume": 1.0,
 	"fullscreen": false,
 	"server_address": "",
+	## Remembered between sessions so you don't retype it (#142).
+	"player_name": "",
 	## Nameplate text scale multiplier (0.5–2.0), applied by CharacterRig.
 	"nameplate_scale": 1.0,
 	"server_port": 0,
@@ -58,6 +60,8 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 		clean.nameplate_scale = clampf(float(raw.nameplate_scale), 0.5, 2.0)
 	if raw.has("fullscreen"):
 		clean.fullscreen = bool(raw.fullscreen)
+	if raw.has("player_name"):
+		clean.player_name = String(raw.player_name).strip_edges().left(24)
 	if raw.has("server_address"):
 		clean.server_address = String(raw.server_address).strip_edges()
 	if raw.has("server_port"):
