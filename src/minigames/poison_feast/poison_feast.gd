@@ -1,35 +1,55 @@
 class_name PoisonFeast
 extends MinigameBase
-## Poison Feast (M4-14, SPEC $7 #15): everyone roams a shared table eating
-## dishes for points. One randomly-chosen player is a hidden saboteur; three
-## of the dishes spawned over the round are secretly poisoned. Eating a
-## poisoned dish costs the eater points and credits the saboteur. The
-## saboteur's identity never appears in get_snapshot() — the framework
-## broadcasts one shared snapshot to every client, so any hidden-role field
-## would deanonymize it for everyone. Server-side simulation only.
+## Poison Feast (M4-14, reworked per #174): push-your-luck banquet. Dishes
+## spawn in waves at three visible risk tiers — clean (safe, cheap), spiced
+## (sometimes poisoned), delicacy (often poisoned, rich). Eating a poisoned
+## dish costs its points, feeds a visible pot, and staggers the eater; the
+## next clean dish eaten claims the whole pot. A single golden dish lands
+## center-table for the final course, worth double the pot. Whether any
+## individual dish is poisoned stays server-side — only its tier (the odds)
+## is replicated. Server-side simulation only.
+
+enum Tier {
+	CLEAN,
+	SPICED,
+	DELICACY,
+	GOLDEN,
+}
 
 const ARENA_HALF := 9.0
 const MOVE_SPEED := 6.0
-const PLAYER_RADIUS := 0.45
 const EAT_RADIUS := 0.8
 const DISH_WAVE_SEC := 3.0
-const DISHES_PER_WAVE := 2
-const MAX_ACTIVE_DISHES := 10
-const DISH_COUNT := 16
-const POISONED_COUNT := 3
-const SAFE_POINTS := 2
-const POISON_PENALTY := 3
-const POISON_CREDIT := 5
+const DISHES_PER_WAVE := 3
+const MAX_ACTIVE_DISHES := 12
+## Eating poison staggers you: no eating, slowed movement.
+const STAGGER_SEC := 2.0
+const STAGGER_MOVE_SCALE := 0.4
+## The golden dish is served this long before the round ends.
+const GOLDEN_AT_REMAINING_SEC := 8.0
+const GOLDEN_BASE_POINTS := 6
+const GOLDEN_POT_MULTIPLIER := 2
+
+## Tier -> {points, poison_chance, weight} (weights drive the spawn roll).
+## Odds are public knowledge — they're printed on the intro card.
+const TIER_STATS := {
+	Tier.CLEAN: {"points": 1, "poison_chance": 0.0, "weight": 5},
+	Tier.SPICED: {"points": 3, "poison_chance": 0.25, "weight": 3},
+	Tier.DELICACY: {"points": 6, "poison_chance": 0.5, "weight": 1},
+}
 
 var positions := {}
 var move_dirs := {}
 var score := {}
+## slot -> stagger seconds remaining (absent/<=0 means free to eat).
+var staggers := {}
+## Points forfeited by poisoned eaters, claimed by the next clean eat.
+var pot := 0
 var dishes: Array[Dictionary] = []
-var saboteur := -1
+var golden_served := false
 
 var _wave_accum := 0.0
-var _spawn_index := 0
-var _poisoned_spawn_indices := {}
+var _next_dish_id := 0
 
 
 static func make_meta() -> MinigameMeta:
@@ -41,13 +61,15 @@ static func make_meta() -> MinigameMeta:
 				"controls": "Move — WASD / left stick (eat by touch)",
 				"name": "Poison Feast",
 				"category": MinigameMeta.Category.SABOTAGE,
-				"min_players": 4,
+				"min_players": 2,
 				"max_players": 6,
 				"duration_sec": 45.0,
 				"rules":
 				(
-					"Eat dishes for points — but one of you secretly poisoned three of"
-					+ " them. The saboteur scores when someone else takes the bait."
+					"Feast, but mind the odds: white dishes are safe, orange are"
+					+ " poisoned 1-in-4, purple 1-in-2 — richer if you survive."
+					+ " Poison feeds the pot; the next clean bite claims it. The"
+					+ " golden final course pays the pot double!"
 				),
 			}
 		)
@@ -60,8 +82,7 @@ func _setup() -> void:
 		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
 		move_dirs[slots[i]] = Vector2.ZERO
 		score[slots[i]] = 0
-	saboteur = slots[rng.randi_range(0, slots.size() - 1)]
-	_poisoned_spawn_indices = _pick_poisoned_indices()
+		staggers[slots[i]] = 0.0
 	_spawn_wave()
 
 
@@ -72,7 +93,9 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 func _tick(delta: float) -> void:
 	for slot: int in slots:
-		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
+		staggers[slot] = maxf(0.0, float(staggers[slot]) - delta)
+		var speed := MOVE_SPEED * (STAGGER_MOVE_SCALE if float(staggers[slot]) > 0.0 else 1.0)
+		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
 		positions[slot] = pos.clamp(
 			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
 		)
@@ -81,18 +104,26 @@ func _tick(delta: float) -> void:
 	if _wave_accum >= DISH_WAVE_SEC:
 		_wave_accum -= DISH_WAVE_SEC
 		_spawn_wave()
+	if not golden_served and effective_duration() - elapsed <= GOLDEN_AT_REMAINING_SEC:
+		_serve_golden()
 
 
 func get_snapshot() -> Dictionary:
 	var players := {}
 	for slot: int in slots:
 		var pos: Vector2 = positions[slot]
-		players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), score[slot]]
+		players[slot] = [
+			snappedf(pos.x, 0.01),
+			snappedf(pos.y, 0.01),
+			score[slot],
+			1 if float(staggers[slot]) > 0.0 else 0,
+		]
 	var dish_list: Array = []
 	for dish: Dictionary in dishes:
 		var pos: Vector2 = dish.pos
-		dish_list.append([snappedf(pos.x, 0.01), snappedf(pos.y, 0.01)])
-	return {"players": players, "dishes": dish_list}
+		# Only the tier ships — whether THIS dish is poisoned stays secret.
+		dish_list.append([int(dish.id), snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), dish.tier])
+	return {"players": players, "dishes": dish_list, "pot": pot}
 
 
 func _rank_players() -> Array:
@@ -111,44 +142,74 @@ func _rank_players() -> Array:
 	return placements
 
 
-func _pick_poisoned_indices() -> Dictionary:
-	var picked := {}
-	while picked.size() < POISONED_COUNT:
-		picked[rng.randi_range(0, DISH_COUNT - 1)] = true
-	return picked
-
-
 func _spawn_wave() -> void:
 	for _i in DISHES_PER_WAVE:
-		if dishes.size() >= MAX_ACTIVE_DISHES or _spawn_index >= DISH_COUNT:
+		if dishes.size() >= MAX_ACTIVE_DISHES:
 			return
+		var tier := _roll_tier()
+		var stats: Dictionary = TIER_STATS[tier]
 		(
 			dishes
 			. append(
 				{
+					"id": _next_dish_id,
 					"pos":
 					Vector2(
 						rng.randf_range(-ARENA_HALF, ARENA_HALF),
 						rng.randf_range(-ARENA_HALF, ARENA_HALF)
 					),
-					"poisoned": _poisoned_spawn_indices.has(_spawn_index),
+					"tier": tier,
+					"poisoned": rng.randf() < float(stats.poison_chance),
 				}
 			)
 		)
-		_spawn_index += 1
+		_next_dish_id += 1
+
+
+func _roll_tier() -> Tier:
+	var total := 0
+	for stats: Dictionary in TIER_STATS.values():
+		total += int(stats.weight)
+	var roll := rng.randi_range(1, total)
+	for tier: Tier in TIER_STATS:
+		roll -= int(TIER_STATS[tier].weight)
+		if roll <= 0:
+			return tier
+	return Tier.CLEAN
+
+
+## The final course: one golden dish, center table, never poisoned.
+func _serve_golden() -> void:
+	golden_served = true
+	dishes.append(
+		{"id": _next_dish_id, "pos": Vector2.ZERO, "tier": Tier.GOLDEN, "poisoned": false}
+	)
+	_next_dish_id += 1
 
 
 func _eat_dishes() -> void:
 	for i in range(dishes.size() - 1, -1, -1):
 		var dish: Dictionary = dishes[i]
 		for slot: int in slots:
+			if float(staggers[slot]) > 0.0:
+				continue
 			if positions[slot].distance_to(dish.pos) > EAT_RADIUS:
 				continue
-			if dish.poisoned:
-				score[slot] -= POISON_PENALTY
-				if slot != saboteur:
-					score[saboteur] += POISON_CREDIT
-			else:
-				score[slot] += SAFE_POINTS
+			_eat(slot, dish)
 			dishes.remove_at(i)
 			break
+
+
+func _eat(slot: int, dish: Dictionary) -> void:
+	if dish.tier == Tier.GOLDEN:
+		score[slot] = int(score[slot]) + GOLDEN_BASE_POINTS + pot * GOLDEN_POT_MULTIPLIER
+		pot = 0
+		return
+	var points := int(TIER_STATS[dish.tier].points)
+	if dish.poisoned:
+		score[slot] = int(score[slot]) - points
+		pot += points
+		staggers[slot] = STAGGER_SEC
+		return
+	score[slot] = int(score[slot]) + points + pot
+	pot = 0
