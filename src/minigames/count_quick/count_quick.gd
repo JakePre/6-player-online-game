@@ -136,7 +136,11 @@ func _rank_players() -> Array:
 
 ## Touching a pad locks it as your answer for the round — no take-backs.
 ## Correct answers score immediately; the first correct one pays double.
+## Same-tick correct locks are a tie group (like Thin Ice falls / Hot Potato
+## blasts): everyone in it gets the first-correct double, so slot order never
+## decides a photo finish.
 func _resolve_locks() -> void:
+	var correct_this_tick: Array[int] = []
 	for slot: int in slots:
 		if locked[slot] != -1:
 			continue
@@ -146,9 +150,12 @@ func _resolve_locks() -> void:
 				continue
 			locked[slot] = pad_index
 			if int(pad.value) == correct_count:
-				scores[slot] += SCORE_CORRECT if _first_correct_taken else SCORE_FIRST
-				_first_correct_taken = true
+				correct_this_tick.append(slot)
 			break
+	for slot: int in correct_this_tick:
+		scores[slot] += SCORE_CORRECT if _first_correct_taken else SCORE_FIRST
+	if not correct_this_tick.is_empty():
+		_first_correct_taken = true
 
 
 func _advance_phase() -> void:

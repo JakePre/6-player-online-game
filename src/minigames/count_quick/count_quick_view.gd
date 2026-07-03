@@ -1,7 +1,7 @@
 extends MinigameView3D
 ## Count Quick client view (M10-08): the swarm scatters as small gold props
 ## during the flash, then vanishes; four numbered answer pads appear for the
-## scramble. Locked players get a check on their nameplate. COUNT! / PICK A
+## scramble. Locked players get a [LOCKED] tag on their nameplate. COUNT! / PICK A
 ## PAD! call-outs flip with the phase.
 
 const SWARM_COLOR := Color(0.96, 0.79, 0.2)

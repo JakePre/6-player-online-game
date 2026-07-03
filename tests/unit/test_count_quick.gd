@@ -117,3 +117,21 @@ func test_snapshot_shape() -> void:
 	var snapshot := game.get_snapshot()
 	assert_eq((snapshot.players[0] as Array).size(), 4, "[x, y, score, locked]")
 	assert_eq(snapshot.round, 0)
+
+
+## Review fix on #224: two players locking the correct pad on the same tick
+## are a tie group — both get the first-correct double, slot order never
+## decides a photo finish.
+func test_same_tick_correct_locks_share_the_first_double() -> void:
+	var game := _game_with(3)
+	_to_answer(game)
+	var correct_pad := _pad_with_value(game, game.correct_count)
+	game.positions[0] = correct_pad.pos
+	game.positions[1] = correct_pad.pos
+	game.tick(TICK)
+	assert_eq(game.scores[0], CountQuick.SCORE_FIRST)
+	assert_eq(game.scores[1], CountQuick.SCORE_FIRST)
+	# A later correct lock is past the photo finish: single points only.
+	game.positions[2] = correct_pad.pos
+	game.tick(TICK)
+	assert_eq(game.scores[2], CountQuick.SCORE_CORRECT)
