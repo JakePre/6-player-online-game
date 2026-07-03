@@ -3,11 +3,16 @@ extends MinigameView
 ## off (player positions vanish from the snapshot — sneak!), vaults with
 ## coin totals, and the post-round theft reveal.
 
-const ARENA_COLOR := Color(0.13, 0.15, 0.19)
-const ARENA_DARK := Color(0.05, 0.05, 0.08)
-const ARENA_BORDER := Color(0.35, 0.38, 0.45)
-const COIN_COLOR := Color(0.96, 0.79, 0.2)
-const VAULT_COLOR := Color(0.3, 0.32, 0.4)
+## Deliberate security-blueprint look (#210, PHASE2.md §7 — intentionally
+## 2D): cyan linework on navy, survey grid, vaults as outlined rooms.
+const ARENA_COLOR := Color(0.07, 0.11, 0.2)
+const ARENA_DARK := Color(0.02, 0.03, 0.06)
+const BLUEPRINT_LINE := Color(0.35, 0.75, 0.95, 0.85)
+const BLUEPRINT_GRID := Color(0.35, 0.75, 0.95, 0.14)
+const BLUEPRINT_GRID_DARK := Color(0.35, 0.75, 0.95, 0.05)
+const COIN_COLOR := Color(1.0, 0.85, 0.25)
+const VAULT_FILL := Color(0.12, 0.2, 0.34)
+const GRID_STEP := 2.0
 const NAME_OFFSET := 14.0
 
 ## Latest replicated state, straight from HeistNight.get_snapshot().
@@ -33,14 +38,32 @@ func _render(game: Dictionary) -> void:
 
 func _draw() -> void:
 	var px_per_unit := _pixels_per_unit()
-	draw_rect(_arena_rect(px_per_unit), ARENA_DARK if dark else ARENA_COLOR)
-	draw_rect(_arena_rect(px_per_unit), ARENA_BORDER, false, 2.0)
+	var arena := _arena_rect(px_per_unit)
+	draw_rect(arena, ARENA_DARK if dark else ARENA_COLOR)
+	# Survey grid: the blueprint bones. It stays faintly alive in the dark —
+	# the feed is cut, the floor plan isn't.
+	var grid := BLUEPRINT_GRID_DARK if dark else BLUEPRINT_GRID
+	var step := GRID_STEP * px_per_unit
+	var gx := arena.position.x
+	while gx <= arena.end.x + 0.5:
+		draw_line(Vector2(gx, arena.position.y), Vector2(gx, arena.end.y), grid, 1.0)
+		gx += step
+	var gy := arena.position.y
+	while gy <= arena.end.y + 0.5:
+		draw_line(Vector2(arena.position.x, gy), Vector2(arena.end.x, gy), grid, 1.0)
+		gy += step
+	draw_rect(arena, BLUEPRINT_LINE, false, 2.0)
 	var font := get_theme_default_font()
 	var font_size := get_theme_default_font_size()
 	for slot: int in vaults:
 		var state: Array = vaults[slot]
 		var pos := _to_px(Vector2(state[0], state[1]), px_per_unit)
-		draw_circle(pos, HeistNight.VAULT_RADIUS * px_per_unit, VAULT_COLOR)
+		# Vaults read as blueprint rooms: filled, double-outlined in the
+		# owner's color, coin total front and center.
+		var vault_radius := HeistNight.VAULT_RADIUS * px_per_unit
+		draw_circle(pos, vault_radius, VAULT_FILL)
+		draw_circle(pos, vault_radius, player_color(slot), false, 2.5)
+		draw_circle(pos, vault_radius * 0.82, BLUEPRINT_LINE, false, 1.0)
 		var label := "%s: %d" % [player_name(slot), int(state[2])]
 		# Vault totals must stay readable through the dark phase (#177): a
 		# black outline under every label, and darker palette colors lifted
@@ -68,12 +91,22 @@ func _draw() -> void:
 			label_color
 		)
 	for coin: Array in coins:
-		draw_circle(_to_px(Vector2(coin[0], coin[1]), px_per_unit), 0.3 * px_per_unit, COIN_COLOR)
+		var coin_px := _to_px(Vector2(coin[0], coin[1]), px_per_unit)
+		draw_circle(coin_px, 0.34 * px_per_unit, COIN_COLOR)
+		draw_circle(coin_px, 0.34 * px_per_unit, Color(0.4, 0.3, 0.05), false, 1.5)
 	for slot: int in players:
 		var state: Array = players[slot]
 		var pos := _to_px(Vector2(state[0], state[1]), px_per_unit)
 		var color := player_color(slot)
+		# Players are radar blips: solid dot + halo ring.
 		draw_circle(pos, HeistNight.PLAYER_RADIUS * px_per_unit, color)
+		draw_circle(
+			pos,
+			HeistNight.PLAYER_RADIUS * px_per_unit * 1.6,
+			color * Color(1, 1, 1, 0.35),
+			false,
+			1.5
+		)
 		draw_string(
 			font,
 			pos + Vector2(-30.0, -HeistNight.PLAYER_RADIUS * px_per_unit - 4.0),
@@ -84,13 +117,26 @@ func _draw() -> void:
 			color
 		)
 	if dark:
+		var banner := "◼ FEED LOST — LIGHTS OUT — go rob someone! ◼"
+		var banner_size := font.get_string_size(banner, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+		draw_string_outline(
+			font,
+			Vector2((size.x - banner_size.x) / 2.0, 26.0),
+			banner,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1,
+			font_size,
+			6,
+			Color(0, 0, 0, 0.9)
+		)
 		draw_string(
 			font,
-			Vector2(size.x / 2.0 - 80.0, 24.0),
-			"LIGHTS OUT — go rob someone!",
-			HORIZONTAL_ALIGNMENT_CENTER,
-			160,
-			font_size
+			Vector2((size.x - banner_size.x) / 2.0, 26.0),
+			banner,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1,
+			font_size,
+			BLUEPRINT_LINE
 		)
 	_draw_reveal(font, font_size)
 
