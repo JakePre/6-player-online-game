@@ -5,10 +5,15 @@ extends GutTest
 var view: MinigameView
 
 
-func before_each() -> void:
+func _instantiate_view() -> MinigameView:
 	var scene: PackedScene = load("res://src/minigames/king_of_the_hill/king_of_the_hill_view.tscn")
-	view = scene.instantiate()
-	add_child_autofree(view)
+	var instance: MinigameView = scene.instantiate()
+	add_child_autofree(instance)
+	return instance
+
+
+func before_each() -> void:
+	view = _instantiate_view()
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
 
@@ -67,3 +72,25 @@ func test_celebrate_makes_winners_cheer() -> void:
 	view.celebrate([[0], [1]])
 	assert_eq(view.rig_for_slot(0).current_action(), &"cheer")
 	assert_ne(view.rig_for_slot(1).current_action(), &"cheer")
+
+
+## M9-05 view flags: Masquerade hides nameplates, Blackout adds the cycling
+## lights-out overlay; a plain round gets neither.
+func test_masquerade_flag_hides_nameplates() -> void:
+	var flagged := _instantiate_view()
+	flagged.view_flags = [&"hide_nameplates"]
+	flagged.setup({0: "Alice"}, 0)
+	var nameplate: Label3D = flagged.rig_for_slot(0).get_node("Nameplate")
+	assert_false(nameplate.visible)
+	assert_true(view.rig_for_slot(0).get_node("Nameplate").visible, "unflagged view keeps them")
+
+
+func test_blackout_flag_builds_the_overlay() -> void:
+	var flagged := _instantiate_view()
+	flagged.view_flags = ["blackout"]
+	flagged.setup({0: "Alice"}, 0)
+	var overlay: ColorRect = flagged.get_node("BlackoutOverlay")
+	assert_false(overlay.visible, "lights start on")
+	assert_false((flagged.get_node("BlackoutTimer") as Timer).is_stopped())
+	assert_null(view.get_node_or_null("BlackoutOverlay"), "unflagged view has no overlay")
+	assert_true(flagged.has_view_flag(&"blackout"), "String flags from the wire still match")

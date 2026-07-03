@@ -394,10 +394,8 @@ func test_pack_a_registers_with_expected_knobs() -> void:
 	MutatorCatalog.clear()
 	MutatorCatalog.register_builtins()
 	MutatorCatalog.register_builtins()
-	assert_eq(
-		MutatorCatalog.registered_ids(),
-		[&"double_coins", &"golden_round", &"overdrive", &"short_fuse"]
-	)
+	for id: StringName in [&"double_coins", &"golden_round", &"overdrive", &"short_fuse"]:
+		assert_true(MutatorCatalog.is_registered(id), "%s registered" % id)
 	assert_eq(MutatorCatalog.mutator_of(&"double_coins").award_multiplier, 2.0)
 	assert_eq(MutatorCatalog.mutator_of(&"golden_round").pickup_cap_scale, 2.0)
 	assert_eq(MutatorCatalog.mutator_of(&"short_fuse").duration_scale, 0.6)
@@ -442,4 +440,39 @@ func test_overdrive_scales_the_sim_delta() -> void:
 	var before: float = controller.game.elapsed
 	controller.tick(TICK)
 	assert_almost_eq(controller.game.elapsed - before, TICK * 1.25, 0.0001)
+	MutatorCatalog.clear()
+
+
+func test_pack_b_registers_with_expected_knobs() -> void:
+	MutatorCatalog.clear()
+	MutatorCatalog.register_builtins()
+	assert_eq(MutatorCatalog.registered_ids().size(), 8, "packs A and B both registered")
+	assert_eq(
+		MutatorCatalog.mutator_of(&"mirror_mode").input_transform, Mutator.InputTransform.MIRROR
+	)
+	assert_true(MutatorCatalog.mutator_of(&"blackout").view_flags.has(&"blackout"))
+	assert_true(MutatorCatalog.mutator_of(&"masquerade").view_flags.has(&"hide_nameplates"))
+	assert_eq(MutatorCatalog.mutator_of(&"robin_hood").end_transfer_amount, 10)
+	MutatorCatalog.clear()
+
+
+func test_mirror_mode_flips_move_intent_server_side() -> void:
+	var room := _make_room(2)
+	var controller := _controller_with_mutator(room, &"mirror_mode")
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
+	controller.handle_input(0, {"mx": 1.0, "my": 0.5})
+	var game: SlotOrderGame = controller.game
+	assert_eq(game.inputs.size(), 1)
+	assert_eq(game.inputs[0][1].mx, -1.0, "horizontal intent flipped before the sim sees it")
+	assert_eq(game.inputs[0][1].my, 0.5)
+	MutatorCatalog.clear()
+
+
+func test_robin_hood_transfers_coins_in_the_broadcast_totals() -> void:
+	var room := _make_room(2)
+	var controller := _controller_with_mutator(room, &"robin_hood")
+	_run_until(controller, func() -> bool: return controller.is_done())
+	var results := events.filter(func(e: Dictionary) -> bool: return e.type == "round_results")
+	# Placement awards 30/20, then last place takes 10 from first: 20/30.
+	assert_eq(results[0].totals, {0: 20, 1: 30})
 	MutatorCatalog.clear()
