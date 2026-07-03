@@ -33,6 +33,7 @@ static func register_builtins() -> void:
 	register(RelaySprint.make_meta(), RelaySprint)
 	register(HeistNight.make_meta(), HeistNight)
 	register(CartPush.make_meta(), CartPush)
+	register(TrapCorridor.make_meta(), TrapCorridor)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
