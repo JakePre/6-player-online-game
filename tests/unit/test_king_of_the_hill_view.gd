@@ -48,7 +48,7 @@ func test_zone_disc_follows_snapshot() -> void:
 
 func test_rig_follows_player_snapshot() -> void:
 	view.render({"players": {0: [4.0, -1.0, 7]}, "zone": []})
-	var rig := view.rig_for_slot(0)
+	var rig: CharacterRig = view.rig_for_slot(0)
 	assert_almost_eq(rig.position.x, 4.0, 0.001)
 	assert_almost_eq(rig.position.z, -1.0, 0.001)
 	assert_string_contains(rig.display_name, "Alice")

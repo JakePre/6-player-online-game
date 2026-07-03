@@ -1,0 +1,73 @@
+extends GutTest
+## Hot Potato client view (M8-05): renders replicated snapshots in the shared
+## iso-arena without simulating anything locally.
+
+var view: MinigameView
+
+
+func before_each() -> void:
+	var scene: PackedScene = load("res://src/minigames/hot_potato/hot_potato_view.tscn")
+	view = scene.instantiate()
+	add_child_autofree(view)
+	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func test_setup_builds_iso_arena_with_rigs() -> void:
+	assert_not_null(view.arena)
+	assert_not_null(view.rig_for_slot(0))
+	assert_not_null(view.rig_for_slot(1))
+
+
+func test_render_replaces_replicated_state() -> void:
+	view.render(
+		{"players": {0: [1.0, -2.0], 1: [3.0, 4.0]}, "carrier": 1, "fuse": 5.5, "alive": [0, 1]}
+	)
+	assert_eq(view.players.size(), 2)
+	assert_eq(view.carrier, 1)
+	assert_almost_eq(view.fuse, 5.5, 0.001)
+	assert_eq(view.alive, [0, 1])
+	view.render({"players": {0: [0.0, 0.0]}, "carrier": -1, "fuse": 0.0, "alive": [0]})
+	assert_eq(view.players.size(), 1, "each snapshot fully replaces the last")
+	assert_eq(view.carrier, -1)
+
+
+func test_bomb_hovers_over_the_carrier() -> void:
+	view.render(
+		{"players": {0: [1.0, -2.0], 1: [3.0, 4.0]}, "carrier": 1, "fuse": 5.5, "alive": [0, 1]}
+	)
+	var bomb: MeshInstance3D = view.arena.get_node("Bomb")
+	assert_true(bomb.visible)
+	assert_almost_eq(bomb.position.x, 3.0, 0.001)
+	assert_almost_eq(bomb.position.z, 4.0, 0.001)
+	assert_string_contains(view.rig_for_slot(1).display_name, "5.5")
+
+
+func test_bomb_hidden_without_a_live_carrier() -> void:
+	view.render({"players": {0: [0.0, 0.0]}, "carrier": -1, "fuse": 0.0, "alive": [0]})
+	assert_false(view.arena.get_node("Bomb").visible)
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "carrier": 1, "fuse": 2.0, "alive": [0]}
+	)
+	assert_false(
+		view.arena.get_node("Bomb").visible, "an eliminated carrier does not wear the bomb"
+	)
+
+
+func test_eliminated_player_goes_down_dimmed() -> void:
+	view.render(
+		{"players": {0: [1.0, -2.0], 1: [3.0, 4.0]}, "carrier": 0, "fuse": 9.0, "alive": [0, 1]}
+	)
+	view.render(
+		{"players": {0: [1.0, -2.0], 1: [3.0, 4.0]}, "carrier": 0, "fuse": 3.0, "alive": [0]}
+	)
+	var rig: CharacterRig = view.rig_for_slot(1)
+	assert_eq(rig.current_action(), &"ko")
+	assert_eq(rig.player_color, view.ELIMINATED_COLOR)
+	assert_eq(rig.display_name, "Bob", "no fuse on an eliminated nameplate")
+
+
+func test_render_tolerates_missing_keys() -> void:
+	view.render({})
+	assert_eq(view.players.size(), 0)
+	assert_eq(view.carrier, -1)
+	assert_eq(view.alive.size(), 0)
