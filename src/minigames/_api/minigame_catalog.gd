@@ -43,6 +43,7 @@ static func register_builtins() -> void:
 	register(MusicalPlatforms.make_meta(), MusicalPlatforms)
 	register(ShockTag.make_meta(), ShockTag)
 	register(TreasureDivers.make_meta(), TreasureDivers)
+	register(MemoryMatch.make_meta(), MemoryMatch)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
