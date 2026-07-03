@@ -69,6 +69,25 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="SeriesRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+layout_mode = 2
+
+[node name="SeriesLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/SeriesRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Series"
+
+[node name="SeriesOption" type="OptionButton" parent="Margin/Layout/Scroll/ScrollCenter/Column/SeriesRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SeriesBoard" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+autowrap_mode = 2
+
 [node name="MutatorBox" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 unique_name_in_owner = true
 visible = false

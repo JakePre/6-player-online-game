@@ -69,3 +69,20 @@ static func standings_lines(totals: Dictionary, names: Dictionary) -> Array[Stri
 			previous_score = score
 		lines.append("%s  %s  %d" % [ordinal(rank), player_name(names, slot), score])
 	return lines
+
+
+## Series scoreboard lines (M11-02): rows are SeriesTracker.standings()
+## entries ({slot, points, coins}), best first. "1st  Alice — 17 pts".
+static func series_lines(rows: Array, names: Dictionary) -> Array[String]:
+	var lines: Array[String] = []
+	var rank := 0
+	var previous := {"points": -1, "coins": -1}
+	for i in rows.size():
+		var row: Dictionary = rows[i]
+		if row.points != previous.points or row.coins != previous.coins:
+			rank = i
+		previous = row
+		lines.append(
+			"%s  %s — %d pts" % [ordinal(rank + 1), player_name(names, int(row.slot)), row.points]
+		)
+	return lines
