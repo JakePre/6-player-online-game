@@ -171,3 +171,31 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.players.size(), 2)
 	assert_eq(snapshot.players[0].size(), 2)
 	assert_eq(snapshot.fallen, [])
+
+
+func test_standing_still_damages_the_tile_underfoot() -> void:
+	var game := _game()
+	var idx: int = game._tile_index(game._tile_of(game.positions[0]))
+	# Entry cracked it on the first resolve; camping walks it to BREAKING
+	# and then GONE without the player ever moving (#167).
+	var ticks := int(ceil(ThinIce.STAND_DAMAGE_SEC / TICK)) + 2
+	for _i in ticks:
+		game.tick(TICK)
+	assert_eq(game.tiles[idx], ThinIce.TileState.CRACKED, "entry damage on setup resolve")
+	for _i in ticks:
+		game.tick(TICK)
+	assert_true(game.tiles[idx] >= ThinIce.TileState.BREAKING, "camping breaks the ice under you")
+
+
+func test_moving_resets_the_standing_clock() -> void:
+	var game := _game()
+	var half := int(ThinIce.STAND_DAMAGE_SEC / TICK / 2.0)
+	for _i in half:
+		game.tick(TICK)
+	# Step to a fresh tile: its damage is the entry crack only.
+	game.positions[0] = game.positions[0] + Vector2(ThinIce.TILE_SIZE, 0.0)
+	game.tick(TICK)
+	var idx: int = game._tile_index(game.last_tile[0])
+	for _i in half:
+		game.tick(TICK)
+	assert_eq(game.tiles[idx], ThinIce.TileState.CRACKED, "clock restarted on the new tile")

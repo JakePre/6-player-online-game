@@ -11,6 +11,9 @@ enum TileState { INTACT, CRACKED, BREAKING, GONE }
 
 ## How long a BREAKING tile holds before it gives way — the escape window.
 const COLLAPSE_SEC := 0.8
+## Camping is not safe (#167): standing on the same tile this long applies
+## one damage step, and keeps applying while you stay.
+const STAND_DAMAGE_SEC := 1.5
 
 const GRID_SIZE := 7
 const TILE_SIZE := 2.0
@@ -30,6 +33,8 @@ var fall_order: Array = []
 var _pending_falls: Array = []
 ## Collapse countdowns for BREAKING tiles, {tile index: seconds left}.
 var _collapse_left := {}
+## Continuous time each player has spent on their current tile.
+var _stand_time := {}
 
 
 static func make_meta() -> MinigameMeta:
@@ -44,7 +49,8 @@ static func make_meta() -> MinigameMeta:
 				"min_players": 2,
 				"max_players": 6,
 				"duration_sec": 45.0,
-				"rules": "Step once: it cracks. Step again: it flashes — run! Flashing ice drops.",
+				"rules":
+				"The ice cracks underfoot — even standing still! Flashing ice is about to drop. Keep moving!",
 			}
 		)
 	)
@@ -75,6 +81,7 @@ func _tick(delta: float) -> void:
 			Vector2(-HALF_EXTENT, -HALF_EXTENT), Vector2(HALF_EXTENT, HALF_EXTENT)
 		)
 	_resolve_tile_entries()
+	_tick_standing(delta)
 	_tick_collapses(delta)
 	_check_falls()
 	_flush_falls()
@@ -111,7 +118,17 @@ func _resolve_tile_entries() -> void:
 		var tile: Vector2i = _tile_of(positions[slot])
 		if tile != last_tile[slot]:
 			last_tile[slot] = tile
+			_stand_time[slot] = 0.0
 			_damage_tile(tile)
+
+
+## Standing still cracks the ice under you too (#167).
+func _tick_standing(delta: float) -> void:
+	for slot: int in _in_slots():
+		_stand_time[slot] = float(_stand_time.get(slot, 0.0)) + delta
+		if _stand_time[slot] >= STAND_DAMAGE_SEC:
+			_stand_time[slot] = 0.0
+			_damage_tile(last_tile[slot])
 
 
 func _damage_tile(tile: Vector2i) -> void:
