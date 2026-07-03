@@ -53,6 +53,11 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 
+[node name="GameNameLabel" type="Label" parent="HudBar/HudRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
 [node name="TimerLabel" type="Label" parent="HudBar/HudRow"]
 unique_name_in_owner = true
 layout_mode = 2
