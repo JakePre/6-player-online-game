@@ -35,6 +35,8 @@ jobs:
       - name: Run GUT
         # GUT skips (rather than fails) test scripts that do not parse, so a
         # green run can silently drop tests (#88). Fail on any skipped script.
+        # bash explicitly: the container's default sh has no pipefail.
+        shell: bash
         run: |
           set -o pipefail
           godot --headless -s addons/gut/gut_cmdln.gd \
