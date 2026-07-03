@@ -1,7 +1,8 @@
 class_name MatchController
 extends RefCounted
 ## Server-side match state machine (M3-01, SPEC $4):
-## INTRO -> PLAY -> RESULTS -> (LEADERBOARD every 5 rounds) -> ... -> PODIUM.
+## INTRO -> COUNTDOWN -> PLAY -> RESULTS -> (LEADERBOARD every 5 rounds) ->
+## ... -> PODIUM.
 ## Pure logic driven by tick(delta); emits `event_emitted` Dictionaries that
 ## NetManager relays to the room, and feeds get_snapshot() into the 30 Hz
 ## room snapshot (ADR 001). Coins live on RoomMember.score.
@@ -15,6 +16,9 @@ enum State {
 	LEADERBOARD,
 	PODIUM,
 	DONE,
+	# Appended after DONE so the wire values of the original states stay
+	# stable across client/server versions (#182).
+	COUNTDOWN,
 }
 
 const LEADERBOARD_EVERY := 5
@@ -23,6 +27,11 @@ const LEADERBOARD_EVERY := 5
 ## rounds are the only thing that can roll — "never the finale" holds
 ## structurally.
 const MUTATOR_ROUND_CHANCE := 0.4
+## 3-2-1 over the visible arena at 600 ms per digit (#182). The game is
+## already instantiated during COUNTDOWN so clients render the starting
+## positions, but it does not tick and takes no input until PLAY.
+const COUNTDOWN_STEP_SEC := 0.6
+const COUNTDOWN_STEPS := 3
 
 var state := State.INTRO
 var room: Room
@@ -93,6 +102,8 @@ func tick(delta: float) -> void:
 		return
 	match state:
 		State.INTRO:
+			_enter_countdown()
+		State.COUNTDOWN:
 			_enter_play()
 		State.RESULTS:
 			_after_results()
@@ -126,7 +137,7 @@ func handle_skip(slot: int) -> void:
 			votes += 1
 	event_emitted.emit({"type": "skip_votes", "votes": votes, "needed": voters.size()})
 	if votes >= voters.size():
-		_enter_play()
+		_enter_countdown()
 
 
 func is_done() -> bool:
@@ -142,11 +153,13 @@ func get_snapshot() -> Dictionary:
 	}
 	if state == State.PLAY:
 		snapshot.time_left = maxf(game.effective_duration() - game.elapsed, 0.0)
-		# The id lets late arrivals (rejoin, missed events) mount the right view.
+	if state in [State.COUNTDOWN, State.PLAY]:
+		# The id lets late arrivals (rejoin, missed events) mount the right
+		# view; during COUNTDOWN it also shows the starting positions (#182).
 		snapshot["minigame"] = String(playlist[round_index])
 		snapshot["game"] = game.get_snapshot()
 	# Late arrivals also learn the round's mutator (M9-03).
-	if current_mutator != null and state in [State.INTRO, State.PLAY]:
+	if current_mutator != null and state in [State.INTRO, State.COUNTDOWN, State.PLAY]:
 		snapshot["mutator"] = current_mutator.to_dict()
 	return snapshot
 
@@ -186,8 +199,11 @@ func _roll_mutator() -> Mutator:
 	return MutatorCatalog.mutator_of(pool[_rng.randi_range(0, pool.size() - 1)])
 
 
-func _enter_play() -> void:
-	state = State.PLAY
+## The game is built and set up here — before PLAY — so countdown snapshots
+## carry the arena and starting positions while everyone reads the 3-2-1.
+func _enter_countdown() -> void:
+	state = State.COUNTDOWN
+	_state_left = COUNTDOWN_STEP_SEC * COUNTDOWN_STEPS
 	# Members who joined the room by round start play; rejoiners who arrive
 	# mid-round sit out until the next one (SPEC $9).
 	_round_slots = _connected_slots()
@@ -202,6 +218,11 @@ func _enter_play() -> void:
 		)
 		game.duration_override = current_mutator.scaled_duration(base)
 	game.setup(_round_slots, _rng.randi())
+	event_emitted.emit({"type": "round_countdown", "round": round_index + 1})
+
+
+func _enter_play() -> void:
+	state = State.PLAY
 	event_emitted.emit({"type": "round_started", "round": round_index + 1})
 
 

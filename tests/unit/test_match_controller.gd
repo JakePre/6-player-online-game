@@ -205,7 +205,7 @@ func test_unanimous_skip_starts_the_round_early() -> void:
 	assert_eq(controller.state, MatchController.State.INTRO)
 	controller.handle_skip(1)
 	controller.handle_skip(2)
-	assert_eq(controller.state, MatchController.State.PLAY)
+	assert_eq(controller.state, MatchController.State.COUNTDOWN)
 	var votes: Array = events.filter(
 		func(event: Dictionary) -> bool: return event.type == "skip_votes"
 	)
@@ -224,7 +224,7 @@ func test_skip_from_disconnected_member_is_ignored() -> void:
 	assert_eq(controller.state, MatchController.State.INTRO)
 	controller.handle_skip(0)
 	controller.handle_skip(1)
-	assert_eq(controller.state, MatchController.State.PLAY, "only connected players count")
+	assert_eq(controller.state, MatchController.State.COUNTDOWN, "only connected players count")
 
 
 func test_skip_votes_reset_each_round() -> void:
@@ -233,7 +233,7 @@ func test_skip_votes_reset_each_round() -> void:
 	controller.start()
 	controller.handle_skip(0)
 	controller.handle_skip(1)
-	assert_eq(controller.state, MatchController.State.PLAY)
+	assert_eq(controller.state, MatchController.State.COUNTDOWN)
 	_run_until(
 		controller,
 		func() -> bool:
@@ -249,10 +249,10 @@ func test_skip_outside_intro_is_ignored() -> void:
 	controller.start()
 	controller.handle_skip(0)
 	controller.handle_skip(1)
-	assert_eq(controller.state, MatchController.State.PLAY)
+	assert_eq(controller.state, MatchController.State.COUNTDOWN)
 	var event_count := events.size()
 	controller.handle_skip(0)
-	assert_eq(events.size(), event_count, "skips during play emit nothing")
+	assert_eq(events.size(), event_count, "skips outside the intro emit nothing")
 
 
 func test_play_snapshot_carries_minigame_id_for_late_mounts() -> void:
@@ -476,3 +476,30 @@ func test_robin_hood_transfers_coins_in_the_broadcast_totals() -> void:
 	# Placement awards 30/20, then last place takes 10 from first: 20/30.
 	assert_eq(results[0].totals, {0: 20, 1: 30})
 	MutatorCatalog.clear()
+
+
+## #182: the 3-2-1 countdown sits between intro and play — the game is
+## already set up (snapshots show starting positions) but neither ticks nor
+## accepts input until PLAY.
+func test_countdown_shows_the_arena_but_blocks_play() -> void:
+	var room := _make_room(2)
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.handle_skip(0)
+	controller.handle_skip(1)
+	assert_eq(controller.state, MatchController.State.COUNTDOWN)
+	assert_true(events.any(func(event: Dictionary) -> bool: return event.type == "round_countdown"))
+	var snapshot := controller.get_snapshot()
+	assert_true(snapshot.has("minigame"), "countdown snapshots carry the arena")
+	assert_true(snapshot.has("game"))
+	assert_between(
+		float(snapshot.time_left),
+		0.0,
+		MatchController.COUNTDOWN_STEP_SEC * MatchController.COUNTDOWN_STEPS
+	)
+	var before: float = controller.game.elapsed
+	controller.handle_input(0, {"mx": 1.0})
+	controller.tick(0.1)
+	assert_eq(controller.game.elapsed, before, "the sim must not advance during countdown")
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
+	assert_true(events.any(func(event: Dictionary) -> bool: return event.type == "round_started"))

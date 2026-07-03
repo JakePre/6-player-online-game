@@ -41,6 +41,7 @@ static func register_builtins() -> void:
 	register(TargetRange.make_meta(), TargetRange)
 	register(BeatBounce.make_meta(), BeatBounce)
 	register(MusicalPlatforms.make_meta(), MusicalPlatforms)
+	register(ShockTag.make_meta(), ShockTag)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
@@ -74,8 +75,11 @@ static func build_playlist(rng: RandomNumberGenerator, rounds: int, player_count
 	var eligible: Array = []
 	for id: StringName in _entries:
 		var meta: MinigameMeta = _entries[id].meta
-		if player_count >= meta.min_players and player_count <= meta.max_players:
-			eligible.append(id)
+		if player_count < meta.min_players or player_count > meta.max_players:
+			continue
+		if meta.even_players and player_count % 2 != 0:
+			continue  # Uneven teams are never fun (#178).
+		eligible.append(id)
 	assert(not eligible.is_empty(), "no minigames eligible for %d players" % player_count)
 
 	var playlist: Array = []

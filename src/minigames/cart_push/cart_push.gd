@@ -40,6 +40,7 @@ static func make_meta() -> MinigameMeta:
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 4,
 				"max_players": 6,
+				"even_players": true,
 				"duration_sec": 75.0,
 				"rules":
 				"Push your cart to the depot — and body-block theirs! First cart home wins.",

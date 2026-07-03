@@ -34,17 +34,20 @@ func test_registered_in_catalog() -> void:
 	MinigameCatalog.clear()
 
 
+func test_even_players_flag_set() -> void:
+	assert_true(CartPush.make_meta().even_players, "never drafted at 3 or 5 (#178)")
+
+
 func test_team_shapes() -> void:
-	for count: int in [4, 5, 6]:
+	for count: int in [4, 6]:
 		var player_slots: Array[int] = []
 		for slot in count:
 			player_slots.append(slot)
 		var game := _game(player_slots)
 		assert_true(game.team_mode)
 		assert_eq(game.teams.size(), 2)
-		var sizes := [game.teams[0].size(), game.teams[1].size()]
-		sizes.sort()
-		assert_eq(sizes, [count / 2, count - count / 2], "%d players" % count)
+		assert_eq(game.teams[0].size(), count / 2, "%d players" % count)
+		assert_eq(game.teams[1].size(), count / 2, "%d players" % count)
 
 
 func test_pushing_advances_the_cart() -> void:
