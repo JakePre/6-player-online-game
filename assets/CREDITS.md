@@ -25,6 +25,11 @@ the models. Nature Kit's models use flat vertex-color materials (no texture
 file). `godot --headless --import` was run after adding these so every
 `.glb` has a matching `.import` sidecar checked in, same as the character
 packs.
+| Kenney Interface Sounds (5 UI/chrome OGGs: click, confirm, error, tick, coin) | `assets/audio/kenney_interface_sounds/` | Kenney | CC0 1.0 | https://kenney.nl/assets/interface-sounds |
+| Kenney Music Jingles (5 stinger OGGs: round start/win/lose, leaderboard, podium) | `assets/audio/kenney_music_jingles/` | Kenney | CC0 1.0 | https://kenney.nl/assets/music-jingles |
+| "Monkeys Spinning Monkeys" (menu music loop) | `assets/audio/incompetech/menu_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
+| "Pixel Peeker Polka - faster" (round music loop) | `assets/audio/incompetech/round_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
+| "Exhilarate" (finale music loop) | `assets/audio/incompetech/finale_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
 
 ## Planned sources (not yet imported)
 

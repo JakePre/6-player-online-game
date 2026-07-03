@@ -48,6 +48,7 @@ func goto_screen(id: StringName) -> void:
 		_current_screen.connect("navigate", goto_screen)
 	_screen_host.add_child(_current_screen)
 	_current_id = id
+	AudioManager.play_music(&"round" if id == &"match" else &"menu")
 
 
 func _on_joined_room(_code: String, _slot: int, _token: String) -> void:
