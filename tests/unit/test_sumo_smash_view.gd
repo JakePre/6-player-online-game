@@ -57,6 +57,15 @@ func test_cooldown_on_nameplate() -> void:
 	assert_eq(view.rig_for_slot(0).display_name, "Alice", "ready again")
 
 
+func test_local_dash_indicator_tracks_cooldown() -> void:
+	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 1.0, 0]}, "out": []})
+	var label: Label = view.get_node("DashIndicator")
+	assert_string_contains(label.text, "DASH")
+	assert_false(label.text.contains("READY"), "cooling down")
+	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
+	assert_string_contains(label.text, "READY")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
