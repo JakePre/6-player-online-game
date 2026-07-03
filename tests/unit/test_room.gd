@@ -76,6 +76,38 @@ func test_round_count_locked_once_match_started() -> void:
 	assert_false(room.set_round_count(8))
 
 
+func _register_test_mutators() -> void:
+	MutatorCatalog.clear()
+	MutatorCatalog.register(Mutator.create({"id": &"double", "name": "Double Coins"}))
+	MutatorCatalog.register(Mutator.create({"id": &"blackout", "name": "Blackout"}))
+
+
+func test_mutator_pool_defaults_empty_and_replicates() -> void:
+	var room := _room_with(2)
+	assert_eq(room.mutator_pool, [] as Array[StringName])
+	assert_eq(room.to_state_dict().mutator_pool, [])
+
+
+func test_mutator_pool_keeps_only_known_ids_deduped() -> void:
+	_register_test_mutators()
+	var room := _room_with(2)
+	assert_true(room.set_mutator_pool(["double", "bogus", "double", "blackout"]))
+	assert_eq(room.mutator_pool, [&"double", &"blackout"] as Array[StringName])
+	assert_eq(room.to_state_dict().mutator_pool, [&"double", &"blackout"])
+	assert_true(room.set_mutator_pool([]), "clearing the pool is allowed")
+	assert_eq(room.mutator_pool, [] as Array[StringName])
+	MutatorCatalog.clear()
+
+
+func test_mutator_pool_locked_once_match_started() -> void:
+	_register_test_mutators()
+	var room := _room_with(2)
+	room.state = Room.State.IN_MATCH
+	assert_false(room.set_mutator_pool(["double"]))
+	assert_eq(room.mutator_pool, [] as Array[StringName])
+	MutatorCatalog.clear()
+
+
 func test_cannot_start_alone() -> void:
 	var room := _room_with(1)
 	_ready_all(room)

@@ -14,6 +14,9 @@ var members: Array[RoomMember] = []
 ## Host-chosen number of rounds: Quick 8, Standard 12 (default), Marathon 15
 ## (SPEC $4).
 var round_count := NetConfig.DEFAULT_ROUND_COUNT
+## Host-curated mutator pool (M9-02, PHASE2.md $3): MutatorCatalog ids the
+## per-round roll (M9-03) may draw from. Empty = mutators off.
+var mutator_pool: Array[StringName] = []
 ## Milliseconds timestamp of the moment the last connected member dropped,
 ## or -1 while anyone is still connected. Drives the 5-minute expiry.
 var empty_since_ms := -1
@@ -99,6 +102,20 @@ func set_round_count(count: int) -> bool:
 	return true
 
 
+## Lobby-only, like round count; unknown and duplicate ids are dropped rather
+## than rejected so a stale client toggle set cannot wedge the pool.
+func set_mutator_pool(pool: Array) -> bool:
+	if state != State.LOBBY:
+		return false
+	var cleaned: Array[StringName] = []
+	for id in pool:
+		var sid := StringName(String(id))
+		if MutatorCatalog.is_registered(sid) and sid not in cleaned:
+			cleaned.append(sid)
+	mutator_pool = cleaned
+	return true
+
+
 ## Start gating (M2-02): a match needs at least 2 players and every connected
 ## member ready. The caller checks that the requester is the host.
 func can_start() -> bool:
@@ -153,6 +170,7 @@ func to_state_dict() -> Dictionary:
 		"state": state,
 		"host_slot": host_member.slot if host_member != null else -1,
 		"round_count": round_count,
+		"mutator_pool": mutator_pool.duplicate(),
 		"members": member_dicts,
 	}
 

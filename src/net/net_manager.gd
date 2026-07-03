@@ -144,6 +144,11 @@ func request_set_round_count(count: int) -> void:
 	_rpc_set_round_count.rpc_id(1, count)
 
 
+## Host-only lobby setting (M9-02); ids are Strings over the wire.
+func request_set_mutator_pool(pool: Array) -> void:
+	_rpc_set_mutator_pool.rpc_id(1, pool)
+
+
 func send_ping() -> void:
 	_rpc_ping.rpc_id(1, Time.get_ticks_msec())
 
@@ -258,6 +263,18 @@ func _rpc_set_round_count(count: int) -> void:
 	if room == null:
 		return
 	if room.set_round_count(count):
+		_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_mutator_pool(pool: Array) -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null:
+		return
+	MutatorCatalog.register_builtins()
+	if room.set_mutator_pool(pool):
 		_broadcast_room_state(room)
 
 

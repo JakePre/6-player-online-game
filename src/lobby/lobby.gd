@@ -13,6 +13,8 @@ var _last_state: Dictionary = {}
 @onready var _code_label: Label = %CodeLabel
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _round_option: OptionButton = %RoundOption
+@onready var _mutator_box: VBoxContainer = %MutatorBox
+@onready var _mutator_toggles: VBoxContainer = %MutatorToggles
 @onready var _character_label: Label = %CharacterLabel
 @onready var _prev_character_button: Button = %PrevCharacterButton
 @onready var _next_character_button: Button = %NextCharacterButton
@@ -34,6 +36,7 @@ func _ready() -> void:
 	for count in NetConfig.ROUND_COUNT_OPTIONS:
 		_round_option.add_item("%s (%d rounds)" % [ROUND_COUNT_LABELS[count], count], count)
 	_round_option.item_selected.connect(_on_round_option_selected)
+	_build_mutator_toggles()
 	_code_label.text = "Room %s" % NetManager.my_room_code
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
 	_ready_button.grab_focus()
@@ -45,6 +48,41 @@ func _ready() -> void:
 
 func _on_round_option_selected(index: int) -> void:
 	NetManager.request_set_round_count(_round_option.get_item_id(index))
+
+
+## One checkbox per registered mutator (M9-02); the whole section stays
+## hidden until a mutator pack registers something (M9-04/05).
+func _build_mutator_toggles() -> void:
+	MutatorCatalog.register_builtins()
+	var ids := MutatorCatalog.registered_ids()
+	_mutator_box.visible = not ids.is_empty()
+	for id: StringName in ids:
+		var toggle := CheckBox.new()
+		toggle.name = "Mutator_%s" % id
+		var mutator := MutatorCatalog.mutator_of(id)
+		toggle.text = mutator.display_name
+		toggle.tooltip_text = mutator.blurb
+		toggle.set_meta(&"mutator_id", id)
+		toggle.toggled.connect(func(_on: bool) -> void: _send_mutator_pool())
+		_mutator_toggles.add_child(toggle)
+
+
+func _send_mutator_pool() -> void:
+	var pool: Array = []
+	for toggle: CheckBox in _mutator_toggles.get_children():
+		if toggle.button_pressed:
+			pool.append(String(toggle.get_meta(&"mutator_id")))
+	NetManager.request_set_mutator_pool(pool)
+
+
+## Server echo wins: reflect the broadcast pool without re-sending it.
+func _sync_mutator_toggles(state: Dictionary, editable: bool) -> void:
+	var pool: Array = []
+	for id in state.get("mutator_pool", []):
+		pool.append(String(id))
+	for toggle: CheckBox in _mutator_toggles.get_children():
+		toggle.set_pressed_no_signal(String(toggle.get_meta(&"mutator_id")) in pool)
+		toggle.disabled = not editable
 
 
 ## Steps the local player's roster pick by `delta` (wraps around); the server
@@ -72,6 +110,7 @@ func _on_room_updated(state: Dictionary) -> void:
 	_rebuild_player_list(state)
 	_round_option.select(_round_option.get_item_index(state.round_count))
 	_round_option.disabled = not i_am_host or in_match
+	_sync_mutator_toggles(state, i_am_host and not in_match)
 	_character_label.text = CharacterRoster.display_name_for(_my_character_id())
 	_character_preview.show_character(
 		_my_character_id(), PlayerPalette.color_for_slot(NetManager.my_slot), _my_ready(state)
