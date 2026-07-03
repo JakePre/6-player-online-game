@@ -1,11 +1,16 @@
 class_name ThinIce
 extends MinigameBase
 ## Thin Ice (M4-03, SPEC $7 #4): everyone roams a shared tile grid. Stepping
-## onto a tile damages it (intact -> cracked -> gone); standing on a gone
+## onto a tile damages it: intact -> cracked, and stepping onto a cracked
+## tile starts a visible, escapable collapse (BREAKING) before it drops
+## (#138 — the instant crack->gone kill read as random). Standing on a gone
 ## tile drops you. Last player standing wins; fall order = placement.
 ## Server-side simulation only — the client renders get_snapshot().
 
-enum TileState { INTACT, CRACKED, GONE }
+enum TileState { INTACT, CRACKED, BREAKING, GONE }
+
+## How long a BREAKING tile holds before it gives way — the escape window.
+const COLLAPSE_SEC := 0.8
 
 const GRID_SIZE := 7
 const TILE_SIZE := 2.0
@@ -23,6 +28,8 @@ var last_tile := {}
 var fall_order: Array = []
 
 var _pending_falls: Array = []
+## Collapse countdowns for BREAKING tiles, {tile index: seconds left}.
+var _collapse_left := {}
 
 
 static func make_meta() -> MinigameMeta:
@@ -37,7 +44,7 @@ static func make_meta() -> MinigameMeta:
 				"min_players": 2,
 				"max_players": 6,
 				"duration_sec": 45.0,
-				"rules": "The ice cracks where you step. Don't be there when it gives way.",
+				"rules": "Step once: it cracks. Step again: it flashes — run! Flashing ice drops.",
 			}
 		)
 	)
@@ -68,6 +75,7 @@ func _tick(delta: float) -> void:
 			Vector2(-HALF_EXTENT, -HALF_EXTENT), Vector2(HALF_EXTENT, HALF_EXTENT)
 		)
 	_resolve_tile_entries()
+	_tick_collapses(delta)
 	_check_falls()
 	_flush_falls()
 	_check_end()
@@ -108,9 +116,20 @@ func _resolve_tile_entries() -> void:
 
 func _damage_tile(tile: Vector2i) -> void:
 	var idx := _tile_index(tile)
-	var state: int = tiles[idx]
-	if state != TileState.GONE:
-		tiles[idx] = state + 1
+	match int(tiles[idx]):
+		TileState.INTACT:
+			tiles[idx] = TileState.CRACKED
+		TileState.CRACKED:
+			tiles[idx] = TileState.BREAKING
+			_collapse_left[idx] = COLLAPSE_SEC
+
+
+func _tick_collapses(delta: float) -> void:
+	for idx: int in _collapse_left.keys():
+		_collapse_left[idx] -= delta
+		if _collapse_left[idx] <= 0.0:
+			_collapse_left.erase(idx)
+			tiles[idx] = TileState.GONE
 
 
 func _check_falls() -> void:
