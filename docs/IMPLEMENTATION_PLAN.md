@@ -164,7 +164,7 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 - [x] **M9-06** (S) Nightly soak variant: full match with random mutators enabled ⛓ M9-04, M9-05, M7-03
 
 ### M10 — Roster wave 2 (Phase 2, PHASE2.md §4 — 16 games, parallel after M9-01; per game: sim + MinigameView3D view + tests + one catalog line)
-FFA — [x] **M10-01** Meteor Shower (M) · [ ] **M10-02** Musical Platforms (M) · [ ] **M10-03** Shock Tag (M) · [ ] **M10-04** Treasure Divers (M)
+FFA — [x] **M10-01** Meteor Shower (M) · [x] **M10-02** Musical Platforms (M) · [ ] **M10-03** Shock Tag (M) · [ ] **M10-04** Treasure Divers (M)
 Skill — [ ] **M10-05** Memory Match (M) · [ ] **M10-06** Laser Limbo (M) · [ ] **M10-07** Bullseye Bowl (M) · [ ] **M10-08** Count Quick (S)
 Team — [ ] **M10-09** Basket Brawl (L) · [ ] **M10-10** Wall Builders (M) · [ ] **M10-11** Snake Chain (M) · [ ] **M10-12** Fort Siege (L)
 Sabotage — [ ] **M10-13** The Mole (M) · [ ] **M10-14** Pickpocket Plaza (M) · [ ] **M10-15** Bomb Courier (M) · [ ] **M10-16** Faulty Wiring (M)
