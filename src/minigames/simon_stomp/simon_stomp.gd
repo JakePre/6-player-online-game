@@ -49,6 +49,7 @@ static func make_meta() -> MinigameMeta:
 				"duration_sec": 120.0,
 				"rules":
 				"Watch the pads flash, then stomp them back in order. One slip and you're out!",
+				"controls": "Stomp pads — WASD / left stick (N/E/S/W)",
 			}
 		)
 	)
