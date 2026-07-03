@@ -85,3 +85,10 @@ static func platform_id() -> String:
 			return "macos"
 		_:
 			return "linux"
+
+
+## The dedicated-server build ships per-OS assets: `server` is the Linux
+## build, `server-windows` the #171 Windows app. Picking by OS here keeps
+## ServerUpdater from installing a Linux zip over a Windows install.
+static func server_platform_id() -> String:
+	return "server-windows" if OS.get_name() == "Windows" else "server"
