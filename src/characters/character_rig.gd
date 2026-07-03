@@ -28,6 +28,12 @@ const ACTIONS := {
 ## Base nameplate font size from the scene; scaled by the nameplate_scale
 ## setting (#143).
 const NAMEPLATE_BASE_FONT := 48
+## Plate declutter (#216): rigs whose ground positions are within this many
+## world units of each other count as one cluster, and their plates stagger
+## vertically by PLATE_STACK_STEP so the labels never render on top of each
+## other. Plates closer to the camera stay lower (nearest the owner's head).
+const PLATE_CLUSTER_RADIUS := 1.7
+const PLATE_STACK_STEP := 0.55
 ## Every plate renders inside the same maximum text width (#180): names and
 ## captions longer than this shrink to fit instead of dwarfing everyone
 ## else's. Measured in font pixels at the base size.
@@ -36,6 +42,10 @@ const NAMEPLATE_MAX_WIDTH := 320.0
 const OUTLINE_SHADER := preload("res://src/characters/player_outline.gdshader")
 const XRAY_SHADER := preload("res://src/characters/player_xray.gdshader")
 const XRAY_ALPHA := 0.12
+
+## All rigs alive in the tree, so each can stagger its plate against the
+## others sharing its viewport (#216).
+static var _live_rigs: Array = []
 
 @export var character_scene: PackedScene:
 	set = set_character_scene
@@ -47,6 +57,10 @@ const XRAY_ALPHA := 0.12
 ## Hidden by default: clean silhouettes are an identity requirement (SPEC $3).
 @export var show_props := false:
 	set = set_show_props
+## Plate declutter (#216): higher priority keeps the lower (most readable)
+## spot in a cluster — views give the local player 1 so their own plate
+## stays glued to their head while others stagger upward.
+@export var nameplate_priority := 0
 
 var _character_root: Node3D
 var _anim_player: AnimationPlayer
@@ -54,11 +68,27 @@ var _current_action: StringName = &""
 var _outline_material: ShaderMaterial
 var _xray_material: ShaderMaterial
 var _base_font_size := NAMEPLATE_BASE_FONT
+var _plate_base_y := 0.0
 
 @onready var _nameplate: Label3D = $Nameplate
 
 
+func _enter_tree() -> void:
+	_live_rigs.append(self)
+
+
+func _exit_tree() -> void:
+	_live_rigs.erase(self)
+
+
+## Restaggers the plate every frame: positions change under snapshot
+## interpolation, so cluster membership does too.
+func _process(_delta: float) -> void:
+	_update_plate_stack()
+
+
 func _ready() -> void:
+	_plate_base_y = _nameplate.position.y
 	_base_font_size = int(
 		NAMEPLATE_BASE_FONT * float(SettingsStore.load_settings().nameplate_scale)
 	)
@@ -176,3 +206,40 @@ func _on_animation_finished(_anim_name: StringName) -> void:
 		var finished := _current_action
 		_current_action = &""
 		action_finished.emit(finished)
+
+
+## Counts the cluster mates ranked ahead of this rig and lifts the plate one
+## step per rig below it. Rank: priority first (local player lowest), then
+## camera depth (nearer stays lower — its head already renders lower on
+## screen), then instance id as the deterministic tiebreak.
+func _update_plate_stack() -> void:
+	if _nameplate == null or not visible or not is_inside_tree():
+		return
+	var below := 0
+	for entry: Variant in _live_rigs:
+		var other := entry as CharacterRig
+		if other == self or other == null or not other.visible or not other.is_inside_tree():
+			continue
+		if other.get_viewport() != get_viewport():
+			continue
+		var offset := other.global_position - global_position
+		if Vector2(offset.x, offset.z).length() > PLATE_CLUSTER_RADIUS:
+			continue
+		if _ranks_ahead(other):
+			below += 1
+	var target_y := _plate_base_y + below * PLATE_STACK_STEP
+	if not is_equal_approx(_nameplate.position.y, target_y):
+		_nameplate.position.y = target_y
+
+
+func _ranks_ahead(other: CharacterRig) -> bool:
+	if other.nameplate_priority != nameplate_priority:
+		return other.nameplate_priority > nameplate_priority
+	var camera := get_viewport().get_camera_3d()
+	if camera != null:
+		var forward := -camera.global_transform.basis.z
+		var own_depth := forward.dot(global_position - camera.global_position)
+		var other_depth := forward.dot(other.global_position - camera.global_position)
+		if not is_equal_approx(own_depth, other_depth):
+			return other_depth < own_depth
+	return other.get_instance_id() < get_instance_id()
