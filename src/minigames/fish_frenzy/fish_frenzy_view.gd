@@ -7,7 +7,13 @@ const LANE_SPACING := 2.4
 const RUNWAY_LEN := 10.0
 const FISH_COLOR := Color(0.4, 0.7, 0.95)
 const LINE_COLOR := Color(0.4, 0.85, 0.4)
+const LANE_COLOR := Color(0.16, 0.32, 0.5, 0.55)
+const LANE_DIVIDER := Color(0.55, 0.8, 1.0, 0.6)
 const FISH_POOL := 12
+## Same-lane players queue behind the line at per-slot offsets instead of
+## stacking on one point (#238).
+const STAND_X := -1.2
+const QUEUE_SPACING := 0.9
 
 ## Latest replicated state, straight from FishFrenzy.get_snapshot().
 var players := {}
@@ -53,6 +59,33 @@ func _setup_3d() -> void:
 		node.visible = false
 		arena.add_child(node)
 		_fish_pool.append(node)
+	# The three lanes are visible water strips with dividers (#238).
+	for lane_index in FishFrenzy.LANES:
+		var strip := BoxMesh.new()
+		strip.size = Vector3(RUNWAY_LEN + 3.0, 0.02, LANE_SPACING * 0.92)
+		var strip_material := StandardMaterial3D.new()
+		strip_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		strip_material.albedo_color = LANE_COLOR
+		strip.material = strip_material
+		var strip_node := MeshInstance3D.new()
+		strip_node.name = "Lane%d" % lane_index
+		strip_node.mesh = strip
+		strip_node.position = Vector3(RUNWAY_LEN / 2.0 - 1.0, 0.01, _lane_z(lane_index))
+		arena.add_child(strip_node)
+	for divider_index in FishFrenzy.LANES + 1:
+		var divider := BoxMesh.new()
+		divider.size = Vector3(RUNWAY_LEN + 3.0, 0.025, 0.08)
+		var divider_material := StandardMaterial3D.new()
+		divider_material.albedo_color = LANE_DIVIDER
+		divider.material = divider_material
+		var divider_node := MeshInstance3D.new()
+		divider_node.mesh = divider
+		divider_node.position = Vector3(
+			RUNWAY_LEN / 2.0 - 1.0,
+			0.02,
+			_lane_z(0) - LANE_SPACING / 2.0 + divider_index * LANE_SPACING
+		)
+		arena.add_child(divider_node)
 	var line_mesh := BoxMesh.new()
 	line_mesh.size = Vector3(0.15, 0.02, LANE_SPACING * FishFrenzy.LANES)
 	var line_material := StandardMaterial3D.new()
@@ -78,12 +111,20 @@ func _render_3d(game: Dictionary) -> void:
 			node.visible = true
 		else:
 			node.visible = false
-	for slot: int in players:
+	# Queue order within a lane: stable by slot, so players line up behind
+	# the catch line instead of stacking (#238).
+	var lane_queues := {}
+	var slots_sorted := players.keys()
+	slots_sorted.sort()
+	for slot: int in slots_sorted:
 		var state: Array = players[slot]
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(-1.2, _lane_z(int(state[0]))))
+		var player_lane := int(state[0])
+		var queue_index := int(lane_queues.get(player_lane, 0))
+		lane_queues[player_lane] = queue_index + 1
+		update_rig(slot, Vector2(STAND_X - queue_index * QUEUE_SPACING, _lane_z(player_lane)))
 		var caption := "%s  🐟%d" % [player_name(slot), int(state[1])]
 		if int(state[2]) >= FishFrenzy.STREAK_EVERY:
 			caption += "  🔥%d" % int(state[2])
