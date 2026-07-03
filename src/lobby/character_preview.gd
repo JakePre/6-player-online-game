@@ -6,6 +6,8 @@ extends Control
 ## while the player is readied.
 
 const RIG_SCENE := preload("res://src/characters/character_rig.tscn")
+## Slow turntable so the whole character is visible (issue #133).
+const TURNTABLE_RAD_PER_SEC := 0.6
 
 var _rig: CharacterRig
 var _current_id: StringName = &""
@@ -38,9 +40,14 @@ func _ready() -> void:
 
 	_rig = RIG_SCENE.instantiate()
 	_rig.name = "PreviewRig"
-	# The rig faces +z out of the screen toward the camera.
-	_rig.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+	# KayKit rigs face -z natively, which is straight at the +z camera; a slow
+	# turntable shows the whole character (owner: #133 shipped facing away).
 	_viewport.add_child(_rig)
+
+
+func _process(delta: float) -> void:
+	if _rig != null:
+		_rig.rotation.y = wrapf(_rig.rotation.y + TURNTABLE_RAD_PER_SEC * delta, -PI, PI)
 
 
 ## Points the preview at a roster entry. Cheap when nothing changed.
