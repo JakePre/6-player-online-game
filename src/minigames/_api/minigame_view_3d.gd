@@ -74,6 +74,18 @@ func update_rig(slot: int, world_pos: Vector2) -> void:
 	_rig_last_pos[slot] = world_pos
 
 
+## Victory dance (M6-02): the round's winners (first tie group) cheer while
+## the arena idles behind the results panel. Views with their own celebration
+## logic can override _celebrate further.
+func _celebrate(placements: Array) -> void:
+	if placements.is_empty():
+		return
+	for slot: int in placements[0]:
+		var rig: CharacterRig = _rigs.get(int(slot))
+		if rig != null and rig.visible:
+			rig.play(&"cheer")
+
+
 # --- Overridables ------------------------------------------------------------
 
 

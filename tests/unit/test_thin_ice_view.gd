@@ -82,3 +82,14 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.tiles.size(), 0)
 	assert_eq(view.fallen.size(), 0)
+
+
+## M6-02: a new fall shakes the screen; the first snapshot never does (so a
+## mid-match rejoiner is not greeted with a shake).
+func test_new_fall_requests_screen_shake() -> void:
+	watch_signals(view)
+	var grid := _full_grid(ThinIce.TileState.INTACT)
+	view.render({"tiles": grid, "players": {0: [0.0, 0.0]}, "fallen": [[1]]})
+	assert_signal_not_emitted(view, "shake_requested", "seeding snapshot stays calm")
+	view.render({"tiles": grid, "players": {}, "fallen": [[1], [0]]})
+	assert_signal_emitted(view, "shake_requested")

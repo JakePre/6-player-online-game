@@ -22,6 +22,8 @@ var fallen: Array = []
 var _tile_nodes: Array[MeshInstance3D] = []
 var _intact_material: StandardMaterial3D
 var _cracked_material: StandardMaterial3D
+# -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
+var _fallen_seen := -1
 
 
 func _physics_process(_delta: float) -> void:
@@ -75,6 +77,17 @@ func _render_3d(game: Dictionary) -> void:
 	fallen = game.get("fallen", [])
 	_update_tiles()
 	_update_players()
+	_shake_on_new_falls()
+
+
+## Someone crashing through the ice is the game's big impact (M6-02).
+func _shake_on_new_falls() -> void:
+	var fallen_count := 0
+	for group: Array in fallen:
+		fallen_count += group.size()
+	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
+		request_shake(10.0)
+	_fallen_seen = fallen_count
 
 
 func _update_tiles() -> void:

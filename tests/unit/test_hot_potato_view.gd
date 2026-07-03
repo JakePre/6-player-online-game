@@ -71,3 +71,17 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.carrier, -1)
 	assert_eq(view.alive.size(), 0)
+
+
+## M6-02: the bomb going off shakes the screen; the first snapshot never does
+## (so a mid-match rejoiner is not greeted with a shake).
+func test_elimination_requests_screen_shake() -> void:
+	watch_signals(view)
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "carrier": 1, "fuse": 5.0, "alive": [0, 1]}
+	)
+	assert_signal_not_emitted(view, "shake_requested", "seeding snapshot stays calm")
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "carrier": 0, "fuse": 9.0, "alive": [0]}
+	)
+	assert_signal_emitted(view, "shake_requested")

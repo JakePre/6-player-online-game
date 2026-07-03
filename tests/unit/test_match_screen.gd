@@ -172,26 +172,64 @@ func test_round_started_mounts_the_view_and_snapshots_reach_it() -> void:
 	assert_eq(view.coins.size(), 1)
 
 
-func test_round_results_unmount_the_view() -> void:
+func _results_event() -> Dictionary:
+	return {
+		"type": "round_results",
+		"round": 1,
+		"placements": [[0], [1]],
+		"awards": {0: 30, 1: 20},
+		"totals": {0: 30, 1: 20},
+	}
+
+
+## M6-02: the arena stays mounted and visible behind the results panel so the
+## winners' celebration plays; it unmounts on the next phase event instead.
+func test_round_results_keep_view_visible_for_celebration() -> void:
 	NetManager.match_event_received.emit(_intro_event())
 	NetManager.match_event_received.emit({"type": "round_started", "round": 1})
 	var view := _mounted_view()
-	(
-		NetManager
-		. match_event_received
-		. emit(
-			{
-				"type": "round_results",
-				"round": 1,
-				"placements": [[0], [1]],
-				"awards": {0: 30, 1: 20},
-				"totals": {0: 30, 1: 20},
-			}
-		)
-	)
+	NetManager.match_event_received.emit(_results_event())
+	assert_false(view.is_queued_for_deletion())
+	assert_not_null(_mounted_view())
+	assert_true(screen.get_node("%PlayArea").visible, "arena visible behind results")
+	assert_true(screen.get_node("%ResultsPanel").visible)
+
+
+func test_leaderboard_unmounts_the_view() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	NetManager.match_event_received.emit({"type": "round_started", "round": 1})
+	var view := _mounted_view()
+	NetManager.match_event_received.emit(_results_event())
+	NetManager.match_event_received.emit({"type": "leaderboard", "totals": {0: 30, 1: 20}})
 	assert_true(view.is_queued_for_deletion())
 	assert_null(_mounted_view())
-	assert_true(screen.get_node("%PlayPlaceholder").visible)
+
+
+func test_results_fly_coin_chips_toward_totals() -> void:
+	NetManager.match_event_received.emit(_results_event())
+	var alice_coin: Label = screen.get_node_or_null("CoinFly0")
+	var bob_coin: Label = screen.get_node_or_null("CoinFly1")
+	assert_not_null(alice_coin)
+	assert_not_null(bob_coin)
+	assert_eq(alice_coin.text, "+30")
+	assert_eq(bob_coin.text, "+20")
+
+
+func test_mounted_view_shake_jiggles_play_area_and_settles() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	NetManager.match_event_received.emit({"type": "round_started", "round": 1})
+	var view := _mounted_view()
+	var play_area: Control = screen.get_node("%PlayArea")
+	var origin := play_area.position
+	view.request_shake(10.0)
+	assert_not_null(screen._shake_tween, "a shake tween starts on request")
+	assert_true(screen._shake_tween.is_running())
+	# A second impact mid-shake must not drift the rest position.
+	view.request_shake(10.0)
+	assert_eq(screen._shake_origin, origin)
+	await get_tree().create_timer(0.5).timeout
+	assert_almost_eq(play_area.position.x, origin.x, 0.01, "shake settles back")
+	assert_almost_eq(play_area.position.y, origin.y, 0.01)
 
 
 func test_rejoiner_snapshot_mounts_view_without_events() -> void:

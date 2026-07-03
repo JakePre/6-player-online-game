@@ -59,3 +59,11 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.zone.size(), 0)
+
+
+## M6-02: the first placement tie group cheers on round results.
+func test_celebrate_makes_winners_cheer() -> void:
+	view.render({"players": {0: [0.0, 0.0, 5], 1: [1.0, 1.0, 2]}, "zone": []})
+	view.celebrate([[0], [1]])
+	assert_eq(view.rig_for_slot(0).current_action(), &"cheer")
+	assert_ne(view.rig_for_slot(1).current_action(), &"cheer")
