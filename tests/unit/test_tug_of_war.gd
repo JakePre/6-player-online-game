@@ -81,6 +81,20 @@ func test_opposing_pulls_cancel() -> void:
 	assert_almost_eq(game.rope, 0.0, 0.001)
 
 
+func test_uneven_teams_have_equal_total_pull() -> void:
+	var game := _game([0, 1, 2, 3, 4] as Array[int])
+	var big: Array = game.team_a if game.team_a.size() == 3 else game.team_b
+	var small: Array = game.team_a if game.team_a.size() == 2 else game.team_b
+	assert_eq(big.size(), 3)
+	assert_eq(small.size(), 2)
+	# Every member of each side pulls twice: the rope must end dead level.
+	for slot: int in big:
+		_pull(game, slot, 2)
+	for slot: int in small:
+		_pull(game, slot, 2)
+	assert_almost_eq(game.rope, 0.0, 0.001, "equal mash rates cancel at 3v2 (#137)")
+
+
 func test_dragging_over_the_line_wins() -> void:
 	var game := _game()
 	var pulls_needed := int(ceil(TugOfWar.WIN_OFFSET / TugOfWar.PULL_STRENGTH))

@@ -64,7 +64,7 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 	if phase == int(_last_phase[slot]):
 		return
 	_last_phase[slot] = phase
-	rope += -PULL_STRENGTH if slot in team_a else PULL_STRENGTH
+	rope += -_pull_of(team_a) if slot in team_a else _pull_of(team_b)
 
 
 func _tick(_delta: float) -> void:
@@ -79,6 +79,13 @@ func get_snapshot() -> Dictionary:
 		"team_a": team_a.duplicate(),
 		"team_b": team_b.duplicate(),
 	}
+
+
+## Handicap for uneven splits (#137): per-player pull strength is normalized
+## by team size (relative to an even split), so total pull capacity is equal
+## at any split — at 3v2 each pair member pulls 1.25x, each trio member 0.83x.
+func _pull_of(own: Array) -> float:
+	return PULL_STRENGTH * (slots.size() / 2.0) / float(own.size())
 
 
 ## Teams best-first (team_mode routing applies SPEC $5 team awards). At the
