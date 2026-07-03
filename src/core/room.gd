@@ -17,6 +17,8 @@ var round_count := NetConfig.DEFAULT_ROUND_COUNT
 ## Host-curated mutator pool (M9-02, PHASE2.md $3): MutatorCatalog ids the
 ## per-round roll (M9-03) may draw from. Empty = mutators off.
 var mutator_pool: Array[StringName] = []
+## Best-of-N series (M11-01); length 1 leaves it idle.
+var series := SeriesTracker.new()
 ## Milliseconds timestamp of the moment the last connected member dropped,
 ## or -1 while anyone is still connected. Drives the 5-minute expiry.
 var empty_since_ms := -1
@@ -109,6 +111,15 @@ func set_round_count(count: int) -> bool:
 	return true
 
 
+## Lobby-only, host-validated by the caller; changing the length restarts
+## the series from zero (M11-01).
+func set_series_length(new_length: int) -> bool:
+	if state != State.LOBBY or not NetConfig.SERIES_LENGTH_OPTIONS.has(new_length):
+		return false
+	series.reset(new_length)
+	return true
+
+
 ## Lobby-only, like round count; unknown and duplicate ids are dropped rather
 ## than rejected so a stale client toggle set cannot wedge the pool.
 func set_mutator_pool(pool: Array) -> bool:
@@ -142,6 +153,9 @@ func start_match() -> bool:
 	state = State.IN_MATCH
 	for member in members:
 		member.ready = false
+	# A finished series restarts fresh at the same length (M11-01).
+	if series.is_complete():
+		series.reset()
 	return true
 
 
@@ -178,6 +192,7 @@ func to_state_dict() -> Dictionary:
 		"host_slot": host_member.slot if host_member != null else -1,
 		"round_count": round_count,
 		"mutator_pool": mutator_pool.duplicate(),
+		"series": series.to_dict(),
 		"members": member_dicts,
 	}
 

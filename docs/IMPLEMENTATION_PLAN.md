@@ -171,7 +171,7 @@ Sabotage — [ ] **M10-13** The Mole (M) · [ ] **M10-14** Pickpocket Plaza (M) 
 Action — [x] **M10-17** Rumble Ring (M, arena brawler: swing/charge/block, KO scoring) · [x] **M10-18** Bullet Waltz (M, bullet-hell survival: seeded patterns, graze coins)
 
 ### M11 — Series mode (Phase 2, PHASE2.md §5 — best-of-N, ephemeral)
-- [ ] **M11-01** (M) Series controller wrapping match flow: Single/Bo3/Bo5 lobby setting, 10/7/5/4/3/2 series points with SPEC §5 tie sharing, champion decision + coin tiebreak ⛓ none
+- [x] **M11-01** (M) Series controller wrapping match flow: Single/Bo3/Bo5 lobby setting, 10/7/5/4/3/2 series points with SPEC §5 tie sharing, champion decision + coin tiebreak ⛓ none
 - [ ] **M11-02** (S) Series scoreboard interstitial between matches + champion podium variant (StandingsPanel reuse) ⛓ M11-01, M3-05
 - [ ] **M11-03** (S) Rejoin-across-matches semantics + soak coverage; PROTOCOL_VERSION bump if the series setting adds RPCs ⛓ M11-01, M7-03
 

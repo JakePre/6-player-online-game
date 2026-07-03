@@ -12,12 +12,14 @@ enum JoinResult {
 	ALREADY_IN_ROOM,
 }
 
-const PROTOCOL_VERSION := 6
+const PROTOCOL_VERSION := 7
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS_PER_ROOM := 6
 const MIN_PLAYERS_TO_START := 2
 # Quick / Standard / Marathon (SPEC $4).
 const ROUND_COUNT_OPTIONS: Array[int] = [8, 12, 15]
+## Best-of-N series lengths (M11-01): 1 = a plain single match.
+const SERIES_LENGTH_OPTIONS: Array[int] = [1, 3, 5]
 const DEFAULT_ROUND_COUNT := 12
 const SNAPSHOT_HZ := 30
 const ROOM_CODE_LENGTH := 6
