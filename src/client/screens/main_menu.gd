@@ -9,7 +9,9 @@ signal navigate(screen: StringName)
 
 enum PendingRequest { NONE, HOST, JOIN, REJOIN }
 
-const DEFAULT_ADDRESS := "127.0.0.1"
+## The public game server (owner-hosted). Local dev overrides via the
+## Advanced fold-out or Settings > Network (see scripts/dev-client.sh).
+const DEFAULT_ADDRESS := "celestrum.com"
 
 var _pending := PendingRequest.NONE
 var _pending_code := ""
