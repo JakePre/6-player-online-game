@@ -95,3 +95,19 @@ func test_view_scene_path_follows_convention_and_exists_for_coin_scramble() -> v
 	var path := MinigameCatalog.view_scene_path(&"coin_scramble")
 	assert_eq(path, "res://src/minigames/coin_scramble/coin_scramble_view.tscn")
 	assert_true(ResourceLoader.exists(path), "reference minigame must ship its view")
+
+
+func test_is_registered() -> void:
+	_register(&"duo", MinigameMeta.Category.FFA, 2)
+	assert_true(MinigameCatalog.is_registered(&"duo"))
+	assert_false(MinigameCatalog.is_registered(&"nonexistent"))
+
+
+func test_registered_ids_lists_every_registration() -> void:
+	_register(&"a", MinigameMeta.Category.FFA)
+	_register(&"b", MinigameMeta.Category.SKILL)
+	var ids: Array = MinigameCatalog.registered_ids().map(
+		func(id: StringName) -> String: return String(id)
+	)
+	ids.sort()
+	assert_eq(ids, ["a", "b"])

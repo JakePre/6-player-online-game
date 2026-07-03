@@ -121,6 +121,18 @@ func start_match() -> bool:
 	return true
 
 
+## Debug-only bypass of can_start()'s player-count/ready gate, for solo dev
+## iteration (see net_manager.gd's --debug-rpcs guard, the only caller). Still
+## refuses to double-start a room already IN_MATCH.
+func force_start_match() -> bool:
+	if state != State.LOBBY:
+		return false
+	state = State.IN_MATCH
+	for member in members:
+		member.ready = false
+	return true
+
+
 func is_expired(now_ms: int) -> bool:
 	if members.is_empty():
 		return true

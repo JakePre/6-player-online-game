@@ -48,10 +48,16 @@ func _init(match_room: Room, config: Dictionary) -> void:
 	_podium_sec = config.get("podium_sec", _podium_sec)
 	_duration_override = config.get("duration_override", 0.0)
 	MinigameCatalog.register_builtins()
-	playlist = config.get(
-		"playlist",
-		MinigameCatalog.build_playlist(_rng, int(config.get("rounds", 12)), room.connected_count())
-	)
+	if config.has("playlist"):
+		# GDScript evaluates Dictionary.get()'s default argument eagerly (no
+		# short-circuiting), so build_playlist() must not sit in that position:
+		# its player-count eligibility assert would fire even when an explicit
+		# playlist is supplied, e.g. for a solo --debug-minigame session.
+		playlist = config.playlist
+	else:
+		playlist = MinigameCatalog.build_playlist(
+			_rng, int(config.get("rounds", 12)), room.connected_count()
+		)
 
 
 func start() -> void:

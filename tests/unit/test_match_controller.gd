@@ -83,6 +83,20 @@ func _event_types() -> Array:
 	return events.map(func(event: Dictionary) -> String: return event.type)
 
 
+## Regression: config.get("playlist", MinigameCatalog.build_playlist(...))
+## would evaluate build_playlist eagerly even when "playlist" is supplied
+## (GDScript doesn't lazily evaluate Dictionary.get defaults), and every
+## registered minigame requires >=2 players, so a solo debug session (see
+## debug_launcher.gd) would hit build_playlist's eligibility assert despite
+## never needing it to run at all.
+func test_explicit_playlist_skips_build_playlist_for_a_single_player() -> void:
+	var room := _make_room(1)
+	var controller := _make_controller(room, 1)
+	controller.start()
+	assert_eq(controller.state, MatchController.State.INTRO)
+	assert_eq(events[1].minigame.id, "slot_order")
+
+
 func test_start_resets_scores_and_enters_intro() -> void:
 	var room := _make_room(3)
 	room.members[0].score = 99

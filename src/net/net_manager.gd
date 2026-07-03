@@ -274,8 +274,21 @@ func _rpc_start_match(config: Dictionary) -> void:
 		config = {}
 	if not config.has("rounds"):
 		config["rounds"] = room.round_count
+	if config.has("playlist"):
+		MinigameCatalog.register_builtins()
+		for id: StringName in config.playlist:
+			if not MinigameCatalog.is_registered(id):
+				_rpc_match_start_failed.rpc_id(peer_id, "unknown_minigame_%s" % id)
+				return
 	# Consumes the ready flags and flips the room to IN_MATCH (M2-02 gating).
-	if not room.start_match():
+	# debug_force_start (test/dev harnesses only, requires --debug-rpcs) skips
+	# the 2-player-minimum/ready gate for solo minigame iteration.
+	var started := (
+		room.force_start_match()
+		if debug_rpcs_enabled and config.get("debug_force_start", false)
+		else room.start_match()
+	)
+	if not started:
 		_rpc_match_start_failed.rpc_id(peer_id, "not_ready")
 		return
 	_start_match(room, config)

@@ -38,6 +38,14 @@ static func meta_of(id: StringName) -> MinigameMeta:
 	return _entries[id].meta
 
 
+static func is_registered(id: StringName) -> bool:
+	return _entries.has(id)
+
+
+static func registered_ids() -> Array:
+	return _entries.keys()
+
+
 static func instantiate(id: StringName) -> MinigameBase:
 	var game: MinigameBase = (_entries[id].script as GDScript).new()
 	game.meta = _entries[id].meta
