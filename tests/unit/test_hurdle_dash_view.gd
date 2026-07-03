@@ -2,7 +2,7 @@ extends GutTest
 ## Hurdle Dash client view (M4-07): renders replicated snapshots without
 ## simulating anything locally.
 
-var view: MinigameView3D
+var view: MinigameView
 
 
 func before_each() -> void:
@@ -40,18 +40,3 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.hurdles, [])
-
-
-func test_iso_view_builds_finish_line_and_poses_runners() -> void:
-	view.render(
-		{
-			"players": {0: [5.0, 1, 0.0, false], 1: [0.0, 0, 0.0, true]},
-			"hurdles": [7.0],
-			"course_len": 40.0
-		}
-	)
-	assert_not_null(view.arena.get_node("FinishLine"))
-	var rig: CharacterRig = view.rig_for_slot(0)
-	assert_almost_eq(rig.position.y, 1.0, 0.001, "airborne runners lift")
-	assert_eq(rig.current_action(), &"jump_idle")
-	assert_eq(view.rig_for_slot(1).current_action(), &"cheer", "finishers celebrate")
