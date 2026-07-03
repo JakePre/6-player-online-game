@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://src/lobby/lobby.gd" id="1"]
+[ext_resource type="Script" path="res://src/lobby/character_preview.gd" id="2"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -81,6 +82,12 @@ text = ">"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
+
+[node name="CharacterPreview" type="Control" parent="Center/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 160)
+layout_mode = 2
+script = ExtResource("2")
 
 [node name="ReadyButton" type="Button" parent="Center/Column"]
 unique_name_in_owner = true
