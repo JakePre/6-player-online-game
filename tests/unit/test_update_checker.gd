@@ -59,3 +59,32 @@ func test_parse_release_finds_the_server_asset() -> void:
 	var release := UpdateChecker.parse_release(PAYLOAD, "server")
 	assert_eq(release.version, "0.4.0")
 	assert_eq(release.download_url, "https://example.com/server.zip")
+
+
+## #172: the Windows server app must update from its own asset, never the
+## Linux `server` zip — `server` would match first if selection were fuzzy.
+func test_parse_release_picks_the_per_os_server_asset() -> void:
+	var payload := {
+		"tag_name": "v0.5.0",
+		"assets":
+		[
+			{
+				"name": "party-rush-server-v0.5.0.zip",
+				"browser_download_url": "https://example.com/server-linux.zip",
+			},
+			{
+				"name": "party-rush-server-windows-v0.5.0.zip",
+				"browser_download_url": "https://example.com/server-windows.zip",
+			},
+		],
+	}
+	assert_eq(
+		UpdateChecker.parse_release(payload, "server").download_url,
+		"https://example.com/server-linux.zip"
+	)
+	assert_eq(
+		UpdateChecker.parse_release(payload, "server-windows").download_url,
+		"https://example.com/server-windows.zip"
+	)
+	var expected := "server-windows" if OS.get_name() == "Windows" else "server"
+	assert_eq(UpdateChecker.server_platform_id(), expected)

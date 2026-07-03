@@ -19,6 +19,7 @@ var autostart := true
 @onready var _stats_label: Label = %StatsLabel
 @onready var _log: RichTextLabel = %Log
 @onready var _stop_button: Button = %StopButton
+@onready var _update_button: Button = %UpdateButton
 
 
 func _ready() -> void:
@@ -43,7 +44,41 @@ func _ready() -> void:
 		var host: Node = (load(SERVER_HOST_SCRIPT) as GDScript).new()
 		host.name = "ServerHost"
 		add_child(host)
+		_wire_updater(host.get_node_or_null("ServerUpdater"))
 	_refresh_status()
+
+
+## Client-style update UX (#172, mirrors main_menu's #144 flow): the button
+## appears when a newer release exists; one click downloads and applies with
+## ServerUpdater's never-under-live-rooms restart. Headless opt-in behavior
+## is untouched — this is just eyes and a button on the same machinery.
+func _wire_updater(updater: ServerUpdater) -> void:
+	if updater == null:
+		return
+	updater.update_available.connect(
+		func(version: String) -> void:
+			log_line("update available: v%s" % version)
+			_update_button.text = "Update to v%s & restart" % version
+			_update_button.visible = true
+	)
+	updater.update_staged.connect(
+		func(version: String) -> void: log_line("v%s downloaded — restarting when idle" % version)
+	)
+	updater.update_waiting.connect(
+		func(version: String, live_rooms: int) -> void:
+			log_line("v%s waits for %d live room(s) to finish" % [version, live_rooms])
+	)
+	updater.update_failed.connect(
+		func(reason: String) -> void:
+			_update_button.disabled = false
+			log_line("update failed: %s" % reason)
+	)
+	_update_button.pressed.connect(
+		func() -> void:
+			_update_button.disabled = true
+			log_line("downloading update...")
+			updater.request_update()
+	)
 
 
 func _refresh_status() -> void:

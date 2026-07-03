@@ -49,6 +49,12 @@ selection_enabled = true
 layout_mode = 2
 alignment = 2
 
+[node name="UpdateButton" type="Button" parent="Panel/Column/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+text = "Update"
+
 [node name="StopButton" type="Button" parent="Panel/Column/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2

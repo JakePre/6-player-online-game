@@ -27,3 +27,33 @@ func test_log_lines_append_and_stay_bounded() -> void:
 	var log: RichTextLabel = dashboard.get_node("%Log")
 	assert_lte(log.get_paragraph_count(), ServerDashboard.MAX_LOG_LINES + 1)
 	assert_string_contains(log.get_parsed_text(), "event %d" % (ServerDashboard.MAX_LOG_LINES + 19))
+
+
+func test_update_button_hidden_until_an_update_exists() -> void:
+	var button: Button = dashboard.get_node("%UpdateButton")
+	assert_false(button.visible)
+
+
+func test_update_available_reveals_the_button_with_the_version() -> void:
+	# The updater is never added to the tree, so no network check runs.
+	var updater := ServerUpdater.new()
+	dashboard._wire_updater(updater)
+	updater.update_available.emit("9.9.9")
+	var button: Button = dashboard.get_node("%UpdateButton")
+	assert_true(button.visible)
+	assert_string_contains(button.text, "9.9.9")
+	updater.free()
+
+
+func test_failed_update_reenables_the_button() -> void:
+	var updater := ServerUpdater.new()
+	dashboard._wire_updater(updater)
+	updater.update_available.emit("9.9.9")
+	var button: Button = dashboard.get_node("%UpdateButton")
+	button.disabled = true
+	updater.update_failed.emit("boom")
+	assert_false(button.disabled)
+	assert_string_contains(
+		(dashboard.get_node("%Log") as RichTextLabel).get_parsed_text(), "update failed: boom"
+	)
+	updater.free()
