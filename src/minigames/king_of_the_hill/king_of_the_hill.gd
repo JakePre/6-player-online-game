@@ -28,6 +28,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"king_of_the_hill",
+				"controls": "Move — WASD / left stick",
 				"name": "King of the Hill",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

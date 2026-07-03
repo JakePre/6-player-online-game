@@ -32,6 +32,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"sumo_smash",
+				"controls": "Move — WASD / left stick · Dash — SPACE / pad A",
 				"name": "Sumo Smash",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

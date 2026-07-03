@@ -35,6 +35,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"cart_push",
+				"controls": "Move — WASD / left stick (push by contact)",
 				"name": "Cart Push",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 4,

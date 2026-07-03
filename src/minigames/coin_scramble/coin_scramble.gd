@@ -29,6 +29,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"coin_scramble",
+				"controls": "Move — WASD / left stick",
 				"name": "Coin Scramble",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

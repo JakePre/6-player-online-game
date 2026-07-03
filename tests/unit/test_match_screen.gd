@@ -61,6 +61,19 @@ func test_intro_card_shows_minigame() -> void:
 	assert_eq(screen.get_node("%RoundLabel").text, "Round 1/8")
 
 
+## M6-04: the intro card shows the game's control hints; the row hides when a
+## (older) server sends no controls key.
+func test_intro_card_shows_control_hints_when_present() -> void:
+	var event := _intro_event()
+	event.minigame["controls"] = "Move — WASD / left stick"
+	NetManager.match_event_received.emit(event)
+	var controls: Label = screen.get_node("%IntroControls")
+	assert_true(controls.visible)
+	assert_eq(controls.text, "Move — WASD / left stick")
+	NetManager.match_event_received.emit(_intro_event())
+	assert_false(controls.visible, "no controls key hides the hint row")
+
+
 func test_skip_votes_label_updates() -> void:
 	NetManager.match_event_received.emit(_intro_event())
 	NetManager.match_event_received.emit({"type": "skip_votes", "votes": 1, "needed": 2})

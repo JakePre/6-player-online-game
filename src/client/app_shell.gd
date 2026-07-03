@@ -24,6 +24,8 @@ var _current_id := &""
 
 
 func _ready() -> void:
+	# One shared theme at the root (M6-04); every screen inherits it.
+	theme = PartyTheme.build()
 	SettingsStore.apply(SettingsStore.load_settings(), get_window())
 	NetManager.joined_room.connect(_on_joined_room)
 	NetManager.room_updated.connect(_on_room_updated)

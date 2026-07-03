@@ -124,7 +124,7 @@ Sabotage — [x] **M4-14** Poison Feast (M) · [x] **M4-15** Trap Corridor (L) �
 - [x] **M6-01** (M) Audio pass: music loops (menu/round/finale), SFX for all shared chrome + per-minigame hooks
 - [x] **M6-02** (M) Juice pass: coin fly-to-HUD, screen shake, KO ragdolls, victory dances
 - [x] **M6-03** (S) Reconnect overlay + graceful error toasts (room full, bad code, version mismatch)
-- [ ] **M6-04** (M) UI theme unification + intro-card control diagrams for all 17 games
+- [x] **M6-04** (M) UI theme unification + intro-card control diagrams for all 17 games
 
 ### M8 — 3D iso-arena visual overhaul (closes the SPEC §2 visual gap; see `docs/adr/002-iso-arena-rendering.md`)
 Audit finding motivating this milestone: `CharacterRig`/`IsoCameraRig` (M2-04)

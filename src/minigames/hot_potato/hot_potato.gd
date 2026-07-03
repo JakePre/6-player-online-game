@@ -37,6 +37,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"hot_potato",
+				"controls": "Move — WASD / left stick",
 				"name": "Hot Potato",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 3,
