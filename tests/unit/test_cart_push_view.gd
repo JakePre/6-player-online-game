@@ -1,6 +1,8 @@
 extends GutTest
-## Cart Push client view (M4-12): renders replicated snapshots without
-## simulating anything locally.
+## Cart Push client view (recreated per #175): renders replicated snapshots
+## in the shared iso-arena — one shared cart, id-keyed ore, team bonuses —
+## without simulating anything locally. (Replaces the obsolete 2D contract,
+## which errored silently under GUT rather than asserting anything.)
 
 var view: MinigameView
 
@@ -24,22 +26,42 @@ func test_render_replaces_replicated_state() -> void:
 		view
 		. render(
 			{
-				"players": {0: [1.0, 2.0]},
-				"carts": [-3.0, 4.0],
-				"track": [-9.0, 9.0],
-				"lane_y": 4.0,
+				"players": {0: [1.0, 2.0, 0]},
+				"cart": -3.0,
 				"teams": [[0], [1]],
+				"ores": [],
+				"bonus": [1, 0],
 			}
 		)
 	)
 	assert_eq(view.players.size(), 1)
-	assert_eq(view.carts, [-3.0, 4.0])
+	assert_almost_eq(view.cart_x, -3.0, 0.001)
 	assert_eq(view.teams, [[0], [1]])
-	view.render({"players": {}, "carts": [], "track": [], "teams": []})
+	assert_eq(view.bonus, [1, 0])
+	view.render({"players": {}, "cart": 0.0, "teams": [], "ores": [], "bonus": [0, 0]})
 	assert_eq(view.players.size(), 0, "each snapshot fully replaces the last")
+
+
+func test_cart_node_tracks_the_shared_cart_position() -> void:
+	view.render({"players": {}, "cart": 5.0, "teams": [], "ores": [], "bonus": [0, 0]})
+	var cart: Node3D = view.arena.get_node("Cart")
+	assert_almost_eq(cart.position.x, 5.0, 0.001)
+
+
+func test_ore_nodes_spawn_by_id_and_despawn() -> void:
+	view.render(
+		{"players": {}, "cart": 0.0, "teams": [], "ores": [[3, 2.0, -4.0]], "bonus": [0, 0]}
+	)
+	var ore: Node3D = view.arena.get_node("Ore3")
+	assert_not_null(ore)
+	assert_almost_eq(ore.position.x, 2.0, 0.001)
+	assert_almost_eq(ore.position.z, -4.0, 0.001)
+	view.render({"players": {}, "cart": 0.0, "teams": [], "ores": [], "bonus": [0, 0]})
+	var gone: Node3D = view.arena.get_node_or_null("Ore3")
+	assert_true(gone == null or gone.is_queued_for_deletion(), "collected ore despawns")
 
 
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
-	assert_eq(view.carts, [])
+	assert_almost_eq(view.cart_x, 0.0, 0.001)

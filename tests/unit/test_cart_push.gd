@@ -42,15 +42,26 @@ func test_net_pusher_advantage_moves_the_cart() -> void:
 		_park(game, slot)
 	var pusher: int = game.teams[0][0]
 	_on_cart(game, pusher)
+	# effective_pushers is a pure function — assert it directly so the check
+	# doesn't ride on tick timing or body-separation nudges (the old
+	# two-tick cart-delta version was flaky in CI).
+	assert_eq(game.effective_pushers(0), 1)
+	assert_eq(game.effective_pushers(1), 0)
 	game.tick(TICK)
 	assert_gt(game.cart_x, 0.0, "unopposed team 0 pusher moves the cart +x")
 
+	# Balanced 1v1 from a clean centered cart: net force is zero, so it holds.
+	# Reset explicitly so the earlier +x drift cannot leak into the check.
+	game.cart_x = 0.0
+	for slot: int in game.slots:
+		_park(game, slot)
 	var blocker: int = game.teams[1][0]
 	_on_cart(game, pusher)
 	_on_cart(game, blocker)
-	var before := game.cart_x
+	assert_eq(game.effective_pushers(0), 1)
+	assert_eq(game.effective_pushers(1), 1)
 	game.tick(TICK)
-	assert_almost_eq(game.cart_x, before, 0.001, "1v1 on the cart stalls it")
+	assert_almost_eq(game.cart_x, 0.0, 0.001, "balanced pushers stall the cart")
 
 
 func test_staggered_pushers_do_not_count() -> void:
