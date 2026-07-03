@@ -23,6 +23,7 @@ var emote_lifetime := 3.0
 var _names := {}
 var _totals := {}
 var _minigame_id := ""
+var _minigame_name := ""
 var _round_view_flags: Array = []
 var _minigame_view: MinigameView
 var _shake_tween: Tween
@@ -161,7 +162,8 @@ func _build_emote_bar() -> void:
 func _show_intro(event: Dictionary) -> void:
 	var minigame: Dictionary = event.minigame
 	_round_label.text = "Round %d/%d" % [event.round, event.rounds]
-	_game_name_label.text = String(minigame.name)
+	_minigame_name = String(minigame.name)
+	_game_name_label.text = _minigame_name
 	_intro_title.text = minigame.name
 	_intro_category.text = MatchFormat.category_name(int(minigame.category))
 	_intro_rules.text = minigame.rules
@@ -229,9 +231,11 @@ func _mount_view(id: String) -> void:
 	if id.is_empty():
 		return
 	# The name stays on the HUD through the whole round (#181, for playtest
-	# notes); the catalog lookup covers rejoiners who never saw the intro.
+	# notes); the catalog lookup covers rejoiners who never saw the intro,
+	# with the intro's own name as the fallback.
 	if MinigameCatalog.is_registered(StringName(id)):
-		_game_name_label.text = MinigameCatalog.meta_of(StringName(id)).display_name
+		_minigame_name = MinigameCatalog.meta_of(StringName(id)).display_name
+	_game_name_label.text = _minigame_name
 	var path := MinigameCatalog.view_scene_path(id)
 	if not ResourceLoader.exists(path):
 		return
