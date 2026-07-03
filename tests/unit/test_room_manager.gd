@@ -73,11 +73,29 @@ func test_leave_deletes_empty_room() -> void:
 	assert_null(manager.room_of_peer(1))
 
 
-func test_lobby_disconnect_releases_slot() -> void:
+## #176: lobby disconnects hold the seat like mid-match ones, so a pre-start
+## rejoin always lands back in the lobby instead of dead-ending on BAD_TOKEN.
+func test_lobby_disconnect_holds_the_seat_for_rejoin() -> void:
+	var created := _create()
+	var joined := manager.join_room(2, created.room.code, "Guest", PROTO)
+	joined.member.ready = true
+	manager.handle_disconnect(2, 1000)
+	assert_eq(created.room.members.size(), 2, "lobby seat is held")
+	assert_false(joined.member.connected)
+	assert_false(joined.member.ready, "held seats come back un-readied")
+
+	var rejoined := manager.rejoin_room(99, created.room.code, joined.member.session_token, PROTO)
+	assert_eq(rejoined.result, NetConfig.JoinResult.OK)
+	assert_eq(rejoined.member.slot, joined.member.slot, "same seat, same lobby")
+	assert_true(rejoined.member.connected)
+	assert_eq(created.room.state, Room.State.LOBBY)
+
+
+func test_explicit_lobby_leave_still_frees_the_seat() -> void:
 	var created := _create()
 	manager.join_room(2, created.room.code, "Guest", PROTO)
-	manager.handle_disconnect(2, 1000)
-	assert_eq(created.room.members.size(), 1, "lobby disconnects do not reserve slots")
+	manager.leave_room(2, 1000)
+	assert_eq(created.room.members.size(), 1, "leaving on purpose gives up the slot")
 
 
 func test_match_disconnect_keeps_slot_and_score_for_rejoin() -> void:
