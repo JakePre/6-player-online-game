@@ -8,6 +8,13 @@ const BULLET_COLOR := Color(1.0, 0.45, 0.3)
 const BULLET_HEIGHT := 0.6
 ## Pool size covers the densest late-game pattern overlap.
 const BULLET_POOL := 96
+## Drawn a touch larger than the sim hitbox (bullet-hell convention: the
+## visual should never be smaller than what kills you).
+const BULLET_VIEW_RADIUS := 0.32
+## Bullet-hell needs a dark stage (#208): the default orange-brick floor sat
+## right on the bullets' hue, so a translucent night overlay dims it and the
+## emissive bullets glow against it instead of vanishing.
+const FLOOR_DIM_COLOR := Color(0.04, 0.05, 0.1, 0.78)
 
 ## Latest replicated state, straight from BulletWaltz.get_snapshot().
 var players := {}
@@ -26,6 +33,19 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
+	var dim_mesh := PlaneMesh.new()
+	dim_mesh.size = Vector2.ONE * _arena_half() * 2.5
+	var dim_material := StandardMaterial3D.new()
+	dim_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dim_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dim_material.albedo_color = FLOOR_DIM_COLOR
+	dim_mesh.material = dim_material
+	var dim := MeshInstance3D.new()
+	dim.name = "FloorDim"
+	dim.mesh = dim_mesh
+	dim.position.y = 0.02
+	arena.add_child(dim)
+
 	var turret_mesh := CylinderMesh.new()
 	turret_mesh.top_radius = 0.5
 	turret_mesh.bottom_radius = 0.7
@@ -40,13 +60,13 @@ func _setup_3d() -> void:
 	arena.add_child(turret)
 
 	var bullet_mesh := SphereMesh.new()
-	bullet_mesh.radius = BulletWaltz.BULLET_RADIUS
-	bullet_mesh.height = BulletWaltz.BULLET_RADIUS * 2.0
+	bullet_mesh.radius = BULLET_VIEW_RADIUS
+	bullet_mesh.height = BULLET_VIEW_RADIUS * 2.0
 	var bullet_material := StandardMaterial3D.new()
 	bullet_material.albedo_color = BULLET_COLOR
 	bullet_material.emission_enabled = true
 	bullet_material.emission = BULLET_COLOR
-	bullet_material.emission_energy_multiplier = 0.8
+	bullet_material.emission_energy_multiplier = 1.2
 	bullet_mesh.material = bullet_material
 	for i in BULLET_POOL:
 		var node := MeshInstance3D.new()

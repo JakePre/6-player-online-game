@@ -17,6 +17,9 @@ const GRAZE_RADIUS := 1.1
 const GRAZE_COIN := 1
 ## Escalation: pattern cadence and bullet speed ramp over the round.
 const RAMP_SEC := 50.0
+## Quiet opening (#208): no volleys until players have had a beat to read
+## the arena — the first pattern otherwise landed before anyone had moved.
+const SPAWN_GRACE_SEC := 1.75
 const FIRE_INTERVAL_START := 1.4
 const FIRE_INTERVAL_MIN := 0.55
 const BULLET_SPEED_START := 4.0
@@ -65,6 +68,8 @@ func _setup() -> void:
 		move_dirs[slots[i]] = Vector2.ZERO
 		graze_coins[slots[i]] = 0
 		_grazing[slots[i]] = []
+	# Negative accumulator = the opening grace before the first volley.
+	_fire_accum = -SPAWN_GRACE_SEC
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
