@@ -87,6 +87,9 @@ func find_by_token(token: String) -> RoomMember:
 
 func remove_member(member: RoomMember) -> void:
 	members.erase(member)
+	# Slots get reused; series points must not transfer to whoever takes
+	# this slot next (M11-03).
+	series.drop_slot(member.slot)
 
 
 func mark_disconnected(member: RoomMember, now_ms: int) -> void:

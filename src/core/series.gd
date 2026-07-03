@@ -32,6 +32,13 @@ func reset(new_length: int = length) -> void:
 	coins = {}
 
 
+## A member left the room for good (leave/kick): their series entry goes
+## with them, so a newcomer reusing the slot starts clean (M11-03).
+func drop_slot(slot: int) -> void:
+	points.erase(slot)
+	coins.erase(slot)
+
+
 ## Records one finished match from match_ended standings rows
 ## ({slot, name, score}, best first). Equal scores form a tie group and
 ## share the higher points value.

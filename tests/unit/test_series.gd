@@ -131,3 +131,39 @@ func test_match_controller_records_into_the_series() -> void:
 	assert_eq(ended.size(), 1)
 	assert_eq(int(ended[0].series.matches_played), 1, "event carries the series payload")
 	MinigameCatalog.clear()
+
+
+# --- M11-03: rejoin semantics -------------------------------------------------
+
+
+func test_points_survive_disconnect_and_rejoin() -> void:
+	var manager := RoomManager.new()
+	var created: Dictionary = manager.create_room(100, "Alice", NetConfig.PROTOCOL_VERSION)
+	var room: Room = created.room
+	var joined: Dictionary = manager.join_room(200, room.code, "Bob", NetConfig.PROTOCOL_VERSION)
+	room.set_series_length(3)
+	room.state = Room.State.IN_MATCH
+	room.series.record_match(_rows({created.member.slot: 60, joined.member.slot: 30}))
+	var token: String = joined.member.session_token
+	var slot: int = joined.member.slot
+	manager.handle_disconnect(200, 1000)
+	assert_eq(int(room.series.points[slot]), 7, "points held while disconnected")
+	var back: Dictionary = manager.rejoin_room(300, room.code, token, NetConfig.PROTOCOL_VERSION)
+	assert_eq(int(back.result), NetConfig.JoinResult.OK)
+	assert_eq(back.member.slot, slot, "same seat")
+	assert_eq(int(room.series.points[slot]), 7, "same series points")
+
+
+func test_leaver_points_never_transfer_to_slot_reuser() -> void:
+	var room := Room.new()
+	var alice := room.add_member(100, "Alice", "t1")
+	var bob := room.add_member(200, "Bob", "t2")
+	room.set_series_length(3)
+	room.series.record_match(_rows({alice.slot: 60, bob.slot: 30}))
+	var bob_slot := bob.slot
+	room.remove_member(bob)
+	assert_false(room.series.points.has(bob_slot), "leaver's entry dropped")
+	var carol := room.add_member(300, "Carol", "t3")
+	assert_eq(carol.slot, bob_slot, "slot reused")
+	assert_false(room.series.points.has(carol.slot), "newcomer starts clean")
+	assert_eq(int(room.series.points[alice.slot]), 10, "others untouched")
