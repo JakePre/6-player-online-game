@@ -28,3 +28,5 @@ jobs:
         run: ./godot-bin --headless --import || true
       - name: Run playtest harness
         run: python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12
+      - name: Run mutator playtest harness (M9-06)
+        run: python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12 --mutators

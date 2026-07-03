@@ -32,12 +32,16 @@ const DEBUG_CONFIG := {
 	"duration_override": 0.4,
 }
 const LEADERBOARD_EVERY := 5
+## Seed for the --mutators variant (M9-06): the per-round roll is seed-driven,
+## so this keeps the ">=1 mutated round" pass criterion deterministic.
+const MUTATOR_SOAK_SEED := 20260703
 
 var _address := "127.0.0.1"
 var _port := NetConfig.DEFAULT_PORT
 var _bot_name := "Bot"
 var _rounds := 12
 var _create := false
+var _with_mutators := false
 var _join_code := ""
 var _expected_members := 0
 
@@ -47,6 +51,7 @@ var _room_code := ""
 
 var _rounds_started := 0
 var _rounds_resulted := 0
+var _mutated_intros := 0
 var _leaderboards := 0
 var _match_ended_standings: Array = []
 var _got_match_ended := false
@@ -62,6 +67,7 @@ func _ready() -> void:
 	_expected_members = int(NetManager._arg_value(args, "--players", "6"))
 	_join_code = NetManager._arg_value(args, "--code", "")
 	_create = args.has("--create")
+	_with_mutators = args.has("--mutators")
 
 	NetManager.connected_to_server.connect(_on_connected)
 	NetManager.connection_failed.connect(func() -> void: _fail("connection_failed"))
@@ -100,6 +106,14 @@ func _on_joined_room(code: String, _slot: int, _token: String) -> void:
 	_room_code = code
 	if _create:
 		print("ROOM_CODE=%s" % code)
+		# Mutator soak variant (M9-06): the host enables the full pool so the
+		# per-round roll exercises every knob path during the match.
+		if _with_mutators:
+			MutatorCatalog.register_builtins()
+			var pool: Array = []
+			for id: StringName in MutatorCatalog.registered_ids():
+				pool.append(String(id))
+			NetManager.request_set_mutator_pool(pool)
 	_enter_phase(Phase.LOBBY_WAIT)
 	NetManager.request_set_ready(true)
 
@@ -126,6 +140,10 @@ func _on_room_updated(state: Dictionary) -> void:
 	if _create:
 		var config := DEBUG_CONFIG.duplicate()
 		config["rounds"] = _rounds
+		# Fixed seed for the mutator variant: the roll is seed-driven, so the
+		# ">=1 mutated round" pass criterion stays deterministic.
+		if _with_mutators:
+			config["seed"] = MUTATOR_SOAK_SEED
 		NetManager.request_start_match(config)
 	_enter_phase(Phase.IN_MATCH)
 
@@ -134,6 +152,9 @@ func _on_match_event(event: Dictionary) -> void:
 	if _phase != Phase.IN_MATCH:
 		return
 	match event.get("type", ""):
+		"round_intro":
+			if event.has("mutator"):
+				_mutated_intros += 1
 		"round_started":
 			_rounds_started += 1
 		"round_results":
@@ -176,10 +197,19 @@ func _finish() -> void:
 	if _leaderboards != expected_leaderboards:
 		_fail("leaderboards_%d_of_%d" % [_leaderboards, expected_leaderboards])
 		return
+	if _with_mutators and _mutated_intros == 0:
+		_fail("no_mutated_rounds")
+		return
 	print(
 		(
-			"BOT_RESULT PASS name=%s rounds=%d leaderboards=%d standings=%d"
-			% [_bot_name, _rounds_started, _leaderboards, _match_ended_standings.size()]
+			"BOT_RESULT PASS name=%s rounds=%d leaderboards=%d standings=%d mutated=%d"
+			% [
+				_bot_name,
+				_rounds_started,
+				_leaderboards,
+				_match_ended_standings.size(),
+				_mutated_intros,
+			]
 		)
 	)
 	_quit(0)

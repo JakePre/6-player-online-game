@@ -65,9 +65,16 @@ def main() -> int:
     parser.add_argument("--godot", default=os.environ.get("GODOT", "godot"))
     parser.add_argument("--rounds", type=int, default=12)
     parser.add_argument("--port", type=int, default=PORT)
+    parser.add_argument(
+        "--mutators",
+        action="store_true",
+        help="M9-06 variant: host enables the full mutator pool; bots require >=1 mutated round",
+    )
     args = parser.parse_args()
 
     common = [f"--address=127.0.0.1", f"--port={args.port}", f"--rounds={args.rounds}", f"--players={BOT_COUNT}"]
+    if args.mutators:
+        common.append("--mutators")
     server_log: list[str] = []
     server = start(godot_cmd(args.godot, ["--server", f"--port={args.port}", "--debug-rpcs"]))
     procs: list[subprocess.Popen] = [server]
