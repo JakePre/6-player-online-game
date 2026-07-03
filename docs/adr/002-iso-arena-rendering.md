@@ -1,6 +1,6 @@
 # ADR 002: 3D iso-arena rendering for minigame views (SubViewport-embedded)
 
-**Status:** Proposed (M8-01 not yet claimed/built)
+**Status:** Accepted (M8-01 built; Coin Scramble migrated as the M8-03 validation case)
 **Date:** 2026-07-02
 
 ## Context

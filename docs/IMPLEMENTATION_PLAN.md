@@ -134,9 +134,9 @@ has no client view yet. M8-01/02 are the prerequisite framework + assets;
 M8-03..11 (one per shipped minigame) then become independent and
 parallelizable exactly like the original M4 fan-out — claim/branch/PR the
 same way (§1, `AGENT_COORDINATION.md` §2).
-- [ ] **M8-01** (L) `MinigameView3D` base: `SubViewportContainer`/`SubViewport` hosting a `Node3D` arena (IsoCameraRig instance, fixed light rig, floor helper) + a per-slot `CharacterRig` pool sourced from `CharacterRoster`/`PlayerPalette`/`NetManager.my_room_state`; `MinigameView`'s `setup`/`render` contract is unchanged. Owns `src/minigames/_api/`, additive-only changes in `src/characters/` ⛓ none
+- [x] **M8-01** (L) `MinigameView3D` base: `SubViewportContainer`/`SubViewport` hosting a `Node3D` arena (IsoCameraRig instance, fixed light rig, floor helper) + a per-slot `CharacterRig` pool sourced from `CharacterRoster`/`PlayerPalette`/`NetManager.my_room_state`; `MinigameView`'s `setup`/`render` contract is unchanged. Owns `src/minigames/_api/`, additive-only changes in `src/characters/` ⛓ none
 - [x] **M8-02** (S) Kenney CC0 kit import pass #1 — done ahead of the framework task: `platformer-kit` (153 GLB, floor/platform/ramp pieces), `food-kit` (200 GLB, Poison Feast dishes), `nature-kit` (329 GLB, vertex-colored dressing), `city-kit-commercial` (41 GLB, Heist Night buildings) imported to `assets/environment/kenney_*/` with `.import` sidecars generated and logged in `assets/CREDITS.md` ⛓ none
-- [ ] **M8-03** (S) Migrate Coin Scramble view to `MinigameView3D` ⛓ M8-01, M8-02
+- [x] **M8-03** (S) Migrate Coin Scramble view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-04** (S) Migrate King of the Hill view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-05** (S) Migrate Hot Potato view to `MinigameView3D` ⛓ M8-01, M8-02
 - [ ] **M8-06** (S) Migrate Thin Ice view to `MinigameView3D` ⛓ M8-01, M8-02
