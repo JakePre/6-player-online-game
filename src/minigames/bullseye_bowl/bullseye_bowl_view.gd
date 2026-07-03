@@ -4,9 +4,11 @@ extends MinigameView3D
 ## stand at their lane's foul line; score and balls-left ride the nameplate.
 ## Bullseyes rattle the screen.
 
-const LANE_COLOR := Color(0.5, 0.4, 0.3, 0.5)
+## Solid, high-contrast boards (#236): the old translucent rings and lane
+## washed out against the orange floor.
+const LANE_COLOR := Color(0.16, 0.14, 0.2, 0.88)
 const RING_COLORS: Array[Color] = [
-	Color(0.95, 0.25, 0.15, 0.85), Color(0.95, 0.65, 0.2, 0.7), Color(0.9, 0.9, 0.85, 0.55)
+	Color(0.95, 0.2, 0.12), Color(0.98, 0.72, 0.15), Color(0.94, 0.94, 0.9)
 ]
 const BALL_RADIUS := 0.3
 const DISC_HEIGHT := 0.04
@@ -81,6 +83,9 @@ func _build_lane(slot: int, center_x: float) -> void:
 	ball_mesh.height = BALL_RADIUS * 2.0
 	var ball_material := StandardMaterial3D.new()
 	ball_material.albedo_color = player_color(slot)
+	ball_material.emission_enabled = true
+	ball_material.emission = player_color(slot)
+	ball_material.emission_energy_multiplier = 0.5
 	ball_mesh.material = ball_material
 	ball.mesh = ball_mesh
 	ball.visible = false
