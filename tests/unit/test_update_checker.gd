@@ -15,6 +15,10 @@ const PAYLOAD := {
 			"name": "party-rush-macos-v0.4.0.zip",
 			"browser_download_url": "https://example.com/macos.zip",
 		},
+		{
+			"name": "party-rush-server-v0.4.0.zip",
+			"browser_download_url": "https://example.com/server.zip",
+		},
 	],
 }
 
@@ -48,3 +52,10 @@ func test_parse_release_rejects_unusable_payloads() -> void:
 func test_asset_name_normalizes_tag() -> void:
 	assert_eq(UpdateChecker.asset_name("macos", "v0.4.0"), "party-rush-macos-v0.4.0.zip")
 	assert_eq(UpdateChecker.asset_name("windows", "0.4.0"), "party-rush-windows-v0.4.0.zip")
+
+
+## #145: the dedicated server reuses the same flow with the "server" asset.
+func test_parse_release_finds_the_server_asset() -> void:
+	var release := UpdateChecker.parse_release(PAYLOAD, "server")
+	assert_eq(release.version, "0.4.0")
+	assert_eq(release.download_url, "https://example.com/server.zip")

@@ -154,7 +154,7 @@ func _write_swap_script() -> String:
 				+ 'mv "%s/%s" "%s/"\n' % [staged_root, app_name, install_dir]
 				+ 'chmod -R +x "%s/%s/Contents/MacOS" 2>/dev/null\n' % [install_dir, app_name]
 				+ 'xattr -dr com.apple.quarantine "%s/%s" 2>/dev/null\n' % [install_dir, app_name]
-				+ 'open "%s/%s"\n' % [install_dir, app_name]
+				+ 'open "%s/%s" --args %s\n' % [install_dir, app_name, _sh_args()]
 			)
 		"Windows":
 			var install_dir := exe.get_base_dir()
@@ -162,7 +162,7 @@ func _write_swap_script() -> String:
 			body = (
 				"@echo off\r\ntimeout /t 2 /nobreak >nul\r\n"
 				+ 'robocopy "%s" "%s" /E /MOVE >nul\r\n' % [staged_root, install_dir]
-				+ 'start "" "%s"\r\n' % exe
+				+ 'start "" "%s" %s\r\n' % [exe, _bat_args()]
 			)
 		_:
 			var install_dir := exe.get_base_dir()
@@ -171,7 +171,7 @@ func _write_swap_script() -> String:
 				"#!/bin/sh\nsleep 2\n"
 				+ 'cp -Rf "%s/." "%s/"\n' % [staged_root, install_dir]
 				+ 'chmod +x "%s"\n' % exe
-				+ '"%s" &\n' % exe
+				+ '"%s" %s &\n' % [exe, _sh_args()]
 			)
 	var out := FileAccess.open(script_path, FileAccess.WRITE)
 	if out == null:
@@ -181,3 +181,19 @@ func _write_swap_script() -> String:
 	if OS.get_name() != "Windows":
 		OS.execute("chmod", ["+x", script_path])
 	return script_path
+
+
+## The relaunch must keep the original invocation (a dedicated server's
+## `--headless -- --port=N` most of all), quoted for the target shell.
+static func _sh_args() -> String:
+	var quoted: PackedStringArray = []
+	for arg in OS.get_cmdline_args():
+		quoted.append("'%s'" % arg.replace("'", "'\\''"))
+	return " ".join(quoted)
+
+
+static func _bat_args() -> String:
+	var quoted: PackedStringArray = []
+	for arg in OS.get_cmdline_args():
+		quoted.append('"%s"' % arg)
+	return " ".join(quoted)

@@ -13,6 +13,9 @@ const RELEASES_LATEST_URL := "https://api.github.com/repos/" + REPO + "/releases
 
 ## The version releases are compared against; overridable for testing.
 var current_version := AppVersion.VERSION
+## Which release asset to look for: a platform id for clients, or "server"
+## for the dedicated-server build (#145).
+var asset_platform := platform_id()
 
 var _request: HTTPRequest
 
@@ -42,7 +45,7 @@ func _on_request_completed(
 	if payload == null or not payload is Dictionary:
 		check_failed.emit()
 		return
-	var release := parse_release(payload, platform_id())
+	var release := parse_release(payload, asset_platform)
 	if release.is_empty():
 		check_failed.emit()
 		return
