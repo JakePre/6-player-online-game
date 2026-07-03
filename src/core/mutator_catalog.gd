@@ -72,6 +72,58 @@ static func register_builtins() -> void:
 			)
 		)
 	)
+	register(
+		(
+			Mutator
+			. create(
+				{
+					"id": &"mirror_mode",
+					"name": "Mirror Mode",
+					"blurb": "Left is right and right is left.",
+					"input_transform": Mutator.InputTransform.MIRROR,
+				}
+			)
+		)
+	)
+	register(
+		(
+			Mutator
+			. create(
+				{
+					"id": &"blackout",
+					"name": "Blackout",
+					"blurb": "Periodic lights-out sweeps the arena.",
+					"view_flags": [&"blackout"],
+				}
+			)
+		)
+	)
+	register(
+		(
+			Mutator
+			. create(
+				{
+					"id": &"masquerade",
+					"name": "Masquerade",
+					"blurb": "Nameplates hidden — who's who is the puzzle.",
+					"view_flags": [&"hide_nameplates"],
+				}
+			)
+		)
+	)
+	register(
+		(
+			Mutator
+			. create(
+				{
+					"id": &"robin_hood",
+					"name": "Robin Hood",
+					"blurb": "At round end, last place takes 10 coins from first.",
+					"end_transfer": 10,
+				}
+			)
+		)
+	)
 
 
 static func mutator_of(id: StringName) -> Mutator:

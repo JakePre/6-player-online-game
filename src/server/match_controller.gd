@@ -104,6 +104,10 @@ func tick(delta: float) -> void:
 
 func handle_input(slot: int, data: Dictionary) -> void:
 	if state == State.PLAY and slot in _round_slots:
+		# Mirror Mode (M9-05): transformed server-side so it is fair and
+		# cheat-proof.
+		if current_mutator != null:
+			data = current_mutator.transform_input(data)
 		game.handle_input(slot, data)
 
 
@@ -219,6 +223,12 @@ func _enter_results() -> void:
 		awards = current_mutator.apply_award_multiplier(awards)
 	for member in room.members:
 		member.score += int(awards.get(member.slot, 0))
+	# Robin Hood (M9-05): the transfer moves standing coins after the round's
+	# awards land, so the broadcast totals already reflect it.
+	if current_mutator != null and current_mutator.end_transfer_amount > 0:
+		var adjusted := current_mutator.apply_end_transfer(_totals(), results.placements)
+		for member in room.members:
+			member.score = int(adjusted.get(member.slot, member.score))
 	(
 		event_emitted
 		. emit(

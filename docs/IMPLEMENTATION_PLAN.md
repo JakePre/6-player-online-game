@@ -160,7 +160,7 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 - [x] **M9-02** (S) Lobby mutator pool: host-only toggles replicated like round count; PROTOCOL_VERSION bump ⛓ M9-01
 - [x] **M9-03** (S) Per-round roll (~40% of rounds, no repeats back-to-back, never the finale) + intro-card announcement ⛓ M9-01, M9-02
 - [x] **M9-04** (M) Mutator pack A: Double Coins, Golden Round, Short Fuse, Overdrive (economy/duration/speed knobs) ⛓ M9-03
-- [ ] **M9-05** (M) Mutator pack B: Mirror Mode, Blackout, Masquerade, Robin Hood (input/view/transfer knobs) ⛓ M9-03
+- [x] **M9-05** (M) Mutator pack B: Mirror Mode, Blackout, Masquerade, Robin Hood (input/view/transfer knobs) ⛓ M9-03
 - [ ] **M9-06** (S) Nightly soak variant: full match with random mutators enabled ⛓ M9-04, M9-05, M7-03
 
 ### M10 — Roster wave 2 (Phase 2, PHASE2.md §4 — 16 games, parallel after M9-01; per game: sim + MinigameView3D view + tests + one catalog line)

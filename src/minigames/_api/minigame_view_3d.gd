@@ -21,6 +21,11 @@ const FLOOR_TILE_THICKNESS := 0.195
 ## Below this per-snapshot displacement (world units), a rig is treated as
 ## stationary and plays "idle" instead of "walk".
 const MOVE_EPSILON := 0.01
+## Blackout view flag (M9-05): lights-out cadence, mirroring Heist Night's
+## LIGHT_SEC/DARK_SEC feel (SPEC-level: reuse the established rhythm).
+const BLACKOUT_LIGHT_SEC := 8.0
+const BLACKOUT_DARK_SEC := 5.0
+const BLACKOUT_DIM := Color(0.0, 0.0, 0.02, 0.88)
 
 ## Arena root all per-minigame 3D content (props, extra geometry) should
 ## parent to; populated by _build_scene_tree() before _setup_3d() runs.
@@ -38,7 +43,39 @@ func _setup() -> void:
 	_build_camera()
 	_build_floor()
 	_build_character_rigs()
+	_apply_view_flags()
 	_setup_3d()
+
+
+## Mutator view flags (M9-05). Masquerade hides every rig's nameplate;
+## Blackout adds a lights-out overlay cycling on the Heist Night cadence via
+## a Timer (not _process, which subclasses own for input).
+func _apply_view_flags() -> void:
+	if has_view_flag(&"hide_nameplates"):
+		for rig: CharacterRig in _rigs.values():
+			(rig.get_node("Nameplate") as Label3D).visible = false
+	if has_view_flag(&"blackout"):
+		_build_blackout_overlay()
+
+
+func _build_blackout_overlay() -> void:
+	var overlay := ColorRect.new()
+	overlay.name = "BlackoutOverlay"
+	overlay.color = BLACKOUT_DIM
+	overlay.visible = false
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+	var timer := Timer.new()
+	timer.name = "BlackoutTimer"
+	timer.one_shot = true
+	timer.timeout.connect(
+		func() -> void:
+			overlay.visible = not overlay.visible
+			timer.start(BLACKOUT_DARK_SEC if overlay.visible else BLACKOUT_LIGHT_SEC)
+	)
+	add_child(timer)
+	timer.start(BLACKOUT_LIGHT_SEC)
 
 
 func _render(game: Dictionary) -> void:

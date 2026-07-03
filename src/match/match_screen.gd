@@ -23,6 +23,7 @@ var emote_lifetime := 3.0
 var _names := {}
 var _totals := {}
 var _minigame_id := ""
+var _round_view_flags: Array = []
 var _minigame_view: MinigameView
 var _shake_tween: Tween
 var _shake_origin := Vector2.ZERO
@@ -76,6 +77,7 @@ func _on_match_event(event: Dictionary) -> void:
 		"round_intro":
 			_unmount_view()
 			_minigame_id = event.minigame.id
+			_round_view_flags = event.get("mutator", {}).get("view_flags", [])
 			_show_intro(event)
 		"skip_votes":
 			_skip_votes_label.text = "Skip votes: %d/%d" % [event.votes, event.needed]
@@ -114,6 +116,7 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 	if _intro_card.visible:
 		_show_panel(null)
 	if _minigame_view == null and match_state.has("minigame"):
+		_round_view_flags = match_state.get("mutator", {}).get("view_flags", [])
 		_mount_view(match_state.minigame)
 	if _minigame_view != null and match_state.has("game"):
 		_minigame_view.render(match_state.game)
@@ -227,6 +230,8 @@ func _mount_view(id: String) -> void:
 	if not ResourceLoader.exists(path):
 		return
 	_minigame_view = (load(path) as PackedScene).instantiate()
+	# Flags must land before setup() so _setup() can react to them (M9-05).
+	_minigame_view.view_flags = _round_view_flags
 	_minigame_view.setup(_names, NetManager.my_slot)
 	_minigame_view.shake_requested.connect(_on_shake_requested)
 	_play_area.add_child(_minigame_view)

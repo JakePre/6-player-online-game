@@ -15,6 +15,10 @@ signal shake_requested(strength: float)
 
 var names := {}
 var my_slot := -1
+## The round mutator's view flags (M9-05), assigned by the match screen
+## before setup() so _setup() sees them. Ids may arrive as String over the
+## wire — check with has_view_flag().
+var view_flags: Array = []
 
 
 func setup(player_names: Dictionary, local_slot: int) -> void:
@@ -50,6 +54,13 @@ func celebrate(placements: Array) -> void:
 
 func request_shake(strength: float = 8.0) -> void:
 	shake_requested.emit(strength)
+
+
+func has_view_flag(flag: StringName) -> bool:
+	for candidate in view_flags:
+		if StringName(String(candidate)) == flag:
+			return true
+	return false
 
 
 ## Per-minigame SFX hook (M6-01): fire a semantic AudioManager sound from
