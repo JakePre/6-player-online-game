@@ -125,6 +125,15 @@ unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 
+[node name="IntroMutator" type="Label" parent="Center/IntroCard/IntroColumn"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="IntroRules" type="Label" parent="Center/IntroCard/IntroColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(420, 0)

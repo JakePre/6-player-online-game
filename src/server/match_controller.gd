@@ -18,12 +18,20 @@ enum State {
 }
 
 const LEADERBOARD_EVERY := 5
+## PHASE2.md $3: roughly this share of rounds draw a mutator from the host's
+## enabled pool. The Gauntlet finale runs outside this controller, so playlist
+## rounds are the only thing that can roll — "never the finale" holds
+## structurally.
+const MUTATOR_ROUND_CHANCE := 0.4
 
 var state := State.INTRO
 var room: Room
 var round_index := 0
 var playlist: Array = []
 var game: MinigameBase
+## The mutator rolled for the current round, or null (M9-03). Knob effects
+## are wired by the M9-04/05 packs; this controller rolls and announces.
+var current_mutator: Mutator
 
 var _intro_sec := 10.0
 var _results_sec := 8.0
@@ -129,6 +137,9 @@ func get_snapshot() -> Dictionary:
 		# The id lets late arrivals (rejoin, missed events) mount the right view.
 		snapshot["minigame"] = String(playlist[round_index])
 		snapshot["game"] = game.get_snapshot()
+	# Late arrivals also learn the round's mutator (M9-03).
+	if current_mutator != null and state in [State.INTRO, State.PLAY]:
+		snapshot["mutator"] = current_mutator.to_dict()
 	return snapshot
 
 
@@ -139,18 +150,32 @@ func _enter_intro() -> void:
 	state = State.INTRO
 	_state_left = _intro_sec
 	_skip_votes.clear()
+	current_mutator = _roll_mutator()
 	var meta := MinigameCatalog.meta_of(playlist[round_index])
-	(
-		event_emitted
-		. emit(
-			{
-				"type": "round_intro",
-				"round": round_index + 1,
-				"rounds": playlist.size(),
-				"minigame": meta.to_dict(),
-			}
-		)
+	var intro := {
+		"type": "round_intro",
+		"round": round_index + 1,
+		"rounds": playlist.size(),
+		"minigame": meta.to_dict(),
+	}
+	# Announced on the intro card — no hidden modifiers (PHASE2.md $3 rule 2).
+	if current_mutator != null:
+		intro["mutator"] = current_mutator.to_dict()
+	event_emitted.emit(intro)
+
+
+## ~MUTATOR_ROUND_CHANCE of rounds get one mutator from the room's enabled
+## pool, never the same one twice in a row. Deterministic from the match seed.
+func _roll_mutator() -> Mutator:
+	var previous := current_mutator
+	if room.mutator_pool.is_empty() or _rng.randf() >= MUTATOR_ROUND_CHANCE:
+		return null
+	var pool := room.mutator_pool.filter(
+		func(id: StringName) -> bool: return previous == null or id != previous.id
 	)
+	if pool.is_empty():
+		return null
+	return MutatorCatalog.mutator_of(pool[_rng.randi_range(0, pool.size() - 1)])
 
 
 func _enter_play() -> void:

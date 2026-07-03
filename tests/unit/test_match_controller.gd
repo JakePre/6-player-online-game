@@ -314,3 +314,56 @@ func test_team_mode_results_award_team_tables() -> void:
 			break
 	# Winning team members (slots 0/2) get 20 each, losers (1/3) get 5.
 	assert_eq(results.awards, {0: 20, 2: 20, 1: 5, 3: 5})
+
+
+func _register_mutators_and_pool(room: Room, ids: Array) -> void:
+	MutatorCatalog.clear()
+	for id: StringName in ids:
+		MutatorCatalog.register(Mutator.create({"id": id, "name": String(id), "blurb": "b"}))
+	assert_true(room.set_mutator_pool(ids))
+
+
+func test_no_mutator_rolls_without_a_pool() -> void:
+	var room := _make_room(2)
+	var controller := _make_controller(room, 3)
+	controller.start()
+	_run_until(controller, func() -> bool: return controller.is_done())
+	for event: Dictionary in events:
+		if event.type == "round_intro":
+			assert_false(event.has("mutator"), "empty pool never mutates")
+
+
+func test_mutator_rolls_are_seeded_announced_and_never_repeat() -> void:
+	var room := _make_room(2)
+	_register_mutators_and_pool(room, [&"alpha", &"beta"])
+	var controller := _make_controller(room, 30)
+	controller.start()
+	_run_until(controller, func() -> bool: return controller.is_done())
+	var previous_id := ""
+	var repeats := 0
+	var count := 0
+	for event: Dictionary in events:
+		if event.type != "round_intro":
+			continue
+		var id: String = event.get("mutator", {}).get("id", "")
+		if not id.is_empty():
+			count += 1
+			assert_true(id in ["alpha", "beta"], "rolled from the enabled pool")
+			if id == previous_id:
+				repeats += 1
+		previous_id = id
+	assert_eq(repeats, 0, "never the same mutator twice in a row")
+	assert_between(count, 5, 20, "~40% of 30 rounds with the seeded rng")
+	MutatorCatalog.clear()
+
+
+func test_snapshot_carries_mutator_for_late_arrivals() -> void:
+	var room := _make_room(2)
+	_register_mutators_and_pool(room, [&"alpha"])
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.current_mutator = MutatorCatalog.mutator_of(&"alpha")
+	assert_eq(controller.get_snapshot().mutator.id, "alpha")
+	_run_until(controller, func() -> bool: return controller.is_done())
+	assert_false(controller.get_snapshot().has("mutator"), "no mutator once the match is over")
+	MutatorCatalog.clear()
