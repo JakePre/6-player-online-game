@@ -40,6 +40,7 @@ static func register_builtins() -> void:
 	register(SimonStomp.make_meta(), SimonStomp)
 	register(TargetRange.make_meta(), TargetRange)
 	register(BeatBounce.make_meta(), BeatBounce)
+	register(MusicalPlatforms.make_meta(), MusicalPlatforms)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:

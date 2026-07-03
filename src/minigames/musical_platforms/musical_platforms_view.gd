@@ -1,0 +1,121 @@
+extends MinigameView3D
+## Musical Platforms client view (M10-02): renders the replicated arena in
+## the shared 2.5D iso-arena — players as CharacterRigs (losers collapse and
+## dim), platforms as discs that appear when the music stops and light up in
+## the claimant's color, and a Control-layer call-out flipping between
+## DANCE! and GRAB A PLATFORM! so the phase is readable instantly.
+
+const PLATFORM_FREE_COLOR := Color(0.75, 0.75, 0.8, 0.55)
+const PLATFORM_DISC_HEIGHT := 0.06
+const PLATFORM_POOL := 5
+const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
+const MUSIC_TEXT := "DANCE!"
+const STOP_TEXT := "GRAB A PLATFORM!"
+
+## Latest replicated state, straight from MusicalPlatforms.get_snapshot().
+var players := {}
+var phase: int = MusicalPlatforms.Phase.MUSIC
+var platforms: Array = []
+var fallen: Array = []
+
+var _platform_pool: Array[MeshInstance3D] = []
+var _phase_label: Label
+var _downed := {}
+# -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
+var _fallen_seen := -1
+
+
+func _physics_process(_delta: float) -> void:
+	send_move_intent()
+
+
+func _arena_half() -> float:
+	return MusicalPlatforms.ARENA_HALF
+
+
+func _setup_3d() -> void:
+	for i in PLATFORM_POOL:
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = MusicalPlatforms.PLATFORM_RADIUS
+		mesh.bottom_radius = MusicalPlatforms.PLATFORM_RADIUS
+		mesh.height = PLATFORM_DISC_HEIGHT
+		var material := StandardMaterial3D.new()
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_color = PLATFORM_FREE_COLOR
+		mesh.material = material
+		var node := MeshInstance3D.new()
+		node.name = "Platform%d" % i
+		node.mesh = mesh
+		node.visible = false
+		arena.add_child(node)
+		_platform_pool.append(node)
+	_phase_label = Label.new()
+	_phase_label.name = "PhaseLabel"
+	_phase_label.add_theme_font_size_override(&"font_size", 32)
+	_phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_phase_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_phase_label.position.y = 16.0
+	add_child(_phase_label)
+
+
+func _render_3d(game: Dictionary) -> void:
+	players = game.get("players", {})
+	phase = int(game.get("phase", MusicalPlatforms.Phase.MUSIC))
+	platforms = game.get("platforms", [])
+	fallen = game.get("fallen", [])
+	_phase_label.text = STOP_TEXT if phase == MusicalPlatforms.Phase.STOP else MUSIC_TEXT
+	_update_players()
+	_update_platforms()
+	_shake_on_new_downs()
+
+
+func _update_players() -> void:
+	for slot: int in players:
+		var state: Array = players[slot]
+		var rig := rig_for_slot(slot)
+		if rig == null:
+			continue
+		update_rig(slot, Vector2(state[0], state[1]))
+	for group: Array in fallen:
+		for slot: int in group:
+			_down_rig(slot)
+
+
+func _down_rig(slot: int) -> void:
+	if _downed.has(slot):
+		return
+	var rig := rig_for_slot(slot)
+	if rig == null:
+		return
+	_downed[slot] = true
+	rig.play(&"ko")
+	rig.player_color = ELIMINATED_COLOR
+
+
+## Free platforms are neutral gray; claimed ones take the claimant's color so
+## "which are still up for grabs" reads at a glance.
+func _update_platforms() -> void:
+	for i in _platform_pool.size():
+		var node := _platform_pool[i]
+		node.visible = i < platforms.size()
+		if not node.visible:
+			continue
+		var state: Array = platforms[i]
+		node.position = to_arena(Vector2(state[0], state[1]), PLATFORM_DISC_HEIGHT / 2.0)
+		var claimant := int(state[2])
+		var material: StandardMaterial3D = (node.mesh as CylinderMesh).material
+		if claimant == -1:
+			material.albedo_color = PLATFORM_FREE_COLOR
+		else:
+			var color := player_color(claimant)
+			color.a = 0.75
+			material.albedo_color = color
+
+
+func _shake_on_new_downs() -> void:
+	var fallen_count := 0
+	for group: Array in fallen:
+		fallen_count += group.size()
+	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
+		request_shake(9.0)
+	_fallen_seen = fallen_count
