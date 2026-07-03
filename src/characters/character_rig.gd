@@ -25,6 +25,10 @@ const ACTIONS := {
 	&"pickup": {"anim": &"PickUp", "loop": false},
 }
 
+## Base nameplate font size from the scene; scaled by the nameplate_scale
+## setting (#143).
+const NAMEPLATE_BASE_FONT := 48
+
 const OUTLINE_SHADER := preload("res://src/characters/player_outline.gdshader")
 const XRAY_SHADER := preload("res://src/characters/player_xray.gdshader")
 const XRAY_ALPHA := 0.12
@@ -50,6 +54,9 @@ var _xray_material: ShaderMaterial
 
 
 func _ready() -> void:
+	_nameplate.font_size = int(
+		NAMEPLATE_BASE_FONT * float(SettingsStore.load_settings().nameplate_scale)
+	)
 	_outline_material = ShaderMaterial.new()
 	_outline_material.shader = OUTLINE_SHADER
 	_xray_material = ShaderMaterial.new()

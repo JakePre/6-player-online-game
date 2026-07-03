@@ -10,9 +10,14 @@ extends MinigameView3D
 
 const INTACT_COLOR := Color(0.55, 0.78, 0.95)
 const CRACKED_COLOR := Color(0.75, 0.68, 0.55)
+const BREAKING_COLOR := Color(1.0, 0.35, 0.25)
 const WATER_COLOR := Color(0.03, 0.05, 0.1)
 const TILE_THICKNESS := 0.3
 const WATER_DEPTH := 0.45
+## Splash ring where a player goes under (#138 follow-up: falls need sound
+## and a visible landing spot, not just the rig vanishing).
+const SPLASH_COLOR := Color(0.8, 0.9, 1.0, 0.9)
+const SPLASH_SEC := 0.5
 
 ## Latest replicated state, straight from ThinIce.get_snapshot().
 var tiles: Array = []
@@ -22,6 +27,11 @@ var fallen: Array = []
 var _tile_nodes: Array[MeshInstance3D] = []
 var _intact_material: StandardMaterial3D
 var _cracked_material: StandardMaterial3D
+var _breaking_material: StandardMaterial3D
+## Previous snapshot's tile states, for crack/collapse SFX on transitions.
+var _prev_tiles: Array = []
+## Last standing position per slot, so the splash lands where they fell.
+var _last_seen_pos := {}
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
 
@@ -53,6 +63,11 @@ func _build_floor() -> void:
 	_intact_material.roughness = 0.2
 	_cracked_material = StandardMaterial3D.new()
 	_cracked_material.albedo_color = CRACKED_COLOR
+	_breaking_material = StandardMaterial3D.new()
+	_breaking_material.albedo_color = BREAKING_COLOR
+	_breaking_material.emission_enabled = true
+	_breaking_material.emission = BREAKING_COLOR
+	_breaking_material.emission_energy_multiplier = 0.6
 	var tile_mesh := BoxMesh.new()
 	tile_mesh.size = Vector3(ThinIce.TILE_SIZE, TILE_THICKNESS, ThinIce.TILE_SIZE)
 
@@ -80,25 +95,69 @@ func _render_3d(game: Dictionary) -> void:
 	_shake_on_new_falls()
 
 
-## Someone crashing through the ice is the game's big impact (M6-02).
+## Someone crashing through the ice is the game's big impact (M6-02): screen
+## shake plus a splash ring and sound where they went under (#138).
 func _shake_on_new_falls() -> void:
 	var fallen_count := 0
 	for group: Array in fallen:
 		fallen_count += group.size()
 	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
 		request_shake(10.0)
+		play_sfx(&"error")
+		for group: Array in fallen:
+			for slot: int in group:
+				if _last_seen_pos.has(slot):
+					_spawn_splash(_last_seen_pos[slot])
+					_last_seen_pos.erase(slot)
 	_fallen_seen = fallen_count
 
 
+## Expanding, fading ring at the water surface where a player went under.
+func _spawn_splash(world_pos: Vector2) -> void:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.35
+	mesh.outer_radius = 0.5
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = SPLASH_COLOR
+	mesh.material = material
+	var splash := MeshInstance3D.new()
+	splash.mesh = mesh
+	splash.position = to_arena(world_pos, -WATER_DEPTH + 0.05)
+	arena.add_child(splash)
+	var tween := splash.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(splash, "scale", Vector3(2.5, 1.0, 2.5), SPLASH_SEC)
+	tween.tween_property(material, "albedo_color:a", 0.0, SPLASH_SEC)
+	tween.chain().tween_callback(splash.queue_free)
+
+
 func _update_tiles() -> void:
+	var cracked_now := false
+	var breaking_now := false
 	for idx in _tile_nodes.size():
 		var state: int = tiles[idx] if idx < tiles.size() else ThinIce.TileState.INTACT
+		var prev: int = _prev_tiles[idx] if idx < _prev_tiles.size() else ThinIce.TileState.INTACT
+		if state != prev:
+			cracked_now = cracked_now or state == ThinIce.TileState.CRACKED
+			breaking_now = breaking_now or state == ThinIce.TileState.BREAKING
 		var node := _tile_nodes[idx]
 		node.visible = state != ThinIce.TileState.GONE
 		if node.visible:
 			node.material_override = (
-				_cracked_material if state == ThinIce.TileState.CRACKED else _intact_material
+				_breaking_material
+				if state == ThinIce.TileState.BREAKING
+				else (_cracked_material if state == ThinIce.TileState.CRACKED else _intact_material)
 			)
+	# One sound per snapshot, however many tiles changed together; the seeding
+	# snapshot stays silent so mid-match rejoiners aren't greeted with cracks.
+	if not _prev_tiles.is_empty():
+		if cracked_now:
+			play_sfx(&"tick")
+		if breaking_now:
+			play_sfx(&"click")
+	_prev_tiles = tiles.duplicate()
 
 
 ## The snapshot only carries players still standing; fallen rigs sink out of
@@ -111,7 +170,9 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		rig.visible = true
-		update_rig(slot, Vector2(state[0], state[1]))
+		var pos := Vector2(state[0], state[1])
+		_last_seen_pos[slot] = pos
+		update_rig(slot, pos)
 	for group: Array in fallen:
 		for slot: int in group:
 			var rig := rig_for_slot(slot)

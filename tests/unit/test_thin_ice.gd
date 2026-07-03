@@ -64,15 +64,35 @@ func test_entering_a_tile_cracks_it() -> void:
 	assert_eq(game.tiles[idx], ThinIce.TileState.CRACKED)
 
 
-func test_entering_a_cracked_tile_breaks_it_and_drops_the_walker() -> void:
+func test_entering_a_cracked_tile_starts_a_telegraphed_collapse() -> void:
 	var game := _game([0, 1] as Array[int])
 	var idx: int = game._tile_index(game._tile_of(Vector2.ZERO))
 	game.tiles[idx] = ThinIce.TileState.CRACKED
 	game.positions[0] = Vector2.ZERO
 	game.last_tile[0] = Vector2i(-1, -1)
 	game.tick(TICK)
+	assert_eq(game.tiles[idx], ThinIce.TileState.BREAKING, "flashes first (#138)")
+	assert_true(game._is_in(0), "the escape window is real")
+	# Staying put through the collapse is what drops you.
+	var ticks := int(ceil(ThinIce.COLLAPSE_SEC / TICK)) + 1
+	for _i in ticks:
+		game.tick(TICK)
 	assert_eq(game.tiles[idx], ThinIce.TileState.GONE)
-	assert_false(game._is_in(0), "the tile gave way under them")
+	assert_false(game._is_in(0), "stood on it to the end")
+
+
+func test_escaping_a_breaking_tile_survives() -> void:
+	var game := _game([0, 1] as Array[int])
+	var idx: int = game._tile_index(game._tile_of(Vector2.ZERO))
+	game.tiles[idx] = ThinIce.TileState.BREAKING
+	game._collapse_left[idx] = ThinIce.COLLAPSE_SEC
+	game.positions[0] = Vector2(ThinIce.TILE_SIZE * 1.6, 0.0)
+	game.last_tile[0] = game._tile_of(game.positions[0])
+	var ticks := int(ceil(ThinIce.COLLAPSE_SEC / TICK)) + 1
+	for _i in ticks:
+		game.tick(TICK)
+	assert_eq(game.tiles[idx], ThinIce.TileState.GONE)
+	assert_true(game._is_in(0), "moved off in time")
 
 
 func test_standing_on_a_tile_that_gives_way_drops_you_too() -> void:
@@ -80,13 +100,14 @@ func test_standing_on_a_tile_that_gives_way_drops_you_too() -> void:
 	var tile := game._tile_of(Vector2.ZERO)
 	var idx: int = game._tile_index(tile)
 	game.tiles[idx] = ThinIce.TileState.CRACKED
-	# Both 0 and 1 already stand on the doomed tile; only 1 steps onto it
-	# fresh this tick and breaks it — 0 should fall too.
+	# Both 0 and 1 stand on the doomed tile; 1 steps onto it fresh, starting
+	# the collapse — after it expires, 0 (who never moved) falls too.
 	game.positions[0] = Vector2.ZERO
 	game.last_tile[0] = tile
 	game.positions[1] = Vector2.ZERO
 	game.last_tile[1] = Vector2i(-1, -1)
-	game.tick(TICK)
+	for _i in int(ceil(ThinIce.COLLAPSE_SEC / TICK)) + 2:
+		game.tick(TICK)
 	assert_false(game._is_in(0))
 	assert_false(game._is_in(1))
 	assert_true(game.finished, "only slot 2 remains standing")
@@ -150,3 +171,31 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.players.size(), 2)
 	assert_eq(snapshot.players[0].size(), 2)
 	assert_eq(snapshot.fallen, [])
+
+
+func test_standing_still_damages_the_tile_underfoot() -> void:
+	var game := _game()
+	var idx: int = game._tile_index(game._tile_of(game.positions[0]))
+	# Entry cracked it on the first resolve; camping walks it to BREAKING
+	# and then GONE without the player ever moving (#167).
+	var ticks := int(ceil(ThinIce.STAND_DAMAGE_SEC / TICK)) + 2
+	for _i in ticks:
+		game.tick(TICK)
+	assert_eq(game.tiles[idx], ThinIce.TileState.CRACKED, "entry damage on setup resolve")
+	for _i in ticks:
+		game.tick(TICK)
+	assert_true(game.tiles[idx] >= ThinIce.TileState.BREAKING, "camping breaks the ice under you")
+
+
+func test_moving_resets_the_standing_clock() -> void:
+	var game := _game()
+	var half := int(ThinIce.STAND_DAMAGE_SEC / TICK / 2.0)
+	for _i in half:
+		game.tick(TICK)
+	# Step to a fresh tile: its damage is the entry crack only.
+	game.positions[0] = game.positions[0] + Vector2(ThinIce.TILE_SIZE, 0.0)
+	game.tick(TICK)
+	var idx: int = game._tile_index(game.last_tile[0])
+	for _i in half:
+		game.tick(TICK)
+	assert_eq(game.tiles[idx], ThinIce.TileState.CRACKED, "clock restarted on the new tile")

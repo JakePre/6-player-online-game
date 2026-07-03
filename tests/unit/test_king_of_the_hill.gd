@@ -103,3 +103,68 @@ func test_snapshot_lists_players_and_zone() -> void:
 	var entry: Array = snapshot.players[0]
 	assert_eq(entry.size(), 3, "x, y, points")
 	assert_eq((snapshot.zone as Array).size(), 3, "x, y, radius")
+
+
+# --- #139 overhaul: drift, pillars, items -------------------------------------
+
+
+func test_zone_drifts_between_jumps() -> void:
+	var game := _make_game(2)
+	var start: Vector2 = game.zone_center
+	for _i in 60:
+		game.tick(TICK)
+	assert_gt(game.zone_center.distance_to(start), 0.5, "the zone visibly moves (#139)")
+
+
+func test_pillars_seed_inside_the_arena_and_block_movement() -> void:
+	var game := _make_game(2)
+	assert_eq(game.pillars.size(), KingOfTheHill.PILLAR_COUNT)
+	var pillar: Vector2 = game.pillars[0]
+	game.positions[0] = pillar
+	game.tick(TICK)
+	var gap := KingOfTheHill.PILLAR_RADIUS + KingOfTheHill.PLAYER_RADIUS
+	assert_gt(game.positions[0].distance_to(pillar) + 0.001, gap, "pushed out of the pillar (#139)")
+
+
+func test_item_pickup_and_shove() -> void:
+	var game := _make_game(2)
+	game.items.append({"pos": Vector2(2.0, 2.0), "type": KingOfTheHill.Item.SHOVE})
+	game.positions[0] = Vector2(2.0, 2.0)
+	game.positions[1] = Vector2(3.0, 2.0)
+	game.tick(TICK)
+	assert_eq(int(game.held.get(0, -1)), int(KingOfTheHill.Item.SHOVE))
+	assert_eq(game.items.size(), 0)
+	var before: Vector2 = game.positions[1]
+	game.handle_input(0, {"use": true})
+	assert_false(game.held.has(0), "item consumed")
+	assert_gt(game.positions[1].distance_to(before), 1.0, "shoved away (#139)")
+
+
+func test_anchor_freezes_the_zone() -> void:
+	var game := _make_game(2)
+	game.held[0] = KingOfTheHill.Item.ANCHOR
+	var center: Vector2 = game.zone_center
+	var age: float = game.zone_age
+	game.handle_input(0, {"use": true})
+	for _i in 30:
+		game.tick(TICK)
+	assert_eq(game.zone_center, center, "anchored zone does not drift")
+	assert_eq(game.zone_age, age, "anchored zone does not age")
+	assert_true(game.get_snapshot().anchored)
+
+
+func test_use_without_item_is_a_noop() -> void:
+	var game := _make_game(2)
+	game.handle_input(0, {"use": true})
+	assert_false(game.held.has(0))
+
+
+func test_snapshot_carries_pillars_items_held() -> void:
+	var game := _make_game(2)
+	game.items.append({"pos": Vector2(1.0, 1.0), "type": KingOfTheHill.Item.ANCHOR})
+	game.held[1] = KingOfTheHill.Item.SHOVE
+	var snapshot := game.get_snapshot()
+	assert_eq(snapshot.pillars.size(), KingOfTheHill.PILLAR_COUNT)
+	assert_eq(snapshot.items, [[1.0, 1.0, 1]])
+	assert_eq(snapshot.held, {1: KingOfTheHill.Item.SHOVE})
+	assert_false(snapshot.anchored)

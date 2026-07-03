@@ -206,3 +206,11 @@ func test_expiry_clock() -> void:
 	room.mark_disconnected(room.members[1], 2000)
 	assert_false(room.is_expired(2000 + NetConfig.ROOM_EXPIRY_MS - 1))
 	assert_true(room.is_expired(2000 + NetConfig.ROOM_EXPIRY_MS))
+
+
+func test_find_by_slot() -> void:
+	var room := Room.new()
+	var alice := room.add_member(100, "Alice", "t1")
+	room.add_member(200, "Bob", "t2")
+	assert_eq(room.find_by_slot(alice.slot), alice)
+	assert_null(room.find_by_slot(99), "unknown slot")

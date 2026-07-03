@@ -111,7 +111,7 @@ Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
 
 ### M4 — Minigame production (all parallel after M3-06; each task: scene, server logic, 2/4/6-player balance pass, SFX hooks)
 FFA — [x] **M4-01** King of the Hill (M) · [x] **M4-02** Hot Potato (M) · [x] **M4-03** Thin Ice (M) · [x] **M4-04** Sumo Smash (M)
-Skill — [ ] **M4-05** Simon Stomp (M) · [x] **M4-06** Quick Draw (S) · [x] **M4-07** Hurdle Dash (L) · [ ] **M4-08** Target Range (M, mouse+stick aim) · [ ] **M4-09** Beat Bounce (M)
+Skill — [x] **M4-05** Simon Stomp (M) · [x] **M4-06** Quick Draw (S) · [x] **M4-07** Hurdle Dash (L) · [x] **M4-08** Target Range (M, mouse+stick aim) · [x] **M4-09** Beat Bounce (M)
 Team — [x] **M4-10** Tug of War (S) · [x] **M4-11** Relay Sprint (M) · [x] **M4-12** Cart Push (L) · [x] **M4-13** Color Clash (M)
 Sabotage — [x] **M4-14** Poison Feast (M) · [x] **M4-15** Trap Corridor (L) · [x] **M4-16** Heist Night (M)
 
@@ -168,7 +168,7 @@ FFA — [x] **M10-01** Meteor Shower (M) · [x] **M10-02** Musical Platforms (M)
 Skill — [ ] **M10-05** Memory Match (M) · [ ] **M10-06** Laser Limbo (M) · [ ] **M10-07** Bullseye Bowl (M) · [ ] **M10-08** Count Quick (S)
 Team — [ ] **M10-09** Basket Brawl (L) · [ ] **M10-10** Wall Builders (M) · [ ] **M10-11** Snake Chain (M) · [ ] **M10-12** Fort Siege (L)
 Sabotage — [ ] **M10-13** The Mole (M) · [ ] **M10-14** Pickpocket Plaza (M) · [ ] **M10-15** Bomb Courier (M) · [ ] **M10-16** Faulty Wiring (M)
-Action — [ ] **M10-17** Rumble Ring (M, arena brawler: swing/charge/block, KO scoring) · [ ] **M10-18** Bullet Waltz (M, bullet-hell survival: seeded patterns, graze coins)
+Action — [ ] **M10-17** Rumble Ring (M, arena brawler: swing/charge/block, KO scoring) · [x] **M10-18** Bullet Waltz (M, bullet-hell survival: seeded patterns, graze coins)
 
 ### M11 — Series mode (Phase 2, PHASE2.md §5 — best-of-N, ephemeral)
 - [ ] **M11-01** (M) Series controller wrapping match flow: Single/Bo3/Bo5 lobby setting, 10/7/5/4/3/2 series points with SPEC §5 tie sharing, champion decision + coin tiebreak ⛓ none

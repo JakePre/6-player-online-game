@@ -14,6 +14,7 @@ signal server_disconnected
 signal joined_room(code: String, slot: int, token: String)
 signal join_failed(reason: int)
 signal left_room
+signal kicked
 signal room_updated(state: Dictionary)
 signal snapshot_received(snapshot: Dictionary)
 signal pong_received(rtt_ms: int)
@@ -136,6 +137,11 @@ func request_set_ready(ready: bool) -> void:
 	_rpc_set_ready.rpc_id(1, ready)
 
 
+## Host-only: remove another lobby member from the room (#141).
+func request_kick(slot: int) -> void:
+	_rpc_kick.rpc_id(1, slot)
+
+
 func request_set_character(character_id: StringName) -> void:
 	_rpc_set_character.rpc_id(1, character_id)
 
@@ -239,6 +245,24 @@ func _rpc_set_ready(ready: bool) -> void:
 		return
 	member.ready = ready
 	_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_kick(slot: int) -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null or room.state != Room.State.LOBBY:
+		return
+	var target := room.find_by_slot(slot)
+	if target == null or target.peer_id == multiplayer.get_remote_sender_id():
+		return
+	var target_peer := target.peer_id
+	room_manager.leave_room(target_peer, Time.get_ticks_msec())
+	if target.connected and target_peer > 0:
+		_rpc_kicked.rpc_id(target_peer)
+	_broadcast_room_state(room)
+	peer_left_room.emit(room)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -401,6 +425,13 @@ func _rpc_join_failed(reason: int) -> void:
 @rpc("authority", "call_remote", "reliable")
 func _rpc_left_room() -> void:
 	_reset_client_session()
+	left_room.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_kicked() -> void:
+	_reset_client_session()
+	kicked.emit()
 	left_room.emit()
 
 

@@ -12,115 +12,138 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_bottom = 16
 
-[node name="Column" type="VBoxContainer" parent="Center"]
+[node name="Layout" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ScrollCenter" type="CenterContainer" parent="Margin/Layout/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Column" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter"]
 custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="CodeLabel" type="Label" parent="Center/Column"]
+[node name="CodeLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 horizontal_alignment = 1
 
-[node name="Hint" type="Label" parent="Center/Column"]
+[node name="Hint" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 layout_mode = 2
 text = "Share this code with friends so they can join."
 horizontal_alignment = 1
 
-[node name="PlayerList" type="VBoxContainer" parent="Center/Column"]
+[node name="PlayerList" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 160)
 layout_mode = 2
 
-[node name="RoundRow" type="HBoxContainer" parent="Center/Column"]
+[node name="RoundRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 layout_mode = 2
 
-[node name="RoundLabel" type="Label" parent="Center/Column/RoundRow"]
+[node name="RoundLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/RoundRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Rounds"
 
-[node name="RoundOption" type="OptionButton" parent="Center/Column/RoundRow"]
+[node name="RoundOption" type="OptionButton" parent="Margin/Layout/Scroll/ScrollCenter/Column/RoundRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MutatorBox" type="VBoxContainer" parent="Center/Column"]
+[node name="MutatorBox" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 
-[node name="MutatorTitle" type="Label" parent="Center/Column/MutatorBox"]
+[node name="MutatorTitle" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/MutatorBox"]
 layout_mode = 2
 text = "Mutators"
 
-[node name="MutatorToggles" type="VBoxContainer" parent="Center/Column/MutatorBox"]
+[node name="MutatorToggles" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/MutatorBox"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="CharacterRow" type="HBoxContainer" parent="Center/Column"]
+[node name="CharacterRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 layout_mode = 2
 
-[node name="CharacterRowLabel" type="Label" parent="Center/Column/CharacterRow"]
+[node name="CharacterRowLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Character"
 
-[node name="PrevCharacterButton" type="Button" parent="Center/Column/CharacterRow"]
+[node name="PrevCharacterButton" type="Button" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "<"
 
-[node name="CharacterLabel" type="Label" parent="Center/Column/CharacterRow"]
+[node name="CharacterLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 horizontal_alignment = 1
 
-[node name="NextCharacterButton" type="Button" parent="Center/Column/CharacterRow"]
+[node name="NextCharacterButton" type="Button" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = ">"
 
-[node name="ColorSwatch" type="ColorRect" parent="Center/Column/CharacterRow"]
+[node name="ColorSwatch" type="ColorRect" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 
-[node name="CharacterPreview" type="Control" parent="Center/Column"]
+[node name="CharacterPreview" type="Control" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 160)
 layout_mode = 2
 script = ExtResource("2")
 
-[node name="ReadyButton" type="Button" parent="Center/Column"]
+[node name="BottomCenter" type="CenterContainer" parent="Margin/Layout"]
+layout_mode = 2
+
+[node name="BottomColumn" type="VBoxContainer" parent="Margin/Layout/BottomCenter"]
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ReadyButton" type="Button" parent="Margin/Layout/BottomCenter/BottomColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 toggle_mode = true
 text = "Ready"
 
-[node name="StartButton" type="Button" parent="Center/Column"]
+[node name="StartButton" type="Button" parent="Margin/Layout/BottomCenter/BottomColumn"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 disabled = true
 text = "Start match"
 
-[node name="LeaveButton" type="Button" parent="Center/Column"]
+[node name="LeaveButton" type="Button" parent="Margin/Layout/BottomCenter/BottomColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Leave room"
 
-[node name="StatusLabel" type="Label" parent="Center/Column"]
+[node name="StatusLabel" type="Label" parent="Margin/Layout/BottomCenter/BottomColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2

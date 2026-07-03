@@ -86,6 +86,12 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Quit"
 
+[node name="UpdateButton" type="Button" parent="Center/Column"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Update available"
+
 [node name="AdvancedToggle" type="CheckButton" parent="Center/Column"]
 unique_name_in_owner = true
 layout_mode = 2

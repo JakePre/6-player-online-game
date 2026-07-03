@@ -13,6 +13,9 @@ const PLATFORM_THICKNESS := 0.4
 var players := {}
 var out: Array = []
 
+var _dash_label: Label
+var _was_ready := true
+
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
@@ -41,6 +44,15 @@ func _setup_3d() -> void:
 	platform.mesh = mesh
 	platform.position = Vector3(0.0, PLATFORM_THICKNESS / 2.0, 0.0)
 	arena.add_child(platform)
+	# Screen-space dash indicator for the local player (#140): added after
+	# the viewport container so it draws on top of the 3D arena.
+	_dash_label = Label.new()
+	_dash_label.name = "DashIndicator"
+	_dash_label.add_theme_font_size_override(&"font_size", 24)
+	_dash_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_dash_label.position.y -= 48.0
+	_dash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	add_child(_dash_label)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -65,3 +77,24 @@ func _render_3d(game: Dictionary) -> void:
 		if cooldown > 0.0:
 			caption += "  %.1f" % cooldown
 		rig.display_name = caption
+		if slot == my_slot:
+			_update_dash_indicator(cooldown)
+
+
+## Big readable local-player dash state: countdown bar while cooling,
+## READY flash + tick when it comes back (#140).
+func _update_dash_indicator(cooldown: float) -> void:
+	if _dash_label == null:
+		return
+	var ready := cooldown <= 0.0
+	if ready:
+		_dash_label.text = "DASH READY"
+		_dash_label.modulate = Color(0.5, 1.0, 0.55)
+		if not _was_ready:
+			play_sfx(&"tick")
+	else:
+		var fraction := 1.0 - cooldown / SumoSmash.DASH_COOLDOWN_SEC
+		var bar := "█".repeat(int(fraction * 10.0)) + "░".repeat(10 - int(fraction * 10.0))
+		_dash_label.text = "DASH %s" % bar
+		_dash_label.modulate = Color(1.0, 0.75, 0.4)
+	_was_ready = ready

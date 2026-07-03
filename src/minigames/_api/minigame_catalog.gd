@@ -36,6 +36,10 @@ static func register_builtins() -> void:
 	register(TrapCorridor.make_meta(), TrapCorridor)
 	register(HurdleDash.make_meta(), HurdleDash)
 	register(MeteorShower.make_meta(), MeteorShower)
+	register(BulletWaltz.make_meta(), BulletWaltz)
+	register(SimonStomp.make_meta(), SimonStomp)
+	register(TargetRange.make_meta(), TargetRange)
+	register(BeatBounce.make_meta(), BeatBounce)
 	register(MusicalPlatforms.make_meta(), MusicalPlatforms)
 
 

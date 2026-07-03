@@ -13,6 +13,12 @@ func test_defaults_when_no_file() -> void:
 func test_sanitize_clamps_volumes() -> void:
 	var clean := SettingsStore.sanitize({"master_volume": 2.0, "music_volume": -0.5})
 	assert_eq(clean.master_volume, 1.0)
+	assert_eq(SettingsStore.sanitize({"nameplate_scale": 9.0}).nameplate_scale, 2.0)
+	assert_eq(SettingsStore.sanitize({"nameplate_scale": 0.1}).nameplate_scale, 0.5)
+	assert_eq(SettingsStore.DEFAULTS.master_volume, 0.2, "ships quiet (#143)")
+	var named := SettingsStore.sanitize({"player_name": "  Jake  "})
+	assert_eq(named.player_name, "Jake", "name is trimmed and persisted (#142)")
+	assert_eq(SettingsStore.sanitize({"player_name": "x".repeat(99)}).player_name.length(), 24)
 	assert_eq(clean.music_volume, 0.0)
 	assert_eq(clean.sfx_volume, 1.0, "missing key falls back to default")
 
@@ -41,6 +47,8 @@ func test_save_load_round_trip() -> void:
 		"fullscreen": true,
 		"server_address": "play.example.com",
 		"server_port": 4242,
+		"nameplate_scale": 1.5,
+		"player_name": "Jake",
 	}
 	SettingsStore.save_settings(settings)
 	assert_eq(SettingsStore.load_settings(), settings)
@@ -52,7 +60,7 @@ func test_load_sanitizes_hand_edited_file() -> void:
 	config.set_value(SettingsStore.SECTION, "server_port", "not a port")
 	config.save(SettingsStore.PATH)
 	var settings := SettingsStore.load_settings()
-	assert_eq(settings.master_volume, 1.0)
+	assert_eq(settings.master_volume, 1.0, "42.0 clamps to max")
 	assert_eq(settings.server_port, 0)
 
 

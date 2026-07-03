@@ -36,6 +36,9 @@ jobs:
           - preset: Linux Server
             out_dir: build/server
             artifact: party-rush-server
+          - preset: Windows Server
+            out_dir: build/server-windows
+            artifact: party-rush-server-windows
     steps:
       - uses: actions/checkout@v4
       - name: Make export templates visible to the runner user
@@ -45,6 +48,13 @@ jobs:
           mkdir -p ~/.local/share/godot/export_templates
           mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable \
             ~/.local/share/godot/export_templates/
+      - name: Stamp AppVersion from the release tag
+        # Keeps builds honest without a manual const bump each release (#166).
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          sed -i "s/^const VERSION := \".*\"/const VERSION := \"$V\"/" src/client/app_version.gd
+          grep "const VERSION" src/client/app_version.gd
       - name: Prepare output directory
         run: mkdir -p "${{ matrix.out_dir }}"
       - name: Import resources
