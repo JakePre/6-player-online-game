@@ -155,6 +155,31 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 - [x] **M7-03** (M) Playtest checklist automation: 6 headless bot clients complete a full 12-round match nightly in CI ⛓ M1-05, M3-01
 - [x] **M7-04** (S) In-game credits screen generated from `assets/CREDITS.md`
 
+### M9 — Mutators (Phase 2, [PHASE2.md](PHASE2.md) §3 — framework knobs only, host curates + rounds roll)
+- [ ] **M9-01** (M) Mutator framework: `Mutator` resource + `MutatorCatalog`, framework knobs (award multiplier, pickup-cap scale, duration scale, server-side input transform, view flags, round-end coin transfer), GUT tests ⛓ none
+- [ ] **M9-02** (S) Lobby mutator pool: host-only toggles replicated like round count; PROTOCOL_VERSION bump ⛓ M9-01
+- [ ] **M9-03** (S) Per-round roll (~40% of rounds, no repeats back-to-back, never the finale) + intro-card announcement ⛓ M9-01, M9-02
+- [ ] **M9-04** (M) Mutator pack A: Double Coins, Golden Round, Short Fuse, Overdrive (economy/duration/speed knobs) ⛓ M9-03
+- [ ] **M9-05** (M) Mutator pack B: Mirror Mode, Blackout, Masquerade, Robin Hood (input/view/transfer knobs) ⛓ M9-03
+- [ ] **M9-06** (S) Nightly soak variant: full match with random mutators enabled ⛓ M9-04, M9-05, M7-03
+
+### M10 — Roster wave 2 (Phase 2, PHASE2.md §4 — 16 games, parallel after M9-01; per game: sim + MinigameView3D view + tests + one catalog line)
+FFA — [ ] **M10-01** Meteor Shower (M) · [ ] **M10-02** Musical Platforms (M) · [ ] **M10-03** Shock Tag (M) · [ ] **M10-04** Treasure Divers (M)
+Skill — [ ] **M10-05** Memory Match (M) · [ ] **M10-06** Laser Limbo (M) · [ ] **M10-07** Bullseye Bowl (M) · [ ] **M10-08** Count Quick (S)
+Team — [ ] **M10-09** Basket Brawl (L) · [ ] **M10-10** Wall Builders (M) · [ ] **M10-11** Snake Chain (M) · [ ] **M10-12** Fort Siege (L)
+Sabotage — [ ] **M10-13** The Mole (M) · [ ] **M10-14** Pickpocket Plaza (M) · [ ] **M10-15** Bomb Courier (M) · [ ] **M10-16** Faulty Wiring (M)
+
+### M11 — Series mode (Phase 2, PHASE2.md §5 — best-of-N, ephemeral)
+- [ ] **M11-01** (M) Series controller wrapping match flow: Single/Bo3/Bo5 lobby setting, 10/7/5/4/3/2 series points with SPEC §5 tie sharing, champion decision + coin tiebreak ⛓ none
+- [ ] **M11-02** (S) Series scoreboard interstitial between matches + champion podium variant (StandingsPanel reuse) ⛓ M11-01, M3-05
+- [ ] **M11-03** (S) Rejoin-across-matches semantics + soak coverage; PROTOCOL_VERSION bump if the series setting adds RPCs ⛓ M11-01, M7-03
+
+### M12 — Feel & fairness (Phase 2, PHASE2.md §6 — after the roster completes)
+- [ ] **M12-01** (M) Balance pass across all 33 games at 2/4/6 players, driven by nightly-run data; tuning-only PRs ⛓ M10 complete
+- [ ] **M12-02** (S) `play_sfx` hook adoption in every minigame view (pickups/hits/KOs) ⛓ M6-01, M10 complete
+- [ ] **M12-03** (M) Accessibility: colorblind-safe palette variant, input remapping UI, reduced-motion toggle ⛓ M6-02
+- [ ] **M12-04** (M) Latency feel: client-side snapshot interpolation in `MinigameView3D` (30 Hz snapshots → smooth 60+ fps motion) ⛓ M8-01
+
 ## 6. Suggested build order / critical path
 
 ```
