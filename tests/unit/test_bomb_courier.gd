@@ -35,8 +35,10 @@ func test_setup_stocks_the_pile_with_zero_scores() -> void:
 
 func test_walking_onto_a_loose_package_picks_it_up() -> void:
 	var game := _make_game(3)
-	var id: int = game._packages.keys()[0]
-	game.positions[0] = game._packages[id].pos
+	# One isolated package so clustered pile spawns can't decide the pickup.
+	game._packages.clear()
+	var id := _hand_package(game, 0, 5.0, Vector2(4.0, 4.0))
+	game.carried[0] = -1  # _hand_package marks it carried; drop it to a loose pickup
 	game.move_dirs[0] = Vector2.ZERO
 	game.tick(TICK)
 	assert_eq(game.carried[0], id)
@@ -52,7 +54,8 @@ func test_delivery_scores_more_with_fuse_to_spare() -> void:
 
 func test_fuse_expiry_detonates_stuns_and_penalizes_the_carrier() -> void:
 	var game := _make_game(3)
-	var id := _hand_package(game, 0, 0.05, Vector2.ZERO)
+	# Fuse under one tick so a single step drives it to detonation.
+	var id := _hand_package(game, 0, 0.01, Vector2.ZERO)
 	game.tick(TICK)
 	assert_eq(game.carried[0], -1)
 	assert_false(game._packages.has(id))
