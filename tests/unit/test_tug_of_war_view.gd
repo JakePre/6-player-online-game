@@ -1,8 +1,8 @@
 extends GutTest
-## Tug of War client view (M4-10): renders replicated snapshots without
-## simulating anything locally.
+## Tug of War client view (M8-09): renders replicated snapshots in the
+## shared iso-arena without simulating anything locally.
 
-var view: MinigameView
+var view: MinigameView3D
 
 
 func before_each() -> void:
@@ -19,6 +19,14 @@ func test_view_scene_lives_at_catalog_path() -> void:
 	)
 
 
+func test_setup_builds_rope_marker_and_win_lines() -> void:
+	assert_not_null(view.arena)
+	assert_not_null(view.arena.get_node("Rope"))
+	assert_not_null(view.arena.get_node("Marker"))
+	var left: MeshInstance3D = view.arena.get_node("WinLineLeft")
+	assert_almost_eq(left.position.x, -TugOfWar.WIN_OFFSET, 0.001)
+
+
 func test_render_replaces_replicated_state() -> void:
 	view.render({"rope": -3.5, "win_offset": 10.0, "team_a": [0], "team_b": [1]})
 	assert_eq(view.rope, -3.5)
@@ -26,6 +34,20 @@ func test_render_replaces_replicated_state() -> void:
 	assert_eq(view.team_b, [1])
 	view.render({"rope": 1.0, "win_offset": 10.0, "team_a": [1], "team_b": [0]})
 	assert_eq(view.team_a, [1], "each snapshot fully replaces the last")
+
+
+func test_marker_tracks_rope_offset() -> void:
+	view.render({"rope": 4.0, "win_offset": 10.0, "team_a": [0], "team_b": [1]})
+	var marker: MeshInstance3D = view.arena.get_node("Marker")
+	assert_almost_eq(marker.position.x, 4.0, 0.001)
+
+
+func test_teams_stand_relative_to_the_rope() -> void:
+	view.render({"rope": 2.0, "win_offset": 10.0, "team_a": [0], "team_b": [1]})
+	var rig_a: CharacterRig = view.rig_for_slot(0)
+	var rig_b: CharacterRig = view.rig_for_slot(1)
+	assert_lt(rig_a.position.x, 2.0, "team A hangs off the -x side of the knot")
+	assert_gt(rig_b.position.x, 2.0, "team B mirrors on +x")
 
 
 func test_render_tolerates_missing_keys() -> void:
