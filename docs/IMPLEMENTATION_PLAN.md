@@ -146,7 +146,7 @@ same way (§1, `AGENT_COORDINATION.md` §2).
 - [x] **M8-10** (S) Migrate Color Clash view to `MinigameView3D` ⛓ M8-01, M8-02
 - [x] **M8-11** (S) Migrate Poison Feast view to `MinigameView3D` ⛓ M8-01, M8-02
 - [x] **M8-12** (M) Finale Gauntlet client view — **new build, not a migration**: `gauntlet.gd` has server logic only today ⛓ M8-01, M5-02
-- [ ] **M8-13** (S) Audit + wire `CharacterRig` into the lobby character-select screen if not already live (M2-03/M2-04 built the pieces; confirm they're actually mounted) ⛓ M8-01
+- [x] **M8-13** (S) Audit + wire `CharacterRig` into the lobby character-select screen if not already live (M2-03/M2-04 built the pieces; confirm they're actually mounted) ⛓ M8-01
 - Any minigame task still unbuilt in M4 below should target `MinigameView3D` directly rather than the old `_draw()` pattern.
 
 ### M7 — Deployment & release
