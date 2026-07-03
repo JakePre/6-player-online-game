@@ -16,9 +16,62 @@ static func clear() -> void:
 	_registry.clear()
 
 
-## The M9-04 (pack A) and M9-05 (pack B) PRs add one register line each here.
+## Pack A (M9-04) below; pack B (M9-05) adds its four register lines here.
 static func register_builtins() -> void:
-	pass
+	if not _registry.is_empty():
+		return
+	register(
+		(
+			Mutator
+			. create(
+				{
+					"id": &"double_coins",
+					"name": "Double Coins",
+					"blurb": "All placement awards doubled this round.",
+					"award_multiplier": 2.0,
+				}
+			)
+		)
+	)
+	register(
+		(
+			Mutator
+			. create(
+				{
+					"id": &"golden_round",
+					"name": "Golden Round",
+					"blurb": "Pickup-coin cap raised 30 to 60.",
+					"pickup_cap_scale": 2.0,
+				}
+			)
+		)
+	)
+	register(
+		(
+			Mutator
+			. create(
+				{
+					"id": &"short_fuse",
+					"name": "Short Fuse",
+					"blurb": "The round runs at 60% length.",
+					"duration_scale": 0.6,
+				}
+			)
+		)
+	)
+	register(
+		(
+			Mutator
+			. create(
+				{
+					"id": &"overdrive",
+					"name": "Overdrive",
+					"blurb": "Everything moves 25% faster.",
+					"speed_scale": 1.25,
+				}
+			)
+		)
+	)
 
 
 static func mutator_of(id: StringName) -> Mutator:
