@@ -16,11 +16,14 @@ const VOLUME_BUSES := {
 }
 
 const DEFAULTS := {
-	"master_volume": 1.0,
+	## 20% out of the box — first playtest note was "too loud" (#143).
+	"master_volume": 0.2,
 	"music_volume": 1.0,
 	"sfx_volume": 1.0,
 	"fullscreen": false,
 	"server_address": "",
+	## Nameplate text scale multiplier (0.5–2.0), applied by CharacterRig.
+	"nameplate_scale": 1.0,
 	"server_port": 0,
 }
 
@@ -51,6 +54,8 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 	for key: String in VOLUME_BUSES:
 		if raw.has(key):
 			clean[key] = clampf(float(raw[key]), 0.0, 1.0)
+	if raw.has("nameplate_scale"):
+		clean.nameplate_scale = clampf(float(raw.nameplate_scale), 0.5, 2.0)
 	if raw.has("fullscreen"):
 		clean.fullscreen = bool(raw.fullscreen)
 	if raw.has("server_address"):
