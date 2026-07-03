@@ -22,10 +22,10 @@ const TILE_WIDTH := CORRIDOR_HALF_WIDTH * 2.0 / ROWS
 const MOVE_SPEED := 6.0
 const PLAYER_RADIUS := 0.4
 const TRAP_PHASE_SEC := 6.0
-const RUN_PHASE_SEC := 15.0
-const TRAP_BUDGET := 4
+const RUN_PHASE_SEC := 12.0
+const TRAP_BUDGET := 6
 
-const CATCH_POINTS := 2
+const CATCH_POINTS := 3
 const FINISH_POINTS: Array[int] = [3, 2, 1]
 
 var phase := Phase.TRAPPING
