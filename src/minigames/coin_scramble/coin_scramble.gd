@@ -19,6 +19,13 @@ var move_dirs := {}
 var collected := {}
 var coins: Array[Vector2] = []
 
+## Play area and coin economy scale with the lobby size (M15, ADR 003 F4): a
+## 12-player match gets a bigger arena and proportionally more coins so density
+## and per-capita pacing hold. At <=6 players these equal the consts above, so
+## the original game is unchanged.
+var _play_half := ARENA_HALF
+var _coins_per_wave := COINS_PER_WAVE
+var _max_coins := MAX_ACTIVE_COINS
 var _wave_accum := 0.0
 var _bump_cooldowns := {}
 
@@ -33,7 +40,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Coin Scramble",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 12,
 				"duration_sec": 60.0,
 				"rules":
 				"Coins rain from the sky — grab the most! Bump richer players to scatter their haul.",
@@ -43,9 +50,12 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	_play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size())
+	_coins_per_wave = MinigameScaling.supply(COINS_PER_WAVE, slots.size())
+	_max_coins = MinigameScaling.supply(MAX_ACTIVE_COINS, slots.size())
+	var spawns := SpawnLayout.ring_positions(slots.size(), _play_half * 0.6)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 		collected[slots[i]] = 0
 	_spawn_wave()
@@ -60,7 +70,7 @@ func _tick(delta: float) -> void:
 	for slot: int in slots:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.clamp(
-			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+			Vector2(-_play_half, -_play_half), Vector2(_play_half, _play_half)
 		)
 	_collect_coins()
 	_resolve_bumps(delta)
@@ -100,12 +110,12 @@ func _rank_players() -> Array:
 
 
 func _spawn_wave() -> void:
-	for _i in COINS_PER_WAVE:
-		if coins.size() >= MAX_ACTIVE_COINS:
+	for _i in _coins_per_wave:
+		if coins.size() >= _max_coins:
 			return
 		coins.append(
 			Vector2(
-				rng.randf_range(-ARENA_HALF, ARENA_HALF), rng.randf_range(-ARENA_HALF, ARENA_HALF)
+				rng.randf_range(-_play_half, _play_half), rng.randf_range(-_play_half, _play_half)
 			)
 		)
 
@@ -144,11 +154,11 @@ func _scatter(slot: int) -> void:
 	var dropped := int(collected[slot] * BUMP_DROP_FRACTION)
 	collected[slot] -= dropped
 	for _i in dropped:
-		if coins.size() >= MAX_ACTIVE_COINS:
+		if coins.size() >= _max_coins:
 			return
 		var offset := Vector2(rng.randf_range(-2.0, 2.0), rng.randf_range(-2.0, 2.0))
 		coins.append(
 			(positions[slot] + offset).clamp(
-				Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+				Vector2(-_play_half, -_play_half), Vector2(_play_half, _play_half)
 			)
 		)

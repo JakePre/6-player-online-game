@@ -2,12 +2,13 @@ extends GutTest
 ## Coin Scramble client view (M3-06): renders replicated snapshots without
 ## simulating anything locally.
 
+const VIEW_SCENE := preload("res://src/minigames/coin_scramble/coin_scramble_view.tscn")
+
 var view: MinigameView
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/coin_scramble/coin_scramble_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -17,6 +18,19 @@ func test_setup_stores_identity_context() -> void:
 	assert_eq(view.player_name(1), "P2 Bob", "names carry the always-on number (M15-02)")
 	assert_eq(view.player_name(4), "P5", "unknown slots fall back to their number")
 	assert_eq(view.player_color(1), PlayerPalette.color_for_slot(1))
+
+
+## M15: the view derives its floor/camera size from the lobby count with the
+## same formula the sim uses, so the rendered arena matches the scaled one.
+func test_arena_half_scales_with_lobby_size() -> void:
+	assert_almost_eq(view._arena_half(), CoinScramble.ARENA_HALF, 0.001, "2 players = base arena")
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	var names := {}
+	for i in 12:
+		names[i] = "P%d" % (i + 1)
+	big.setup(names, 0)
+	assert_gt(big._arena_half(), CoinScramble.ARENA_HALF, "12 players get a bigger floor")
 
 
 func test_render_replaces_replicated_state() -> void:

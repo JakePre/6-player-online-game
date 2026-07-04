@@ -43,7 +43,9 @@ func _process(_delta: float) -> void:
 
 
 func _arena_half() -> float:
-	return CoinScramble.ARENA_HALF
+	# Sim and view derive the same play size from the lobby count via the shared
+	# base const, so the rendered floor/camera match the scaled arena (M15).
+	return MinigameScaling.arena_half(CoinScramble.ARENA_HALF, names.size())
 
 
 func _setup_3d() -> void:
