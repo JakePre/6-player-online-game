@@ -5,6 +5,12 @@ Multiple agents (and humans) build this game concurrently and merge their own PR
 - **Duplicate claim:** issue #6 claimed M3-01 fifteen minutes after issue #4 had claimed all of M3 (resolved by withdrawing #6).
 - **Stacked-PR closure:** merging PR #5 with "delete branch" permanently closed the stacked PR #8, which could not be reopened and had to be recreated as #9.
 - **Duplicate implementation:** two branches independently created a `PlayerPalette` class (`src/core/` vs `src/characters/`); one had to be dropped post-merge (`245bc48`).
+- **Duplicate issue batches:** two agents filed the same six playtest notes eleven minutes apart (#256–#261 vs #262–#267); six issues had to be closed as dupes before someone built the same fix twice.
+- **Red main:** #243 and #247 merged without the at-merge-time check while their tests disagreed with their own code; `main` was red for half an hour and a third agent had to stop feature work to fix it (#249).
+- **Merge starvation:** during the M13 sprint one green PR needed seven rebase cycles because other agents merged every ~3 minutes without yielding (#277).
+- **Zombie PR:** a PR closed as superseded (#152) was reopened and merged anyway, silently overriding the fix that had already landed.
+- **Lost work:** two sessions ran out of budget with uncommitted work sitting in a working tree; it survived only because another agent went looking (#236, #145).
+- **Tag race:** two agents cut releases minutes apart, producing a `v0.4.1` numbered *behind* the already-published `v0.5.0`; the bogus tag and release had to be deleted.
 
 The rules below make each of those a checked step instead of a surprise. **Guarantee level:** following this procedure makes *textual* merge conflicts impossible for disjoint tasks and makes overlapping work visible before code is written. It cannot prevent two green PRs from disagreeing *semantically* — the serialized merge procedure (§5) plus CI on every merge is the net for that.
 
@@ -93,10 +99,18 @@ godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -ginclude_sub
 
 ### Merging
 
-1. CI green on the PR head.
-2. The up-to-date check above passes **at merge time** — an earlier green run on a stale base does not count. This is the serialization: after anyone merges, every other open PR goes stale and must rebase + re-verify before it may merge.
+1. CI green **on the current head of the PR** — after any force-push the old run is void; wait for the new one. An earlier green run on a stale base does not count, ever.
+2. The up-to-date check above passes **at merge time**, re-run in the same breath as the merge command. This is the serialization: after anyone merges, every other open PR goes stale and must rebase + re-verify before it may merge. **Merging a stale or unchecked PR is how `main` went red on 2026-07-03 (#243/#247) — there are no exceptions.**
 3. Merge with a **merge commit** (repo convention), then delete the branch — **unless a stacked PR is based on it** (see below).
-4. Watch the post-merge CI run on `main`. If it goes red, fixing it immediately outranks all task work (plan rule: `main` is always green). Fix forward or revert your merge; either way, announce on your claim issue.
+4. Watch the post-merge CI run on `main` **before starting your next task**. If it goes red, fixing it immediately outranks all task work (plan rule: `main` is always green). Fix forward or revert your merge; either way, announce on your claim issue. Never end a session with your merge's CI still running.
+
+### Merge etiquette (anti-starvation)
+
+The serialization rule means every merge staleness-bombs every other open PR. When multiple agents are landing work:
+
+- **Yield to the oldest green PR.** Before merging, run `gh pr list` — if another PR is green and has been waiting longer than yours, let it merge first and rebase yours after. A PR that has been rebase-cycled 3+ times has absolute priority; everyone else pauses merging until it lands.
+- **Batch your own small PRs.** If you are about to land several S-sized changes in a row, prefer one PR with several commits over a merge every three minutes.
+- **Never reopen a PR that was closed as superseded or duplicate.** The closure comment says where the fix went; if you disagree, argue on the *issue* — reopening and merging (#152) silently overrides work that already landed.
 
 ### Stacked PRs (discouraged)
 
@@ -106,7 +120,51 @@ Base a PR on another feature branch only when the dependency is unavoidable, and
 
 The **later-to-merge PR owns the resolution**: rebase, resolve, re-run the full local gate, wait for green, merge. Never resolve conflicts in the GitHub web editor (it skips the local gate).
 
-## 6. Recommended repo settings (owner action)
+## 6. Filing issues without duplicating them
+
+Claims aren't the only race — *filing* races too (#256–#261 vs #262–#267 were the same six playtest notes, twice).
+
+- **Search before filing:** `gh issue list --state open --search "<key words>"` and skim the most recent ~20 open issues. If your finding exists, comment there instead of filing.
+- **Playtest waves are one batch.** If the owner hands over a set of notes, ONE agent files the whole wave, numbered in one pass; others wait for the batch and claim from it. If you find a batch already filed within the last hour, assume your notes are the same wave.
+- **Dupes resolve like claims:** earliest filing wins; the later filer closes theirs with a pointer. Any agent may close obvious dupes on sight with a linking comment.
+
+## 7. When `main` is red
+
+- Fixing `main` **outranks all task work, for every agent**. If you notice red main, say so on the offending PR, then either fix forward or revert — whichever is faster to green.
+- Diagnose before reverting: the 2026-07-03 incident was tests asserting a design the shipped code had (correctly) moved past — the fix was aligning the tests, not reverting the feature.
+- While main is red: **no one merges anything else.** Feature PRs queue behind the fix.
+
+## 8. Releases and tags
+
+- **Immediately before tagging:** `git fetch --tags && gh release list --limit 3`. Someone may have released while you worked (the v0.4.1/v0.5.0 race). Pick the next number *after whatever is truly latest*.
+- Tag only from a **green** `main` tip you have just pulled. Never tag mid-red, never tag a stale local main.
+- One release at a time: if the release workflow is running, wait for it before pushing another tag.
+- A mis-numbered tag/release gets deleted (`gh release delete --cleanup-tag`), not left as history clutter.
+- Releases are owner-facing: cut them when the owner asks or has standing approval, and update the release-notes template if reality diverged from it.
+
+## 9. Running out of budget (hand-off protocol)
+
+Sessions die mid-task. Twice now, half-finished work survived only because someone went looking through local clones. Make rescue trivial:
+
+- **Commit early, push always.** The moment a unit of work compiles, commit and push the branch — even rough. An unpushed branch on a dead machine may as well not exist.
+- When you sense the end (long session, deep context): push whatever exists and leave a **hand-off comment on your claim issue**: what's done, what's left, any landmines (e.g. "the version const is temporarily 0.2.0 for local update testing — revert before shipping").
+- **Never leave a debug edit uncommitted and unmentioned.** The stray version-downgrade from the #144 session would have shipped a broken release if the rescuer hadn't caught it.
+- Rescuing agents: finish the work under the original claim, credit the prior session in the commit message, and revert anything that smells like a local test hack — loudly, in the PR body.
+
+## 10. Owner decisions are load-bearing
+
+- Design-tier changes (reworks, new mechanics, tier moves) get a **proposal comment on the issue and owner approval before code** — the #174/#175 pattern. Bug fixes and UX polish don't need this.
+- Check the policy docs before "improving" something: PHASE2.md §7 lists games that are *intentionally 2D* — one agent already "fixed" one into 3D and it had to be reverted. If a design smells deliberate, it probably is; ask on the issue.
+- Owner playtest notes always name the symptom, not the cause. Diagnose before building — two of the wave-6 fixes (#258, #260) would have been wrong if built as literally described.
+
+## 11. Local environment gotchas (read once, save hours)
+
+- **Test with Godot 4.4.1** (CI's pin). Newer editors produce spurious view-test failures.
+- **Reimport before testing after switching branches** (`godot --headless --import`): a stale class cache produces cascades of "Identifier not declared" errors that look like real breakage. If dozens of tests fail at once after a pull, it's almost certainly this, not the code.
+- **Never commit `.import` churn** outside asset-import PRs — `git checkout -- "*.import"` before staging.
+- GUT + lint disagree on long lambda lines; restructure rather than fight the formatter.
+
+## 12. Recommended repo settings (owner action)
 
 These make §5's discipline machine-enforced instead of voluntary — recommended for @JakePre (requires admin):
 
