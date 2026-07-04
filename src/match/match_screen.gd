@@ -133,6 +133,9 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		_round_view_flags = match_state.get("mutator", {}).get("view_flags", [])
 		_mount_view(match_state.minigame)
 	if _minigame_view != null and match_state.has("game"):
+		# This client's private per-player state (#254), if the round's game
+		# sent any; a sibling of "match", present only for the relevant slot.
+		_minigame_view.private_state = snapshot.get("private", {})
 		_minigame_view.render(match_state.game)
 	if state == MatchController.State.COUNTDOWN:
 		_update_countdown(float(match_state.time_left))

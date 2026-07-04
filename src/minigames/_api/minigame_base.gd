@@ -57,6 +57,14 @@ func get_snapshot() -> Dictionary:
 	return {}
 
 
+## Per-player secret state, delivered only to `slot`'s own client (#254).
+## Hidden-role games (saboteur, mole, disguised guard) override this to
+## reveal a role to exactly one player; the shared get_snapshot() stays
+## anonymous. Default: nothing secret.
+func get_private_snapshot(_slot: int) -> Dictionary:
+	return {}
+
+
 func finish(placements: Array) -> void:
 	_placements = placements
 	finished = true

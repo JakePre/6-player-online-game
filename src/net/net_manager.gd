@@ -524,8 +524,20 @@ func _broadcast_snapshots() -> void:
 		if controller != null:
 			payload["match"] = controller.get_snapshot()
 		for member: RoomMember in room.members:
-			if member.connected:
+			if not member.connected:
+				continue
+			# Hidden-role data is computed per recipient so a player's secret
+			# role never reaches another player's client (#254). Games with no
+			# private state send the shared payload unchanged.
+			var private: Dictionary = (
+				{} if controller == null else controller.private_snapshot_for(member.slot)
+			)
+			if private.is_empty():
 				_rpc_snapshot.rpc_id(member.peer_id, payload)
+			else:
+				var personal: Dictionary = payload.duplicate()
+				personal["private"] = private
+				_rpc_snapshot.rpc_id(member.peer_id, personal)
 
 
 func _start_match(room: Room, config: Dictionary) -> void:
