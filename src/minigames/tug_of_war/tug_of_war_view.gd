@@ -25,6 +25,13 @@ const SIDE_TINT_ALPHA := 0.24
 const BAR_WIDTH := 480.0
 const BAR_HEIGHT := 14.0
 const BAR_TOP := 20.0
+## FX pass (#314): a pull moves the rope at least this far to spark juice, the
+## knot flares this long, and the win burst throws this many streamers.
+const PULL_EPSILON := 0.02
+const KNOT_FLARE_SEC := 0.18
+const SCUFF_SEC := 0.4
+const WIN_BURST_SEC := 0.7
+const WIN_STREAMERS := 16
 
 ## Latest replicated state, straight from TugOfWar.get_snapshot().
 var rope := 0.0
@@ -33,17 +40,22 @@ var team_a: Array = []
 var team_b: Array = []
 
 var _marker: MeshInstance3D
+var _marker_material: StandardMaterial3D
 var _phase := -1
 var _last_rope := 0.0
 ## HUD layer: sits above the 3D SubViewportContainer (the view root's own
 ## canvas draws underneath it, so the bar must live on this child).
 var _hud: Control
+## FX state (#314): knot-flare clock and the once-per-round win guard.
+var _knot_flare_until := 0.0
+var _win_fired := false
 
 
 ## Polled (not event-driven): stick axis motion doesn't deliver discrete
 ## pressed events reliably, which left gamepads unable to pull at all (#136).
 ## is_action_just_pressed unifies keys, d-pad, and stick threshold crossings.
 func _process(_delta: float) -> void:
+	_decay_knot_flare()
 	if NetManager.multiplayer.multiplayer_peer == null:
 		return
 	var phase := -1
@@ -55,6 +67,14 @@ func _process(_delta: float) -> void:
 		return
 	_phase = phase
 	NetManager.send_match_input({"pull": phase})
+
+
+## The knot glows brighter for a beat after each pull, easing back to rest.
+func _decay_knot_flare() -> void:
+	if _marker_material == null:
+		return
+	var flaring := _now() < _knot_flare_until
+	_marker_material.emission_energy_multiplier = 2.6 if flaring else 0.9
 
 
 func _arena_half() -> float:
@@ -76,11 +96,12 @@ func _setup_3d() -> void:
 	var marker_mesh := SphereMesh.new()
 	marker_mesh.radius = 0.45
 	marker_mesh.height = 0.9
-	var marker_material := StandardMaterial3D.new()
-	marker_material.albedo_color = MARKER_COLOR
-	marker_material.emission_enabled = true
-	marker_material.emission = MARKER_COLOR
-	marker_material.emission_energy_multiplier = 0.9
+	_marker_material = StandardMaterial3D.new()
+	_marker_material.albedo_color = MARKER_COLOR
+	_marker_material.emission_enabled = true
+	_marker_material.emission = MARKER_COLOR
+	_marker_material.emission_energy_multiplier = 0.9
+	var marker_material := _marker_material
 	marker_mesh.material = marker_material
 	_marker = MeshInstance3D.new()
 	_marker.name = "Marker"
@@ -141,10 +162,105 @@ func _render_3d(game: Dictionary) -> void:
 	win_offset = float(game.get("win_offset", TugOfWar.WIN_OFFSET))
 	team_a = game.get("team_a", [])
 	team_b = game.get("team_b", [])
+	_fire_pull_fx()
 	_marker.position.x = rope
 	_update_teams()
 	_last_rope = rope
 	_hud.queue_redraw()
+
+
+## Juice the rope's motion (#314): each snapshot the rope moved is a pull —
+## flare the knot and scuff the ground under the team that gained. A rope at
+## the line throws the win burst once.
+func _fire_pull_fx() -> void:
+	var delta := rope - _last_rope
+	if absf(delta) >= PULL_EPSILON:
+		_knot_flare_until = _now() + KNOT_FLARE_SEC
+		# Rope moving -x means team A gained ground (they pull toward -x).
+		_scuff_dust(-1.0 if delta < 0.0 else 1.0)
+	if not _win_fired and absf(rope) >= win_offset - 0.001 and not (team_a + team_b).is_empty():
+		_win_fired = true
+		play_sfx(&"round_win")
+		request_shake(10.0)
+		_win_burst(-1.0 if rope < 0.0 else 1.0)
+
+
+## A low puff of dust kicked up under the leading edge of the gaining team.
+func _scuff_dust(side: float) -> void:
+	var base := Vector2(rope + side * 1.6, TEAM_ROW_Z * side)
+	for i in 3:
+		var mesh := SphereMesh.new()
+		mesh.radius = 0.26
+		mesh.height = 0.52
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_color = Color(0.72, 0.64, 0.52, 0.75)
+		mesh.material = material
+		var puff := MeshInstance3D.new()
+		puff.mesh = mesh
+		puff.position = to_arena(base + Vector2((i - 1) * 0.5, 0.0), 0.2)
+		arena.add_child(puff)
+		var tween := puff.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(puff, "position:y", 0.9, SCUFF_SEC)
+		tween.tween_property(puff, "scale", Vector3.ONE * 2.0, SCUFF_SEC)
+		tween.tween_property(material, "albedo_color:a", 0.0, SCUFF_SEC)
+		tween.chain().tween_callback(puff.queue_free)
+
+
+## Streamers erupt from the knot at the moment it's dragged over the line —
+## the focal point everyone is watching — in the winning team's color.
+func _win_burst(side: float) -> void:
+	var origin := Vector3(side * win_offset, ROPE_HEIGHT + 0.5, 0.0)
+	var color := TEAM_A_COLOR if side < 0.0 else TEAM_B_COLOR
+	# A big expanding shockwave ring on the ground at the knot — the reliably
+	# readable centerpiece of the win, in the winner's color.
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = 0.5
+	ring_mesh.outer_radius = 0.9
+	var ring_material := StandardMaterial3D.new()
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_material.albedo_color = color
+	ring_mesh.material = ring_material
+	var ring := MeshInstance3D.new()
+	ring.mesh = ring_mesh
+	ring.position = Vector3(side * win_offset, 0.1, 0.0)
+	arena.add_child(ring)
+	var ring_tween := ring.create_tween()
+	ring_tween.set_parallel(true)
+	ring_tween.tween_property(ring, "scale", Vector3(5.0, 1.0, 5.0), WIN_BURST_SEC)
+	ring_tween.tween_property(ring_material, "albedo_color:a", 0.0, WIN_BURST_SEC)
+	ring_tween.chain().tween_callback(ring.queue_free)
+	for i in WIN_STREAMERS:
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(0.22, 0.22, 0.7)
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_color = color if i % 2 == 0 else MARKER_COLOR
+		mesh.material = material
+		var streamer := MeshInstance3D.new()
+		streamer.mesh = mesh
+		streamer.position = origin
+		arena.add_child(streamer)
+		var angle := TAU * i / WIN_STREAMERS
+		var reach := Vector3(cos(angle) * 3.0, 4.2, sin(angle) * 3.0)
+		var tween := streamer.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(streamer, "position", origin + reach, WIN_BURST_SEC).set_trans(
+			Tween.TRANS_CUBIC
+		)
+		tween.tween_property(streamer, "rotation", Vector3(angle * 2.0, angle, 0.0), WIN_BURST_SEC)
+		tween.tween_property(material, "albedo_color:a", 0.0, WIN_BURST_SEC).set_delay(
+			WIN_BURST_SEC * 0.4
+		)
+		tween.chain().tween_callback(streamer.queue_free)
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
 
 
 ## HUD tug bar (#215): rope progress between the two win lines with
