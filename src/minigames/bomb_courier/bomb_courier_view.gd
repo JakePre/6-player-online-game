@@ -13,6 +13,11 @@ const CARRIED_HEIGHT := 2.6
 ## Fuse color lerps SAFE -> HOT as it burns from FUSE_MAX to 0.
 const SAFE_COLOR := Color(0.9, 0.85, 0.4)
 const HOT_COLOR := Color(0.95, 0.2, 0.15)
+## FX pass (M13-24): a lit-fuse spark trail off every carried bomb, a burst when
+## the bomb changes hands, and a detonation blast on a stagger.
+const SPARK_INTERVAL := 0.12
+const HANDOFF_FX_COLOR := Color(1.0, 0.85, 0.4)
+const BLAST_COLOR := Color(0.95, 0.35, 0.15)
 
 var players := {}
 var pile: Array = []
@@ -20,6 +25,8 @@ var pile: Array = []
 var _crates := {}  # id (int) -> MeshInstance3D
 var _carried := {}  # slot (int) -> {mesh, label}
 var _staggered := {}  # slot (int) -> bool
+var _holding := {}  # slot (int) -> bool (last-seen carry state, for handoff FX)
+var _spark_accum := 0.0
 var _my_score := 0
 var _score_label: Label
 
@@ -28,10 +35,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if Input.is_action_just_pressed(&"action_primary"):
 		var dir := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 		NetManager.send_match_input({"mx": dir.x, "my": dir.y, "dash": true})
+	_trail_fuse_sparks(delta)
 
 
 func _arena_half() -> float:
@@ -68,14 +76,24 @@ func _update_players() -> void:
 		update_rig(slot, Vector2(state[0], state[1]))
 		var fuse := float(state[3])
 		var staggered := int(state[4]) == 1
+		var newly_staggered: bool = staggered and not _staggered.get(slot, false)
 		var caption := "%s  %d" % [player_name(slot), int(state[2])]
 		if slot == my_slot:
-			if staggered and not _staggered.get(slot, false):
+			if newly_staggered:
 				play_sfx(&"error")
 				request_shake(7.0)
 			elif int(state[2]) > _my_score:
 				play_sfx(&"coin")
 			_my_score = int(state[2])
+		# Handoff flash: a burst the instant a courier takes possession — pickup,
+		# catch, or steal — so the pass beat reads across the arena.
+		var holding := fuse >= 0.0
+		if holding and not _holding.get(slot, false):
+			fx_burst(Vector2(rig.position.x, rig.position.z), HANDOFF_FX_COLOR, 1.2)
+		_holding[slot] = holding
+		# Detonation blast where a bomb goes off in someone's hands.
+		if newly_staggered:
+			fx_burst(Vector2(rig.position.x, rig.position.z), BLAST_COLOR, 0.8)
 		if staggered and rig.current_action() != &"hit":
 			rig.play(&"hit")
 		_staggered[slot] = staggered
@@ -119,6 +137,24 @@ func _update_pile() -> void:
 		if not seen.has(id):
 			(_crates[id] as MeshInstance3D).queue_free()
 			_crates.erase(id)
+
+
+## Each carried bomb spits sparks on a short cadence — a lit fuse readable from
+## across the arena — tinted to the crate's current fuse color, so the trail
+## reddens right along with the countdown. Fire-and-forget; the sparks self-free.
+func _trail_fuse_sparks(delta: float) -> void:
+	_spark_accum += delta
+	if _spark_accum < SPARK_INTERVAL:
+		return
+	_spark_accum = 0.0
+	for slot: int in _carried:
+		var mesh: MeshInstance3D = _carried[slot].get("mesh")
+		if mesh == null or not mesh.visible:
+			continue
+		var material := mesh.mesh.surface_get_material(0) as StandardMaterial3D
+		fx_sparkle(
+			Vector2(mesh.position.x, mesh.position.z), material.albedo_color, mesh.position.y
+		)
 
 
 func _tint_fuse(mesh: MeshInstance3D, fuse: float) -> void:
