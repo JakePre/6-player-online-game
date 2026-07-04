@@ -103,6 +103,25 @@ func rig_for_slot(slot: int) -> CharacterRig:
 	return _rigs.get(slot)
 
 
+# --- One-shot FX (M13-01): fire-and-forget wrappers over ArenaFX --------------
+
+
+func fx_burst(world_pos: Vector2, color: Color, height: float = 0.5) -> void:
+	ArenaFX.burst(arena, to_arena(world_pos, height), color)
+
+
+func fx_sparkle(world_pos: Vector2, color: Color, height: float = 0.5) -> void:
+	ArenaFX.sparkle(arena, to_arena(world_pos, height), color)
+
+
+func fx_splash(world_pos: Vector2) -> void:
+	ArenaFX.splash(arena, to_arena(world_pos, 0.05))
+
+
+func fx_dust(world_pos: Vector2) -> void:
+	ArenaFX.dust(arena, to_arena(world_pos, 0.05))
+
+
 ## Moves the slot's rig to `world_pos` (top-down world units) and switches
 ## between "walk"/"idle" + faces the movement direction, based on the
 ## displacement since the last call. No-op for slots without a pooled rig.
