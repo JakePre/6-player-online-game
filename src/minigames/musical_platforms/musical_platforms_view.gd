@@ -21,6 +21,12 @@ var fallen: Array = []
 var _platform_pool: Array[MeshInstance3D] = []
 var _phase_label: Label
 var _downed := {}
+# pool index -> claimant from the previous snapshot (M13-08 claim flashes).
+var _claims_seen := {}
+# Wave tracking for drop-in dust (M13-08): platforms empty last render, and
+# whether any render happened yet (rejoin seeding).
+var _platforms_were_empty := true
+var _rendered_once := false
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
 
@@ -90,6 +96,8 @@ func _down_rig(slot: int) -> void:
 	_downed[slot] = true
 	rig.play(&"ko")
 	rig.player_color = ELIMINATED_COLOR
+	# Dust where they drop (M13-08).
+	fx_dust(Vector2(rig.position.x, rig.position.z))
 
 
 ## Free platforms are neutral gray; claimed ones take the claimant's color so
@@ -110,6 +118,21 @@ func _update_platforms() -> void:
 			var color := player_color(claimant)
 			color.a = 0.75
 			material.albedo_color = color
+		# Claim flash (M13-08): the moment a pad flips from free to owned,
+		# sparkle in the claimant's color; a fresh wave of platforms puffs
+		# dust as it drops in (skipped on the client's very first render, so
+		# rejoiners aren't greeted with a dust storm).
+		var at := Vector2(state[0], state[1])
+		if _platforms_were_empty and _rendered_once:
+			fx_dust(at)
+		if int(_claims_seen.get(i, -1)) == -1 and claimant != -1:
+			fx_sparkle(at, player_color(claimant))
+		_claims_seen[i] = claimant
+	_platforms_were_empty = platforms.is_empty()
+	_rendered_once = true
+	# Platforms clearing with the music resets the per-round claim tracking.
+	if platforms.is_empty():
+		_claims_seen.clear()
 
 
 func _shake_on_new_downs() -> void:
