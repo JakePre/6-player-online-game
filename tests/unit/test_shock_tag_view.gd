@@ -52,3 +52,19 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.zapped, -1)
 	assert_false(view.arena.get_node("ZapRing").visible)
+
+
+## M13-09: the hand-off arcs at both ends, and the carrier ring throbs.
+func test_tag_fires_bursts_at_both_ends() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [3.0, 0.0, 0]}, "zapped": 0})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [3.0, 0.0, 0]}, "zapped": 1})
+	assert_eq(view.arena.get_child_count(), before + 2, "old carrier + new carrier both burst")
+
+
+func test_ring_throbs_across_snapshots() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]}, "zapped": 0})
+	var ring: MeshInstance3D = view.arena.get_node("ZapRing")
+	var scale_a: float = ring.scale.x
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]}, "zapped": 0})
+	assert_ne(ring.scale.x, scale_a, "the crackle pulses with the snapshot cadence")

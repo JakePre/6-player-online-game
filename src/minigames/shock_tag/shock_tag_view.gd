@@ -12,6 +12,9 @@ var players := {}
 var zapped := -1
 
 var _ring: MeshInstance3D
+## Snapshot counter driving the crackle-ring pulse (replicated cadence, no
+## local clocks — M13-09).
+var _pulse_ticks := 0
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _zapped_seen := -1
 
@@ -49,7 +52,17 @@ func _render_3d(game: Dictionary) -> void:
 	_update_ring()
 	if _zapped_seen >= 0 and zapped != _zapped_seen:
 		request_shake(9.0)
+		_zap_arc(_zapped_seen, zapped)
 	_zapped_seen = zapped
+
+
+## The tag reads as electricity (M13-09): a yellow-white burst at both ends
+## of the hand-off — the old carrier discharging, the new one lighting up.
+func _zap_arc(from_slot: int, to_slot: int) -> void:
+	for slot in [from_slot, to_slot]:
+		var state: Array = players.get(slot, [])
+		if state.size() >= 2:
+			fx_burst(Vector2(state[0], state[1]), RING_COLOR, 1.0)
 
 
 func _update_players() -> void:
@@ -70,3 +83,8 @@ func _update_ring() -> void:
 	_ring.visible = state.size() >= 2
 	if _ring.visible:
 		_ring.position = to_arena(Vector2(state[0], state[1]), RING_HEIGHT)
+		# Crackle pulse (M13-09): a throb every few snapshots, so it animates
+		# identically on every client.
+		_pulse_ticks += 1
+		var throb := 1.0 + 0.18 * sin(_pulse_ticks * TAU / 12.0)
+		_ring.scale = Vector3(throb, 1.0, throb)
