@@ -15,6 +15,20 @@ const VOLUME_BUSES := {
 	"sfx_volume": &"SFX",
 }
 
+## Rebindable gameplay actions and their factory keyboard keys (M12-03). Only
+## the keyboard binding is remappable; the gamepad binding for each action is
+## left untouched so a controller keeps working regardless. Values are
+## physical keycodes (layout-independent) matching project.godot's [input].
+const REBINDABLE_ACTIONS := {
+	"move_up": KEY_W,
+	"move_down": KEY_S,
+	"move_left": KEY_A,
+	"move_right": KEY_D,
+	"action_primary": KEY_SPACE,
+	"action_secondary": KEY_E,
+	"emote": KEY_T,
+}
+
 const DEFAULTS := {
 	## 20% out of the box — first playtest note was "too loud" (#143).
 	"master_volume": 0.2,
@@ -27,6 +41,12 @@ const DEFAULTS := {
 	## Nameplate text scale multiplier (0.5–2.0), applied by CharacterRig.
 	"nameplate_scale": 1.0,
 	"server_port": 0,
+	## Accessibility (M12-03).
+	"colorblind": false,
+	"reduced_motion": false,
+	## Keyboard rebind overrides: action -> physical keycode. Empty means all
+	## factory bindings; only changed actions are stored.
+	"keybinds": {},
 }
 
 
@@ -67,11 +87,43 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 	if raw.has("server_port"):
 		var port := int(raw.server_port)
 		clean.server_port = port if port > 0 and port <= 65535 else 0
+	if raw.has("colorblind"):
+		clean.colorblind = bool(raw.colorblind)
+	if raw.has("reduced_motion"):
+		clean.reduced_motion = bool(raw.reduced_motion)
+	clean.keybinds = _sanitize_keybinds(raw.get("keybinds", {}))
 	return clean
 
 
-## Applies audio volumes and window mode. `window` is the tree's root window
-## (pass null to skip window changes, e.g. from tests).
+## Keeps only overrides for known actions with a plausible keycode; everything
+## else is dropped so a stale or hand-edited file can never bind an action to
+## garbage (unmapped actions fall back to REBINDABLE_ACTIONS at apply time).
+static func _sanitize_keybinds(raw: Variant) -> Dictionary:
+	var clean := {}
+	if raw is Dictionary:
+		for action: String in REBINDABLE_ACTIONS:
+			if not raw.has(action):
+				continue
+			var keycode := int(raw[action])
+			if keycode > 0:
+				clean[action] = keycode
+	return clean
+
+
+## The full action -> physical keycode map actually in force: the factory
+## bindings with the sanitized overrides layered on top. Pure, for apply() and
+## the settings UI.
+static func effective_keybinds(settings: Dictionary) -> Dictionary:
+	var binds := REBINDABLE_ACTIONS.duplicate()
+	var overrides := _sanitize_keybinds(settings.get("keybinds", {}))
+	for action: String in overrides:
+		binds[action] = overrides[action]
+	return binds
+
+
+## Applies audio volumes, window mode, accessibility flags, and key rebinds.
+## `window` is the tree's root window (pass null to skip window changes, e.g.
+## from tests).
 static func apply(settings: Dictionary, window: Window) -> void:
 	var clean := sanitize(settings)
 	for key: String in VOLUME_BUSES:
@@ -86,3 +138,24 @@ static func apply(settings: Dictionary, window: Window) -> void:
 		var wanted := Window.MODE_FULLSCREEN if is_fullscreen else Window.MODE_WINDOWED
 		if window.mode != wanted:
 			window.mode = wanted
+	# Accessibility (M12-03): the flags live as statics on the classes that
+	# consume them, set once here so every view and the palette see the change.
+	PlayerPalette.use_colorblind = clean.colorblind
+	ArenaFX.reduced_motion = clean.reduced_motion
+	apply_keybinds(clean)
+
+
+## Rewrites each rebindable action's keyboard binding in the live InputMap to
+## the effective keycode, leaving that action's gamepad binding in place. Safe
+## to call repeatedly (it replaces, never stacks).
+static func apply_keybinds(settings: Dictionary) -> void:
+	var binds := effective_keybinds(settings)
+	for action: String in binds:
+		if not InputMap.has_action(action):
+			continue
+		for event in InputMap.action_get_events(action):
+			if event is InputEventKey:
+				InputMap.action_erase_event(action, event)
+		var rebind := InputEventKey.new()
+		rebind.physical_keycode = int(binds[action])
+		InputMap.action_add_event(action, rebind)

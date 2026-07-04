@@ -30,6 +30,36 @@ func test_palette_wraps_out_of_range_slots() -> void:
 	assert_eq(PlayerPalette.color_for_slot(-1), PlayerPalette.COLORS[count - 1])
 
 
+## M12-03: the colorblind-safe palette is a same-size, all-distinct alternate
+## that the toggle swaps in, and it actually differs where the default set is
+## worst (P1 red / P4 green — the deutan/protan confusion).
+func test_colorblind_palette_is_distinct_alternate() -> void:
+	assert_eq(
+		PlayerPalette.COLORS_COLORBLIND.size(),
+		PlayerPalette.COLORS.size(),
+		"same size so slot mapping is unchanged"
+	)
+	var seen := {}
+	for color in PlayerPalette.COLORS_COLORBLIND:
+		seen[color.to_html()] = true
+	assert_eq(seen.size(), PlayerPalette.COLORS_COLORBLIND.size(), "no duplicate CB colors")
+	assert_ne(PlayerPalette.COLORS_COLORBLIND[0], PlayerPalette.COLORS[0], "P1 differs from red")
+	assert_ne(PlayerPalette.COLORS_COLORBLIND[3], PlayerPalette.COLORS[3], "P4 differs from green")
+
+
+func test_colorblind_toggle_switches_active_palette() -> void:
+	PlayerPalette.use_colorblind = false
+	assert_eq(PlayerPalette.color_for_slot(0), PlayerPalette.COLORS[0])
+	PlayerPalette.use_colorblind = true
+	assert_eq(PlayerPalette.color_for_slot(0), PlayerPalette.COLORS_COLORBLIND[0])
+	assert_eq(
+		PlayerPalette.color_for_slot(PlayerPalette.COLORS.size()),
+		PlayerPalette.COLORS_COLORBLIND[0],
+		"the CB set wraps the same way"
+	)
+	PlayerPalette.use_colorblind = false  # Don't leak the toggle into other tests.
+
+
 ## The number channel is always unique per slot, even where colors wrap.
 func test_label_for_slot_numbers_players_from_one() -> void:
 	assert_eq(PlayerPalette.label_for_slot(0), "P1")

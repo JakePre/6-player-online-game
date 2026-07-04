@@ -57,7 +57,13 @@ func celebrate(placements: Array) -> void:
 	_celebrate(placements)
 
 
+## Impacts ask the match screen for a decaying screen shake (M6-02). Suppressed
+## under the reduced-motion accessibility toggle (M12-03) — the shared
+## ArenaFX flag doubles as the motion-sensitivity switch, so a request simply
+## does not emit.
 func request_shake(strength: float = 8.0) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	shake_requested.emit(strength)
 
 

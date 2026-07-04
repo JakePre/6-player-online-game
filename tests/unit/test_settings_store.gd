@@ -49,6 +49,9 @@ func test_save_load_round_trip() -> void:
 		"server_port": 4242,
 		"nameplate_scale": 1.5,
 		"player_name": "Jake",
+		"colorblind": true,
+		"reduced_motion": true,
+		"keybinds": {"move_up": KEY_UP},
 	}
 	SettingsStore.save_settings(settings)
 	assert_eq(SettingsStore.load_settings(), settings)
@@ -74,3 +77,54 @@ func test_apply_sets_bus_volumes_and_mute() -> void:
 	assert_false(AudioServer.is_bus_mute(sfx))
 	assert_almost_eq(AudioServer.get_bus_volume_db(sfx), linear_to_db(0.5), 0.01)
 	SettingsStore.apply(SettingsStore.DEFAULTS, null)
+
+
+## M12-03 accessibility.
+
+
+func test_sanitize_coerces_accessibility_flags() -> void:
+	var clean := SettingsStore.sanitize({"colorblind": 1, "reduced_motion": 0})
+	assert_true(clean.colorblind)
+	assert_false(clean.reduced_motion)
+	assert_false(SettingsStore.DEFAULTS.colorblind, "off out of the box")
+	assert_false(SettingsStore.DEFAULTS.reduced_motion)
+
+
+func test_sanitize_keybinds_keeps_valid_drops_junk() -> void:
+	var clean := SettingsStore.sanitize(
+		{"keybinds": {"move_up": KEY_UP, "not_an_action": KEY_X, "emote": 0}}
+	)
+	assert_eq(clean.keybinds, {"move_up": KEY_UP}, "unknown action and zero keycode dropped")
+	assert_eq(SettingsStore.sanitize({"keybinds": "garbage"}).keybinds, {}, "non-dict is ignored")
+
+
+func test_effective_keybinds_layers_overrides_on_defaults() -> void:
+	var binds := SettingsStore.effective_keybinds({"keybinds": {"move_up": KEY_UP}})
+	assert_eq(binds.move_up, KEY_UP, "override wins")
+	assert_eq(binds.move_down, KEY_S, "unbound actions keep the factory key")
+	assert_eq(binds.size(), SettingsStore.REBINDABLE_ACTIONS.size(), "every action resolves")
+
+
+func test_apply_sets_accessibility_statics() -> void:
+	SettingsStore.apply({"colorblind": true, "reduced_motion": true}, null)
+	assert_true(PlayerPalette.use_colorblind)
+	assert_true(ArenaFX.reduced_motion)
+	SettingsStore.apply({"colorblind": false, "reduced_motion": false}, null)
+	assert_false(PlayerPalette.use_colorblind)
+	assert_false(ArenaFX.reduced_motion)
+
+
+func test_apply_keybinds_rebinds_keyboard_keeps_gamepad() -> void:
+	SettingsStore.apply({"keybinds": {"move_up": KEY_UP}}, null)
+	var events := InputMap.action_get_events("move_up")
+	var keys := events.filter(func(e: InputEvent) -> bool: return e is InputEventKey)
+	var pads := events.filter(func(e: InputEvent) -> bool: return e is InputEventJoypadMotion)
+	assert_eq(keys.size(), 1, "exactly one keyboard binding, not stacked")
+	assert_eq((keys[0] as InputEventKey).physical_keycode, KEY_UP)
+	assert_gt(pads.size(), 0, "the gamepad binding is left in place")
+	# Restore the factory binding so later tests see a clean InputMap.
+	SettingsStore.apply(SettingsStore.DEFAULTS, null)
+	var restored := InputMap.action_get_events("move_up").filter(
+		func(e: InputEvent) -> bool: return e is InputEventKey
+	)
+	assert_eq((restored[0] as InputEventKey).physical_keycode, KEY_W)

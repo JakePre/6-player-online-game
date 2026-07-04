@@ -10,6 +10,12 @@ const DEFAULT_BURST_COLOR := Color(1.0, 0.85, 0.4)
 const WATER_COLOR := Color(0.5, 0.75, 0.95)
 const DUST_COLOR := Color(0.65, 0.6, 0.55)
 
+## Reduced-motion toggle (M12-03): set from SettingsStore.apply(). When true,
+## every one-shot effect still returns a valid node (callers keep working)
+## but emits nothing, so no particles fly. Screen shake is suppressed
+## separately in MinigameView.request_shake().
+static var reduced_motion := false
+
 
 ## Radial impact burst: KOs, shoves, meteor hits.
 static func burst(
@@ -72,7 +78,6 @@ static func _one_shot(
 ) -> CPUParticles3D:
 	var particles := CPUParticles3D.new()
 	particles.one_shot = true
-	particles.emitting = true
 	particles.explosiveness = 1.0
 	particles.amount = amount
 	particles.lifetime = lifetime
@@ -82,7 +87,15 @@ static func _one_shot(
 	mesh.height = 0.14
 	particles.mesh = mesh
 	particles.position = position
+	parent.add_child(particles)
+	# Reduced motion (M12-03): callers still get a valid node, but it emits
+	# nothing and frees on the next frame. (With emitting off, `finished`
+	# never fires, so we can't lean on it to self-free.)
+	if reduced_motion:
+		particles.emitting = false
+		particles.queue_free()
+		return particles
+	particles.emitting = true
 	# Fire and forget: the node frees itself when the last particle dies.
 	particles.finished.connect(particles.queue_free)
-	parent.add_child(particles)
 	return particles
