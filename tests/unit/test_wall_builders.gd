@@ -15,11 +15,27 @@ func _game(player_slots: Array[int] = [0, 1, 2, 3]) -> WallBuilders:
 func test_meta_catalog_and_even_rule() -> void:
 	var meta := WallBuilders.make_meta()
 	assert_eq(meta.id, &"wall_builders")
+	assert_eq(meta.max_players, 8)
 	assert_true(meta.even_players, "never drafted at 3 or 5 (#178)")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"wall_builders") is WallBuilders)
 	MinigameCatalog.clear()
+
+
+## No-crowd fairness (M15 8-cap): 4v4 splits evenly and every spawn stays
+## within the arena.
+func test_setup_splits_four_v_four_within_arena_at_eight_players() -> void:
+	var player_slots: Array[int] = []
+	for i in 8:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	assert_eq((game.teams[0] as Array).size(), 4)
+	assert_eq((game.teams[1] as Array).size(), 4)
+	for slot in 8:
+		var pos: Vector2 = game.positions[slot]
+		assert_lt(absf(pos.y), WallBuilders.ARENA_HALF, "spawn row stays inside the arena")
+		assert_false(game.carrying[slot])
 
 
 func test_grab_slows_and_delivery_stacks() -> void:
