@@ -24,6 +24,11 @@ var anchored := false
 
 var _zone_node: MeshInstance3D
 var _zone_material: StandardMaterial3D
+# M13-03 FX state: zone center for relocation bursts, per-slot points for
+# scoring sparkles, snapshot counter for the shimmer throb.
+var _zone_center_seen := Vector2.INF
+var _points_seen := {}
+var _pulse_ticks := 0
 var _pillars_built := false
 var _item_nodes: Array[MeshInstance3D] = []
 var _held_label: Label
@@ -155,12 +160,28 @@ func _update_players() -> void:
 			continue
 		update_rig(slot, Vector2(state[0], state[1]))
 		rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
+		# Scoring sparkles (M13-03): points ticking up while holding the hill
+		# shed a sparkle in the scorer's color. Seeded via _points_seen.
+		var points := int(state[2])
+		if _points_seen.has(slot) and points > int(_points_seen[slot]):
+			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+		_points_seen[slot] = points
 
 
 func _update_zone() -> void:
 	_zone_node.visible = zone.size() == 3
 	if not _zone_node.visible:
 		return
+	# Shimmer throb + relocation FX (M13-03): the disc breathes on a snapshot
+	# cadence, and the zone jumping fires a burst where it was + dust where it
+	# lands (seeded on the first sighting).
+	_pulse_ticks += 1
+	_zone_material.emission_energy_multiplier = 0.3 + 0.15 * sin(_pulse_ticks * TAU / 16.0)
+	var center := Vector2(zone[0], zone[1])
+	if _zone_center_seen != Vector2.INF and _zone_center_seen.distance_to(center) > 0.5:
+		fx_burst(_zone_center_seen, ZONE_COLOR, 0.3)
+		fx_dust(center)
+	_zone_center_seen = center
 	_zone_node.position = to_arena(Vector2(zone[0], zone[1]), ZONE_DISC_HEIGHT / 2.0)
 	# The sim never shrinks below ZONE_MIN_RADIUS; the floor only guards a
 	# malformed snapshot from producing a degenerate (zero-scale) basis.
