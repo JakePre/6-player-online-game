@@ -23,6 +23,8 @@ var _safe_material: StandardMaterial3D
 var _dark_material: StandardMaterial3D
 var _phase_label: Label
 var _downed := {}
+# Previous phase for reveal-wave detection (M13-12); -1 = unseeded.
+var _phase_seen := -1
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
 
@@ -91,7 +93,30 @@ func _render_3d(game: Dictionary) -> void:
 	_phase_label.text = SHOW_TEXT if phase == MemoryMatch.Phase.SHOW else DARK_TEXT
 	_update_tiles()
 	_update_players()
+	_reveal_wave_fx()
 	_shake_on_new_downs()
+
+
+## The pattern landing gets a sparkle wave over the safe tiles (M13-12),
+## fired on the DARK->SHOW transition only — never on the seeding snapshot.
+func _reveal_wave_fx() -> void:
+	if (
+		_phase_seen == MemoryMatch.Phase.DARK
+		and phase == MemoryMatch.Phase.SHOW
+		and not safe_tiles.is_empty()
+	):
+		for index in safe_tiles:
+			fx_sparkle(_tile_world(int(index)), TILE_SAFE_COLOR, 0.4)
+	_phase_seen = phase
+
+
+func _tile_world(index: int) -> Vector2:
+	var x := index % MemoryMatch.GRID_SIZE
+	var y := int(floorf(float(index) / MemoryMatch.GRID_SIZE))
+	return Vector2(
+		-MemoryMatch.HALF_EXTENT + (x + 0.5) * MemoryMatch.TILE_SIZE,
+		-MemoryMatch.HALF_EXTENT + (y + 0.5) * MemoryMatch.TILE_SIZE
+	)
 
 
 func _update_tiles() -> void:
@@ -123,6 +148,8 @@ func _down_rig(slot: int) -> void:
 	_downed[slot] = true
 	rig.play(&"ko")
 	rig.player_color = ELIMINATED_COLOR
+	# The drop into the pit splashes (M13-12).
+	fx_splash(Vector2(rig.position.x, rig.position.z))
 
 
 func _shake_on_new_downs() -> void:
