@@ -19,6 +19,9 @@ var fallen: Array = []
 
 var _wall_pool: Array[Node3D] = []
 var _lives_seen := {}
+# Shared beam material for the shimmer throb + snapshot counter (M13-13).
+var _beam_material: StandardMaterial3D
+var _pulse_ticks := 0
 var _downed := {}
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
@@ -45,6 +48,9 @@ func _arena_half() -> float:
 ## show: LOW = the low bar, HIGH = the high bar, GAP = two tall halves whose
 ## sizes are set per snapshot around the gap.
 func _setup_3d() -> void:
+	# One shared beam material (M13-13): the shimmer throb below drives every
+	# segment at once.
+	_beam_material = _laser_material()
 	for i in WALL_POOL:
 		var root := Node3D.new()
 		root.name = "Wall%d" % i
@@ -53,7 +59,7 @@ func _setup_3d() -> void:
 			var node := MeshInstance3D.new()
 			node.name = segment_name
 			node.mesh = BoxMesh.new()
-			(node.mesh as BoxMesh).material = _laser_material()
+			(node.mesh as BoxMesh).material = _beam_material
 			root.add_child(node)
 		arena.add_child(root)
 		_wall_pool.append(root)
@@ -76,6 +82,9 @@ func _render_3d(game: Dictionary) -> void:
 	_update_players()
 	_update_walls()
 	_shake_on_new_downs()
+	# Beam shimmer (M13-13): a snapshot-cadence hum, same on every client.
+	_pulse_ticks += 1
+	_beam_material.emission_energy_multiplier = 1.2 + 0.4 * sin(_pulse_ticks * TAU / 10.0)
 
 
 func _update_players() -> void:
@@ -93,6 +102,8 @@ func _update_players() -> void:
 		if _lives_seen.has(slot) and current_lives < int(_lives_seen[slot]):
 			rig.play(&"hit")
 			request_shake(7.0)
+			# The laser bites (M13-13): electric burst at the hit.
+			fx_burst(Vector2(state[0], state[1]), LASER_COLOR, 1.0)
 		_lives_seen[slot] = current_lives
 	for group: Array in fallen:
 		for slot: int in group:
@@ -108,6 +119,7 @@ func _down_rig(slot: int) -> void:
 	_downed[slot] = true
 	rig.scale.y = 1.0
 	rig.play(&"ko")
+	fx_burst(Vector2(rig.position.x, rig.position.z), LASER_COLOR, 0.8)
 
 
 func _update_walls() -> void:
