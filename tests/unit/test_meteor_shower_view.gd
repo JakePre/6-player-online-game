@@ -80,3 +80,56 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.meteors.size(), 0)
 	assert_eq(view.fallen.size(), 0)
+
+
+## M13-07: rocks streak down in sync with the replicated timer, landings
+## burst, knockdowns burst at the rig.
+func test_meteors_fall_with_the_replicated_timer() -> void:
+	view.render(
+		{
+			"players": {},
+			"zone": [0.0, 0.0, 8.0],
+			"meteors": [[2.0, -3.0, MeteorShower.METEOR_TELEGRAPH_SEC], [1.0, 1.0, 0.0]],
+			"fallen": []
+		}
+	)
+	var fresh: Node3D = view.arena.get_node("Meteor0")
+	var landing: Node3D = view.arena.get_node("Meteor1")
+	assert_true(fresh.visible)
+	assert_almost_eq(fresh.position.y, view.METEOR_DROP_HEIGHT + 0.5, 0.001, "fresh = sky-high")
+	assert_almost_eq(landing.position.y, 0.5, 0.001, "timer spent = at the ground")
+	assert_false(view.arena.get_node("Meteor2").visible, "pool beyond snapshot hidden")
+
+
+func test_landing_fires_impact_fx() -> void:
+	view.render(
+		{"players": {}, "zone": [0.0, 0.0, 8.0], "meteors": [[2.0, -3.0, 0.1]], "fallen": []}
+	)
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {}, "zone": [0.0, 0.0, 8.0], "meteors": [], "fallen": []})
+	assert_eq(view.arena.get_child_count(), before + 2, "burst + dust at the crater")
+
+
+func test_vanish_with_time_left_is_not_a_landing() -> void:
+	view.render(
+		{"players": {}, "zone": [0.0, 0.0, 8.0], "meteors": [[2.0, -3.0, 1.0]], "fallen": []}
+	)
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {}, "zone": [0.0, 0.0, 8.0], "meteors": [], "fallen": []})
+	assert_eq(view.arena.get_child_count(), before, "no FX for a mid-air disappearance")
+
+
+func test_knockdown_bursts_at_the_rig() -> void:
+	view.render(
+		{
+			"players": {0: [0.0, 0.0], 1: [3.0, 3.0]},
+			"zone": [0.0, 0.0, 8.0],
+			"meteors": [],
+			"fallen": []
+		}
+	)
+	var before: int = view.arena.get_child_count()
+	view.render(
+		{"players": {0: [0.0, 0.0]}, "zone": [0.0, 0.0, 8.0], "meteors": [], "fallen": [[1]]}
+	)
+	assert_eq(view.arena.get_child_count(), before + 1, "one burst at the downed rig")
