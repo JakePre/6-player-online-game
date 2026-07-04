@@ -29,6 +29,24 @@ func test_setup_electrifies_exactly_one_player() -> void:
 	assert_true(game.zapped in game.slots)
 
 
+func test_max_players_raised_to_eight() -> void:
+	assert_eq(ShockTag.make_meta().max_players, 8)
+
+
+## No-crowd fairness (M15 8-cap): the spawn ring already auto-distributes by
+## slot count, and at 8 players everyone starts well clear of tag range.
+func test_setup_spawns_are_spread_at_eight_players() -> void:
+	var game := _game_with(8)
+	assert_eq(game.coins.size(), 8)
+	for a in 8:
+		for b in range(a + 1, 8):
+			var dist: float = (game.positions[a] as Vector2).distance_to(game.positions[b])
+			assert_gt(
+				dist, ShockTag.TAG_RANGE, "slots %d/%d don't spawn already in tag range" % [a, b]
+			)
+	assert_true(game.zapped in game.slots)
+
+
 func test_zapped_player_moves_faster() -> void:
 	var game := _game_with(3)
 	_spread(game, 0)
