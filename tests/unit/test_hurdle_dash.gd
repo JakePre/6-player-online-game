@@ -38,6 +38,7 @@ func test_meta() -> void:
 	assert_eq(meta.id, &"hurdle_dash")
 	assert_eq(meta.category, MinigameMeta.Category.SKILL)
 	assert_eq(meta.min_players, 2)
+	assert_eq(meta.max_players, 24)
 
 
 func test_registered_in_catalog() -> void:
@@ -140,3 +141,22 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.players[0].size(), 4)
 	assert_eq(snapshot.hurdles.size(), HurdleDash.HURDLE_COUNT)
 	assert_eq(snapshot.course_len, HurdleDash.COURSE_LEN)
+
+
+## No player collision (M15): each runner races their own lane independently
+## on the same shared course, so a 24-player race is just 24 independent
+## progress trackers advancing off one runner's input.
+func test_setup_handles_twenty_four_players() -> void:
+	var player_slots: Array[int] = []
+	for i in 24:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	assert_eq(game.progress.size(), 24)
+	for slot in 24:
+		assert_eq(game.progress[slot], 0.0)
+	# Slot 0 sprints clean to the finish; everyone else never got a run input,
+	# so their progress stays untouched — lanes are fully independent.
+	_sprint_clean(game, 0)
+	assert_true(game._is_done(0))
+	for slot in range(1, 24):
+		assert_eq(game.progress[slot], 0.0, "idle runners are unaffected by slot 0's race")
