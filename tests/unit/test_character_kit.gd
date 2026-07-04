@@ -11,18 +11,30 @@ func _make_rig() -> CharacterRig:
 	return rig
 
 
-func test_palette_has_six_distinct_colors() -> void:
-	assert_eq(PlayerPalette.COLORS.size(), NetConfig.MAX_PLAYERS_PER_ROOM)
+## ADR 003: palette size is decoupled from the room cap (24 players can't have
+## 24 distinct colors) — it just supplies a dozen distinct colors; the number
+## channel (label_for_slot) disambiguates past that. The original six lead.
+func test_palette_colors_are_distinct() -> void:
+	assert_gte(PlayerPalette.COLORS.size(), 12, "at least a dozen distinct colors")
 	var seen := {}
 	for color in PlayerPalette.COLORS:
 		seen[color.to_html()] = true
 	assert_eq(seen.size(), PlayerPalette.COLORS.size(), "no duplicate colors")
+	assert_eq(PlayerPalette.COLORS[0], Color(0.902, 0.290, 0.235), "P1 stays red")
 
 
 func test_palette_wraps_out_of_range_slots() -> void:
+	var count := PlayerPalette.COLORS.size()
 	assert_eq(PlayerPalette.color_for_slot(0), PlayerPalette.COLORS[0])
-	assert_eq(PlayerPalette.color_for_slot(6), PlayerPalette.COLORS[0])
-	assert_eq(PlayerPalette.color_for_slot(-1), PlayerPalette.COLORS[5])
+	assert_eq(PlayerPalette.color_for_slot(count), PlayerPalette.COLORS[0], "wraps at palette size")
+	assert_eq(PlayerPalette.color_for_slot(-1), PlayerPalette.COLORS[count - 1])
+
+
+## The number channel is always unique per slot, even where colors wrap.
+func test_label_for_slot_numbers_players_from_one() -> void:
+	assert_eq(PlayerPalette.label_for_slot(0), "P1")
+	assert_eq(PlayerPalette.label_for_slot(11), "P12")
+	assert_eq(PlayerPalette.label_for_slot(23), "P24", "identity survives past the color wrap")
 
 
 func test_roster_entries_have_distinct_ids_and_scenes() -> void:
