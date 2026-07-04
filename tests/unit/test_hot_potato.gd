@@ -43,6 +43,26 @@ func test_setup_picks_carrier_and_fuse_in_range() -> void:
 		assert_lt(pos.length(), HotPotato.ARENA_HALF, "spawn in arena")
 
 
+func test_max_players_raised_to_eight() -> void:
+	assert_eq(HotPotato.make_meta().max_players, 8)
+
+
+## No-crowd fairness (M15 8-cap): the spawn ring already auto-distributes by
+## slot count, and at 8 players everyone starts well clear of transfer range.
+func test_setup_spawns_are_spread_at_eight_players() -> void:
+	var game := _make_game(8)
+	assert_eq(game.hold_time.size(), 8)
+	for a in 8:
+		for b in range(a + 1, 8):
+			var dist: float = (game.positions[a] as Vector2).distance_to(game.positions[b])
+			assert_gt(
+				dist,
+				HotPotato.TRANSFER_RANGE,
+				"slots %d/%d don't spawn already in transfer range" % [a, b]
+			)
+	assert_true(game.carrier in game.slots)
+
+
 func test_bomb_transfers_on_contact() -> void:
 	var game := _make_game(3)
 	_spread_players(game)

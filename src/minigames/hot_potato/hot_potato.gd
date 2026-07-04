@@ -41,7 +41,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Hot Potato",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 3,
-				"max_players": 6,
+				"max_players": 8,
 				"duration_sec": 75.0,
 				"rules": "Tag someone to pass the bomb — when the fuse blows, the carrier is out!",
 			}
