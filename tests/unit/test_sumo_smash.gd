@@ -1,6 +1,8 @@
 extends GutTest
 ## Sumo Smash (SPEC $7 #5): dash cooldown, shove transfer, ring-out ordering
-## with ties, timeout ranking, and 2/4/6-player setup balance.
+## with ties, timeout ranking, and 2/4/6/8-player setup balance. Capped at 8
+## by design (ADR 003, M15) — the platform stays this one tiny disc on
+## purpose, so there is no arena/spawn scaling to wire in.
 
 const TICK := 1.0 / 30.0
 
@@ -17,7 +19,7 @@ func test_meta() -> void:
 	assert_eq(meta.id, &"sumo_smash")
 	assert_eq(meta.category, MinigameMeta.Category.FFA)
 	assert_eq(meta.min_players, 2)
-	assert_eq(meta.max_players, 6)
+	assert_eq(meta.max_players, 8)
 
 
 func test_registered_in_catalog() -> void:
@@ -29,7 +31,7 @@ func test_registered_in_catalog() -> void:
 
 
 func test_spawns_scale_with_player_count() -> void:
-	for count: int in [2, 4, 6]:
+	for count: int in [2, 4, 6, 8]:
 		var player_slots: Array[int] = []
 		for slot in count:
 			player_slots.append(slot)
@@ -40,6 +42,22 @@ func test_spawns_scale_with_player_count() -> void:
 			assert_almost_eq(
 				pos.length(), SumoSmash.PLATFORM_RADIUS * 0.6, 0.001, "%d players" % count
 			)
+
+
+## M15: the max-capacity 8-player ring is generously spaced on the unscaled
+## disc (~3.8 units apart vs. a 1.0-unit contact radius) — the ADR's "8 by
+## design" cap needs no arena growth to stay fair.
+func test_eight_players_spawn_without_overlap() -> void:
+	var player_slots: Array[int] = []
+	for slot in 8:
+		player_slots.append(slot)
+	var game := _game(player_slots)
+	for i in player_slots.size():
+		for j in range(i + 1, player_slots.size()):
+			var apart: float = game.positions[player_slots[i]].distance_to(
+				game.positions[player_slots[j]]
+			)
+			assert_gt(apart, SumoSmash.PLAYER_RADIUS * 2.0, "no two spawns overlap at 8")
 
 
 func test_movement() -> void:
