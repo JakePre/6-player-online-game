@@ -27,6 +27,10 @@ const KO_POINTS := 3
 const KO_COIN_SCATTER := 3
 const PICKUP_RADIUS := 0.8
 const RESPAWN_INVULN_SEC := 1.5
+## Respawns jitter within this radius of center (M15, ADR 003): at a fuller
+## ring, KOs land more often, so more respawns land in the same tick — a fixed
+## dead-center point would stack them exactly on top of each other.
+const RESPAWN_JITTER_RADIUS := 1.2
 
 var positions := {}
 var move_dirs := {}
@@ -57,7 +61,9 @@ static func make_meta() -> MinigameMeta:
 				"name": "Rumble Ring",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
-				"max_players": 6,
+				# 8 by design (ADR 003): the ring stays this fixed size on purpose —
+				# it's a melee brawl, not a crowd game.
+				"max_players": 8,
 				"duration_sec": 60.0,
 				"rules":
 				"Brawl! Swing fast, guard to block, release a full guard to SMASH. KOs score.",
@@ -222,7 +228,17 @@ func _damage(victim: int, attacker: int, amount: int, knockback: Vector2) -> voi
 	hp[victim] = MAX_HP
 	guarding[victim] = false
 	invuln_left[victim] = RESPAWN_INVULN_SEC
-	positions[victim] = Vector2.ZERO
+	positions[victim] = _respawn_position()
+
+
+## A small random offset from center (M15, ADR 003): fuller rings KO more
+## often, so several respawns can land the same tick — jittering keeps them
+## from stacking on the exact same point while they're still invulnerable.
+## Polar (not per-axis) so the offset never exceeds RESPAWN_JITTER_RADIUS.
+func _respawn_position() -> Vector2:
+	var angle := rng.randf_range(0.0, TAU)
+	var radius := rng.randf_range(0.0, RESPAWN_JITTER_RADIUS)
+	return Vector2(cos(angle), sin(angle)) * radius
 
 
 func _collect_coins() -> void:
