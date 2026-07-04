@@ -73,3 +73,52 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.platforms.size(), 0)
 	assert_eq(view.phase, MusicalPlatforms.Phase.MUSIC)
+
+
+## M13-08: fresh waves dust in, claims sparkle in the claimant's color, downs
+## puff — with rejoin seeding on the first render.
+func test_wave_drop_in_dusts_after_seeding() -> void:
+	view.render(
+		{
+			"players": {},
+			"phase": MusicalPlatforms.Phase.STOP,
+			"platforms": [[2.0, 0.0, -1], [4.0, 0.0, -1]],
+			"fallen": []
+		}
+	)
+	var before: int = view.arena.get_child_count()
+	view.render(
+		{"players": {}, "phase": MusicalPlatforms.Phase.MUSIC, "platforms": [], "fallen": []}
+	)
+	view.render(
+		{
+			"players": {},
+			"phase": MusicalPlatforms.Phase.STOP,
+			"platforms": [[1.0, 1.0, -1], [3.0, 3.0, -1]],
+			"fallen": []
+		}
+	)
+	assert_eq(view.arena.get_child_count(), before + 2, "second wave dusts both platforms")
+
+
+func test_claim_sparkles_in_the_claimants_color() -> void:
+	view.render(
+		{
+			"players": {},
+			"phase": MusicalPlatforms.Phase.STOP,
+			"platforms": [[2.0, 0.0, -1]],
+			"fallen": []
+		}
+	)
+	var before: int = view.arena.get_child_count()
+	view.render(
+		{
+			"players": {},
+			"phase": MusicalPlatforms.Phase.STOP,
+			"platforms": [[2.0, 0.0, 1]],
+			"fallen": []
+		}
+	)
+	assert_eq(view.arena.get_child_count(), before + 1, "claim flips fire one sparkle")
+	var fx: CPUParticles3D = view.arena.get_child(before)
+	assert_eq(Color(fx.color, 1.0), Color(PlayerPalette.color_for_slot(1), 1.0))
