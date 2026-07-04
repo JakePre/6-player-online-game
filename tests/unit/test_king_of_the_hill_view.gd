@@ -94,3 +94,27 @@ func test_blackout_flag_builds_the_overlay() -> void:
 	assert_false((flagged.get_node("BlackoutTimer") as Timer).is_stopped())
 	assert_null(view.get_node_or_null("BlackoutOverlay"), "unflagged view has no overlay")
 	assert_true(flagged.has_view_flag(&"blackout"), "String flags from the wire still match")
+
+
+## M13-03: scoring sheds sparkles, the zone throbs and bursts on relocation.
+func test_scoring_sheds_sparkles_once_seeded() -> void:
+	view.render({"players": {0: [0.0, 0.0, 3]}, "zone": [0.0, 0.0, 3.0]})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [0.0, 0.0, 3]}, "zone": [0.0, 0.0, 3.0]})
+	assert_eq(view.arena.get_child_count(), before, "no score change, no sparkle")
+	view.render({"players": {0: [0.0, 0.0, 4]}, "zone": [0.0, 0.0, 3.0]})
+	assert_eq(view.arena.get_child_count(), before + 1, "a point = a sparkle")
+
+
+func test_zone_relocation_bursts_and_dusts() -> void:
+	view.render({"players": {}, "zone": [0.0, 0.0, 3.0]})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {}, "zone": [5.0, 5.0, 3.0]})
+	assert_eq(view.arena.get_child_count(), before + 2, "burst at the old spot, dust at the new")
+
+
+func test_zone_throbs_across_snapshots() -> void:
+	view.render({"players": {}, "zone": [0.0, 0.0, 3.0]})
+	var glow_a: float = view._zone_material.emission_energy_multiplier
+	view.render({"players": {}, "zone": [0.0, 0.0, 3.0]})
+	assert_ne(view._zone_material.emission_energy_multiplier, glow_a, "shimmer advances")
