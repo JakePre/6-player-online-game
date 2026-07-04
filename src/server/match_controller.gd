@@ -47,6 +47,7 @@ var _results_sec := 8.0
 var _leaderboard_sec := 5.0
 var _podium_sec := 8.0
 var _duration_override := 0.0
+var _countdown_step_sec := COUNTDOWN_STEP_SEC
 var _state_left := 0.0
 var _rng := RandomNumberGenerator.new()
 var _round_slots: Array[int] = []
@@ -55,7 +56,7 @@ var _skip_votes := {}
 
 ## config: rounds (int), seed (int), and for test harnesses only (server must
 ## run --debug-rpcs to accept them from clients): intro_sec, results_sec,
-## leaderboard_sec, podium_sec, duration_override.
+## leaderboard_sec, podium_sec, duration_override, countdown_step_sec.
 func _init(match_room: Room, config: Dictionary) -> void:
 	room = match_room
 	_rng.seed = int(config.get("seed", randi()))
@@ -64,6 +65,9 @@ func _init(match_room: Room, config: Dictionary) -> void:
 	_leaderboard_sec = config.get("leaderboard_sec", _leaderboard_sec)
 	_podium_sec = config.get("podium_sec", _podium_sec)
 	_duration_override = config.get("duration_override", 0.0)
+	# Compress the 3-2-1 gate for the playtest harness too, or a full match
+	# overruns the bot's phase budget (#369).
+	_countdown_step_sec = config.get("countdown_step_sec", _countdown_step_sec)
 	MinigameCatalog.register_builtins()
 	if config.has("playlist"):
 		# GDScript evaluates Dictionary.get()'s default argument eagerly (no
@@ -212,7 +216,7 @@ func _roll_mutator() -> Mutator:
 ## carry the arena and starting positions while everyone reads the 3-2-1.
 func _enter_countdown() -> void:
 	state = State.COUNTDOWN
-	_state_left = COUNTDOWN_STEP_SEC * COUNTDOWN_STEPS
+	_state_left = _countdown_step_sec * COUNTDOWN_STEPS
 	# Members who joined the room by round start play; rejoiners who arrive
 	# mid-round sit out until the next one (SPEC $9).
 	_round_slots = _connected_slots()

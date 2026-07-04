@@ -503,3 +503,21 @@ func test_countdown_shows_the_arena_but_blocks_play() -> void:
 	assert_eq(controller.game.elapsed, before, "the sim must not advance during countdown")
 	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
 	assert_true(events.any(func(event: Dictionary) -> bool: return event.type == "round_started"))
+
+
+## #369: the playtest harness compresses every phase to finish a full match in
+## seconds; the countdown gate needs its own debug knob or a 12-round match
+## overruns the bot's phase timeout.
+func test_countdown_step_sec_debug_override_compresses_the_gate() -> void:
+	var room := _make_room(2)
+	var controller := MatchController.new(
+		room, {"seed": 7, "playlist": [&"slot_order"], "countdown_step_sec": 0.05}
+	)
+	controller.event_emitted.connect(func(event: Dictionary) -> void: events.append(event))
+	controller.start()
+	controller.handle_skip(0)
+	controller.handle_skip(1)
+	assert_eq(controller.state, MatchController.State.COUNTDOWN)
+	assert_between(
+		float(controller.get_snapshot().time_left), 0.0, 0.05 * MatchController.COUNTDOWN_STEPS
+	)
