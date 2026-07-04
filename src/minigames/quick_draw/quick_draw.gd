@@ -39,7 +39,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Quick Draw",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 60.0,
 				"rules":
 				"Wait for it... then hit the button first! Jump the gun and you forfeit the round. Best of 5.",

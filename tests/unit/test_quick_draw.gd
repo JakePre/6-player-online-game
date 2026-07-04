@@ -94,3 +94,16 @@ func test_snapshot_reports_phase_round_and_wins() -> void:
 	assert_eq(snapshot.round, 0)
 	assert_eq(snapshot.rounds_total, QuickDraw.ROUNDS_TO_PLAY)
 	assert_eq(snapshot.wins, {0: 0, 1: 0})
+
+
+func test_max_players_raised_to_twenty_four() -> void:
+	assert_eq(QuickDraw.make_meta().max_players, 24)
+
+
+## No arena/position state in this sim (M15): a 24-player match just tracks
+## 24 sets of wins, same as any other count.
+func test_setup_handles_twenty_four_players() -> void:
+	var game := _make_game(24)
+	assert_eq(game.wins.size(), 24)
+	for slot in 24:
+		assert_eq(game.wins[slot], 0)
