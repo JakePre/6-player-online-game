@@ -36,6 +36,26 @@ func test_setup_splits_even_teams_at_center_cart() -> void:
 		assert_false(game.carrying[slot])
 
 
+func test_max_players_raised_to_eight() -> void:
+	assert_eq(CartPush.make_meta().max_players, 8)
+
+
+## No-crowd fairness (M15 8-cap): 4v4 splits evenly and everyone spawns
+## within the arena, well clear of the effective-pusher cap concern (a 4th
+## player per side has room as a rotating shover/ore-runner, per ADR 003).
+func test_setup_splits_four_v_four_within_arena_at_eight_players() -> void:
+	var player_slots: Array[int] = []
+	for i in 8:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	assert_eq((game.teams[0] as Array).size(), 4)
+	assert_eq((game.teams[1] as Array).size(), 4)
+	for slot in 8:
+		var pos: Vector2 = game.positions[slot]
+		assert_lt(absf(pos.y), CartPush.ARENA_HALF, "spawn row stays inside the arena")
+		assert_false(game.carrying[slot])
+
+
 func test_net_pusher_advantage_moves_the_cart() -> void:
 	var game := _game()
 	for slot: int in game.slots:
