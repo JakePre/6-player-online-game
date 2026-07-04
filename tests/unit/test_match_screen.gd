@@ -290,3 +290,34 @@ func test_game_name_shows_on_hud_from_intro_through_play() -> void:
 	assert_eq(label.text, "Coin Scramble")
 	NetManager.match_event_received.emit({"type": "leaderboard", "totals": {}})
 	assert_eq(label.text, "", "cleared once the round view unmounts")
+
+
+## M15-06: the totals HUD wraps chips instead of overflowing at 24 players.
+func test_totals_row_wraps_for_large_lobbies() -> void:
+	assert_true(screen._totals_row is HFlowContainer, "totals row uses a wrapping container")
+
+
+## Coin chips fly to a grid that stays within the screen width at any count.
+func test_coin_grid_stays_within_screen_width() -> void:
+	var width := 1152.0
+	for i in 24:
+		var offset: Vector2 = screen._coin_grid_offset(i, 24, width)
+		assert_between(offset.x, 0.0, width - float(screen.COIN_GRID_SPACING.x))
+
+
+## A small lobby's coins stay on one row (no needless wrapping).
+func test_coin_grid_single_row_for_small_lobbies() -> void:
+	for i in 6:
+		assert_almost_eq(float(screen._coin_grid_offset(i, 6, 1152.0).y), 0.0, 0.001)
+
+
+## Results pack into at most RESULTS_MAX_ROWS rows for large lobbies; small
+## lobbies are unchanged (one entry per row).
+func test_results_condense_for_large_lobbies() -> void:
+	var many: Array[String] = []
+	for i in 24:
+		many.append("place %d" % i)
+	var packed: Array[String] = screen._fit_result_lines(many)
+	assert_true(packed.size() <= 12, "24 players pack into <=12 rows, got %d" % packed.size())
+	var few: Array[String] = ["1st", "2nd", "3rd"]
+	assert_eq(screen._fit_result_lines(few), few, "small lobbies unchanged")

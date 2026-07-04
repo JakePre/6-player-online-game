@@ -63,7 +63,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 
-[node name="TotalsRow" type="HBoxContainer" parent="HudBar/HudRow"]
+[node name="TotalsRow" type="HFlowContainer" parent="HudBar/HudRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 10
