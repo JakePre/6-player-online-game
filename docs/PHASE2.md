@@ -165,14 +165,16 @@ pad-only and KB/M-only like everything else (M12-05 rule).
 | M14-04 | Shred Session | a rhythm-game song (~60 s) | 4-lane note highway on the pad/WASD lanes (Fish Frenzy input DNA); streaks multiply; best score wins |
 | M14-05 | Ro-Sham-Bo Royale | mass rock-paper-scissors | Simultaneous throws in rapid elimination pools; losers spectate-vote on a bonus round; fastest correct counter-throws break ties |
 
-### Suggested additions (agent proposals — owner may veto/add)
+### Approved additions (owner-reviewed 2026-07-04)
 | # | Name | One quick round of… | Notes |
 |---|---|---|---|
 | M14-06 | Blast Grid | a Bomberman round | Grid arena, drop bombs, chain blasts through soft walls, last standing; power-ups: +range, +bombs |
-| M14-07 | Micro Mayhem | a WarioWare micro-game string | Five 5-second micro-challenges back-to-back (mash! dodge! pick the odd one! freeze! copy!); most micro-wins takes it |
 | M14-08 | Putt Panic | one mini-golf hole | Aim + power on a shared hole with moving obstacles; stroke count = placement; 30 s shot clock |
 | M14-09 | Tumble Run | a Fall-Guys qualifier | Obstacle gauntlet with sweepers and moving floors; first N to finish qualify for full points, stragglers ranked by distance |
-| M14-10 | Nom Arena | an agar.io round | Eat dots to grow, eat smaller players to steal their mass, split to lunge; biggest blob at the bell wins |
+| M14-10 | Nom Arena | an agar.io round | **Owner: pacing must be QUICK** — 60 s hard cap, dense dots, idle mass decays, arena shrinks late; splitting to lunge is the tempo, not slow grazing |
+
+M14-07 (Micro Mayhem, a WarioWare micro-game string) was **cut by the owner**:
+"this whole game is Micro Mayhem already." Correct, and the number stays retired.
 
 ### Engineering notes
 - Every entry stays a pure server sim + `MinigameView3D`/2D-policy view + GUT tests + one catalog line — the contract has absorbed 32 games; these are bigger sims, not new architecture.
