@@ -48,6 +48,14 @@ var pot := 0
 var dishes: Array[Dictionary] = []
 var golden_served := false
 
+## Play area and dish economy scale with the lobby size (M15, ADR 003): a
+## 12-player match gets a bigger table and proportionally more dishes so
+## density and per-capita pacing hold. At <=6 players these equal the consts
+## above, so the original game is unchanged.
+var _play_half := ARENA_HALF
+var _dishes_per_wave := DISHES_PER_WAVE
+var _max_dishes := MAX_ACTIVE_DISHES
+
 var _wave_accum := 0.0
 var _next_dish_id := 0
 
@@ -62,7 +70,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Poison Feast",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 12,
 				"duration_sec": 45.0,
 				"rules":
 				(
@@ -77,9 +85,12 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	_play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size())
+	_dishes_per_wave = MinigameScaling.supply(DISHES_PER_WAVE, slots.size())
+	_max_dishes = MinigameScaling.supply(MAX_ACTIVE_DISHES, slots.size())
+	var spawns := SpawnLayout.ring_positions(slots.size(), _play_half * 0.6)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 		score[slots[i]] = 0
 		staggers[slots[i]] = 0.0
@@ -97,7 +108,7 @@ func _tick(delta: float) -> void:
 		var speed := MOVE_SPEED * (STAGGER_MOVE_SCALE if float(staggers[slot]) > 0.0 else 1.0)
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
 		positions[slot] = pos.clamp(
-			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+			Vector2(-_play_half, -_play_half), Vector2(_play_half, _play_half)
 		)
 	_eat_dishes()
 	_wave_accum += delta
@@ -143,8 +154,8 @@ func _rank_players() -> Array:
 
 
 func _spawn_wave() -> void:
-	for _i in DISHES_PER_WAVE:
-		if dishes.size() >= MAX_ACTIVE_DISHES:
+	for _i in _dishes_per_wave:
+		if dishes.size() >= _max_dishes:
 			return
 		var tier := _roll_tier()
 		var stats: Dictionary = TIER_STATS[tier]
@@ -155,8 +166,8 @@ func _spawn_wave() -> void:
 					"id": _next_dish_id,
 					"pos":
 					Vector2(
-						rng.randf_range(-ARENA_HALF, ARENA_HALF),
-						rng.randf_range(-ARENA_HALF, ARENA_HALF)
+						rng.randf_range(-_play_half, _play_half),
+						rng.randf_range(-_play_half, _play_half)
 					),
 					"tier": tier,
 					"poisoned": rng.randf() < float(stats.poison_chance),
