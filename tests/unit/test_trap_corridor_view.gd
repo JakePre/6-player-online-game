@@ -55,3 +55,41 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.revealed, [])
+
+
+## M13-26: a trap newly appearing in `revealed` spawns a spring burst; the
+## first snapshot seeds silently.
+func test_new_reveal_spawns_spring_burst() -> void:
+	view.render({"revealed": [17]})
+	assert_eq(view._springs.size(), 0, "first sighting seeds silently")
+	view.render({"revealed": [17, 22]})
+	assert_eq(view._springs.size(), 1, "only the new reveal bursts")
+	assert_eq(int(view._springs[0].index), 22)
+
+
+func test_spring_bursts_expire() -> void:
+	view.render({"revealed": []})
+	view.render({"revealed": [8]})
+	assert_eq(view._springs.size(), 1)
+	view._process(view.SPRING_DURATION + 0.05)
+	assert_eq(view._springs.size(), 0, "bursts free themselves after their lifetime")
+
+
+func test_sub_round_reset_allows_same_tile_to_burst_again() -> void:
+	view.render({"revealed": []})
+	view.render({"revealed": [8]})
+	view._springs.clear()
+	view.render({"phase": TrapCorridor.Phase.TRAPPING, "revealed": []})
+	view.render({"phase": TrapCorridor.Phase.RUNNING, "revealed": [8]})
+	assert_eq(view._springs.size(), 1, "a reset revealed list re-arms the diff")
+
+
+func test_arm_pulse_advances_only_while_trapping_as_trapper() -> void:
+	view.render({"phase": TrapCorridor.Phase.TRAPPING, "trapper": 0})
+	view.my_traps = [12]
+	view._process(0.5)
+	assert_gt(view._arm_clock, 0.0, "trapper with armed tiles pulses")
+	var clock: float = view._arm_clock
+	view.render({"phase": TrapCorridor.Phase.RUNNING, "trapper": 0})
+	view._process(0.5)
+	assert_eq(view._arm_clock, clock, "no pulse outside the trapping phase")
