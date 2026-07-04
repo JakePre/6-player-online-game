@@ -40,7 +40,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Hurdle Dash",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 45.0,
 				"rules": "Race to the finish — jump the hurdles or eat dirt. First one home wins!",
 			}
