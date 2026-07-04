@@ -19,6 +19,12 @@ var coins: Array = []
 
 var _coin_mesh: CylinderMesh
 var _coin_nodes: Array[MeshInstance3D] = []
+# M13-02 FX seeding: per-slot coin counts, last coin layout, and whether a
+# coin pass ran yet (the counts dict fills earlier in the same render, so it
+# cannot double as the seed flag).
+var _counts_seen := {}
+var _coins_seen: Array = []
+var _coins_rendered_once := false
 
 
 func _physics_process(_delta: float) -> void:
@@ -70,9 +76,30 @@ func _update_players() -> void:
 			continue
 		update_rig(slot, Vector2(state[0], state[1]))
 		rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
+		# Pickup sparkle (M13-02): the count ticking up flashes the collector.
+		var count := int(state[2])
+		if _counts_seen.has(slot) and count > int(_counts_seen[slot]):
+			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+		_counts_seen[slot] = count
 
 
 func _update_coins() -> void:
+	# Spawn drop-ins (M13-02): a coin at a position we have not seen before
+	# just rained in - dust where it lands. Seeded on the first snapshot.
+	if _coins_rendered_once:
+		for coin: Array in coins:
+			var fresh := true
+			for old: Array in _coins_seen:
+				if (
+					absf(float(old[0]) - float(coin[0])) < 0.01
+					and absf(float(old[1]) - float(coin[1])) < 0.01
+				):
+					fresh = false
+					break
+			if fresh:
+				fx_dust(Vector2(coin[0], coin[1]))
+	_coins_seen = coins.duplicate(true)
+	_coins_rendered_once = true
 	for node in _coin_nodes:
 		node.queue_free()
 	_coin_nodes.clear()
