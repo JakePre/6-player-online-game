@@ -1,0 +1,103 @@
+extends MinigameView3D
+## Snake Chain client view (M10-11): the head is your CharacterRig, the
+## chain is a trail of glowing segments in your color, pellets dot the
+## floor, invulnerable heads shimmer.
+
+const PELLET_COLOR := Color(0.55, 0.95, 0.5)
+const SEGMENT_POOL_PER_PLAYER := 24
+const SEGMENT_HEIGHT := 0.3
+
+## Latest replicated state, straight from SnakeChain.get_snapshot().
+var players := {}
+var trails := {}
+var pellets: Array = []
+var teams: Array = []
+
+var _segment_pools := {}
+var _pellet_pool: Array[MeshInstance3D] = []
+
+
+func _physics_process(_delta: float) -> void:
+	send_move_intent()
+
+
+func _arena_half() -> float:
+	return SnakeChain.ARENA_HALF
+
+
+func _setup_3d() -> void:
+	var pellet_mesh := SphereMesh.new()
+	pellet_mesh.radius = 0.25
+	pellet_mesh.height = 0.5
+	var pellet_material := StandardMaterial3D.new()
+	pellet_material.albedo_color = PELLET_COLOR
+	pellet_material.emission_enabled = true
+	pellet_material.emission = PELLET_COLOR
+	pellet_material.emission_energy_multiplier = 0.5
+	pellet_mesh.material = pellet_material
+	for i in SnakeChain.MAX_ACTIVE_PELLETS + 6:
+		var node := MeshInstance3D.new()
+		node.mesh = pellet_mesh
+		node.visible = false
+		arena.add_child(node)
+		_pellet_pool.append(node)
+	for slot: int in names:
+		var mesh := SphereMesh.new()
+		mesh.radius = SnakeChain.SEGMENT_RADIUS
+		mesh.height = SnakeChain.SEGMENT_RADIUS * 2.0
+		var material := StandardMaterial3D.new()
+		var color := player_color(slot)
+		material.albedo_color = color
+		material.emission_enabled = true
+		material.emission = color
+		material.emission_energy_multiplier = 0.35
+		mesh.material = material
+		var pool: Array[MeshInstance3D] = []
+		for i in SEGMENT_POOL_PER_PLAYER:
+			var node := MeshInstance3D.new()
+			node.mesh = mesh
+			node.visible = false
+			arena.add_child(node)
+			pool.append(node)
+		_segment_pools[slot] = pool
+
+
+func _render_3d(game: Dictionary) -> void:
+	players = game.get("players", {})
+	trails = game.get("trails", {})
+	pellets = game.get("pellets", [])
+	teams = game.get("teams", [])
+	for i in _pellet_pool.size():
+		var node := _pellet_pool[i]
+		if i < pellets.size():
+			var pellet: Array = pellets[i]
+			node.position = to_arena(Vector2(float(pellet[0]), float(pellet[1])), 0.25)
+			node.visible = true
+		else:
+			node.visible = false
+	for slot: int in players:
+		var state: Array = players[slot]
+		var rig := rig_for_slot(slot)
+		if rig == null:
+			continue
+		update_rig(slot, Vector2(state[0], state[1]))
+		var invulnerable := float(state[3]) > 0.0
+		rig.player_color = (
+			player_color(slot).lightened(0.5) if invulnerable else player_color(slot)
+		)
+		var caption := "%s  ●%d" % [player_name(slot), int(state[2])]
+		if invulnerable:
+			caption += "  ✨"
+		rig.display_name = caption
+		var pool: Array = _segment_pools.get(slot, [])
+		var trail: Array = trails.get(slot, [])
+		for i in pool.size():
+			var segment: MeshInstance3D = pool[i]
+			if i < trail.size():
+				var point: Array = trail[i]
+				segment.position = to_arena(
+					Vector2(float(point[0]), float(point[1])), SEGMENT_HEIGHT
+				)
+				segment.visible = true
+			else:
+				segment.visible = false

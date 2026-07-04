@@ -50,6 +50,7 @@ static func register_builtins() -> void:
 	register(BullseyeBowl.make_meta(), BullseyeBowl)
 	register(CountQuick.make_meta(), CountQuick)
 	register(BombCourier.make_meta(), BombCourier)
+	register(SnakeChain.make_meta(), SnakeChain)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
