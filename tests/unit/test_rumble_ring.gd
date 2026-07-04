@@ -24,10 +24,41 @@ func test_meta_and_catalog() -> void:
 	var meta := RumbleRing.make_meta()
 	assert_eq(meta.id, &"rumble_ring")
 	assert_eq(meta.category, MinigameMeta.Category.FFA)
+	assert_eq(meta.max_players, 8, "M15: 8 by design, not scaled further")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"rumble_ring") is RumbleRing)
 	MinigameCatalog.clear()
+
+
+## M15: the ring itself is unscaled by design, but the starting spread must
+## still keep 8 fighters clear of each other's melee range.
+func test_eight_players_spawn_without_overlap() -> void:
+	var player_slots: Array[int] = []
+	for slot in 8:
+		player_slots.append(slot)
+	var game := _game(player_slots)
+	assert_eq(game.positions.size(), 8)
+	for i in player_slots.size():
+		for j in range(i + 1, player_slots.size()):
+			var apart: float = game.positions[player_slots[i]].distance_to(
+				game.positions[player_slots[j]]
+			)
+			assert_gt(apart, RumbleRing.PLAYER_RADIUS * 2.0, "no two spawns overlap at 8")
+
+
+## M15: a fuller ring KOs more often, so several respawns can land the same
+## tick — jittering must actually spread them, not just theoretically allow it.
+func test_simultaneous_respawns_do_not_stack() -> void:
+	var game := _game([0, 1, 2] as Array[int])
+	for slot in [0, 1, 2]:
+		game.hp[slot] = 1
+		game.invuln_left[slot] = 0.0
+		game._damage(slot, (slot + 1) % 3, 1, Vector2.ZERO)
+	var a: Vector2 = game.positions[0]
+	var b: Vector2 = game.positions[1]
+	var c: Vector2 = game.positions[2]
+	assert_true(a != b or b != c or a != c, "three same-tick respawns do not all land on one point")
 
 
 func test_swing_hits_in_the_facing_arc() -> void:
@@ -110,7 +141,11 @@ func test_ko_scores_scatters_coins_and_respawns_with_invuln() -> void:
 	assert_eq(game.points[0], RumbleRing.KO_POINTS)
 	assert_eq(game.coins.size(), RumbleRing.KO_COIN_SCATTER)
 	assert_eq(game.hp[1], RumbleRing.MAX_HP, "respawns at full HP")
-	assert_eq(game.positions[1], Vector2.ZERO)
+	assert_lte(
+		(game.positions[1] as Vector2).length(),
+		RumbleRing.RESPAWN_JITTER_RADIUS,
+		"respawns near center (M15: jittered so simultaneous respawns don't stack)"
+	)
 	assert_gt(float(game.invuln_left[1]), 0.0)
 	# Invulnerable players cannot be re-KO'd immediately.
 	game.swing_cooldown[0] = 0.0
