@@ -36,6 +36,12 @@ const FLASH_HOLD := 0.42
 const PAD_LABELS: Array[String] = ["▲ W — Red", "▶ D — Amber", "▼ S — Green", "◀ A — Blue"]
 ## Your own stomp echoes on the pad this long (local feedback).
 const PRESS_FLASH_SEC := 0.15
+## Stomp-ripple FX (M13-16): a self-freeing ground ring that expands and fades.
+## Beats ripple softly (watch the pattern); your own presses ripple harder.
+const RIPPLE_SEC := 0.4
+const RIPPLE_REACH := 2.6
+const BEAT_RIPPLE_STRENGTH := 0.65
+const PRESS_SHAKE := 3.0
 
 var _phase: int = SimonStomp.Phase.SHOW
 var _round := 0
@@ -76,6 +82,9 @@ func _process(delta: float) -> void:
 				_pressed_pad = pad
 				_pressed_until = Time.get_ticks_msec() / 1000.0 + PRESS_FLASH_SEC
 				play_sfx(&"click")
+				# Stomp ripple + a small kick — the press lands with weight (M13-16).
+				_stomp_ripple(pad, PAD_COLORS[pad])
+				request_shake(PRESS_SHAKE)
 		_update_pads()
 
 
@@ -92,8 +101,10 @@ func _render_3d(game: Dictionary) -> void:
 	var failed_now := bool(game.get("round_failed", {}).get(my_slot, false))
 	if cleared_now and not _was_cleared:
 		play_sfx(&"confirm")
+		_round_clear_pop()
 	if failed_now and not _was_failed:
 		play_sfx(&"error")
+		_bust_puff()
 	_was_cleared = cleared_now
 	_was_failed = failed_now
 	if _phase == SimonStomp.Phase.SHOW and previous_phase != SimonStomp.Phase.SHOW:
@@ -180,6 +191,8 @@ func _update_pads() -> void:
 	# A soft tick every time the SHOW flash advances — the readable metronome.
 	if lit_pad != _last_lit and lit_pad != -1:
 		play_sfx(&"tick")
+		# Each beat ripples the lit pad, so the pattern reads as motion (M13-16).
+		_stomp_ripple(lit_pad, PAD_COLORS[lit_pad], BEAT_RIPPLE_STRENGTH)
 	_last_lit = lit_pad
 	var now := Time.get_ticks_msec() / 1000.0
 	for pad in _pad_materials.size():
@@ -211,6 +224,49 @@ func _update_rigs() -> void:
 		if rig.current_action() != desired:
 			rig.play(desired)
 		rig.display_name = caption
+
+
+## An expanding, fading ground ring at `pad` — the stomp's shockwave. One-shot
+## and self-freeing (M13-01 convention), so the FX pass stays a one-file view
+## change. `strength` scales how far the ring travels (beats ripple gently).
+func _stomp_ripple(pad: int, color: Color, strength: float = 1.0) -> void:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.5
+	mesh.outer_radius = 0.62
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = color
+	mesh.material = material
+	var ring := MeshInstance3D.new()
+	ring.name = "StompRipple"
+	ring.mesh = mesh
+	ring.rotation.x = PI / 2.0  # lay the ring flat on the floor
+	ring.scale = Vector3.ONE * 0.4
+	ring.position = to_arena(_pad_position(pad), 0.12)
+	arena.add_child(ring)
+	var reach := Vector3.ONE * RIPPLE_REACH * strength
+	var tween := ring.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(ring, "scale", reach, RIPPLE_SEC).set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(material, "albedo_color:a", 0.0, RIPPLE_SEC)
+	tween.chain().tween_callback(ring.queue_free)
+
+
+## Cleared the round: ripple every pad and pop a sparkle burst over your rig.
+func _round_clear_pop() -> void:
+	for pad in PAD_COLORS.size():
+		_stomp_ripple(pad, PAD_COLORS[pad])
+	var rig := rig_for_slot(my_slot)
+	if rig != null:
+		fx_burst(Vector2(rig.position.x, rig.position.z), Color(0.4, 0.9, 0.5), 1.2)
+
+
+## Busted out of the round: a dull dust puff where you stand.
+func _bust_puff() -> void:
+	var rig := rig_for_slot(my_slot)
+	if rig != null:
+		fx_dust(Vector2(rig.position.x, rig.position.z))
 
 
 func _phase_text() -> String:
