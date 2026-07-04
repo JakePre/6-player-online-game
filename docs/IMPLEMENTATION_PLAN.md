@@ -193,7 +193,7 @@ Action & finale — [ ] **M13-28** Rumble Ring (S, swing arc FX; pairs with #263
 
 ### M14 — Genre Hop (PHASE2.md §8) — ⛔ GATED: claimable only when every M10/M12/M13 box above is checked
 Owner-requested — [ ] **M14-01** Loadout Duel (L) · [ ] **M14-02** Turbo Lap (L) · [ ] **M14-03** Knock-Off (L) · [ ] **M14-04** Shred Session (M) · [ ] **M14-05** Ro-Sham-Bo Royale (S)
-Suggested — [ ] **M14-06** Blast Grid (M) · [ ] **M14-07** Micro Mayhem (M) · [ ] **M14-08** Putt Panic (M) · [ ] **M14-09** Tumble Run (L) · [ ] **M14-10** Nom Arena (M)
+Approved — [ ] **M14-06** Blast Grid (M) · [ ] **M14-08** Putt Panic (M) · [ ] **M14-09** Tumble Run (L) · [ ] **M14-10** Nom Arena (M, 60 s hard cap — owner wants it QUICK) · ~~M14-07 cut by owner~~
 
 ## 6. Suggested build order / critical path
 
