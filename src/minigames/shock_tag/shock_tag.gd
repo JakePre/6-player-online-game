@@ -39,7 +39,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Shock Tag",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 3,
-				"max_players": 6,
+				"max_players": 8,
 				"duration_sec": 60.0,
 				"rules":
 				"The electrified player is faster; a tag steals coins and the zap. Stay clean!",
