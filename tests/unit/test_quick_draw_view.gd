@@ -106,3 +106,10 @@ func test_crowd_wraps_into_ranks() -> void:
 		widest = maxf(widest, absf(rig.position.x))
 	assert_eq(depths.size(), 3, "24 duelists stand in three ranks")
 	assert_lte(widest, 8.0 + 0.001, "no rank overflows the front row's width")
+	assert_gt(big._arena_half(), 6.0, "the floor/camera grow to fit the wider, deeper formation")
+	assert_gte(big._arena_half(), widest, "the scaled arena actually contains the widest rank")
+
+
+## M15: at the 6-player baseline the arena is unchanged.
+func test_arena_half_unchanged_at_baseline() -> void:
+	assert_almost_eq(view._arena_half(), 6.0, 0.001)

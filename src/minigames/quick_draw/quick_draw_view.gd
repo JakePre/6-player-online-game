@@ -11,6 +11,10 @@ extends MinigameView3D
 const WAITING_COLOR := Color(0.7, 0.15, 0.15)
 const LIVE_COLOR := Color(0.2, 0.75, 0.3)
 const ROUND_OVER_COLOR := Color(0.35, 0.38, 0.45)
+## Base half-extent for the 6-player row (M15); scales for larger lobbies so
+## the wider, deeper row formation (M15-07 LaneLayout) still fits the floor
+## and camera.
+const BASE_ARENA_HALF := 6.0
 const ROW_SPACING := 2.0
 ## Depth between duel rows when the line-up wraps (M15-07): crowds past one
 ## row's worth stand in staggered ranks instead of overflowing the arena.
@@ -50,7 +54,7 @@ func _process(_delta: float) -> void:
 
 
 func _arena_half() -> float:
-	return 6.0
+	return MinigameScaling.arena_half(BASE_ARENA_HALF, names.size())
 
 
 func _setup_3d() -> void:
