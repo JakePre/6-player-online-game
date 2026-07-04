@@ -67,3 +67,21 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.swarm.size(), 0)
 	assert_eq(view.pads.size(), 0)
+
+
+## M13-15: the swarm wiggles like living critters, lock-ins flash.
+func test_swarm_wiggles_across_snapshots() -> void:
+	view.render({"players": {}, "phase": CountQuick.Phase.FLASH, "swarm": [[2.0, 2.0]], "pads": []})
+	var node: MeshInstance3D = view.arena.get_node("Swarm0")
+	var pos_a: Vector3 = node.position
+	view.render({"players": {}, "phase": CountQuick.Phase.FLASH, "swarm": [[2.0, 2.0]], "pads": []})
+	assert_ne(node.position, pos_a, "same replicated spot, living wiggle")
+
+
+func test_lock_in_flashes_once_seeded() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0, 0]}, "phase": 1, "swarm": [], "pads": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [0.0, 0.0, 0, 1]}, "phase": 1, "swarm": [], "pads": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "the commit sparkles")
+	view.render({"players": {0: [0.0, 0.0, 0, 1]}, "phase": 1, "swarm": [], "pads": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "staying locked adds nothing")

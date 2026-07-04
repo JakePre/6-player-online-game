@@ -19,6 +19,9 @@ var swarm: Array = []
 var pads: Array = []
 
 var _swarm_pool: Array[MeshInstance3D] = []
+# Critter wiggle counter + per-slot lock tracking (M13-15).
+var _wiggle_ticks := 0
+var _locked_seen := {}
 var _pad_nodes: Array[Node3D] = []
 var _pad_labels: Array[Label3D] = []
 var _phase_label: Label
@@ -96,13 +99,21 @@ func _render_3d(game: Dictionary) -> void:
 	_update_players()
 
 
+## The swarm reads as living critters (M13-15): each prop bobs and jitters on
+## an index-phased snapshot-cadence wiggle - deterministic, identical on
+## every client, and genuinely harder to count than a static grid.
 func _update_swarm() -> void:
+	_wiggle_ticks += 1
 	for i in _swarm_pool.size():
 		var node := _swarm_pool[i]
 		node.visible = i < swarm.size()
 		if node.visible:
 			var state: Array = swarm[i]
-			node.position = to_arena(Vector2(state[0], state[1]), SWARM_RADIUS)
+			var t := _wiggle_ticks * TAU / 20.0 + i * 1.7
+			node.position = to_arena(
+				Vector2(state[0] + sin(t) * 0.12, state[1] + cos(t * 1.3) * 0.12),
+				SWARM_RADIUS + absf(sin(t * 2.0)) * 0.15
+			)
 
 
 func _update_pads() -> void:
@@ -124,6 +135,12 @@ func _update_players() -> void:
 			continue
 		update_rig(slot, Vector2(state[0], state[1]))
 		var caption := "%s  %d" % [player_name(slot), int(state[2])]
-		if int(state[3]) == 1:
+		var locked_now := int(state[3]) == 1
+		if locked_now:
 			caption += "  [LOCKED]"
 		rig.display_name = caption
+		# Lock-in flash (M13-15): committing an answer sparkles in the
+		# player's color. Seeded via _locked_seen.
+		if _locked_seen.has(slot) and locked_now and not bool(_locked_seen[slot]):
+			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+		_locked_seen[slot] = locked_now
