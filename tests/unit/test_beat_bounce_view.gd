@@ -1,8 +1,18 @@
 extends GutTest
 ## Beat Bounce client view (reworked #259): labelled pads, phase banner, and
 ## the demonstrated flash — rendered from snapshots without local simulation.
+## The M13-18 FX pass adds beat-synced particle pops, verified by counting the
+## self-freeing CPUParticles3D the shared ArenaFX wrappers spawn under the arena.
 
 var view: MinigameView3D
+
+
+func _particle_count() -> int:
+	var count := 0
+	for child in view.arena.get_children():
+		if child is CPUParticles3D:
+			count += 1
+	return count
 
 
 func before_each() -> void:
@@ -75,3 +85,44 @@ func test_flashed_pad_lights_during_watch_only() -> void:
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_not_null(view.arena.get_node("Pad0"))
+
+
+## M13-18: the metronome's visual half — a WATCH beat pops the demonstrated pad,
+## and REPEAT beats (sequence hidden) pop nothing.
+func test_beat_pops_a_pad_sparkle_only_while_watching() -> void:
+	view.render(_snapshot(BeatBounce.Phase.WATCH, 2, 3))
+	# Land the clock right on a beat so _animate_beat fires the tick this frame.
+	view._next_in = 0.0
+	view._snapshot_at = view._now_sec()
+	var before := _particle_count()
+	view._animate_beat()
+	assert_gt(_particle_count(), before, "a WATCH beat pops the demonstrated pad")
+	# REPEAT hides the sequence; force the tick path and confirm it stays dark.
+	view.render(_snapshot(BeatBounce.Phase.REPEAT, -1, 3))
+	view._next_in = 0.0
+	view._snapshot_at = view._now_sec()
+	view._ticked_beat = -1
+	var during_repeat := _particle_count()
+	view._animate_beat()
+	assert_eq(_particle_count(), during_repeat, "REPEAT beats pop no pad FX")
+
+
+## M13-18: a cleared step sparkles at the answering rig, so a correct beat reads
+## across the ring; unchanged progress pops nothing.
+func test_clearing_a_step_pops_a_sparkle_at_the_rig() -> void:
+	view.render(_snapshot(BeatBounce.Phase.REPEAT, -1, 3))
+	var before := _particle_count()
+	var advanced := _snapshot(BeatBounce.Phase.REPEAT, -1, 3)
+	advanced["progress"] = {0: 1, 1: 0}
+	view.render(advanced)
+	assert_gt(_particle_count(), before, "a cleared step sparkles at the rig")
+
+
+## M13-18: a fresh strike bursts at the offending rig, riding the flinch hook.
+func test_a_fresh_strike_pops_a_burst_at_the_rig() -> void:
+	view.render(_snapshot(BeatBounce.Phase.REPEAT, -1, 3))
+	var before := _particle_count()
+	var struck := _snapshot(BeatBounce.Phase.REPEAT, -1, 3)
+	struck["strikes"] = {0: 1, 1: 0}
+	view.render(struck)
+	assert_gt(_particle_count(), before, "a fresh strike bursts at the rig")

@@ -31,6 +31,13 @@ const PULSE_COLOR := Color(0.95, 0.85, 0.3)
 const IDLE_COLOR := Color(0.35, 0.3, 0.5)
 const PULSE_SEC := 0.15
 
+## FX pass (M13-18, pairs with #264): beat-synced particle pops so the rhythm
+## reads in juice, not just the lamp. Heights lift each effect to roughly where
+## the eye already is (pad face vs rig chest).
+const STRIKE_FX_COLOR := Color(0.95, 0.3, 0.25)
+const PAD_FX_HEIGHT := 0.6
+const RIG_FX_HEIGHT := 1.0
+
 var _phase: int = BeatBounce.Phase.WATCH
 var _round := 0
 var _seq_len := 0
@@ -58,6 +65,7 @@ var _my_last_strikes := 0
 var _my_last_progress := 0
 var _was_repeat := false
 var _flinched := {}  # slot -> strike count already flinched at
+var _sparked_progress := {}  # slot -> progress count already FX'd at
 
 
 func _arena_half() -> float:
@@ -80,6 +88,7 @@ func _process(_delta: float) -> void:
 				_pressed_pad = pad
 				_pressed_until = _now_sec() + PRESS_ECHO_SEC
 				play_sfx(&"click")
+				fx_dust(PAD_OFFSETS[pad] * PAD_SPREAD)  # stomp puff under the foot
 	_animate_beat()
 	_update_pads()
 
@@ -110,6 +119,7 @@ func _render_3d(game: Dictionary) -> void:
 	if my_strikes > _my_last_strikes:
 		play_sfx(&"error")
 	_my_last_strikes = my_strikes
+	_spark_cleared_steps()
 	_update_labels()
 	_update_rigs()
 
@@ -255,11 +265,30 @@ func _animate_beat() -> void:
 	if pulsing and _beat != _ticked_beat:
 		_ticked_beat = _beat
 		play_sfx(&"tick")
+		# The visual half of the metronome: on WATCH beats the demonstrated pad
+		# pops a colored sparkle, so "hit now" reads even with the sound off.
+		if _phase == BeatBounce.Phase.WATCH and _flash >= 0 and _flash < _pad_nodes.size():
+			fx_sparkle(PAD_OFFSETS[_flash] * PAD_SPREAD, PAD_COLORS[_flash], PAD_FX_HEIGHT)
 	var color := PULSE_COLOR if pulsing else IDLE_COLOR
 	_lamp_material.albedo_color = color
 	_lamp_material.emission = color
 	var telegraph_scale := 1.0 + (TELEGRAPH_MAX_SCALE - 1.0) * phase
 	_telegraph.scale = Vector3(telegraph_scale, 1.0, telegraph_scale)
+
+
+## A player-colored sparkle lifts off a rig each time its owner clears a step,
+## so a correct answer reads across the whole ring, not just on the pads. Baselines
+## reset with progress, so a new round's first clear pops again.
+func _spark_cleared_steps() -> void:
+	for slot: int in _progress:
+		var progress := int(_progress[slot])
+		if progress > int(_sparked_progress.get(slot, 0)):
+			var rig := rig_for_slot(slot)
+			if rig != null:
+				fx_sparkle(
+					Vector2(rig.position.x, rig.position.z), player_color(slot), RIG_FX_HEIGHT
+				)
+		_sparked_progress[slot] = progress
 
 
 ## Bounce on a cleared step, KO on elimination, flinch on a fresh strike;
@@ -279,6 +308,7 @@ func _update_rigs() -> void:
 			desired = &"ko"
 		elif slot_strikes > int(_flinched.get(slot, 0)):
 			_flinched[slot] = slot_strikes
+			fx_burst(Vector2(rig.position.x, rig.position.z), STRIKE_FX_COLOR, RIG_FX_HEIGHT)
 			rig.play(&"hit")
 			continue
 		if rig.current_action() in [&"jump_start", &"hit"]:
