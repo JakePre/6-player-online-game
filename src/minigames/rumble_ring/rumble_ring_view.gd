@@ -7,6 +7,8 @@ const COIN_COLOR := Color(0.96, 0.79, 0.2)
 const SMASH_RING_COLOR := Color(1.0, 0.5, 0.2, 0.6)
 const GUARD_TINT := Color(0.6, 0.8, 1.0)
 const REACTION_HOLD_SEC := 0.6
+const SWING_ARC_COLOR := Color(1.0, 0.95, 0.7, 0.7)
+const SWING_ARC_SEC := 0.18
 ## The ring itself (#237): the sim clamps to a square, so the boundary is a
 ## glowing rope box at the clamp edge with corner posts — otherwise the
 ## knockback edge is invisible.
@@ -25,6 +27,8 @@ var _coin_nodes: Array[MeshInstance3D] = []
 var _reaction_hold := {}
 var _banner: Label
 var _guard_since := -1.0
+## Short-lived swing arcs, {node: TorusMesh slice} -> expiry msec.
+var _swing_arcs := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -137,6 +141,7 @@ func _process(_delta: float) -> void:
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
 	coins = game.get("coins", [])
+	_expire_swing_arcs()
 	for event: Dictionary in game.get("events", []):
 		_play_event(event)
 	_update_players()
@@ -158,12 +163,48 @@ func _play_event(event: Dictionary) -> void:
 			play_sfx(&"round_lose")
 		"swing":
 			rig.play(&"interact")
+			_spawn_swing_arc(int(event.slot))
+			if int(event.slot) == my_slot:
+				play_sfx(&"click")
 		"smash":
 			play_sfx(&"confirm")
 
 
 func _hold_reaction(slot: int) -> void:
 	_reaction_hold[slot] = Time.get_ticks_msec() + int(REACTION_HOLD_SEC * 1000.0)
+
+
+## A visible slash fan in the attacker's facing so reach reads (#257).
+func _spawn_swing_arc(slot: int) -> void:
+	var state: Array = players.get(slot, [])
+	if state.size() < 8:
+		return
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = RumbleRing.SWING_RANGE * 0.55
+	mesh.outer_radius = RumbleRing.SWING_RANGE
+	mesh.ring_segments = 24
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = SWING_ARC_COLOR
+	material.emission_enabled = true
+	material.emission = SWING_ARC_COLOR
+	material.emission_energy_multiplier = 0.6
+	mesh.material = material
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = to_arena(Vector2(float(state[0]), float(state[1])), 0.6)
+	node.rotation.y = atan2(float(state[6]), float(state[7]))
+	node.scale = Vector3(1.0, 0.15, 1.0)
+	arena.add_child(node)
+	_swing_arcs[node] = Time.get_ticks_msec() + int(SWING_ARC_SEC * 1000.0)
+
+
+func _expire_swing_arcs() -> void:
+	var now := Time.get_ticks_msec()
+	for node: MeshInstance3D in _swing_arcs.keys():
+		if now >= int(_swing_arcs[node]):
+			node.queue_free()
+			_swing_arcs.erase(node)
 
 
 func _update_players() -> void:
