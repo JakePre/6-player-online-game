@@ -62,14 +62,9 @@ func _setup_3d() -> void:
 	_zone_node.mesh = mesh
 	_zone_node.visible = false
 	arena.add_child(_zone_node)
-	# Held-item indicator for the local player (#139), above the 3D viewport.
-	_held_label = Label.new()
-	_held_label.name = "HeldItem"
-	_held_label.add_theme_font_size_override(&"font_size", 24)
-	_held_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_held_label.position.y -= 48.0
-	_held_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_held_label)
+	# Held-item indicator for the local player (#139), on the always-on-top
+	# banner layer (#258).
+	_held_label = make_banner(&"HeldItem")
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -62,13 +62,7 @@ func _setup_3d() -> void:
 	material.albedo_color = COIN_COLOR
 	material.metallic = 0.6
 	_coin_mesh.material = material
-	_banner = Label.new()
-	_banner.name = "GuardBanner"
-	_banner.add_theme_font_size_override(&"font_size", 24)
-	_banner.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_banner.position.y -= 48.0
-	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_banner)
+	_banner = make_banner(&"GuardBanner")
 
 
 ## Ropes on all four sides at the movement clamp, plus corner posts and a
