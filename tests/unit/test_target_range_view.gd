@@ -60,3 +60,28 @@ func test_crowd_wraps_toward_the_gallery() -> void:
 		assert_lte(rig.position.z, big.FIRING_LINE + 0.001, "no rank behind the firing line")
 		assert_gt(rig.position.z, 2.0, "every rank stays clear of the target band")
 	assert_eq(depths.size(), 3, "24 shooters stand in three ranks")
+
+
+## M15 → 24: the view widens with the gallery, so a target shot near the new
+## edge (past the old ±8) still pops instead of being mistaken for a drift-off.
+func test_wide_arena_bursts_shots_past_the_old_edge() -> void:
+	var crowd := {}
+	for slot in 24:
+		crowd[slot] = "P%d" % (slot + 1)
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	big.setup(crowd, 0)
+	assert_almost_eq(big._half, TargetRange.arena_half_for(24), 0.001, "view half matches the sim")
+	var edge_x := TargetRange.ARENA_HALF + 4.0  # 12: past the old edge, inside the scaled one
+	assert_lt(edge_x, big._half, "the shot is inside the widened arena")
+	var bursts := 0
+	for child in big.arena.get_children():
+		if child is CPUParticles3D:
+			bursts += 1
+	big.render({"targets": [[7, edge_x, 3.0, 0.5, TargetRange.Kind.STANDARD]]})
+	big.render({"targets": []})
+	var after := 0
+	for child in big.arena.get_children():
+		if child is CPUParticles3D:
+			after += 1
+	assert_gt(after, bursts, "a shot near the wide edge still breaks with a burst")

@@ -101,3 +101,56 @@ func test_finishes_at_duration_with_score_ranking() -> void:
 	game.tick(1.1)
 	assert_true(game.finished)
 	assert_eq(game.get_results().placements[0], [1])
+
+
+## M15 → 24.
+
+
+func test_meta_caps_at_twenty_four() -> void:
+	assert_eq(TargetRange.make_meta().max_players, 24)
+
+
+func test_arena_widens_with_the_lobby() -> void:
+	assert_almost_eq(
+		TargetRange.arena_half_for(6), TargetRange.ARENA_HALF, 0.001, "baseline at <=6"
+	)
+	assert_almost_eq(
+		TargetRange.arena_half_for(24),
+		2.0 * TargetRange.ARENA_HALF,
+		0.001,
+		"4x players -> 2x width"
+	)
+	assert_gt(TargetRange.arena_half_for(12), TargetRange.ARENA_HALF, "12 players widen too")
+	var big := _make_game(24)
+	assert_almost_eq(big.arena_half, 2.0 * TargetRange.ARENA_HALF, 0.001)
+
+
+func test_targets_spawn_across_the_scaled_arena() -> void:
+	var big := _make_game(24)
+	# Every target enters from just beyond an edge of the *scaled* arena.
+	for target: Dictionary in big.targets:
+		var edge: float = big.arena_half + float(target.radius)
+		assert_almost_eq(absf((target.pos as Vector2).x), edge, 0.001, "spawns at the wide edge")
+
+
+func test_aim_reaches_the_scaled_edge_at_scale() -> void:
+	var big := _make_game(24)
+	big.handle_input(0, {"ax": 999.0, "ay": 0.0})
+	assert_almost_eq(
+		(big.aims[0] as Vector2).x,
+		big.arena_half,
+		0.001,
+		"can aim to the wide edge, past the old +8"
+	)
+	assert_gt((big.aims[0] as Vector2).x, TargetRange.ARENA_HALF)
+
+
+func test_density_stays_in_a_sane_band_at_scale() -> void:
+	# Target count scales with players and the arena widens with them, so the
+	# gallery gets busier but never trivially packed.
+	var small := _make_game(6)
+	var big := _make_game(24)
+	var small_density := small.targets.size() / (2.0 * small.arena_half)
+	var big_density := big.targets.size() / (2.0 * big.arena_half)
+	assert_lt(big_density, small_density * 1.5, "24-player gallery is not a wall of targets")
+	assert_gt(big_density, small_density * 0.75, "and not sparse either")

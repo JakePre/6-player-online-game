@@ -26,6 +26,10 @@ const KIND_COLORS := {
 var _aim := Vector2.ZERO
 var _scores := {}
 var _cooldown := 0.0
+## This match's scaled gallery half-width (equals the const at <=6 players),
+## derived from the head count with the sim's own helper so aim clamps and the
+## shot-vs-drift check match the server's wider arena (M15 → 24).
+var _half := TargetRange.ARENA_HALF
 
 var _target_nodes := {}  # id (int) -> MeshInstance3D
 var _target_colors := {}  # id (int) -> Color (kind tint, for the break burst)
@@ -34,10 +38,11 @@ var _aim_beams := {}  # slot (int) -> MeshInstance3D (#214 aim lines)
 
 
 func _arena_half() -> float:
-	return TargetRange.ARENA_HALF
+	return TargetRange.arena_half_for(names.size())
 
 
 func _setup_3d() -> void:
+	_half = TargetRange.arena_half_for(names.size())
 	_line_up_rigs()
 	for slot: int in names:
 		_crosshairs[slot] = _build_crosshair(slot)
@@ -47,10 +52,7 @@ func _physics_process(delta: float) -> void:
 	var nudge := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 	if nudge != Vector2.ZERO:
 		_aim += nudge * AIM_SPEED * delta
-		_aim = _aim.clamp(
-			Vector2(-TargetRange.ARENA_HALF, -TargetRange.ARENA_HALF),
-			Vector2(TargetRange.ARENA_HALF, TargetRange.ARENA_HALF)
-		)
+		_aim = _aim.clamp(Vector2(-_half, -_half), Vector2(_half, _half))
 	NetManager.send_match_input({"ax": _aim.x, "ay": _aim.y})
 
 
@@ -108,10 +110,7 @@ func _aim_at_mouse() -> void:
 	if absf(direction.y) < 0.0001:
 		return
 	var hit := origin - direction * (origin.y / direction.y)
-	_aim = Vector2(hit.x, hit.z).clamp(
-		Vector2(-TargetRange.ARENA_HALF, -TargetRange.ARENA_HALF),
-		Vector2(TargetRange.ARENA_HALF, TargetRange.ARENA_HALF)
-	)
+	_aim = Vector2(hit.x, hit.z).clamp(Vector2(-_half, -_half), Vector2(_half, _half))
 
 
 func _update_targets(target_list: Array) -> void:
@@ -128,7 +127,7 @@ func _update_targets(target_list: Array) -> void:
 			var node := _target_nodes[id] as MeshInstance3D
 			# On-screen removal means it was shot; a target recycled off the far
 			# edge (sim drift) leaves from beyond the arena and pops nothing.
-			if absf(node.position.x) <= TargetRange.ARENA_HALF:
+			if absf(node.position.x) <= _half:
 				var tint: Color = _target_colors.get(id, KIND_COLORS[TargetRange.Kind.STANDARD])
 				fx_burst(Vector2(node.position.x, node.position.z), tint, node.position.y)
 			node.queue_free()

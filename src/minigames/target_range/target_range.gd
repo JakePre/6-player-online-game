@@ -12,6 +12,8 @@ enum Kind {
 	GOLD,
 }
 
+## Baseline (<=6 players) half-width; larger lobbies widen the gallery so
+## target density stays fair (M15 → 24, ADR 003).
 const ARENA_HALF := 8.0
 ## Targets drift horizontally inside this depth band (top-down y, far side).
 const BAND_NEAR := -1.0
@@ -34,8 +36,17 @@ var targets: Array[Dictionary] = []
 var aims := {}
 var scores := {}
 var cooldowns := {}
+## This match's scaled half-width (equals ARENA_HALF at <=6 players). Both sim
+## and view derive it from the head count via arena_half_for().
+var arena_half := ARENA_HALF
 
 var _next_target_id := 0
+
+
+## Half-width of the gallery for a lobby of `count`: grows so per-player target
+## density holds — a side scales with the square root of the head-count growth.
+static func arena_half_for(count: int) -> float:
+	return MinigameScaling.arena_half(ARENA_HALF, count)
 
 
 static func make_meta() -> MinigameMeta:
@@ -47,7 +58,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Target Range",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 45.0,
 				"rules":
 				"Shoot the moving targets! Small and gold ones are worth more. Highest score wins.",
@@ -58,6 +69,7 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	arena_half = arena_half_for(slots.size())
 	for slot: int in slots:
 		aims[slot] = Vector2.ZERO
 		scores[slot] = 0
@@ -76,7 +88,7 @@ func _tick(delta: float) -> void:
 		target.pos = pos
 	for i in targets.size():
 		var target: Dictionary = targets[i]
-		if absf((target.pos as Vector2).x) > ARENA_HALF + float(target.radius) * 2.0:
+		if absf((target.pos as Vector2).x) > arena_half + float(target.radius) * 2.0:
 			targets[i] = _spawn_target()
 
 
@@ -85,8 +97,8 @@ func _tick(delta: float) -> void:
 func _handle_input(slot: int, data: Dictionary) -> void:
 	if data.has("ax") or data.has("ay"):
 		var aim: Vector2 = aims[slot]
-		aim.x = clampf(float(data.get("ax", aim.x)), -ARENA_HALF, ARENA_HALF)
-		aim.y = clampf(float(data.get("ay", aim.y)), -ARENA_HALF, ARENA_HALF)
+		aim.x = clampf(float(data.get("ax", aim.x)), -arena_half, arena_half)
+		aim.y = clampf(float(data.get("ay", aim.y)), -arena_half, arena_half)
 		aims[slot] = aim
 	if data.get("fire", false):
 		_fire(slot)
@@ -184,7 +196,7 @@ func _spawn_target() -> Dictionary:
 		"dir": dir,
 		"pos":
 		Vector2(
-			-dir * (ARENA_HALF + float(stats.radius)),
+			-dir * (arena_half + float(stats.radius)),
 			rng.randf_range(BAND_FAR, BAND_NEAR),
 		),
 	}
