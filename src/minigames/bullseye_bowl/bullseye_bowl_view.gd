@@ -66,12 +66,18 @@ func _build_lane(slot: int, center_x: float) -> void:
 		var mesh := CylinderMesh.new()
 		mesh.top_radius = radii[r]
 		mesh.bottom_radius = radii[r]
-		mesh.height = DISC_HEIGHT * (r + 1)
+		# Tier the caps well apart and keep the materials opaque: near-coplanar
+		# tops in transparent mode z-fight into one blank disc at iso distance
+		# (the #236 reopen).
+		mesh.height = DISC_HEIGHT + r * 0.1
 		var material := StandardMaterial3D.new()
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		material.albedo_color = RING_COLORS[radii.size() - 1 - r]
+		material.emission_enabled = true
+		material.emission = material.albedo_color
+		material.emission_energy_multiplier = 0.25
 		mesh.material = material
 		ring.mesh = mesh
+		ring.position.y = (mesh.height - DISC_HEIGHT) / 2.0
 		target.add_child(ring)
 	target.position = Vector3(center_x, 0.0, -BullseyeBowl.LANE_LENGTH / 2.0)
 	arena.add_child(target)
