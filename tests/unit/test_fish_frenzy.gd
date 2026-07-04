@@ -16,10 +16,25 @@ func test_meta_and_catalog() -> void:
 	var meta := FishFrenzy.make_meta()
 	assert_eq(meta.id, &"fish_frenzy")
 	assert_eq(meta.category, MinigameMeta.Category.SKILL)
+	assert_eq(meta.max_players, 8)
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"fish_frenzy") is FishFrenzy)
 	MinigameCatalog.clear()
+
+
+## No sim geometry to scale (fixed 3 lanes, no positions); a 24-cap for this
+## game isn't planned (ADR 003 — first-catch-wins is accepted as-is only up
+## to 8), so this just confirms setup handles the raised cap.
+func test_setup_handles_eight_players() -> void:
+	var player_slots: Array[int] = []
+	for i in 8:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	assert_eq(game.lane.size(), 8)
+	for slot in 8:
+		assert_eq(game.lane[slot], 1)
+		assert_eq(game.caught[slot], 0)
 
 
 func test_school_is_deterministic_and_on_cadence() -> void:

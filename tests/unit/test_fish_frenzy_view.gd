@@ -2,12 +2,13 @@ extends GutTest
 ## Fish Frenzy client view (#183): renders replicated snapshots without
 ## simulating anything locally.
 
+const VIEW_SCENE := preload("res://src/minigames/fish_frenzy/fish_frenzy_view.tscn")
+
 var view: MinigameView3D
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/fish_frenzy/fish_frenzy_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -62,3 +63,20 @@ func test_catch_fires_splash_and_sparkle_once_seeded() -> void:
 	assert_eq(view.arena.get_child_count(), before, "no catch, no FX")
 	view.render({"players": {0: [1, 4, 1]}, "fish": [], "swim_sec": 1.8})
 	assert_eq(view.arena.get_child_count(), before + 2, "catch = splash + sparkle at the line")
+
+
+## M15: the arena grows for larger lobbies so a worst-case deep queue (all
+## players stacked in one lane) still fits within the floor/camera.
+func test_arena_half_scales_for_a_deep_queue_at_eight_players() -> void:
+	assert_almost_eq(view._arena_half(), 7.5, 0.001, "2 players = base runway framing")
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	var names := {}
+	for i in 8:
+		names[i] = "P%d" % (i + 1)
+	big.setup(names, 0)
+	assert_gt(big._arena_half(), 7.5, "8 players get a bigger floor/camera")
+	# Worst case: all 8 queue in one lane. Deepest slot's x must stay inside
+	# the scaled arena.
+	var deepest_x := absf(big.STAND_X - 7.0 * big.QUEUE_SPACING)
+	assert_lte(deepest_x, big._arena_half(), "the deepest queued player fits the scaled arena")
