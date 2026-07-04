@@ -37,6 +37,18 @@ func test_live_phase_shows_green_draw() -> void:
 	assert_eq(view._lamp_material.albedo_color, view.LIVE_COLOR)
 
 
+## #302 FX: going live pops the screen flash and flares the lamp; the flash
+## overlay exists and is transparent at rest.
+func test_go_signal_flashes_the_screen_and_flares_the_lamp() -> void:
+	var flash: ColorRect = view.get_node("DrawFlash")
+	assert_almost_eq(flash.color.a, 0.0, 0.001, "no flash before the draw")
+	view.render({"phase": QuickDraw.Phase.WAITING, "round": 0, "wins": {0: 0, 1: 0}})
+	view.render({"phase": QuickDraw.Phase.LIVE, "round": 0, "wins": {0: 0, 1: 0}})
+	assert_gt(flash.color.a, 0.0, "the go signal flashes the screen")
+	view._update_lamp()
+	assert_gt(view._lamp_material.emission_energy_multiplier, 1.0, "and the lamp flares bright")
+
+
 func test_round_over_winner_cheers_and_tallies() -> void:
 	view.render(
 		{
