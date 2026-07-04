@@ -108,6 +108,8 @@ func _shake_on_new_falls() -> void:
 			for slot: int in group:
 				if _last_seen_pos.has(slot):
 					_spawn_splash(_last_seen_pos[slot])
+					# Droplets on top of the ring: the body going under (M13-05).
+					fx_splash(_last_seen_pos[slot])
 					_last_seen_pos.erase(slot)
 	_fallen_seen = fallen_count
 
@@ -142,6 +144,13 @@ func _update_tiles() -> void:
 		if state != prev:
 			cracked_now = cracked_now or state == ThinIce.TileState.CRACKED
 			breaking_now = breaking_now or state == ThinIce.TileState.BREAKING
+			# Ice chips as it cracks, splashes as it gives way (M13-05); the
+			# seeding snapshot stays silent like the sounds below.
+			if not _prev_tiles.is_empty():
+				if state == ThinIce.TileState.CRACKED:
+					fx_dust(_tile_center(idx))
+				elif state == ThinIce.TileState.GONE:
+					fx_splash(_tile_center(idx))
 		var node := _tile_nodes[idx]
 		node.visible = state != ThinIce.TileState.GONE
 		if node.visible:
@@ -163,6 +172,15 @@ func _update_tiles() -> void:
 ## The snapshot only carries players still standing; fallen rigs sink out of
 ## sight with their tile. `fallen` groups simultaneous falls (see
 ## ThinIce._flush_falls), so it flattens one level.
+func _tile_center(idx: int) -> Vector2:
+	var x := idx % ThinIce.GRID_SIZE
+	var y := int(floorf(float(idx) / ThinIce.GRID_SIZE))
+	return Vector2(
+		-ThinIce.HALF_EXTENT + (x + 0.5) * ThinIce.TILE_SIZE,
+		-ThinIce.HALF_EXTENT + (y + 0.5) * ThinIce.TILE_SIZE
+	)
+
+
 func _update_players() -> void:
 	for slot: int in players:
 		var state: Array = players[slot]
