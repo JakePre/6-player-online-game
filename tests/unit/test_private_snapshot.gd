@@ -5,11 +5,14 @@ extends GutTest
 
 
 ## Reveals a role to slot 0 alone — the shared snapshot stays anonymous.
+## The secret token is deliberately distinct from the minigame id: the
+## shared snapshot legitimately carries the id ("mole", for rejoin), and the
+## leak assertion below must trip on the secret, not on that.
 class MoleStub:
 	extends MinigameBase
 
 	func get_private_snapshot(slot: int) -> Dictionary:
-		return {"role": "mole"} if slot == 0 else {}
+		return {"role": "saboteur"} if slot == 0 else {}
 
 
 func _make_room(player_count: int) -> Room:
@@ -41,7 +44,9 @@ func test_private_data_reaches_only_the_owning_slot_during_play() -> void:
 	var controller := _make_controller()
 	controller.game = MoleStub.new()
 	controller.state = MatchController.State.PLAY
-	assert_eq(controller.private_snapshot_for(0), {"role": "mole"}, "the mole learns their role")
+	assert_eq(
+		controller.private_snapshot_for(0), {"role": "saboteur"}, "the mole learns their role"
+	)
 	assert_eq(controller.private_snapshot_for(1), {}, "everyone else learns nothing")
 
 
@@ -61,5 +66,6 @@ func test_shared_snapshot_never_carries_the_secret() -> void:
 	controller.game = stub
 	controller.state = MatchController.State.PLAY
 	# The broadcast-to-everyone snapshot must stay anonymous; the role only
-	# ever travels through private_snapshot_for.
-	assert_false(JSON.stringify(controller.get_snapshot()).contains("mole"))
+	# ever travels through private_snapshot_for. (The id "mole" legitimately
+	# appears in it — the assertion hunts the secret, not the id.)
+	assert_false(JSON.stringify(controller.get_snapshot()).contains("saboteur"))
