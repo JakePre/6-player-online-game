@@ -130,7 +130,7 @@ func test_reveal_holds_then_finishes_with_crew_on_top() -> void:
 	for _i in int(FaultyWiring.REVEAL_SEC / TICK) + 2:
 		game.tick(TICK)
 	assert_true(game.finished, "the round finishes after the reveal hold")
-	var placements := game.get_results().placements
+	var placements: Array = game.get_results().placements
 	assert_true(crew in placements[0], "a crew winner tops the ranking, saboteur trails")
 	assert_true(game.saboteur in placements[placements.size() - 1])
 
@@ -144,5 +144,5 @@ func test_timeout_wins_for_the_saboteur() -> void:
 	for _i in int(FaultyWiring.REVEAL_SEC / TICK) + 2:
 		game.tick(TICK)
 	assert_true(game.finished)
-	var placements := game.get_results().placements
+	var placements: Array = game.get_results().placements
 	assert_true(game.saboteur in placements[0], "the saboteur tops the ranking on a timeout win")
