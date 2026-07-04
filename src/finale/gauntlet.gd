@@ -7,6 +7,9 @@ extends MinigameBase
 ## final match ranking. Not a roster minigame — never registered in the
 ## catalog; the match framework enters it directly for the finale.
 
+## Base 6-player platform; the start radius and shrink rate scale together with
+## the head count (ADR 003) so a big lobby gets a proportionally bigger disc
+## that still compresses to MIN_RADIUS in the same number of stages.
 const START_RADIUS := 10.0
 const MIN_RADIUS := 2.5
 const SHRINK_STAGE_SEC := 15.0
@@ -27,6 +30,9 @@ const HAZARD_MAX_RADIUS := 3.0
 const HAZARD_RAMP_SEC := 90.0
 
 var radius := START_RADIUS
+## Per-instance platform tuning (base at ≤6 players, scaled up beyond).
+var start_radius := START_RADIUS
+var shrink_per_stage := SHRINK_PER_STAGE
 var positions := {}
 var move_dirs := {}
 var lives := {}
@@ -56,7 +62,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "The Gauntlet",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 180.0,
 				"rules":
 				"Last one standing wins the match! The platform shrinks and hazards rain down.",
@@ -65,10 +71,27 @@ static func make_meta() -> MinigameMeta:
 	)
 
 
+## Start radius for `count` players: grows with the sqrt of the head count
+## (MinigameScaling) so per-player space stays roughly constant, never below
+## the tuned 6-player base.
+static func start_radius_for(count: int) -> float:
+	return START_RADIUS * sqrt(MinigameScaling.growth(count))
+
+
+## Shrink-per-stage scaled by the same factor as the start radius, so a bigger
+## platform still reaches MIN_RADIUS in the same number of stages — the squeeze
+## keeps its wall-clock pacing regardless of head count.
+static func shrink_per_stage_for(count: int) -> float:
+	return SHRINK_PER_STAGE * sqrt(MinigameScaling.growth(count))
+
+
 func _setup() -> void:
+	start_radius = start_radius_for(slots.size())
+	shrink_per_stage = shrink_per_stage_for(slots.size())
+	radius = start_radius
 	for i in slots.size():
 		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * START_RADIUS * 0.6
+		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * start_radius * 0.6
 		move_dirs[slots[i]] = Vector2.ZERO
 		lives[slots[i]] = 1
 		shields[slots[i]] = false
@@ -167,7 +190,7 @@ func _tick_shrink(delta: float) -> void:
 	_stage_accum += delta
 	while _stage_accum >= SHRINK_STAGE_SEC:
 		_stage_accum -= SHRINK_STAGE_SEC
-		radius = maxf(radius - SHRINK_PER_STAGE, MIN_RADIUS)
+		radius = maxf(radius - shrink_per_stage, MIN_RADIUS)
 
 
 func _tick_respawns(delta: float) -> void:
