@@ -5,11 +5,16 @@ extends GutTest
 var view: MinigameView3D
 
 
-func before_each() -> void:
+func _new_view(player_names: Dictionary) -> MinigameView3D:
 	var scene: PackedScene = load("res://src/minigames/color_clash/color_clash_view.tscn")
-	view = scene.instantiate()
-	add_child_autofree(view)
-	view.setup({0: "Alice", 1: "Bob"}, 0)
+	var instance: MinigameView3D = scene.instantiate()
+	add_child_autofree(instance)
+	instance.setup(player_names, 0)
+	return instance
+
+
+func before_each() -> void:
+	view = _new_view({0: "Alice", 1: "Bob"})
 
 
 func test_view_scene_lives_at_catalog_path() -> void:
@@ -24,6 +29,19 @@ func test_setup_builds_iso_arena_with_paint_tiles() -> void:
 	assert_not_null(view.rig_for_slot(0))
 	var tiles: MultiMeshInstance3D = view.arena.get_node("PaintTiles")
 	assert_eq(tiles.multimesh.instance_count, ColorClash.GRID_SIZE * ColorClash.GRID_SIZE)
+
+
+## M15 → 24: the tile mesh sizes to the scaled grid the sim will paint, from
+## the head count alone (no snapshot needed), so both stay in lockstep.
+func test_paint_mesh_scales_with_lobby() -> void:
+	var names := {}
+	for i in 24:
+		names[i] = "P%d" % i
+	var big := _new_view(names)
+	var tiles: MultiMeshInstance3D = big.arena.get_node("PaintTiles")
+	var dim := ColorClash.grid_dim_for(24)
+	assert_eq(dim, 24)
+	assert_eq(tiles.multimesh.instance_count, dim * dim, "one instance per scaled tile")
 
 
 func test_render_replaces_replicated_state() -> void:
