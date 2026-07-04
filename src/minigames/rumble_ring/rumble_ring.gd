@@ -13,8 +13,10 @@ const GUARD_SPEED_MULT := 0.35
 const PLAYER_RADIUS := 0.45
 
 const MAX_HP := 3
-const SWING_RANGE := 1.5
-const SWING_ARC_DOT := 0.3
+## Generous melee (#257): commits at melee distance should connect.
+const SWING_RANGE := 1.8
+## Full frontal 180° arc — behind-the-back still whiffs.
+const SWING_ARC_DOT := 0.0
 const SWING_KNOCKBACK := 1.2
 const SWING_COOLDOWN_SEC := 0.6
 const SMASH_CHARGE_SEC := 0.8

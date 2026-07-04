@@ -46,6 +46,20 @@ func test_swing_misses_behind_the_back() -> void:
 	assert_eq(game.hp[1], RumbleRing.MAX_HP)
 
 
+func test_swing_connects_at_the_side_of_the_arc() -> void:
+	# #257: the arc is a full frontal 180 — perpendicular still counts.
+	var game := _game()
+	game.positions[0] = Vector2(1.0, 0.0)
+	game.positions[1] = Vector2(1.0, 1.2)
+	game.facings[0] = Vector2.RIGHT
+	game.handle_input(0, {"attack": true})
+	assert_eq(game.hp[1], RumbleRing.MAX_HP - 1, "perpendicular is inside the 180° arc")
+	game.swing_cooldown[0] = 0.0
+	game.positions[1] = Vector2(0.4, 1.0)
+	game.handle_input(0, {"attack": true})
+	assert_eq(game.hp[1], RumbleRing.MAX_HP - 1, "behind the shoulder still whiffs")
+
+
 func test_swing_cooldown_gates_spam() -> void:
 	var game := _game()
 	_square_up(game, 0, 1)
