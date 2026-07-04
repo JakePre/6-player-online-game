@@ -2,6 +2,8 @@ extends MinigameView
 ## Relay Sprint client view (M4-11): one horizontal lane per team with the
 ## active runner, sweeping hazards, and progress markers. Same 2D
 ## presentation tier as the Coin Scramble reference view.
+## M13-22 FX pass (2D juice per PHASE2.md §7 — deliberately flat): speed
+## lines trail the active runner, and the baton exchange flashes.
 
 const LANE_COLOR := Color(0.14, 0.16, 0.2)
 const LANE_BORDER := Color(0.32, 0.36, 0.42)
@@ -13,21 +15,61 @@ const LANE_GAP := 16.0
 ## (#213 — they used to overlap the runners).
 const GUTTER_WIDTH := 170.0
 const HAZARD_WARN_COLOR := Color(1.0, 0.75, 0.2)
+const SPEED_LINE_COLOR := Color(1.0, 1.0, 1.0, 0.35)
+const BATON_FLASH_COLOR := Color(1.0, 0.9, 0.4)
+const FLASH_DURATION := 0.5
 
 ## Latest replicated state, straight from RelaySprint.get_snapshot().
 var lanes := {}
 var track_len := RelaySprint.TRACK_LEN
 var hazards: Array = []
 
+# M13-22 FX state: in-flight baton flashes ({lane, age}), last-seen leg and
+# progress per lane for handoff detection and speed-line lengths.
+var _flashes: Array = []
+var _legs_seen := {}
+var _progress_seen := {}
+var _speeds := {}
+var _seen_snapshot := false
+
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
+
+
+func _process(delta: float) -> void:
+	var alive: Array = []
+	for flash: Dictionary in _flashes:
+		flash.age += delta
+		if flash.age < FLASH_DURATION:
+			alive.append(flash)
+	_flashes = alive
+	if not _flashes.is_empty():
+		queue_redraw()
 
 
 func _render(game: Dictionary) -> void:
 	lanes = game.get("lanes", {})
 	track_len = float(game.get("track_len", RelaySprint.TRACK_LEN))
 	hazards = game.get("hazards", [])
+	# Baton flash + speed lines (M13-22): the leg index bumping means the
+	# baton just changed hands; a same-leg progress delta is the runner's
+	# speed. The first snapshot seeds silently.
+	for lane_index: int in lanes:
+		var state: Array = lanes[lane_index]
+		var leg := int(state[1])
+		var progress := float(state[2])
+		var prev_leg := int(_legs_seen.get(lane_index, leg))
+		if _seen_snapshot and leg > prev_leg and not bool(state[4]):
+			_flashes.append({"lane": lane_index, "age": 0.0})
+		if leg == prev_leg:
+			var prev := float(_progress_seen.get(lane_index, progress))
+			_speeds[lane_index] = maxf(progress - prev, 0.0)
+		else:
+			_speeds[lane_index] = 0.0
+		_legs_seen[lane_index] = leg
+		_progress_seen[lane_index] = progress
+	_seen_snapshot = true
 	queue_redraw()
 
 
@@ -79,6 +121,30 @@ func _draw() -> void:
 		if not done:
 			var rx := left + float(state[2]) * px_per_unit
 			var color := player_color(runner)
+			# Speed lines (M13-22): trailing streaks scaled by snapshot speed.
+			var speed: float = _speeds.get(lane_index, 0.0)
+			if speed > 0.01:
+				var line_len := clampf(speed * px_per_unit * 3.0, 8.0, 34.0)
+				for i in 3:
+					var line_y := runner_y - 6.0 + float(i) * 6.0
+					var streak := SPEED_LINE_COLOR
+					streak.a -= 0.08 * float(i)
+					draw_line(
+						Vector2(rx - 12.0 - line_len, line_y),
+						Vector2(rx - 12.0, line_y),
+						streak,
+						1.5
+					)
+			# Baton flash (M13-22): an expanding ring where the exchange landed.
+			for flash: Dictionary in _flashes:
+				if int(flash.lane) != lane_index:
+					continue
+				var age_t: float = flash.age / FLASH_DURATION
+				var ring := Color(BATON_FLASH_COLOR, 1.0 - age_t)
+				var reach := RelaySprint.RUNNER_RADIUS * px_per_unit * (1.6 + 2.4 * age_t)
+				draw_arc(
+					Vector2(rx, runner_y), reach, 0.0, TAU, 24, ring, 3.0 * (1.0 - age_t) + 1.0
+				)
 			draw_circle(Vector2(rx, runner_y), RelaySprint.RUNNER_RADIUS * px_per_unit * 1.4, color)
 			draw_circle(
 				Vector2(rx, runner_y),
