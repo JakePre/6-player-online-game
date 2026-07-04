@@ -164,6 +164,15 @@ func get_snapshot() -> Dictionary:
 	return snapshot
 
 
+## Per-player secret state for `slot`, delivered only to that player's own
+## client (#254). Non-empty only during an in-progress round whose minigame
+## chooses to reveal something private (hidden roles); {} otherwise.
+func private_snapshot_for(slot: int) -> Dictionary:
+	if state != State.PLAY or game == null:
+		return {}
+	return game.get_private_snapshot(slot)
+
+
 # --- State transitions -------------------------------------------------------
 
 

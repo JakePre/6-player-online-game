@@ -19,6 +19,11 @@ var my_slot := -1
 ## before setup() so _setup() sees them. Ids may arrive as String over the
 ## wire — check with has_view_flag().
 var view_flags: Array = []
+## This client's private per-player state (#254), set by the match screen
+## from the personal snapshot before each render(). Hidden-role game views
+## read it to show the local player their own secret role; it never carries
+## another player's secrets.
+var private_state: Dictionary = {}
 
 
 func setup(player_names: Dictionary, local_slot: int) -> void:
