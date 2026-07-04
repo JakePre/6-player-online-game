@@ -9,6 +9,9 @@ const GUARD_TINT := Color(0.6, 0.8, 1.0)
 const REACTION_HOLD_SEC := 0.6
 const SWING_ARC_COLOR := Color(1.0, 0.95, 0.7, 0.7)
 const SWING_ARC_SEC := 0.18
+## Charged-smash shockwave (M13-28, #263): a flat ring that bursts outward.
+const SMASH_RING_SEC := 0.32
+const SMASH_RING_REACH := 2.6
 ## The ring itself (#237): the sim clamps to a square, so the boundary is a
 ## glowing rope box at the clamp edge with corner posts — otherwise the
 ## knockback edge is invisible.
@@ -146,22 +149,32 @@ func _play_event(event: Dictionary) -> void:
 	var rig := rig_for_slot(int(event.get("slot", -1)))
 	if rig == null:
 		return
+	var slot := int(event.get("slot", -1))
 	match String(event.type):
 		"hit":
 			rig.play(&"hit")
-			_hold_reaction(event.slot)
+			_hold_reaction(slot)
 			play_sfx(&"error")
+			fx_sparkle(_event_ground(slot), Color(1.0, 0.8, 0.3), 0.8)
 		"ko":
 			rig.play(&"ko")
-			_hold_reaction(event.slot)
+			_hold_reaction(slot)
 			play_sfx(&"round_lose")
+			fx_burst(_event_ground(slot), Color(1.0, 0.55, 0.2), 0.7)
+			request_shake(8.0)
+		"blocked":
+			# A guard held: spark off the block so a successful defence reads.
+			play_sfx(&"click")
+			fx_sparkle(_event_ground(slot), GUARD_TINT, 1.0)
 		"swing":
 			rig.play(&"interact")
-			_spawn_swing_arc(int(event.slot))
-			if int(event.slot) == my_slot:
+			_spawn_swing_arc(slot)
+			if slot == my_slot:
 				play_sfx(&"click")
 		"smash":
 			play_sfx(&"confirm")
+			_smash_shockwave(slot)
+			request_shake(10.0)
 
 
 func _hold_reaction(slot: int) -> void:
@@ -199,6 +212,43 @@ func _expire_swing_arcs() -> void:
 		if now >= int(_swing_arcs[node]):
 			node.queue_free()
 			_swing_arcs.erase(node)
+
+
+## Ground position of a slot's fighter from the latest snapshot (world units).
+func _event_ground(slot: int) -> Vector2:
+	var state: Array = players.get(slot, [])
+	if state.size() < 2:
+		return Vector2.ZERO
+	return Vector2(float(state[0]), float(state[1]))
+
+
+## The charged smash (M13-28, #263): a flat ring that bursts outward from the
+## smasher and fades. Fire-and-forget, self-freeing, so this stays a one-file
+## view change.
+func _smash_shockwave(slot: int) -> void:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.72
+	mesh.outer_radius = 0.9
+	mesh.ring_segments = 24
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = SMASH_RING_COLOR
+	mesh.material = material
+	var ring := MeshInstance3D.new()
+	ring.name = "SmashShockwave"
+	ring.mesh = mesh
+	ring.rotation.x = PI / 2.0  # lay the ring flat on the floor
+	ring.scale = Vector3.ONE * 0.4
+	ring.position = to_arena(_event_ground(slot), 0.15)
+	arena.add_child(ring)
+	var tween := ring.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(ring, "scale", Vector3.ONE * SMASH_RING_REACH, SMASH_RING_SEC).set_trans(
+		Tween.TRANS_CUBIC
+	)
+	tween.tween_property(material, "albedo_color:a", 0.0, SMASH_RING_SEC)
+	tween.chain().tween_callback(ring.queue_free)
 
 
 func _update_players() -> void:
