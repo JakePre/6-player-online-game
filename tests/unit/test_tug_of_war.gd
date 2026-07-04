@@ -23,6 +23,7 @@ func test_meta() -> void:
 	assert_eq(meta.id, &"tug_of_war")
 	assert_eq(meta.category, MinigameMeta.Category.TEAM)
 	assert_eq(meta.min_players, 2)
+	assert_eq(meta.max_players, 24)
 
 
 func test_registered_in_catalog() -> void:
@@ -33,7 +34,7 @@ func test_registered_in_catalog() -> void:
 
 
 func test_even_team_split_at_all_player_counts() -> void:
-	for count: int in [2, 4, 6]:
+	for count: int in [2, 4, 6, 12, 24]:
 		var player_slots: Array[int] = []
 		for slot in count:
 			player_slots.append(slot)

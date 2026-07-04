@@ -30,7 +30,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Tug of War",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 30.0,
 				"rules":
 				"Mash left and right alternately to pull! Drag the other team over the line.",
