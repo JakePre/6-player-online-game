@@ -61,3 +61,50 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.grid, [])
+
+
+func _full_grid(fill: int = ColorClash.UNPAINTED) -> Array:
+	var grid_data: Array = []
+	grid_data.resize(ColorClash.GRID_SIZE * ColorClash.GRID_SIZE)
+	grid_data.fill(fill)
+	return grid_data
+
+
+## M13-21: the first grid sighting seeds the splat diff silently.
+func test_first_snapshot_seeds_without_splats() -> void:
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {}, "grid": _full_grid(0), "teams": [], "counts": {0: 144}})
+	assert_eq(view.arena.get_child_count(), before, "first sighting seeds silently")
+
+
+func test_fresh_paint_splats() -> void:
+	var grid_data := _full_grid()
+	view.render({"players": {}, "grid": grid_data, "teams": [], "counts": {}})
+	var before: int = view.arena.get_child_count()
+	grid_data = grid_data.duplicate()
+	grid_data[5] = 0
+	view.render({"players": {}, "grid": grid_data, "teams": [], "counts": {0: 1}})
+	assert_eq(view.arena.get_child_count(), before + 1, "a repainted tile = one splat")
+
+
+func test_mass_repaint_splats_are_capped() -> void:
+	view.render({"players": {}, "grid": _full_grid(), "teams": [], "counts": {}})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {}, "grid": _full_grid(0), "teams": [], "counts": {0: 144}})
+	var cap: int = view.MAX_SPLATS_PER_SNAPSHOT
+	assert_eq(view.arena.get_child_count(), before + cap, "mass repaint splats are capped")
+
+
+## M13-21: coverage shimmer follows the leading faction and advances each
+## snapshot; a dead heat has no leader.
+func test_leading_faction_shimmer_advances() -> void:
+	view.render({"players": {}, "grid": [0, 0, 1], "teams": [], "counts": {0: 2, 1: 1}})
+	assert_eq(view.leading_faction(), 0)
+	var boost_a: float = view.shimmer_boost()
+	view.render({"players": {}, "grid": [0, 0, 1], "teams": [], "counts": {0: 2, 1: 1}})
+	assert_ne(view.shimmer_boost(), boost_a, "shimmer advances across snapshots")
+
+
+func test_tied_coverage_has_no_leader() -> void:
+	view.render({"players": {}, "grid": [0, 1], "teams": [], "counts": {0: 1, 1: 1}})
+	assert_eq(view.leading_faction(), ColorClash.UNPAINTED)
