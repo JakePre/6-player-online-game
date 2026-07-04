@@ -41,7 +41,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _arena_half() -> float:
-	return LaserLimbo.ARENA_HALF
+	# Sim and view derive the same scaled play size from the lobby count (M15).
+	return MinigameScaling.arena_half(LaserLimbo.ARENA_HALF, names.size())
+
+
+## Gap half-width scaled to match the sim's `_gap_half` (same fraction of the
+## arena), so the rendered opening lines up with the survivable band.
+func _gap_half() -> float:
+	return LaserLimbo.GAP_HALF_WIDTH * _arena_half() / LaserLimbo.ARENA_HALF
 
 
 ## Each pooled wall is a root with three beam segments; kind decides which
@@ -123,7 +130,7 @@ func _down_rig(slot: int) -> void:
 
 
 func _update_walls() -> void:
-	var half := LaserLimbo.ARENA_HALF
+	var half := _arena_half()
 	for i in _wall_pool.size():
 		var root := _wall_pool[i]
 		root.visible = i < walls.size()
@@ -148,7 +155,7 @@ func _update_walls() -> void:
 			(high.mesh as BoxMesh).size = Vector3(0.15, 0.3, half * 2.0)
 			high.position = Vector3(0.0, HIGH_BAR_HEIGHT, 0.0)
 		if near.visible:
-			var gap := LaserLimbo.GAP_HALF_WIDTH
+			var gap := _gap_half()
 			var near_len := maxf((gap_y - gap) + half, 0.0)
 			var far_len := maxf(half - (gap_y + gap), 0.0)
 			(near.mesh as BoxMesh).size = Vector3(0.15, WALL_TALL, near_len)

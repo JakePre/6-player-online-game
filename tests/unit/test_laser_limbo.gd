@@ -127,3 +127,56 @@ func test_snapshot_shape() -> void:
 	assert_eq((snapshot.players[0] as Array).size(), 5, "[x, y, lives, airborne, ducking]")
 	assert_eq(snapshot.walls, [[1.0, 1, LaserLimbo.WallKind.GAP, -2.0]])
 	assert_eq(snapshot.fallen, [])
+
+
+func test_max_players_raised_to_twenty_four() -> void:
+	assert_eq(LaserLimbo.make_meta().max_players, 24)
+
+
+## M15: at 24 players the arena, gap, and wall speed all grow.
+func test_arena_gap_and_speed_scale_at_twenty_four() -> void:
+	var game := _game_with(24)
+	assert_gt(game._play_half, LaserLimbo.ARENA_HALF, "bigger arena")
+	assert_gt(game._gap_half, LaserLimbo.GAP_HALF_WIDTH, "wider gap")
+	assert_gt(game._speed_scale, 1.0, "faster walls to keep the cadence")
+
+
+## The fairness invariant: the gap is the same fraction of the arena at any
+## count, so slipping through a GAP wall is no harder at 24 than at 6.
+func test_gap_stays_the_same_fraction_of_the_arena() -> void:
+	var base_ratio := LaserLimbo.GAP_HALF_WIDTH / LaserLimbo.ARENA_HALF
+	for count in [6, 12, 24]:
+		var game := _game_with(count)
+		assert_almost_eq(game._gap_half / game._play_half, base_ratio, 0.0001)
+
+
+## Backward compatibility: at the 6-player baseline nothing scales.
+func test_six_players_unchanged() -> void:
+	var game := _game_with(6)
+	assert_almost_eq(game._play_half, LaserLimbo.ARENA_HALF, 0.001)
+	assert_almost_eq(game._gap_half, LaserLimbo.GAP_HALF_WIDTH, 0.001)
+	assert_almost_eq(game._speed_scale, 1.0, 0.001)
+
+
+## A wall spawned at 24 players carries the scaled speed.
+func test_spawned_walls_carry_scaled_speed_at_twenty_four() -> void:
+	var game := _game_with(24)
+	game._spawn_left = 0.0
+	game._spawn_walls(0.0)
+	assert_eq(game.walls.size(), 1)
+	assert_almost_eq(
+		float((game.walls[0] as Dictionary).speed),
+		LaserLimbo.WALL_SPEED_START * game._speed_scale,
+		0.001
+	)
+
+
+## Spawns fan out over rings (no overlap) and stay inside the scaled arena.
+func test_spawns_distinct_and_within_arena_at_twenty_four() -> void:
+	var game := _game_with(24)
+	var seen := {}
+	for slot in 24:
+		var pos: Vector2 = game.positions[slot]
+		assert_lte(pos.length(), game._play_half, "spawn inside the scaled arena")
+		seen[pos] = true
+	assert_eq(seen.size(), 24, "every player gets a distinct spawn")

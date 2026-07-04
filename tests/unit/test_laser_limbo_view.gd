@@ -2,6 +2,8 @@ extends GutTest
 ## Laser Limbo client view (M10-06): renders replicated snapshots in the
 ## shared iso-arena without simulating anything locally.
 
+const VIEW_SCENE := preload("res://src/minigames/laser_limbo/laser_limbo_view.tscn")
+
 var view: MinigameView
 
 
@@ -10,10 +12,24 @@ func _player(x: float, y: float, live_count: int, air: int, duck: int) -> Array:
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/laser_limbo/laser_limbo_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+## M15: the view derives arena and gap size from the lobby count with the same
+## formula the sim uses, so rendered walls/gaps match the scaled play area.
+func test_arena_and_gap_scale_with_lobby_size() -> void:
+	assert_almost_eq(view._arena_half(), LaserLimbo.ARENA_HALF, 0.001, "2 players = base arena")
+	assert_almost_eq(view._gap_half(), LaserLimbo.GAP_HALF_WIDTH, 0.001)
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	var names := {}
+	for i in 24:
+		names[i] = "P%d" % (i + 1)
+	big.setup(names, 0)
+	assert_gt(big._arena_half(), LaserLimbo.ARENA_HALF, "24 players get a bigger floor")
+	assert_gt(big._gap_half(), LaserLimbo.GAP_HALF_WIDTH, "and a wider rendered gap")
 
 
 func test_view_scene_lives_at_catalog_path() -> void:

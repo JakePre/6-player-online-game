@@ -39,6 +39,15 @@ var _jump_cooldown := {}
 var _spawn_left := WALL_INTERVAL_START
 var _pending_downs: Array = []
 
+## Play area, gap, and wall speed scale with the lobby size (M15, ADR 003).
+## The gap scales *with the arena* so the safe fraction — and thus the
+## difficulty of slipping through — stays constant; wall speed scales so a
+## wall still crosses the wider arena in the same time (cadence holds). At
+## <=6 players all three equal the consts above, so the game is unchanged.
+var _play_half := ARENA_HALF
+var _gap_half := GAP_HALF_WIDTH
+var _speed_scale := 1.0
+
 
 static func make_meta() -> MinigameMeta:
 	return (
@@ -50,7 +59,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Laser Limbo",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 60.0,
 				"rules": "Jump the low lasers, duck the high ones, slip through the gaps. 3 lives.",
 			}
@@ -59,9 +68,15 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	_play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size())
+	# Keep the gap the same fraction of the arena, and let walls cross the wider
+	# arena in the same time — difficulty and cadence hold as the lobby grows.
+	var scale := _play_half / ARENA_HALF
+	_gap_half = GAP_HALF_WIDTH * scale
+	_speed_scale = scale
+	var spawns := SpawnLayout.ring_positions(slots.size(), _play_half * 0.5)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.5
+		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 		lives[slots[i]] = LIVES
 		airborne[slots[i]] = 0.0
@@ -92,7 +107,7 @@ func _tick(delta: float) -> void:
 		_jump_cooldown[slot] = maxf(_jump_cooldown[slot] - delta, 0.0)
 		var speed := DUCK_SPEED if ducking[slot] else MOVE_SPEED
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
-		positions[slot] = pos.limit_length(ARENA_HALF)
+		positions[slot] = pos.limit_length(_play_half)
 	_sweep_walls(delta)
 	_spawn_walls(delta)
 	_flush_downs()
@@ -151,7 +166,7 @@ func _sweep_walls(delta: float) -> void:
 				invuln[slot] = HIT_INVULN_SEC
 				if lives[slot] <= 0:
 					_pending_downs.append(slot)
-		if absf(wall.x) <= ARENA_HALF + 1.0:
+		if absf(wall.x) <= _play_half + 1.0:
 			remaining.append(wall)
 	walls = remaining
 
@@ -167,7 +182,7 @@ func _survives(slot: int, wall: Dictionary) -> bool:
 		WallKind.HIGH:
 			return ducking[slot]
 		_:
-			return absf(positions[slot].y - float(wall.gap_y)) <= GAP_HALF_WIDTH
+			return absf(positions[slot].y - float(wall.gap_y)) <= _gap_half
 
 
 func _spawn_walls(delta: float) -> void:
@@ -181,11 +196,11 @@ func _spawn_walls(delta: float) -> void:
 		walls
 		. append(
 			{
-				"x": -dir * (ARENA_HALF + 0.5),
+				"x": -dir * (_play_half + 0.5),
 				"dir": dir,
 				"kind": rng.randi_range(0, WallKind.size() - 1),
-				"gap_y": rng.randf_range(-ARENA_HALF * 0.7, ARENA_HALF * 0.7),
-				"speed": lerpf(WALL_SPEED_START, WALL_SPEED_MAX, t),
+				"gap_y": rng.randf_range(-_play_half * 0.7, _play_half * 0.7),
+				"speed": lerpf(WALL_SPEED_START, WALL_SPEED_MAX, t) * _speed_scale,
 			}
 		)
 	)
