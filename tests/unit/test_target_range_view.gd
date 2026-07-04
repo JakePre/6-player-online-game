@@ -2,12 +2,13 @@ extends GutTest
 ## Target Range client view: renders replicated targets/aims in the iso arena
 ## without local simulation, and (M13-17) breaks shot targets with a burst.
 
+const VIEW_SCENE: PackedScene = preload("res://src/minigames/target_range/target_range_view.tscn")
+
 var view: MinigameView3D
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/target_range/target_range_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -41,3 +42,21 @@ func test_drifted_off_target_does_not_burst() -> void:
 	view.render({"targets": [[2, off_x, 3.0, 0.5, TargetRange.Kind.STANDARD]]})
 	view.render({"targets": []})
 	assert_eq(_burst_count(), 0, "an off-screen recycle is silent")
+
+
+## M15-07: a 24-shooter crowd wraps into ranks stepping toward the gallery,
+## all staying clear of the target band (BAND_NEAR is -1).
+func test_crowd_wraps_toward_the_gallery() -> void:
+	var crowd := {}
+	for slot in 24:
+		crowd[slot] = "P%d" % (slot + 1)
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	big.setup(crowd, 0)
+	var depths := {}
+	for slot in 24:
+		var rig: CharacterRig = big.rig_for_slot(slot)
+		depths[snappedf(rig.position.z, 0.01)] = true
+		assert_lte(rig.position.z, big.FIRING_LINE + 0.001, "no rank behind the firing line")
+		assert_gt(rig.position.z, 2.0, "every rank stays clear of the target band")
+	assert_eq(depths.size(), 3, "24 shooters stand in three ranks")
