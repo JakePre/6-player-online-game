@@ -100,3 +100,17 @@ func test_snapshot_shape() -> void:
 	assert_eq((snapshot.players[0] as Array).size(), 4, "[score, balls, flight_t, target_x]")
 	assert_almost_eq(float(snapshot.players[0][2]), 0.0, 0.001, "fresh flight at t=0")
 	assert_eq(float(snapshot.players[1][2]), -1.0, "no flight = -1")
+
+
+func test_max_players_raised_to_twenty_four() -> void:
+	assert_eq(BullseyeBowl.make_meta().max_players, 24)
+
+
+## No shared arena state (M15): each player has an independent lane, so a
+## 24-player match is just 24 independent sets of scores/balls/phases.
+func test_setup_handles_twenty_four_players() -> void:
+	var game := _game_with(24)
+	assert_eq(game.scores.size(), 24)
+	for slot in 24:
+		assert_eq(game.scores[slot], 0)
+		assert_eq(game.balls_left[slot], BullseyeBowl.BALLS)
