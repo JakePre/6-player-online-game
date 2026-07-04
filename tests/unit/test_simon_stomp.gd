@@ -125,3 +125,24 @@ func test_snapshot_hides_sequence_outside_show() -> void:
 	assert_eq(hidden.phase, SimonStomp.Phase.INPUT)
 	assert_eq((hidden.sequence as Array).size(), 0)
 	assert_eq(hidden.length, SimonStomp.START_LENGTH)
+
+
+func test_max_players_raised_to_twenty_four() -> void:
+	assert_eq(SimonStomp.make_meta().max_players, 24)
+
+
+## No arena/position state (M15): a 24-player match just tracks 24 sets of
+## alive/cleared-count against the same shared 4-pad sequence.
+func test_setup_handles_twenty_four_players() -> void:
+	var game := _make_game(24)
+	assert_eq(game.alive.size(), 24)
+	for slot in 24:
+		assert_true(game.alive[slot])
+		assert_eq(game.cleared_count[slot], 0)
+	# Everyone can clear the round independently of headcount.
+	_enter_input(game)
+	for slot in 24:
+		_stomp_full_sequence(game, slot)
+	assert_eq(game.phase, SimonStomp.Phase.RESULT)
+	for slot in 24:
+		assert_eq(game.cleared_count[slot], 1)

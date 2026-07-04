@@ -45,7 +45,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Simon Stomp",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 120.0,
 				"rules":
 				"Watch the pads flash, then stomp them back in order. One slip and you're out!",
