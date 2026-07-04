@@ -75,3 +75,47 @@ func test_flashed_pad_lights_during_watch_only() -> void:
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_not_null(view.arena.get_node("Pad0"))
+
+
+func _ripple_count() -> int:
+	# Counted via group membership: sibling name collisions are auto-renamed,
+	# so node names cannot identify ripples reliably.
+	return get_tree().get_nodes_in_group(&"beat_ripples").size()
+
+
+## M13-18: each demonstrated WATCH flash ripples its pad, edge-triggered on the
+## flash changing — a held flash does not re-spawn every snapshot.
+func test_watch_flash_ripples_once_per_flash() -> void:
+	assert_eq(_ripple_count(), 0, "no ripples at rest")
+	view.render(_snapshot(BeatBounce.Phase.WATCH, 2, 3))
+	var after_first := _ripple_count()
+	assert_gt(after_first, 0, "the demonstrated pad ripples")
+	view.render(_snapshot(BeatBounce.Phase.WATCH, 2, 3))
+	assert_eq(_ripple_count(), after_first, "a held flash does not re-ripple")
+
+
+## Between flashes the demo goes dark (flash == -1); no ripple may spawn then.
+func test_dark_flash_spawns_no_ripple() -> void:
+	view.render(_snapshot(BeatBounce.Phase.WATCH, -1, 3))
+	assert_eq(_ripple_count(), 0, "flash -1 means no pad is demonstrated")
+
+
+## The moment REPEAT opens, all four pads ripple an invitation — once.
+func test_repeat_opening_ripples_all_pads() -> void:
+	view.render(_snapshot(BeatBounce.Phase.WATCH, -1, 3))
+	view.render(_snapshot(BeatBounce.Phase.REPEAT, -1, 3))
+	assert_gte(_ripple_count(), 4, "every pad ripples when your turn opens")
+	var after_open := _ripple_count()
+	view.render(_snapshot(BeatBounce.Phase.REPEAT, -1, 3))
+	assert_eq(_ripple_count(), after_open, "staying in REPEAT does not re-ripple")
+
+
+## The pad hop is a decaying one-beat arc: zero at rest, positive right after a
+## tick, zero again once PAD_BOUNCE_SEC has passed.
+func test_pad_bounce_decays_after_the_beat() -> void:
+	assert_almost_eq(view._pad_bounce(0.0), 0.0, 0.001, "no bounce before any beat")
+	view._beat_at = 10.0
+	assert_gt(view._pad_bounce(10.0 + view.PAD_BOUNCE_SEC * 0.5), 0.0, "mid-arc hop is up")
+	assert_almost_eq(
+		view._pad_bounce(10.0 + view.PAD_BOUNCE_SEC), 0.0, 0.001, "bounce lands with the beat"
+	)
