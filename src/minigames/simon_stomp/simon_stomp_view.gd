@@ -32,6 +32,10 @@ const DIM := 0.28
 const LIT := 1.4
 ## How long a flashed pad stays lit within its SHOW_PER_PAD_SEC window.
 const FLASH_HOLD := 0.42
+## Pad labels (#261): direction arrow + key + color name, always readable.
+const PAD_LABELS: Array[String] = ["▲ W — Red", "▶ D — Amber", "▼ S — Green", "◀ A — Blue"]
+## Your own stomp echoes on the pad this long (local feedback).
+const PRESS_FLASH_SEC := 0.15
 
 var _phase: int = SimonStomp.Phase.SHOW
 var _round := 0
@@ -49,6 +53,11 @@ var _round_label: Label
 ## Locally clocked SHOW timer: snapshots arrive at 30 Hz but the flash should
 ## animate every frame, so we drive it off _process and reset on entering SHOW.
 var _show_timer := 0.0
+var _pressed_pad := -1
+var _pressed_until := 0.0
+var _last_lit := -1
+var _was_cleared := false
+var _was_failed := false
 
 
 func _arena_half() -> float:
@@ -63,6 +72,11 @@ func _process(delta: float) -> void:
 		for pad in PAD_ACTIONS.size():
 			if Input.is_action_just_pressed(PAD_ACTIONS[pad]):
 				NetManager.send_match_input({"pad": pad})
+				# Local stomp echo (#261): the pad you hit flashes and clicks.
+				_pressed_pad = pad
+				_pressed_until = Time.get_ticks_msec() / 1000.0 + PRESS_FLASH_SEC
+				play_sfx(&"click")
+		_update_pads()
 
 
 func _setup_3d() -> void:
@@ -73,6 +87,15 @@ func _setup_3d() -> void:
 func _render_3d(game: Dictionary) -> void:
 	var previous_phase := _phase
 	_phase = game.get("phase", SimonStomp.Phase.SHOW)
+	# Correct/bust stingers for the local player (#261).
+	var cleared_now := bool(game.get("round_cleared", {}).get(my_slot, false))
+	var failed_now := bool(game.get("round_failed", {}).get(my_slot, false))
+	if cleared_now and not _was_cleared:
+		play_sfx(&"confirm")
+	if failed_now and not _was_failed:
+		play_sfx(&"error")
+	_was_cleared = cleared_now
+	_was_failed = failed_now
 	if _phase == SimonStomp.Phase.SHOW and previous_phase != SimonStomp.Phase.SHOW:
 		_show_timer = 0.0
 	_round = game.get("round", 0)
@@ -107,6 +130,19 @@ func _build_pads() -> void:
 		node.mesh = mesh
 		node.position = to_arena(_pad_position(pad), 0.1)
 		arena.add_child(node)
+		# Direction + key + color on every pad, through-wall readable (#261).
+		var tag := Label3D.new()
+		tag.name = "PadLabel%d" % pad
+		tag.text = PAD_LABELS[pad]
+		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		tag.no_depth_test = true
+		tag.fixed_size = true
+		tag.pixel_size = 0.002
+		tag.font_size = 40
+		tag.outline_size = 16
+		tag.modulate = PAD_COLORS[pad].lightened(0.35)
+		tag.position = to_arena(_pad_position(pad), 1.1)
+		arena.add_child(tag)
 
 
 func _build_labels() -> void:
@@ -141,9 +177,16 @@ func _update_pads() -> void:
 		var idx := int(_show_timer / step)
 		if idx < _sequence.size() and fmod(_show_timer, step) <= FLASH_HOLD:
 			lit_pad = int(_sequence[idx])
+	# A soft tick every time the SHOW flash advances — the readable metronome.
+	if lit_pad != _last_lit and lit_pad != -1:
+		play_sfx(&"tick")
+	_last_lit = lit_pad
+	var now := Time.get_ticks_msec() / 1000.0
 	for pad in _pad_materials.size():
 		var base := PAD_COLORS[pad]
 		var energy := LIT if pad == lit_pad else DIM
+		if pad == _pressed_pad and now < _pressed_until:
+			energy = LIT  # Your own stomp echo (#261).
 		_pad_materials[pad].albedo_color = base
 		_pad_materials[pad].emission = base
 		_pad_materials[pad].emission_energy_multiplier = energy
