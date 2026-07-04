@@ -2,6 +2,8 @@ extends MinigameView
 ## Trap Corridor client view (M4-15): the corridor with runners, revealed
 ## traps, and the trapper's own placements (remembered locally — the server
 ## never replicates hidden traps). Trapper places traps by clicking tiles.
+## M13-26 FX pass (2D juice per PHASE2.md §7): the trapper's armed tiles
+## pulse while trapping, and a trap going off fires an expanding burst ring.
 
 const CORRIDOR_COLOR := Color(0.15, 0.14, 0.17)
 const CORRIDOR_BORDER := Color(0.4, 0.36, 0.45)
@@ -9,6 +11,8 @@ const GRID_LINE := Color(0.1, 0.1, 0.12)
 const REVEALED_COLOR := Color(0.9, 0.3, 0.25)
 const MY_TRAP_COLOR := Color(0.9, 0.6, 0.2, 0.55)
 const FINISH_COLOR := Color(0.4, 0.85, 0.4)
+const SPRING_DURATION := 0.6
+const ARM_PULSE_HZ := 2.5
 
 ## Latest replicated state, straight from TrapCorridor.get_snapshot().
 var phase := TrapCorridor.Phase.TRAPPING
@@ -22,10 +26,33 @@ var traps_left := 0
 ## Tiles this client placed while trapping (local memory, not replicated).
 var my_traps: Array = []
 
+# M13-26 FX state: in-flight spring bursts ({index, age}), last-seen revealed
+# list for spring detection, and the arm-pulse clock.
+var _springs: Array = []
+var _revealed_seen: Array = []
+var _seen_snapshot := false
+var _arm_clock := 0.0
+
 
 func _physics_process(_delta: float) -> void:
 	if phase == TrapCorridor.Phase.RUNNING and my_slot != trapper:
 		send_move_intent()
+
+
+func _process(delta: float) -> void:
+	var alive: Array = []
+	for spring: Dictionary in _springs:
+		spring.age += delta
+		if spring.age < SPRING_DURATION:
+			alive.append(spring)
+	_springs = alive
+	var arming := (
+		phase == TrapCorridor.Phase.TRAPPING and my_slot == trapper and not my_traps.is_empty()
+	)
+	if arming:
+		_arm_clock += delta
+	if arming or not _springs.is_empty():
+		queue_redraw()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -53,6 +80,14 @@ func _render(game: Dictionary) -> void:
 	trapper = int(game.get("trapper", -1))
 	players = game.get("players", {})
 	revealed = game.get("revealed", [])
+	# Trap springs (M13-26): a trap newly in `revealed` just went off. The
+	# first snapshot seeds silently so a late join doesn't erupt.
+	if _seen_snapshot:
+		for index: int in revealed:
+			if index not in _revealed_seen:
+				_springs.append({"index": index, "age": 0.0})
+	_seen_snapshot = true
+	_revealed_seen = revealed.duplicate()
 	caught = game.get("caught", [])
 	scores = game.get("scores", {})
 	traps_left = int(game.get("traps_left", 0))
@@ -66,8 +101,18 @@ func _draw() -> void:
 	for index: int in revealed:
 		draw_rect(_tile_rect(rect, tile, index), REVEALED_COLOR)
 	if my_slot == trapper:
+		# Arm pulse (M13-26): armed tiles breathe so placement reads as live.
+		var trap_color := MY_TRAP_COLOR
+		trap_color.a = 0.35 + 0.25 * (0.5 + 0.5 * sin(_arm_clock * TAU * ARM_PULSE_HZ))
 		for index: int in my_traps:
-			draw_rect(_tile_rect(rect, tile, index), MY_TRAP_COLOR)
+			draw_rect(_tile_rect(rect, tile, index), trap_color)
+	# Spring bursts (M13-26): an expanding, fading ring where a trap went off.
+	for spring: Dictionary in _springs:
+		var progress: float = spring.age / SPRING_DURATION
+		var center := _tile_rect(rect, tile, int(spring.index)).get_center()
+		var radius := tile.y * (0.6 + 1.4 * progress)
+		var ring_color := Color(REVEALED_COLOR, 1.0 - progress)
+		draw_arc(center, radius, 0.0, TAU, 24, ring_color, 1.0 + 3.0 * (1.0 - progress))
 	for col in range(1, TrapCorridor.COLS):
 		var x := rect.position.x + col * tile.x
 		draw_line(Vector2(x, rect.position.y), Vector2(x, rect.end.y), GRID_LINE, 1.0)
