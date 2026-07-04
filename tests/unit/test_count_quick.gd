@@ -119,6 +119,30 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.round, 0)
 
 
+func test_max_players_raised_to_twenty_four() -> void:
+	assert_eq(CountQuick.make_meta().max_players, 24)
+
+
+## No player-player collision (M15): pads have no exclusive occupancy, so
+## a 24-player match just tracks 24 independent scores/locks against the
+## same shared swarm and pads.
+func test_setup_handles_twenty_four_players() -> void:
+	var game := _game_with(24)
+	assert_eq(game.scores.size(), 24)
+	for slot in 24:
+		assert_eq(game.scores[slot], 0)
+		assert_eq(game.locked[slot], -1)
+	# Everyone can lock the correct pad on the same tick with no exclusivity
+	# conflict, and all share the first-correct double (#224 tie rule).
+	_to_answer(game)
+	var correct_pad := _pad_with_value(game, game.correct_count)
+	for slot in 24:
+		game.positions[slot] = correct_pad.pos
+	game.tick(TICK)
+	for slot in 24:
+		assert_eq(game.scores[slot], CountQuick.SCORE_FIRST)
+
+
 ## Review fix on #224: two players locking the correct pad on the same tick
 ## are a tie group — both get the first-correct double, slot order never
 ## decides a photo finish.

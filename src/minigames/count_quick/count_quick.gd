@@ -48,7 +48,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Count Quick",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 60.0,
 				"rules":
 				"Count the swarm before it vanishes, then run to the right number. First correct pays double!",
