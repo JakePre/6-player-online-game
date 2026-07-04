@@ -16,6 +16,11 @@ const SHAKE_PATTERN: Array[Vector2] = [
 ]
 const SHAKE_STEP_SEC := 0.04
 const COIN_FLY_SEC := 0.6
+## Large-room UI (M15-06): coin chips fly to a grid that fits the screen width,
+## and the results list packs several entries per row past this many players,
+## so nothing runs off-screen at up to 24 players.
+const COIN_GRID_SPACING := Vector2(80.0, 30.0)
+const RESULTS_MAX_ROWS := 12
 
 ## Seconds an emote stays in the feed; tests shorten it.
 var emote_lifetime := 3.0
@@ -34,7 +39,7 @@ var _countdown_digit := 0
 @onready var _round_label: Label = %RoundLabel
 @onready var _game_name_label: Label = %GameNameLabel
 @onready var _timer_label: Label = %TimerLabel
-@onready var _totals_row: HBoxContainer = %TotalsRow
+@onready var _totals_row: HFlowContainer = %TotalsRow
 @onready var _play_area: Control = %PlayArea
 @onready var _play_placeholder: Label = %PlayPlaceholder
 @onready var _intro_card: PanelContainer = %IntroCard
@@ -232,7 +237,10 @@ func _show_results(event: Dictionary) -> void:
 	_totals = event.totals
 	_rebuild_totals_row()
 	_results_title.text = "Round %d results" % event.round
-	_fill_list(_results_list, MatchFormat.result_lines(event.placements, event.awards, _names))
+	_fill_list(
+		_results_list,
+		_fit_result_lines(MatchFormat.result_lines(event.placements, event.awards, _names))
+	)
 	_show_panel(_results_panel, _minigame_view != null)
 	_fly_coins(event.awards)
 
@@ -331,22 +339,45 @@ func _on_shake_requested(strength: float) -> void:
 func _fly_coins(awards: Dictionary) -> void:
 	var slots: Array = awards.keys()
 	slots.sort()
-	for i in slots.size():
-		var slot: int = slots[i]
-		var amount := int(awards.get(slot, 0))
-		if amount <= 0:
-			continue
+	var earners := slots.filter(func(s: int) -> bool: return int(awards.get(s, 0)) > 0)
+	var placed := 0
+	for slot: int in earners:
 		var coin := Label.new()
 		coin.name = "CoinFly%d" % slot
-		coin.text = "+%d" % amount
+		coin.text = "+%d" % int(awards[slot])
 		coin.add_theme_color_override("font_color", PlayerPalette.color_for_slot(slot))
 		add_child(coin)
-		coin.position = size / 2.0 + Vector2((i - slots.size() / 2.0) * 40.0, 0.0)
-		var target := _totals_row.position + Vector2(24.0 + i * 80.0, 0.0)
+		var offset := _coin_grid_offset(placed, earners.size(), size.x)
+		coin.position = size / 2.0 + offset - Vector2(size.x * 0.25, 0.0)
+		var target := _totals_row.position + offset
 		var tween := create_tween()
 		tween.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 		tween.tween_property(coin, "position", target, COIN_FLY_SEC)
 		tween.tween_callback(coin.queue_free)
+		placed += 1
+
+
+## Grid slot for coin chip `index` of `count`, packed into as many columns as
+## fit `width` so no chip flies off-screen at large player counts (M15-06).
+## Offset is relative to the totals row's left edge.
+func _coin_grid_offset(index: int, count: int, width: float) -> Vector2:
+	var cols := maxi(1, mini(count, int((width - 48.0) / COIN_GRID_SPACING.x)))
+	return Vector2(
+		24.0 + (index % cols) * COIN_GRID_SPACING.x, (index / cols) * COIN_GRID_SPACING.y
+	)
+
+
+## Packs ranked result lines into at most RESULTS_MAX_ROWS rows (several entries
+## per row for large lobbies) so the list never overflows the panel; small
+## lobbies keep one entry per row (M15-06).
+func _fit_result_lines(lines: Array[String]) -> Array[String]:
+	if lines.size() <= RESULTS_MAX_ROWS:
+		return lines
+	var per_row := int(ceil(float(lines.size()) / float(RESULTS_MAX_ROWS)))
+	var packed: Array[String] = []
+	for i in range(0, lines.size(), per_row):
+		packed.append("     ".join(lines.slice(i, i + per_row)))
+	return packed
 
 
 func _rebuild_totals_row() -> void:
