@@ -15,6 +15,12 @@ const BULLET_VIEW_RADIUS := 0.32
 ## right on the bullets' hue, so a translucent night overlay dims it and the
 ## emissive bullets glow against it instead of vanishing.
 const FLOOR_DIM_COLOR := Color(0.04, 0.05, 0.1, 0.78)
+## FX pass (M13-29): bullets stretch into tracer streaks, grazes shimmer, KOs
+## blast. Tracer length approximates travel as radially-outward from the turret
+## (how the volleys fan out), so no per-bullet history is needed at pool scale.
+const TRACER_STRETCH := 2.6
+const TRACER_MIN_RADIUS := 0.5
+const GRAZE_COLOR := Color(0.55, 0.9, 1.0)
 
 ## Latest replicated state, straight from BulletWaltz.get_snapshot().
 var players := {}
@@ -22,6 +28,8 @@ var bullets: Array = []
 var out: Array = []
 
 var _bullet_pool: Array[MeshInstance3D] = []
+var _last_grazes := {}  # slot (int) -> graze count already sparked at
+var _was_out := {}  # slot (int) -> bool (last-seen KO state, for the KO blast)
 
 
 func _physics_process(_delta: float) -> void:
@@ -76,6 +84,19 @@ func _setup_3d() -> void:
 		_bullet_pool.append(node)
 
 
+## Stretches a bullet into a short tracer streak pointing the way it travels,
+## approximated as radially outward from the center turret. Round near the
+## muzzle (direction is undefined there); elongates as it flies out.
+func _streak_bullet(node: MeshInstance3D, xz: Vector2) -> void:
+	if xz.length() < TRACER_MIN_RADIUS:
+		node.rotation = Vector3.ZERO
+		node.scale = Vector3.ONE
+		return
+	var outward := to_arena(xz)  # horizontal direction from the origin turret
+	node.look_at_from_position(node.position, node.position + outward, Vector3.UP)
+	node.scale = Vector3(1.0, 1.0, TRACER_STRETCH)
+
+
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
 	bullets = game.get("bullets", [])
@@ -84,14 +105,27 @@ func _render_3d(game: Dictionary) -> void:
 		var node := _bullet_pool[i]
 		if i < bullets.size():
 			var bullet: Array = bullets[i]
-			node.position = to_arena(Vector2(float(bullet[0]), float(bullet[1])), BULLET_HEIGHT)
+			var xz := Vector2(float(bullet[0]), float(bullet[1]))
+			node.position = to_arena(xz, BULLET_HEIGHT)
 			node.visible = true
+			_streak_bullet(node, xz)
 		else:
 			node.visible = false
+	# `out` is ko_order: groups of slots eliminated together, newest group last.
+	var out_set := {}
+	for group: Array in out:
+		for slot in group:
+			out_set[int(slot)] = true
 	for slot: int in names:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
+		# KO blast: a burst at the dancer the instant they drop out (rig still
+		# holds its last position before we hide it).
+		var is_out: bool = out_set.has(slot)
+		if is_out and not _was_out.get(slot, false):
+			fx_burst(Vector2(rig.position.x, rig.position.z), BULLET_COLOR, 1.0)
+		_was_out[slot] = is_out
 		if not players.has(slot):
 			rig.visible = false
 			continue
@@ -99,6 +133,10 @@ func _render_3d(game: Dictionary) -> void:
 		var state: Array = players[slot]
 		update_rig(slot, Vector2(state[0], state[1]))
 		var grazes := int(state[2])
+		# Graze shimmer: a spark when a bullet skims past for a fresh graze.
+		if grazes > int(_last_grazes.get(slot, 0)):
+			fx_sparkle(Vector2(rig.position.x, rig.position.z), GRAZE_COLOR, 1.0)
+		_last_grazes[slot] = grazes
 		rig.display_name = (
 			"%s  ✦%d" % [player_name(slot), grazes] if grazes > 0 else player_name(slot)
 		)
