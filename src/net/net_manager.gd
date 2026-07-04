@@ -330,12 +330,18 @@ func _rpc_start_match(config: Dictionary) -> void:
 		config = {}
 	if not config.has("rounds"):
 		config["rounds"] = room.round_count
+	MinigameCatalog.register_builtins()
 	if config.has("playlist"):
-		MinigameCatalog.register_builtins()
 		for id: StringName in config.playlist:
 			if not MinigameCatalog.is_registered(id):
 				_rpc_match_start_failed.rpc_id(peer_id, "unknown_minigame_%s" % id)
 				return
+	elif MinigameCatalog.eligible_ids(room.connected_count()).is_empty():
+		# With the 24-player room cap (ADR 003 / M15-01) ahead of the per-game
+		# cap raises, a head count no game supports must refuse here — before
+		# ready flags are consumed — instead of crashing the playlist builder.
+		_rpc_match_start_failed.rpc_id(peer_id, "no_eligible_minigames")
+		return
 	# Consumes the ready flags and flips the room to IN_MATCH (M2-02 gating).
 	# debug_force_start (test/dev harnesses only, requires --debug-rpcs) skips
 	# the 2-player-minimum/ready gate for solo minigame iteration.
@@ -538,6 +544,18 @@ func _broadcast_snapshots() -> void:
 				var personal: Dictionary = payload.duplicate()
 				personal["private"] = private
 				_rpc_snapshot.rpc_id(member.peer_id, personal)
+		# Debug-only cost telemetry (M15-01): one line every ~10 s per room so
+		# soak runs can verify the 30 Hz snapshot stays sane at 24 players.
+		# Measures the shared payload; per-recipient "private" extras (#254)
+		# add a few dozen bytes for at most the games that use them.
+		if debug_rpcs_enabled and _server_tick % (NetConfig.SNAPSHOT_HZ * 10) == 0:
+			var bytes := var_to_bytes(payload).size()
+			print(
+				(
+					"[server] snapshot_cost room=%s members=%d bytes=%d"
+					% [room.code, room.connected_count(), bytes]
+				)
+			)
 
 
 func _start_match(room: Room, config: Dictionary) -> void:

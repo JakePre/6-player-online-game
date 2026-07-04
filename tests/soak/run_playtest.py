@@ -129,6 +129,12 @@ def main() -> int:
             if exit_code != 0:
                 failed = True
 
+        # Surface the server's snapshot-cost telemetry (M15-01): match payloads
+        # measured here are the scaling baseline for larger rooms.
+        for line in server_log:
+            if "snapshot_cost" in line:
+                print(line)
+
         if failed:
             print("PLAYTEST FAIL")
             print("--- server log tail ---")

@@ -47,13 +47,16 @@ func test_join_unknown_code() -> void:
 
 func test_join_full_room() -> void:
 	var created := _create()
-	for i in range(2, 7):
+	# The creator holds slot 0; fill every remaining seat up to the cap.
+	for i in range(2, NetConfig.MAX_PLAYERS_PER_ROOM + 1):
 		assert_eq(
 			manager.join_room(i, created.room.code, "P%d" % i, PROTO).result,
 			NetConfig.JoinResult.OK
 		)
+	var late_peer := NetConfig.MAX_PLAYERS_PER_ROOM + 1
 	assert_eq(
-		manager.join_room(7, created.room.code, "Late", PROTO).result, NetConfig.JoinResult.FULL
+		manager.join_room(late_peer, created.room.code, "Late", PROTO).result,
+		NetConfig.JoinResult.FULL
 	)
 
 

@@ -14,7 +14,10 @@ enum JoinResult {
 
 const PROTOCOL_VERSION := 7
 const DEFAULT_PORT := 7777
-const MAX_PLAYERS_PER_ROOM := 6
+## ADR 003 (M15-01): rooms hold up to 24 players. Per-game eligibility still
+## comes from each MinigameMeta.max_players — the room cap only bounds the
+## lobby; the start gate refuses a match when no game fits the head count.
+const MAX_PLAYERS_PER_ROOM := 24
 const MIN_PLAYERS_TO_START := 2
 # Quick / Standard / Marathon (SPEC $4).
 const ROUND_COUNT_OPTIONS: Array[int] = [8, 12, 15]
