@@ -33,6 +33,25 @@ func test_setup_stocks_the_pile_with_zero_scores() -> void:
 		assert_eq(game.carried[slot], -1)
 
 
+func test_max_players_raised_to_eight() -> void:
+	assert_eq(BombCourier.make_meta().max_players, 8)
+
+
+## No-crowd fairness (M15 8-cap): the spawn ring already auto-distributes by
+## slot count, and at 8 players everyone starts well clear of swap range.
+func test_setup_spawns_are_spread_at_eight_players() -> void:
+	var game := _make_game(8)
+	assert_eq(game.score.size(), 8)
+	for a in 8:
+		for b in range(a + 1, 8):
+			var dist: float = (game.positions[a] as Vector2).distance_to(game.positions[b])
+			assert_gt(
+				dist,
+				BombCourier.SWAP_RADIUS,
+				"slots %d/%d don't spawn already in swap range" % [a, b]
+			)
+
+
 func test_walking_onto_a_loose_package_picks_it_up() -> void:
 	var game := _make_game(3)
 	# One isolated package so clustered pile spawns can't decide the pickup.

@@ -58,7 +58,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Bomb Courier",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 3,
-				"max_players": 6,
+				"max_players": 8,
 				"duration_sec": 60.0,
 				"rules":
 				(
