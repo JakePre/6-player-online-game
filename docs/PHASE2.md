@@ -13,7 +13,7 @@ Phase 1 shipped the complete v1 loop: 17 minigames, the coin economy, the Gauntl
 | P2-1 | Direction | **Deepen the current loop** — no board mode, no matchmaking, no progression systems |
 | P2-2 | Platforms | **Desktop only** (Win/Linux/macOS) — effort goes to quality, not reach |
 | P2-3 | Persistence | **Nothing persists** — identity stays name + character per session; no accounts, no server-side stats |
-| P2-4 | Session size | **2–6 players**, unchanged |
+| P2-4 | Session size | ~~2–6 players, unchanged~~ **AMENDED 2026-07-04 → up to 24 players** (owner directive, see [ADR 003](adr/003-player-count-24.md)). Parallel games scale to 24; brawlers/racers stay 6–8 by design. |
 | P2-5 | Mutators | **Both modes**: the host curates an enabled pool in the lobby; enabled mutators then roll randomly per round |
 | P2-6 | Roster growth | **+18 minigames → 35 total** — minigames stay the content engine (amended +2 per owner feedback, 2026-07-03: more action verbs, fewer walk/stand/collect loops) |
 | P2-7 | Tournament | **Best-of-N series**: 3 or 5 chained matches with a series scoreboard and a grand champion |
@@ -21,7 +21,7 @@ Phase 1 shipped the complete v1 loop: 17 minigames, the coin economy, the Gauntl
 
 ## 2. Non-goals (declined explicitly — do not re-litigate in PRs)
 
-Board/campaign modes · public matchmaking or server browsers · accounts, friends, global leaderboards · web/mobile/Steam ports · lobbies above 6 players · fill-in bot players or practice AI.
+Board/campaign modes · public matchmaking or server browsers · accounts, friends, global leaderboards · web/mobile/Steam ports · ~~lobbies above 6 players~~ (amended 2026-07-04 — lobbies up to 24 are now in scope, see [ADR 003](adr/003-player-count-24.md)) · fill-in bot players or practice AI.
 
 ## 3. Mutators (M9)
 

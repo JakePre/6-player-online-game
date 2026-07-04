@@ -26,7 +26,7 @@ These were decided with the project owner and are **not open for re-litigation**
 | Scoring | **Coins during minigames + final showdown** that can flip the standings |
 | Minigame types | All four: chaotic free-for-all, skill/precision, team-based, sabotage/betrayal |
 | Input | Keyboard (WASD), full controller support, mouse for aiming minigames |
-| Player count | Flexible **2–6**; minigames and scoring must scale |
+| Player count | **AMENDED 2026-07-04 → up to 24** (owner directive, see [ADR 003](adr/003-player-count-24.md)). Originally 2–6. Not every minigame scales — brawlers/racers stay 6–8 by design; parallel games scale to 24. Small lobbies (2–6) are unchanged. |
 | Disconnects | Player can **rejoin mid-match** with the room code; score preserved; match continues without them meanwhile |
 | Characters | Roster of distinct selectable characters (no cosmetics/unlock system in v1) |
 | V1 scope | **15+ minigames** at launch |
