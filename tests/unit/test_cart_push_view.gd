@@ -61,6 +61,44 @@ func test_ore_nodes_spawn_by_id_and_despawn() -> void:
 	assert_true(gone == null or gone.is_queued_for_deletion(), "collected ore despawns")
 
 
+func _particle_count() -> int:
+	var count := 0
+	for child in view.arena.get_children():
+		if child is CPUParticles3D:
+			count += 1
+	return count
+
+
+## M13-23: the cart kicks wheel dust as it rolls (once per DUST_STEP travelled).
+func test_cart_kicks_wheel_dust_as_it_rolls() -> void:
+	view.render({"players": {}, "cart": 0.0, "teams": [], "ores": [], "bonus": [0, 0]})
+	assert_eq(_particle_count(), 0, "no dust while the cart is still")
+	view.render({"players": {}, "cart": 2.0, "teams": [], "ores": [], "bonus": [0, 0]})
+	assert_gt(_particle_count(), 0, "rolling the cart kicks dust")
+
+
+## A shove landing (stagger rising edge, flag bit 2) puffs dust off the victim.
+func test_shove_impact_puffs() -> void:
+	view.render(
+		{"players": {0: [1.0, 0.0, 0]}, "cart": 0.0, "teams": [], "ores": [], "bonus": [0, 0]}
+	)
+	assert_eq(_particle_count(), 0)
+	view.render(
+		{"players": {0: [1.0, 0.0, 2]}, "cart": 0.0, "teams": [], "ores": [], "bonus": [0, 0]}
+	)
+	assert_gt(_particle_count(), 0, "the shove impact puffs")
+
+
+## Scooping an ore (it leaves the list) sparkles at the pickup.
+func test_ore_pickup_sparkles() -> void:
+	view.render(
+		{"players": {}, "cart": 0.0, "teams": [], "ores": [[3, 2.0, -4.0]], "bonus": [0, 0]}
+	)
+	assert_eq(_particle_count(), 0, "no sparkle while the ore sits there")
+	view.render({"players": {}, "cart": 0.0, "teams": [], "ores": [], "bonus": [0, 0]})
+	assert_gt(_particle_count(), 0, "the pickup sparkles")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)

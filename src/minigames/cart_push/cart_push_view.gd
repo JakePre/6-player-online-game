@@ -13,6 +13,8 @@ const ORE_COLOR := Color(1.0, 0.82, 0.25)
 const CART_SIZE := Vector3(1.8, 1.0, 1.2)
 const ORE_RADIUS := 0.3
 const CARRIED_ORE_HEIGHT := 2.6
+## Wheel dust (M13-23): one puff per this many world units the cart rolls.
+const DUST_STEP := 0.6
 
 ## Latest replicated state, straight from CartPush.get_snapshot().
 var players := {}
@@ -26,6 +28,9 @@ var _carried := {}  # slot (int) -> MeshInstance3D floating over the carrier
 var _push_label: Label
 var _bonus_label: Label
 var _my_team := -1
+var _prev_cart_x := 0.0
+var _cart_dust_accum := 0.0
+var _staggered := {}  # slot (int) -> bool, for one-shot shove-impact puffs
 
 
 func _physics_process(_delta: float) -> void:
@@ -55,9 +60,21 @@ func _render_3d(game: Dictionary) -> void:
 	cart_x = float(game.get("cart", 0.0))
 	bonus = game.get("bonus", [0, 0])
 	_cart.position = to_arena(Vector2(cart_x, 0.0), CART_SIZE.y * 0.5)
+	_kick_wheel_dust()
 	_update_players()
 	_update_ores(game.get("ores", []))
 	_update_labels()
+
+
+## The cart's wheels kick dust as it rolls: accumulate travel and drop one
+## puff under the cart per DUST_STEP of movement (M13-23), so dust scales with
+## how hard the cart is being pushed rather than the snapshot rate.
+func _kick_wheel_dust() -> void:
+	_cart_dust_accum += absf(cart_x - _prev_cart_x)
+	_prev_cart_x = cart_x
+	while _cart_dust_accum >= DUST_STEP:
+		_cart_dust_accum -= DUST_STEP
+		fx_dust(Vector2(cart_x, 0.0))
 
 
 func _update_players() -> void:
@@ -78,6 +95,11 @@ func _update_players() -> void:
 			desired = &"interact"  # shove windup telegraph
 		if desired != &"idle" and rig.current_action() != desired:
 			rig.play(desired)
+		# Shove landed (stagger rising edge): a dust puff kicks up (M13-23).
+		var staggered := flags & 2 == 2
+		if staggered and not _staggered.get(slot, false):
+			fx_dust(Vector2(state[0], state[1]))
+		_staggered[slot] = staggered
 		rig.display_name = caption
 		_update_carried_ore(slot, flags & 1 == 1)
 
@@ -110,7 +132,10 @@ func _update_ores(ore_list: Array) -> void:
 		node.position = to_arena(Vector2(float(entry[1]), float(entry[2])), ORE_RADIUS)
 	for id: int in _ore_nodes.keys():
 		if not seen.has(id):
-			(_ore_nodes[id] as MeshInstance3D).queue_free()
+			# An ore only leaves the list when scooped up: sparkle the pickup.
+			var node := _ore_nodes[id] as MeshInstance3D
+			fx_sparkle(Vector2(node.position.x, node.position.z), ORE_COLOR, ORE_RADIUS)
+			node.queue_free()
 			_ore_nodes.erase(id)
 
 
