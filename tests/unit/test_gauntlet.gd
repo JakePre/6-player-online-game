@@ -229,3 +229,84 @@ func test_overlapping_players_push_apart() -> void:
 	game._hazard_accum = -INF
 	game.tick(TICK)
 	assert_gt(game.positions[1].x - game.positions[0].x, 0.5)
+
+
+func _slots(count: int) -> Array[int]:
+	var out: Array[int] = []
+	for slot in count:
+		out.append(slot)
+	return out
+
+
+## ADR 003: the finale scales to 24 — a bigger disc that shrinks faster so the
+## squeeze keeps its pacing; the 6-player base is untouched.
+func test_cap_raised_to_twentyfour() -> void:
+	assert_eq(Gauntlet.make_meta().max_players, 24)
+
+
+func test_platform_scales_with_head_count() -> void:
+	assert_almost_eq(
+		Gauntlet.start_radius_for(6), Gauntlet.START_RADIUS, 0.001, "the 6-player base is unchanged"
+	)
+	assert_almost_eq(
+		Gauntlet.start_radius_for(2), Gauntlet.START_RADIUS, 0.001, "small lobbies too"
+	)
+	assert_gt(
+		Gauntlet.start_radius_for(24), Gauntlet.start_radius_for(6), "24 players get a bigger disc"
+	)
+	assert_gt(
+		Gauntlet.shrink_per_stage_for(24), Gauntlet.SHRINK_PER_STAGE, "and a faster shrink to match"
+	)
+
+
+func test_setup_seeds_the_scaled_platform() -> void:
+	var game := _gauntlet(_slots(24))
+	assert_almost_eq(game.radius, Gauntlet.start_radius_for(24), 0.001)
+	# Spawn ring sits on the scaled disc, not the base one.
+	for slot in 24:
+		assert_almost_eq(
+			(game.positions[slot] as Vector2).length(),
+			Gauntlet.start_radius_for(24) * 0.6,
+			0.001,
+			"players ring the scaled platform"
+		)
+
+
+## Pacing is preserved: the number of shrink stages to reach MIN_RADIUS stays
+## close to the 6-player count despite the far larger 24-player disc.
+func test_shrink_reaches_min_in_similar_stages() -> void:
+	var stages_6 := _stages_to_min(6)
+	var stages_24 := _stages_to_min(24)
+	assert_lte(stages_24, stages_6 + 2, "the bigger disc still compresses in a similar time")
+	assert_lt(
+		float(stages_24) * Gauntlet.SHRINK_STAGE_SEC,
+		Gauntlet.make_meta().duration_sec,
+		"and reaches the floor well within the round"
+	)
+
+
+func _stages_to_min(count: int) -> int:
+	var r := Gauntlet.start_radius_for(count)
+	var step := Gauntlet.shrink_per_stage_for(count)
+	var stages := 0
+	while r > Gauntlet.MIN_RADIUS:
+		r = maxf(r - step, Gauntlet.MIN_RADIUS)
+		stages += 1
+	return stages
+
+
+## A full 24-player finale resolves within the round and ranks every slot
+## exactly once — no crash, no dropped or duplicated player at scale.
+func test_full_twentyfour_player_finale_resolves() -> void:
+	var game := _gauntlet(_slots(24))
+	var max_ticks := int(Gauntlet.make_meta().duration_sec / TICK) + 5
+	var ticks := 0
+	while not game.finished and ticks < max_ticks:
+		game.tick(TICK)
+		ticks += 1
+	assert_true(game.finished, "the 24-player finale resolves within the round cap")
+	var seen := {}
+	for group: Array in game.get_results().placements:
+		for slot: int in group:
+			seen[slot] = true
+	assert_eq(seen.size(), 24, "every player is ranked exactly once")

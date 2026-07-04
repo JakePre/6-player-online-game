@@ -43,10 +43,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _arena_half() -> float:
-	return Gauntlet.START_RADIUS + 2.0
+	# Frame the scaled platform (ADR 003) — `names` is set before setup runs.
+	return Gauntlet.start_radius_for(names.size()) + 2.0
 
 
 func _setup_3d() -> void:
+	# Seed the platform at the scaled start radius so the first frame (before
+	# any snapshot) already matches the sim's disc.
+	radius = Gauntlet.start_radius_for(names.size())
+	_last_radius = radius
 	_platform_mesh = CylinderMesh.new()
 	_platform_mesh.height = PLATFORM_THICKNESS
 	_platform_mesh.top_radius = radius
