@@ -24,11 +24,15 @@ const PILLAR_COUNT := 4
 const PILLAR_RADIUS := 0.8
 ## Pickup items (#139): grab by touch, fire with action_primary.
 const ITEM_PICKUP_RADIUS := 0.8
-const ITEM_SPAWN_SEC := 6.0
+const ITEM_SPAWN_SEC := 5.0
 const MAX_ACTIVE_ITEMS := 2
-const SHOVE_RADIUS := 3.0
-const SHOVE_DISTANCE := 2.5
-const ANCHOR_SEC := 3.0
+## Buffed per #260 — items must be worth fighting over.
+const SHOVE_RADIUS := 4.0
+const SHOVE_DISTANCE := 3.5
+const ANCHOR_SEC := 5.0
+## Grabbing an item pays instantly, before the use even lands (#260).
+const ITEM_PICKUP_POINTS := 3.0
+const PUSH_DISTANCE := 0.35
 
 var positions := {}
 var move_dirs := {}
@@ -107,6 +111,7 @@ func _tick(delta: float) -> void:
 		)
 	for slot: int in slots:
 		_push_out_of_pillars(slot)
+	_resolve_body_pushes()
 	_collect_items()
 	_spawn_items(delta)
 	var radius := zone_radius()
@@ -208,6 +213,20 @@ func _push_out_of_pillars(slot: int) -> void:
 			positions[slot] = pillar + axis * min_gap
 
 
+## Players are solid now (#260): overlapping bodies separate, Sumo-style.
+func _resolve_body_pushes() -> void:
+	for i in slots.size():
+		for j in range(i + 1, slots.size()):
+			var a: int = slots[i]
+			var b: int = slots[j]
+			var apart: Vector2 = positions[b] - positions[a]
+			if apart.length() > PLAYER_RADIUS * 2.0:
+				continue
+			var axis := apart.normalized() if apart.length() > 0.001 else Vector2.RIGHT
+			positions[a] -= axis * PUSH_DISTANCE
+			positions[b] += axis * PUSH_DISTANCE
+
+
 func _spawn_items(delta: float) -> void:
 	_item_accum += delta
 	if _item_accum < ITEM_SPAWN_SEC or items.size() >= MAX_ACTIVE_ITEMS:
@@ -235,6 +254,7 @@ func _collect_items() -> void:
 				continue
 			if positions[slot].distance_to(items[i].pos) <= ITEM_PICKUP_RADIUS:
 				held[slot] = int(items[i].type)
+				score_accum[slot] += ITEM_PICKUP_POINTS
 				items.remove_at(i)
 				break
 

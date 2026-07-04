@@ -168,3 +168,27 @@ func test_snapshot_carries_pillars_items_held() -> void:
 	assert_eq(snapshot.items, [[1.0, 1.0, 1]])
 	assert_eq(snapshot.held, {1: KingOfTheHill.Item.SHOVE})
 	assert_false(snapshot.anchored)
+
+
+func test_players_are_solid() -> void:
+	var game := _make_game(2)
+	game.positions[0] = Vector2(0.0, 0.0)
+	game.positions[1] = Vector2(0.4, 0.0)
+	game.tick(TICK)
+	assert_gt(
+		game.positions[1].distance_to(game.positions[0]), 0.4, "overlapping bodies separate (#260)"
+	)
+
+
+func test_item_pickup_pays_points() -> void:
+	var game := _make_game(2)
+	game.items.append({"pos": Vector2(2.0, 2.0), "type": KingOfTheHill.Item.SHOVE})
+	game.positions[0] = Vector2(2.0, 2.0)
+	var before: float = game.score_accum[0]
+	game.tick(TICK)
+	assert_almost_eq(
+		float(game.score_accum[0]) - before,
+		KingOfTheHill.ITEM_PICKUP_POINTS,
+		0.2,
+		"grabbing pays instantly (#260)"
+	)
