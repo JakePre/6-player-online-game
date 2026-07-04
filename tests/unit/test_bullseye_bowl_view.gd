@@ -57,3 +57,21 @@ func test_bullseye_jump_shakes_once() -> void:
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
+
+
+## M13-14: balls spin with flight progress, ring hits flash at the target.
+func test_ball_spins_with_flight_progress() -> void:
+	view.render({"players": {0: [0, 8, 0.25, 0.0], 1: [0, 8, -1.0, 0.0]}})
+	var ball: MeshInstance3D = view.arena.get_node("Ball0")
+	var spin_a: float = ball.rotation.x
+	view.render({"players": {0: [0, 8, 0.5, 0.0], 1: [0, 8, -1.0, 0.0]}})
+	assert_ne(ball.rotation.x, spin_a, "the roll advances with the flight")
+
+
+func test_ring_hits_flash_scaled_to_value() -> void:
+	view.render({"players": {0: [0, 7, -1.0, 0.0]}})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [1, 6, -1.0, 0.0]}})
+	assert_eq(view.arena.get_child_count(), before + 1, "an outer point twinkles")
+	view.render({"players": {0: [6, 5, -1.0, 0.0]}})
+	assert_eq(view.arena.get_child_count(), before + 2, "a bullseye bursts")

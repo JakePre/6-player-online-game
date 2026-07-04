@@ -110,6 +110,9 @@ func _render_3d(game: Dictionary) -> void:
 				BullseyeBowl.LANE_LENGTH / 2.0, -BullseyeBowl.LANE_LENGTH / 2.0, flight_t
 			)
 			ball.position = Vector3(center_x, BALL_RADIUS, z)
+			# Rolling spin (M13-14): rotation rides the replicated flight
+			# progress - distance traveled over the ball's circumference.
+			ball.rotation.x = -flight_t * BullseyeBowl.LANE_LENGTH / BALL_RADIUS
 		var rig := rig_for_slot(slot)
 		if rig != null:
 			rig.display_name = (
@@ -117,6 +120,14 @@ func _render_3d(game: Dictionary) -> void:
 			)
 		var score := int(state[0])
 		var seen := int(_scores_seen.get(slot, score))
-		if score >= seen + BullseyeBowl.SCORE_BULLSEYE:
-			request_shake(7.0)  # a bullseye just landed
+		if score > seen:
+			# Ring-hit flash (M13-14): a sparkle at the target scaled to the
+			# ring value - bullseyes burst, outers twinkle.
+			var gained := score - seen
+			var target_at := Vector2(center_x + float(state[3]), -BullseyeBowl.LANE_LENGTH / 2.0)
+			if gained >= BullseyeBowl.SCORE_BULLSEYE:
+				fx_burst(target_at, player_color(slot), 0.4)
+				request_shake(7.0)  # a bullseye just landed
+			else:
+				fx_sparkle(target_at, player_color(slot), 0.3)
 		_scores_seen[slot] = score
