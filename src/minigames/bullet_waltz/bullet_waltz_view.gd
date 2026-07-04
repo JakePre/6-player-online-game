@@ -37,7 +37,9 @@ func _physics_process(_delta: float) -> void:
 
 
 func _arena_half() -> float:
-	return BulletWaltz.ARENA_HALF
+	# Grow the framed floor with the lobby to match the sim's scaled play area
+	# (M15, ADR 003 F4); at <=6 players this is the tuned BulletWaltz.ARENA_HALF.
+	return MinigameScaling.arena_half(BulletWaltz.ARENA_HALF, names.size())
 
 
 func _setup_3d() -> void:

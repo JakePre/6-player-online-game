@@ -9,8 +9,9 @@ extends MinigameBase
 const ARENA_HALF := 9.0
 const MOVE_SPEED := 6.0
 const PLAYER_RADIUS := 0.4
-## Bullets die past this range.
-const BULLET_RANGE := ARENA_HALF * 1.6
+## Bullets die past this multiple of the play radius (scaled per lobby in _setup).
+const BULLET_RANGE_FACTOR := 1.6
+const BULLET_RANGE := ARENA_HALF * BULLET_RANGE_FACTOR
 const BULLET_RADIUS := 0.25
 ## A bullet passing within this ring (but not hitting) is a graze.
 const GRAZE_RADIUS := 1.1
@@ -35,6 +36,12 @@ var graze_coins := {}
 ## Slots in KO order; same-tick KOs share a tie group.
 var ko_order: Array = []
 
+## Play area + bullet range scale with the lobby (M15, ADR 003 F4); the turret
+## storm does not — a crowd just gets more floor to dodge on. At <=6 these equal
+## the consts above, leaving the tuned small-lobby game untouched.
+var _play_half := ARENA_HALF
+var _bullet_range := BULLET_RANGE
+
 var _fire_accum := 0.0
 var _spiral_angle := 0.0
 var _pattern_index := 0
@@ -53,7 +60,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Bullet Waltz",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 60.0,
 				"rules": "Dodge the storm — one hit and you're out! Skim bullets for bonus coins.",
 			}
@@ -62,9 +69,15 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	# Grow the dodge floor (and the range bullets must clear) with the lobby so a
+	# crowd isn't shoulder-to-shoulder (M15, ADR 003 F4); the turret storm itself
+	# is player-count-independent, so it is deliberately NOT scaled. At <=6 these
+	# equal the consts above and the tuned small-lobby game is unchanged.
+	_play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size())
+	_bullet_range = _play_half * BULLET_RANGE_FACTOR
+	var spawns := SpawnLayout.ring_positions(slots.size(), _play_half * 0.6)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 		graze_coins[slots[i]] = 0
 		_grazing[slots[i]] = []
@@ -83,7 +96,7 @@ func _tick(delta: float) -> void:
 	for slot: int in _in_slots():
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.clamp(
-			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+			Vector2(-_play_half, -_play_half), Vector2(_play_half, _play_half)
 		)
 	_fire_accum += delta
 	if _fire_accum >= fire_interval():
@@ -177,7 +190,7 @@ func _spawn_bullet(direction: Vector2) -> void:
 func _move_bullets(delta: float) -> void:
 	for i in range(bullets.size() - 1, -1, -1):
 		bullets[i].pos += bullets[i].vel * delta
-		if (bullets[i].pos as Vector2).length() > BULLET_RANGE:
+		if (bullets[i].pos as Vector2).length() > _bullet_range:
 			bullets.remove_at(i)
 
 
