@@ -76,3 +76,18 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.walls.size(), 0)
+
+
+## M13-13: beams shimmer across snapshots, hits burst electric.
+func test_beams_shimmer_across_snapshots() -> void:
+	view.render({"players": {}, "walls": [[0.0, 1, LaserLimbo.WallKind.LOW, 0.0]], "fallen": []})
+	var glow_a: float = view._beam_material.emission_energy_multiplier
+	view.render({"players": {}, "walls": [[0.5, 1, LaserLimbo.WallKind.LOW, 0.0]], "fallen": []})
+	assert_ne(view._beam_material.emission_energy_multiplier, glow_a, "the hum advances")
+
+
+func test_life_loss_bursts_at_the_player() -> void:
+	view.render({"players": {0: _player(0.0, 0.0, 3, 0, 0)}, "walls": [], "fallen": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: _player(0.0, 0.0, 2, 0, 0)}, "walls": [], "fallen": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "the laser bite bursts")
