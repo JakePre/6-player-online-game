@@ -1,27 +1,63 @@
 class_name ColorClash
 extends MinigameBase
 ## Color Clash (M4-13, SPEC $7 #14): paint floor tiles your color by walking
-## on them; most tiles when time expires wins. FFA at 2-3 players, two random
-## teams at 4-6 (the explicit team_mode caveat from #41). Server-side
-## simulation only — the client renders get_snapshot().
+## on them; most tiles when time expires wins. FFA at 2-3 players, N balanced
+## teams from 4 up (2 near the 6-player baseline, up to MAX_TEAMS at 24 —
+## ADR 003). The grid and arena grow with the lobby so tiles-per-player stays
+## meaningful. Server-side simulation only — the client renders get_snapshot().
 
+## Baseline (<=6 players) grid; larger lobbies scale up from here.
 const GRID_SIZE := 12
 const TILE_WORLD := 1.5
 const ARENA_HALF := GRID_SIZE * TILE_WORLD / 2.0
 const MOVE_SPEED := 6.0
 const PLAYER_RADIUS := 0.45
-## Team play starts at this player count (SPEC: FFA at 2-3, teams at 4-6).
+## Team play starts at this player count (SPEC: FFA at 2-3, teams at 4+).
 const TEAM_THRESHOLD := 4
+## Most teams a large lobby splits into (ADR 003: 4 teams of 6 at 24).
+const MAX_TEAMS := 4
 const UNPAINTED := -1
 
 var positions := {}
 var move_dirs := {}
-## faction id per slot: the slot itself in FFA, 0/1 in team play.
+## faction id per slot: the slot itself in FFA, else the team index.
 var faction_of := {}
-## Two arrays of slots in team play; empty in FFA.
+## Arrays of slots per team in team play; empty in FFA.
 var teams: Array = []
-## GRID_SIZE * GRID_SIZE tile owners (faction id or UNPAINTED).
+## grid_dim * grid_dim tile owners (faction id or UNPAINTED).
 var grid: Array = []
+## This match's scaled grid dimension and arena size (equal to the consts at
+## <=6 players). Both sim and view derive these from the head count via the
+## static helpers below, so tile layout stays in lockstep without threading
+## through the snapshot.
+var grid_dim := GRID_SIZE
+var arena_half := ARENA_HALF
+
+
+## N x N grid dimension for a lobby of `count`: grows so tiles-per-player
+## (area) holds — a side scales with the square root of the head-count growth.
+static func grid_dim_for(count: int) -> int:
+	return maxi(GRID_SIZE, roundi(GRID_SIZE * sqrt(MinigameScaling.growth(count))))
+
+
+## Half-extent of the square arena for `count` players, derived from the grid.
+static func arena_half_for(count: int) -> float:
+	return grid_dim_for(count) * TILE_WORLD / 2.0
+
+
+## How many balanced teams a lobby of `n` splits into (0 = FFA). Targets the
+## 6-player baseline team size, then searches nearby counts for one that
+## divides `n` evenly with at least 2 per team; a count with no clean split
+## (e.g. a prime like 23) falls back to FFA.
+static func team_count_for(n: int) -> int:
+	if n < TEAM_THRESHOLD:
+		return 0
+	var target := clampi(roundi(float(n) / MinigameScaling.BASELINE_PLAYERS), 2, MAX_TEAMS)
+	for delta: int in [0, -1, 1, -2, 2]:
+		var tc := target + delta
+		if tc >= 2 and tc <= MAX_TEAMS and n % tc == 0 and n / tc >= 2:
+			return tc
+	return 0
 
 
 static func make_meta() -> MinigameMeta:
@@ -34,7 +70,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Color Clash",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 45.0,
 				"rules": "Paint the floor by walking on it — most tiles when time runs out wins!",
 			}
@@ -43,10 +79,14 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
-	grid.resize(GRID_SIZE * GRID_SIZE)
+	grid_dim = grid_dim_for(slots.size())
+	arena_half = arena_half_for(slots.size())
+	grid.resize(grid_dim * grid_dim)
 	grid.fill(UNPAINTED)
-	# Odd counts play FFA — a 3v2 paint race is never fun (#178).
-	team_mode = slots.size() >= TEAM_THRESHOLD and slots.size() % 2 == 0
+	# Balanced teams from 4 up; counts with no clean even split play FFA — a
+	# lopsided paint race is never fun (#178).
+	var team_count := team_count_for(slots.size())
+	team_mode = team_count > 0
 	if team_mode:
 		var shuffled := slots.duplicate()
 		for i in range(shuffled.size() - 1, 0, -1):
@@ -54,17 +94,20 @@ func _setup() -> void:
 			var swap: int = shuffled[i]
 			shuffled[i] = shuffled[j]
 			shuffled[j] = swap
-		teams = [shuffled.slice(0, shuffled.size() / 2), shuffled.slice(shuffled.size() / 2)]
-		for team_index in teams.size():
-			for slot: int in teams[team_index]:
-				faction_of[slot] = team_index
+		var per_team := shuffled.size() / team_count
+		teams = []
+		for t in team_count:
+			var members: Array = shuffled.slice(t * per_team, (t + 1) * per_team)
+			teams.append(members)
+			for slot: int in members:
+				faction_of[slot] = t
 	else:
 		for slot: int in slots:
 			faction_of[slot] = slot
+	var spawns := SpawnLayout.ring_positions(slots.size(), arena_half * 0.6)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
 		var slot: int = slots[i]
-		positions[slot] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		positions[slot] = spawns[i]
 		move_dirs[slot] = Vector2.ZERO
 		_paint(slot)
 
@@ -77,7 +120,7 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	for slot: int in slots:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
-		var limit := ARENA_HALF - PLAYER_RADIUS
+		var limit := arena_half - PLAYER_RADIUS
 		positions[slot] = pos.clamp(Vector2(-limit, -limit), Vector2(limit, limit))
 		_paint(slot)
 
@@ -92,21 +135,33 @@ func get_snapshot() -> Dictionary:
 		"grid": grid.duplicate(),
 		"counts": _tile_counts(),
 		"teams": teams.duplicate(true),
+		"dim": grid_dim,
+		"half": arena_half,
 	}
 
 
 ## Most tiles wins. FFA: players ranked by their own tiles (ties grouped).
-## Teams: the two teams best-first (team_mode routing awards SPEC $5 tables),
-## a dead heat is a full tie.
+## Teams: every team best-first by painted tiles (team_mode routing awards the
+## SPEC $5 / ADR 003 N-team tables); an all-teams dead heat is a full tie.
 func _rank_players() -> Array:
 	var counts := _tile_counts()
 	if team_mode:
-		var a: int = counts.get(0, 0)
-		var b: int = counts.get(1, 0)
-		if a == b:
+		var ranked: Array = []
+		for team_index in teams.size():
+			ranked.append([int(counts.get(team_index, 0)), team_index])
+		var all_equal := true
+		for entry: Array in ranked:
+			if entry[0] != ranked[0][0]:
+				all_equal = false
+				break
+		if all_equal:
 			return [slots.duplicate()]
-		var order := [teams[0], teams[1]] if a > b else [teams[1], teams[0]]
-		return [order[0].duplicate(), order[1].duplicate()]
+		# Best-first; award_for_teams reads one team per entry, place = index.
+		ranked.sort_custom(func(x: Array, y: Array) -> bool: return x[0] > y[0])
+		var placements: Array = []
+		for entry: Array in ranked:
+			placements.append(teams[entry[1]].duplicate())
+		return placements
 	var by_count := {}
 	for slot: int in slots:
 		var count: int = counts.get(slot, 0)
@@ -124,9 +179,9 @@ func _rank_players() -> Array:
 
 func _paint(slot: int) -> void:
 	var pos: Vector2 = positions[slot]
-	var col := clampi(int(floor((pos.x + ARENA_HALF) / TILE_WORLD)), 0, GRID_SIZE - 1)
-	var row := clampi(int(floor((pos.y + ARENA_HALF) / TILE_WORLD)), 0, GRID_SIZE - 1)
-	grid[row * GRID_SIZE + col] = faction_of[slot]
+	var col := clampi(int(floor((pos.x + arena_half) / TILE_WORLD)), 0, grid_dim - 1)
+	var row := clampi(int(floor((pos.y + arena_half) / TILE_WORLD)), 0, grid_dim - 1)
+	grid[row * grid_dim + col] = faction_of[slot]
 
 
 func _tile_counts() -> Dictionary:

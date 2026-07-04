@@ -1,6 +1,7 @@
 extends GutTest
-## Color Clash (SPEC $7 #14): tile painting/stealing, FFA at 2-3 players,
-## two teams at 4-6 with team_mode routing, timeout ranking, and ties.
+## Color Clash (SPEC $7 #14, M15 → 24): tile painting/stealing, FFA at 2-3,
+## N balanced teams from 4 up, a grid that scales with the lobby, team_mode
+## routing, timeout ranking, and ties.
 
 const TICK := 1.0 / 30.0
 
@@ -10,6 +11,13 @@ func _game(player_slots: Array[int] = [0, 1]) -> ColorClash:
 	game.meta = ColorClash.make_meta()
 	game.setup(player_slots, 42)
 	return game
+
+
+func _n_slots(count: int) -> Array[int]:
+	var player_slots: Array[int] = []
+	for slot in count:
+		player_slots.append(slot)
+	return player_slots
 
 
 func _tile_at(game: ColorClash, world: Vector2) -> int:
@@ -144,3 +152,67 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.grid.size(), ColorClash.GRID_SIZE * ColorClash.GRID_SIZE)
 	assert_eq(snapshot.teams, [])
 	assert_true(snapshot.counts.size() >= 1)
+	assert_eq(int(snapshot.dim), ColorClash.GRID_SIZE, "snapshot carries the grid dimension")
+	assert_almost_eq(float(snapshot.half), ColorClash.ARENA_HALF, 0.001)
+
+
+## M15 → 24.
+
+
+func test_meta_caps_at_twenty_four() -> void:
+	assert_eq(ColorClash.make_meta().max_players, 24)
+
+
+func test_team_count_scales_and_falls_back_cleanly() -> void:
+	# Below the threshold and clean-split failures play FFA.
+	assert_eq(ColorClash.team_count_for(3), 0, "2-3 is FFA")
+	assert_eq(ColorClash.team_count_for(5), 0, "no even split -> FFA")
+	assert_eq(ColorClash.team_count_for(23), 0, "prime -> FFA")
+	# Balanced splits, growing with the lobby (ADR 003: ~6 per team).
+	assert_eq(ColorClash.team_count_for(4), 2)
+	assert_eq(ColorClash.team_count_for(6), 2)
+	assert_eq(ColorClash.team_count_for(12), 2)
+	assert_eq(ColorClash.team_count_for(18), 3)
+	assert_eq(ColorClash.team_count_for(24), 4)
+	# Awkward counts still find a nearby even split rather than dropping to FFA.
+	assert_eq(ColorClash.team_count_for(22), 2, "22 -> two teams of 11, not FFA")
+
+
+func test_grid_and_arena_grow_with_lobby() -> void:
+	assert_eq(ColorClash.grid_dim_for(6), ColorClash.GRID_SIZE, "baseline unchanged at <=6")
+	assert_gt(ColorClash.grid_dim_for(12), ColorClash.GRID_SIZE, "12 players get a bigger grid")
+	assert_eq(ColorClash.grid_dim_for(24), 2 * ColorClash.GRID_SIZE, "4x players -> 2x side")
+	var big := _game(_n_slots(24))
+	assert_eq(big.grid_dim, 24)
+	assert_eq(big.grid.size(), 24 * 24, "grid is dim squared")
+	assert_almost_eq(big.arena_half, 24 * ColorClash.TILE_WORLD / 2.0, 0.001)
+
+
+func test_four_balanced_teams_at_twenty_four() -> void:
+	var game := _game(_n_slots(24))
+	assert_true(game.team_mode)
+	assert_eq(game.teams.size(), 4, "24 splits into four teams")
+	var covered := 0
+	for team_index in game.teams.size():
+		assert_eq((game.teams[team_index] as Array).size(), 6, "six per team")
+		for slot: int in game.teams[team_index]:
+			assert_eq(game.faction_of[slot], team_index, "faction is the team index")
+			covered += 1
+	assert_eq(covered, 24, "every player is on exactly one team")
+
+
+func test_n_team_ranking_orders_every_team() -> void:
+	var game := _game(_n_slots(24))
+	game.grid.fill(ColorClash.UNPAINTED)
+	# Give team 2 the most tiles, then team 0, team 3, team 1 last.
+	var paint := {2: 40, 0: 30, 3: 20, 1: 10}
+	var idx := 0
+	for faction: int in paint:
+		for _i in paint[faction]:
+			game.grid[idx] = faction
+			idx += 1
+	var placements := game._rank_players()
+	assert_eq(placements[0], game.teams[2], "most tiles first")
+	assert_eq(placements[1], game.teams[0])
+	assert_eq(placements[2], game.teams[3])
+	assert_eq(placements[3], game.teams[1], "fewest tiles last")

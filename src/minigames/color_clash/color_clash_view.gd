@@ -25,6 +25,11 @@ var _tiles: MultiMeshInstance3D
 ## Script-side copy of per-tile colors: the MultiMesh color buffer lives in
 ## the RenderingServer and reads back empty under the headless test runner.
 var _tile_colors: Array = []
+## This match's scaled grid dimension / arena size (M15 → 24). Derived from the
+## head count with the sim's own helpers, so the tile mesh matches the grid
+## the server paints without threading the size through the snapshot.
+var _dim := ColorClash.GRID_SIZE
+var _half := ColorClash.ARENA_HALF
 # M13-21 FX state: last-seen tile owners for splat diffing, tile counts for
 # the leading-faction shimmer, snapshot counter for the pulse.
 var _grid_seen: Array = []
@@ -37,10 +42,12 @@ func _physics_process(_delta: float) -> void:
 
 
 func _arena_half() -> float:
-	return ColorClash.ARENA_HALF + 1.0
+	return ColorClash.arena_half_for(names.size()) + 1.0
 
 
 func _setup_3d() -> void:
+	_dim = ColorClash.grid_dim_for(names.size())
+	_half = ColorClash.arena_half_for(names.size())
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(ColorClash.TILE_WORLD, ColorClash.TILE_WORLD) * 0.94
 	var material := StandardMaterial3D.new()
@@ -51,11 +58,11 @@ func _setup_3d() -> void:
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_colors = true
 	multimesh.mesh = mesh
-	multimesh.instance_count = ColorClash.GRID_SIZE * ColorClash.GRID_SIZE
-	var start := -ColorClash.ARENA_HALF + ColorClash.TILE_WORLD * 0.5
+	multimesh.instance_count = _dim * _dim
+	var start := -_half + ColorClash.TILE_WORLD * 0.5
 	for i in multimesh.instance_count:
-		var row := i / ColorClash.GRID_SIZE
-		var col := i % ColorClash.GRID_SIZE
+		var row := i / _dim
+		var col := i % _dim
 		var pos := Vector3(
 			start + col * ColorClash.TILE_WORLD, PAINT_LIFT, start + row * ColorClash.TILE_WORLD
 		)
@@ -132,9 +139,9 @@ func shimmer_boost() -> float:
 
 
 func _tile_world_pos(index: int) -> Vector2:
-	var start := -ColorClash.ARENA_HALF + ColorClash.TILE_WORLD * 0.5
-	var row := index / ColorClash.GRID_SIZE
-	var col := index % ColorClash.GRID_SIZE
+	var start := -_half + ColorClash.TILE_WORLD * 0.5
+	var row := index / _dim
+	var col := index % _dim
 	return Vector2(start + col * ColorClash.TILE_WORLD, start + row * ColorClash.TILE_WORLD)
 
 
