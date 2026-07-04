@@ -59,7 +59,7 @@ func test_cooldown_on_nameplate() -> void:
 
 func test_local_dash_indicator_tracks_cooldown() -> void:
 	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 1.0, 0]}, "out": []})
-	var label: Label = view.get_node("DashIndicator")
+	var label: Label = view.get_node("BannerLayer/DashIndicator")
 	assert_string_contains(label.text, "DASH")
 	assert_false(label.text.contains("READY"), "cooling down")
 	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
@@ -100,3 +100,10 @@ func test_ringout_splashes_and_shakes_once_seeded() -> void:
 	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": [[1]]})
 	assert_signal_emitted(view, "shake_requested")
 	assert_eq(view.arena.get_child_count(), before + 1, "splash where they went over")
+
+
+func test_banner_rides_the_always_on_top_layer() -> void:
+	# #258: gameplay-critical text must outdraw arena and emote chrome.
+	var layer: CanvasLayer = view.get_node("BannerLayer")
+	assert_gt(layer.layer, 1, "banners sit above default chrome layers")
+	assert_not_null(layer.get_node("DashIndicator"))
