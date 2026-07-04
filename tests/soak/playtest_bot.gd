@@ -30,6 +30,9 @@ const DEBUG_CONFIG := {
 	"leaderboard_sec": 0.2,
 	"podium_sec": 0.2,
 	"duration_override": 0.4,
+	# The 3-2-1 gate (#182) costs 1.8 s per round undebugged; compress it too or
+	# a 12-round match overruns PHASE_TIMEOUT_SEC (#369).
+	"countdown_step_sec": 0.05,
 }
 const LEADERBOARD_EVERY := 5
 ## Seed for the --mutators variant (M9-06): the per-round roll is seed-driven,
