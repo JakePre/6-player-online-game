@@ -77,8 +77,13 @@ func _draw() -> void:
 	if lanes.is_empty():
 		return
 	var font := get_theme_default_font()
-	var font_size := get_theme_default_font_size()
-	var total_height := lanes.size() * LANE_HEIGHT + (lanes.size() - 1) * LANE_GAP
+	# Crowd fit (M15-07): team lanes shrink together so any count stacks
+	# inside the viewport; up to ~6 teams render exactly as before.
+	var fit := LaneLayout.fitted_scale(lanes.size(), LANE_HEIGHT + LANE_GAP, size.y * 0.94)
+	var lane_height := LANE_HEIGHT * fit
+	var lane_gap := LANE_GAP * fit
+	var font_size := maxi(8, int(get_theme_default_font_size() * fit))
+	var total_height := lanes.size() * lane_height + (lanes.size() - 1) * lane_gap
 	var top := (size.y - total_height) / 2.0
 	var left := GUTTER_WIDTH + 12.0
 	var width := size.x - left - size.x * 0.04
@@ -88,18 +93,18 @@ func _draw() -> void:
 	for row in lane_indices.size():
 		var lane_index: int = lane_indices[row]
 		var state: Array = lanes[lane_index]
-		var lane_top := top + row * (LANE_HEIGHT + LANE_GAP)
-		var rect := Rect2(left, lane_top, width, LANE_HEIGHT)
+		var lane_top := top + row * (lane_height + lane_gap)
+		var rect := Rect2(left, lane_top, width, lane_height)
 		draw_rect(rect, LANE_COLOR)
 		draw_rect(rect, LANE_BORDER, false, 2.0)
 		draw_line(
 			Vector2(left + width, lane_top),
-			Vector2(left + width, lane_top + LANE_HEIGHT),
+			Vector2(left + width, lane_top + lane_height),
 			FINISH_COLOR,
 			3.0
 		)
-		var mid_y := lane_top + LANE_HEIGHT / 2.0
-		var lat_scale := (LANE_HEIGHT / 2.0 - 8.0) / RelaySprint.LANE_HALF
+		var mid_y := lane_top + lane_height / 2.0
+		var lat_scale := (lane_height / 2.0 - 8.0 * fit) / RelaySprint.LANE_HALF
 		var team: Array = state[0]
 		var leg := int(state[1])
 		var done: bool = state[4]
@@ -112,7 +117,7 @@ func _draw() -> void:
 			var hx := left + float(hazard[0]) * px_per_unit
 			var hy := mid_y + float(hazard[1]) * lat_scale
 			# Warn when the sweep is closing on the runner's row (#213).
-			var closing := runner >= 0 and absf(hy - runner_y) < LANE_HEIGHT * 0.25
+			var closing := runner >= 0 and absf(hy - runner_y) < lane_height * 0.25
 			draw_circle(
 				Vector2(hx, hy),
 				RelaySprint.HAZARD_RADIUS * px_per_unit,
@@ -175,7 +180,7 @@ func _draw() -> void:
 				line = "▶ " + line
 			draw_string(
 				font,
-				Vector2(8.0, lane_top + 18.0 + i * 18.0),
+				Vector2(8.0, lane_top + (18.0 + i * 18.0) * fit),
 				line,
 				HORIZONTAL_ALIGNMENT_LEFT,
 				GUTTER_WIDTH - 16.0,
@@ -185,7 +190,7 @@ func _draw() -> void:
 		var status := "done!" if done else "leg %d" % (leg + 1)
 		draw_string(
 			font,
-			Vector2(8.0, lane_top + LANE_HEIGHT - 8.0),
+			Vector2(8.0, lane_top + lane_height - 8.0 * fit),
 			status,
 			HORIZONTAL_ALIGNMENT_LEFT,
 			GUTTER_WIDTH - 16.0,

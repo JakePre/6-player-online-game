@@ -25,8 +25,14 @@ func _process(_delta: float) -> void:
 		NetManager.send_match_input({"roll": true})
 
 
+## Camera framing grows with the lane bank (M15-07): lanes keep their tuned
+## pitch (each player's alley must stay readable and distinct), so a crowd
+## widens the shot instead of squeezing the lanes. Linear growth, not
+## MinigameScaling.arena_half()'s sqrt — a lane bank is one-dimensional.
+## names is populated before the camera builds (MinigameView.setup order),
+## and lobbies up to the 6-player baseline keep the classic framing exactly.
 func _arena_half() -> float:
-	return BullseyeBowl.LANE_LENGTH * 0.75
+	return BullseyeBowl.LANE_LENGTH * 0.75 * MinigameScaling.growth(names.size())
 
 
 func _setup_3d() -> void:

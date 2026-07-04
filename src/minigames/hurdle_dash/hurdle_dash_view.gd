@@ -77,40 +77,45 @@ func _draw() -> void:
 		return
 	var lanes := players.keys()
 	lanes.sort()
-	var total_height := lanes.size() * LANE_HEIGHT + (lanes.size() - 1) * LANE_GAP
+	# Crowd fit (M15-07): lanes shrink together so any count stacks inside the
+	# viewport; up to ~8 runners render exactly as before (fit stays 1.0).
+	var fit := LaneLayout.fitted_scale(lanes.size(), LANE_HEIGHT + LANE_GAP, size.y * 0.94)
+	var lane_height := LANE_HEIGHT * fit
+	var lane_gap := LANE_GAP * fit
+	var total_height := lanes.size() * lane_height + (lanes.size() - 1) * lane_gap
 	var top := (size.y - total_height) / 2.0
 	var left := size.x * 0.07
 	var width := size.x * 0.86
 	var px_per_unit := width / course_len
 	var font := get_theme_default_font()
-	var font_size := get_theme_default_font_size()
+	var font_size := maxi(8, int(get_theme_default_font_size() * fit))
 	for row in lanes.size():
 		var slot: int = lanes[row]
 		var state: Array = players[slot]
-		var lane_top := top + row * (LANE_HEIGHT + LANE_GAP)
-		var ground := lane_top + LANE_HEIGHT - 10.0
-		draw_rect(Rect2(left, lane_top, width, LANE_HEIGHT), LANE_COLOR)
-		draw_rect(Rect2(left, lane_top, width, LANE_HEIGHT), LANE_BORDER, false, 1.5)
+		var lane_top := top + row * (lane_height + lane_gap)
+		var ground := lane_top + lane_height - 10.0 * fit
+		draw_rect(Rect2(left, lane_top, width, lane_height), LANE_COLOR)
+		draw_rect(Rect2(left, lane_top, width, lane_height), LANE_BORDER, false, 1.5)
 		for hurdle: Variant in hurdles:
 			var x := left + float(hurdle) * px_per_unit
-			draw_line(Vector2(x, ground), Vector2(x, ground - 14.0), HURDLE_COLOR, 4.0)
+			draw_line(Vector2(x, ground), Vector2(x, ground - 14.0 * fit), HURDLE_COLOR, 4.0)
 		draw_line(
 			Vector2(left + width, lane_top),
-			Vector2(left + width, lane_top + LANE_HEIGHT),
+			Vector2(left + width, lane_top + lane_height),
 			FINISH_COLOR,
 			3.0
 		)
 		var x_pos := left + float(state[0]) * px_per_unit
 		var airborne := int(state[1]) == 1
 		var stunned := float(state[2]) > 0.0
-		var y_pos := ground - (JUMP_LIFT if airborne else 0.0)
+		var y_pos := ground - (JUMP_LIFT * fit if airborne else 0.0)
 		var color := STUN_COLOR if stunned else player_color(slot)
 		# Speed lines (M13-30): trailing streaks scaled by snapshot speed.
 		var speed: float = _speeds.get(slot, 0.0)
 		if speed > 0.01 and not stunned and not bool(state[3]):
 			var line_len := clampf(speed * px_per_unit * 3.0, 8.0, 30.0)
 			for i in 3:
-				var line_y := y_pos - 12.0 + float(i) * 5.0
+				var line_y := y_pos - (12.0 - float(i) * 5.0) * fit
 				var streak := SPEED_LINE_COLOR
 				streak.a -= 0.08 * float(i)
 				draw_line(
@@ -119,24 +124,24 @@ func _draw() -> void:
 					streak,
 					1.5
 				)
-		draw_circle(Vector2(x_pos, y_pos - 6.0), 7.0, color)
+		draw_circle(Vector2(x_pos, y_pos - 6.0 * fit), maxf(3.0, 7.0 * fit), color)
 		# Clip sparks (M13-30): radiating rays where a hurdle got eaten.
 		for spark: Dictionary in _sparks:
 			if int(spark.slot) != slot:
 				continue
 			var age_t: float = spark.age / SPARK_DURATION
-			var reach := 8.0 + 14.0 * age_t
+			var reach := (8.0 + 14.0 * age_t) * fit
 			var ray_color := Color(HURDLE_COLOR, 1.0 - age_t)
 			for ray in SPARK_RAYS:
 				var direction := Vector2.from_angle(TAU * float(ray) / SPARK_RAYS)
-				var center := Vector2(x_pos, y_pos - 6.0)
+				var center := Vector2(x_pos, y_pos - 6.0 * fit)
 				draw_line(
 					center + direction * reach * 0.5, center + direction * reach, ray_color, 2.0
 				)
 		var caption := player_name(slot) + ("  🏁" if bool(state[3]) else "")
 		draw_string(
 			font,
-			Vector2(left + 4.0, lane_top + 14.0),
+			Vector2(left + 4.0, lane_top + maxf(10.0, 14.0 * fit)),
 			caption,
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1,

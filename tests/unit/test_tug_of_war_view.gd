@@ -2,12 +2,13 @@ extends GutTest
 ## Tug of War client view (M8-09): renders replicated snapshots in the
 ## shared iso-arena without simulating anything locally.
 
+const VIEW_SCENE: PackedScene = preload("res://src/minigames/tug_of_war/tug_of_war_view.tscn")
+
 var view: MinigameView3D
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/tug_of_war/tug_of_war_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -68,3 +69,28 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.rope, 0.0)
 	assert_eq(view.team_a, [])
+
+
+## M15-07: a 12-puller team splits into two parallel files instead of one
+## file stretching past the win lines; both files stay on their team's side.
+func test_big_teams_split_into_parallel_files() -> void:
+	var crowd := {}
+	var team_a: Array = []
+	var team_b: Array = []
+	for slot in 24:
+		crowd[slot] = "P%d" % (slot + 1)
+		(team_a if slot % 2 == 0 else team_b).append(slot)
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	big.setup(crowd, 0)
+	big.render({"rope": 0.0, "win_offset": 10.0, "team_a": team_a, "team_b": team_b})
+	var rows := {}
+	var deepest := 0.0
+	for slot: int in team_a:
+		var rig: CharacterRig = big.rig_for_slot(slot)
+		rows[snappedf(rig.position.z, 0.01)] = true
+		deepest = maxf(deepest, absf(rig.position.x))
+		assert_lt(rig.position.z, 0.0, "team A stays on its own side of the rope")
+	assert_eq(rows.size(), 2, "12 pullers stand in two files")
+	var single_file_reach := 2.0 + 11 * big.TEAMMATE_SPACING
+	assert_lt(deepest, single_file_reach, "no file stretches like the old single line")

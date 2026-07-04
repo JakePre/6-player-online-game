@@ -8,6 +8,8 @@ extends MinigameView3D
 ## nameplates like Quick Draw's win tallies.
 
 const FIRING_LINE := 6.0
+## Depth between shooter ranks when the firing line wraps (M15-07).
+const RANK_STEP := 1.5
 const AIM_SPEED := 12.0
 const CROSSHAIR_HEIGHT := 0.15
 const COOLDOWN_ALPHA := 0.25
@@ -79,16 +81,20 @@ func _render_3d(game: Dictionary) -> void:
 	_update_rigs()
 
 
-## Shooters stand on a fixed firing line facing the gallery; there is no
-## body movement in this game, so rigs are placed once.
+## Shooters stand on the firing line facing the gallery; there is no body
+## movement in this game, so rigs are placed once. Crowds wrap into extra
+## ranks stepping toward the gallery (M15-07) — the front rank keeps the
+## classic line, and even three ranks (24 shooters) stay well short of the
+## target band (BAND_NEAR is -1; the third rank stands at y = 3).
 func _line_up_rigs() -> void:
 	var sorted: Array = names.keys()
 	sorted.sort()
+	var offsets := LaneLayout.row_positions(sorted.size(), 2.0, RANK_STEP)
 	for i in sorted.size():
 		var rig := rig_for_slot(sorted[i])
 		if rig == null:
 			continue
-		rig.position = to_arena(Vector2((i - (sorted.size() - 1) / 2.0) * 2.0, FIRING_LINE))
+		rig.position = to_arena(Vector2(offsets[i].x, FIRING_LINE - offsets[i].y))
 		rig.rotation.y = PI  # face the target band
 
 

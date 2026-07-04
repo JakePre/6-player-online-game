@@ -16,6 +16,11 @@ const ROPE_EXTRA := 4.0
 ## Where teams stand relative to the rope line.
 const TEAM_ROW_Z := 1.6
 const TEAMMATE_SPACING := 1.4
+## Big teams (M15-07): a single file of 12 pullers would stretch past the win
+## lines, so files cap at this many and spill into parallel files further
+## from the rope, FILE_GAP apart.
+const MAX_PER_FILE := 6
+const FILE_GAP := 1.2
 ## Team identity (#215): side tints in the arena and on the HUD bar. Team A
 ## owns -x, team B +x.
 const TEAM_A_COLOR := Color(0.35, 0.72, 1.0)
@@ -316,13 +321,16 @@ func _update_teams() -> void:
 
 func _place_team(team: Array, side: float) -> void:
 	var moving := absf(rope - _last_rope) > 0.001
+	# Big teams wrap into parallel files stepping away from the rope (M15-07);
+	# a team of up to MAX_PER_FILE keeps the classic single file.
+	var offsets := LaneLayout.file_positions(team.size(), TEAMMATE_SPACING, FILE_GAP, MAX_PER_FILE)
 	for i in team.size():
 		var slot: int = team[i]
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		var x := rope + side * (2.0 + i * TEAMMATE_SPACING)
-		update_rig(slot, Vector2(x, TEAM_ROW_Z * side))
+		var x := rope + side * (2.0 + offsets[i].x)
+		update_rig(slot, Vector2(x, side * (TEAM_ROW_Z + offsets[i].y)))
 		# Everyone faces the rope's center line, leaning into the pull.
 		rig.rotation.y = atan2(-side, 0.0)
 		var desired: StringName = &"run" if moving else &"idle"

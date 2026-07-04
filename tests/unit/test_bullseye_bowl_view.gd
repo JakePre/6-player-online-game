@@ -2,12 +2,13 @@ extends GutTest
 ## Bullseye Bowl client view (M10-07): renders replicated snapshots in the
 ## shared iso-arena without simulating anything locally.
 
+const VIEW_SCENE: PackedScene = preload("res://src/minigames/bullseye_bowl/bullseye_bowl_view.tscn")
+
 var view: MinigameView
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/bullseye_bowl/bullseye_bowl_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -75,3 +76,33 @@ func test_ring_hits_flash_scaled_to_value() -> void:
 	assert_eq(view.arena.get_child_count(), before + 1, "an outer point twinkles")
 	view.render({"players": {0: [6, 5, -1.0, 0.0]}})
 	assert_eq(view.arena.get_child_count(), before + 2, "a bullseye bursts")
+
+
+## M15-07: lanes keep their tuned pitch, so the camera framing grows linearly
+## with the lane bank — and lobbies at the 6-player baseline keep the classic
+## framing exactly.
+func test_camera_framing_grows_with_the_lane_bank() -> void:
+	assert_almost_eq(
+		view._arena_half(),
+		BullseyeBowl.LANE_LENGTH * 0.75,
+		0.001,
+		"small lobbies keep the classic framing"
+	)
+	var crowd := {}
+	for slot in 24:
+		crowd[slot] = "P%d" % (slot + 1)
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	big.setup(crowd, 0)
+	assert_almost_eq(
+		big._arena_half(),
+		BullseyeBowl.LANE_LENGTH * 0.75 * 4.0,
+		0.001,
+		"24 lanes widen the shot four-fold"
+	)
+	# Every lane still exists and keeps the tuned pitch between neighbours.
+	var lane_23: Dictionary = big._lanes[23]
+	var lane_22: Dictionary = big._lanes[22]
+	assert_almost_eq(
+		float(lane_23.center_x) - float(lane_22.center_x), BullseyeBowl.LANE_SPACING, 0.001
+	)

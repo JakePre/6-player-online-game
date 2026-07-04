@@ -12,6 +12,9 @@ const WAITING_COLOR := Color(0.7, 0.15, 0.15)
 const LIVE_COLOR := Color(0.2, 0.75, 0.3)
 const ROUND_OVER_COLOR := Color(0.35, 0.38, 0.45)
 const ROW_SPACING := 2.0
+## Depth between duel rows when the line-up wraps (M15-07): crowds past one
+## row's worth stand in staggered ranks instead of overflowing the arena.
+const ROW_GAP := 1.7
 const LAMP_RADIUS := 0.45
 const LAMP_HEIGHT := 3.2
 ## FX pass (#302): the go-signal flare and the winner fanfare.
@@ -137,16 +140,18 @@ func _confetti_burst(origin: Vector3) -> void:
 		tween.chain().tween_callback(shard.queue_free)
 
 
-## Duelists stand in a fixed row facing the camera; there is no movement in
-## this game, so rigs are placed once instead of via update_rig.
+## Duelists stand in a row facing the camera; there is no movement in this
+## game, so rigs are placed once instead of via update_rig. Crowds wrap into
+## staggered ranks behind the front row (M15-07).
 func _line_up_rigs() -> void:
 	var slots: Array = names.keys()
 	slots.sort()
+	var offsets := LaneLayout.row_positions(slots.size(), ROW_SPACING, ROW_GAP)
 	for i in slots.size():
 		var rig := rig_for_slot(slots[i])
 		if rig == null:
 			continue
-		rig.position = to_arena(Vector2((i - (slots.size() - 1) / 2.0) * ROW_SPACING, 0.0))
+		rig.position = to_arena(offsets[i])
 		rig.rotation.y = PI * 0.75  # face the iso camera
 
 

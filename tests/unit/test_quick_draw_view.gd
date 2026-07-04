@@ -2,12 +2,13 @@ extends GutTest
 ## Quick Draw client view (M8-08): renders replicated snapshots in the shared
 ## iso-arena without simulating anything locally.
 
+const VIEW_SCENE: PackedScene = preload("res://src/minigames/quick_draw/quick_draw_view.tscn")
+
 var view: MinigameView
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/quick_draw/quick_draw_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -86,3 +87,22 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view._phase, QuickDraw.Phase.WAITING)
 	assert_eq(view._winner, -1)
 	assert_eq(view.get_node("SignalLabel").text, "WAIT...")
+
+
+## M15-07: a 24-duelist crowd wraps into staggered ranks instead of one
+## impossible 46-unit row; small line-ups keep the classic single row.
+func test_crowd_wraps_into_ranks() -> void:
+	var crowd := {}
+	for slot in 24:
+		crowd[slot] = "P%d" % (slot + 1)
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	big.setup(crowd, 0)
+	var depths := {}
+	var widest := 0.0
+	for slot in 24:
+		var rig: CharacterRig = big.rig_for_slot(slot)
+		depths[snappedf(rig.position.z, 0.01)] = true
+		widest = maxf(widest, absf(rig.position.x))
+	assert_eq(depths.size(), 3, "24 duelists stand in three ranks")
+	assert_lte(widest, 8.0 + 0.001, "no rank overflows the front row's width")
