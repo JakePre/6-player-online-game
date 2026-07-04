@@ -38,7 +38,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Fish Frenzy",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 8,
 				"duration_sec": 60.0,
 				"rules":
 				"Fish arrive on the beat — be in their lane at the line! Streaks pay extra.",

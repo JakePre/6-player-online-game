@@ -23,6 +23,10 @@ const CATCH_SPARKLE_COLOR := Color(0.5, 0.9, 1.0)
 ## stacking on one point (#238).
 const STAND_X := -1.2
 const QUEUE_SPACING := 0.9
+## Base half-extent for the runway (M15); scales for larger lobbies so a
+## worst-case deep queue (everyone stacked in one lane) still fits the floor
+## and camera. Unchanged at <=6 players.
+const BASE_ARENA_HALF := RUNWAY_LEN * 0.75
 
 ## Latest replicated state, straight from FishFrenzy.get_snapshot().
 var players := {}
@@ -35,7 +39,7 @@ var _catches_seen := {}
 
 
 func _arena_half() -> float:
-	return RUNWAY_LEN * 0.75
+	return MinigameScaling.arena_half(BASE_ARENA_HALF, names.size())
 
 
 func _unhandled_input(event: InputEvent) -> void:
