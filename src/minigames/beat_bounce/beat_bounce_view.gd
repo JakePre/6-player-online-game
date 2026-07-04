@@ -7,6 +7,9 @@ extends MinigameView3D
 ## movement inputs, each press echoing with a click, a cleared step chiming and
 ## a strike buzzing. A Control banner calls WATCH / REPEAT with the round and a
 ## row of sequence-length dots. Rigs bounce, flinch, and KO with the state.
+## M13-18 layers beat-synced juice on top: every metronome tick ripples the
+## floor and hops the pads, WATCH flashes and your own stomps ripple their pad,
+## cleared steps sparkle, strikes shake and puff dust, and bounce-outs burst.
 
 const PAD_COLORS: Array[Color] = [
 	Color(0.85, 0.25, 0.25),  # 0 = North / up
@@ -30,6 +33,18 @@ const TELEGRAPH_MAX_SCALE := 3.0
 const PULSE_COLOR := Color(0.95, 0.85, 0.3)
 const IDLE_COLOR := Color(0.35, 0.3, 0.5)
 const PULSE_SEC := 0.15
+
+## Beat-synced FX (M13-18): every metronome tick sends a floor ripple out from
+## under the lamp and hops the pads, so the beat reads as motion, not just
+## sound. WATCH flashes ripple the demonstrated pad in its own color.
+const RIPPLE_SEC := 0.4
+const RIPPLE_REACH := 2.6
+const BEAT_RIPPLE_REACH := 4.2
+const PAD_BOUNCE_HEIGHT := 0.18
+const PAD_BOUNCE_SEC := 0.22
+const STRIKE_SHAKE := 4.0
+const HIT_SPARKLE_COLOR := Color(0.4, 0.9, 0.5)
+const KO_BURST_COLOR := Color(0.9, 0.3, 0.25)
 
 var _phase: int = BeatBounce.Phase.WATCH
 var _round := 0
@@ -58,6 +73,9 @@ var _my_last_strikes := 0
 var _my_last_progress := 0
 var _was_repeat := false
 var _flinched := {}  # slot -> strike count already flinched at
+var _beat_at := -10.0  # when the last metronome tick landed (drives pad bounce)
+var _last_flash := -1
+var _burst_kos := {}  # slot -> already popped the KO burst
 
 
 func _arena_half() -> float:
@@ -80,6 +98,8 @@ func _process(_delta: float) -> void:
 				_pressed_pad = pad
 				_pressed_until = _now_sec() + PRESS_ECHO_SEC
 				play_sfx(&"click")
+				# Your stomp lands with a ripple of its own (M13-18).
+				_floor_ripple(PAD_OFFSETS[pad] * PAD_SPREAD, PAD_COLORS[pad])
 	_animate_beat()
 	_update_pads()
 
@@ -96,20 +116,38 @@ func _render_3d(game: Dictionary) -> void:
 	_alive = game.get("alive", {})
 	_progress = game.get("progress", {})
 	_snapshot_at = _now_sec()
-	# "Your turn" chime the moment REPEAT opens.
+	# "Your turn" chime the moment REPEAT opens; all pads ripple an invitation.
 	var repeat_now := _phase == BeatBounce.Phase.REPEAT
 	if repeat_now and not _was_repeat:
 		play_sfx(&"coin")
+		for pad in PAD_COLORS.size():
+			_floor_ripple(PAD_OFFSETS[pad] * PAD_SPREAD, PAD_COLORS[pad], RIPPLE_REACH * 0.6)
 	_was_repeat = repeat_now
+	# During WATCH each demonstrated flash ripples its pad, so the sequence
+	# reads as motion across the floor (M13-18).
+	if _phase == BeatBounce.Phase.WATCH and _flash != _last_flash and _flash >= 0:
+		if _flash < PAD_COLORS.size():
+			_floor_ripple(PAD_OFFSETS[_flash] * PAD_SPREAD, PAD_COLORS[_flash])
+	_last_flash = _flash
 	# Local hit / miss stings, from your own progress and strike deltas.
 	var my_progress := int(_progress.get(my_slot, 0))
 	if my_progress > _my_last_progress:
 		play_sfx(&"confirm")
+		_rig_sparkle(my_slot)
 	_my_last_progress = my_progress
 	var my_strikes := int(_strikes.get(my_slot, 0))
 	if my_strikes > _my_last_strikes:
 		play_sfx(&"error")
+		_rig_dust(my_slot)
+		request_shake(STRIKE_SHAKE)
 	_my_last_strikes = my_strikes
+	# Anyone bouncing out pops a KO burst where they stand, once.
+	for slot: int in _alive:
+		if not _alive[slot] and not _burst_kos.get(slot, false):
+			_burst_kos[slot] = true
+			var rig := rig_for_slot(slot)
+			if rig != null:
+				fx_burst(Vector2(rig.position.x, rig.position.z), KO_BURST_COLOR, 0.8)
 	_update_labels()
 	_update_rigs()
 
@@ -240,7 +278,16 @@ func _update_pads() -> void:
 		_pad_materials[pad].albedo_color = base
 		_pad_materials[pad].emission = base
 		_pad_materials[pad].emission_energy_multiplier = energy
-		_pad_nodes[pad].position.y = 0.1 + (0.3 if lit else 0.0)
+		_pad_nodes[pad].position.y = 0.1 + (0.3 if lit else 0.0) + _pad_bounce(now)
+
+
+## The pads' beat-synced hop (M13-18): a small arc that decays over
+## PAD_BOUNCE_SEC after each metronome tick, zero between beats.
+func _pad_bounce(now: float) -> float:
+	var elapsed := now - _beat_at
+	if elapsed < 0.0 or elapsed >= PAD_BOUNCE_SEC:
+		return 0.0
+	return PAD_BOUNCE_HEIGHT * sin(PI * elapsed / PAD_BOUNCE_SEC)
 
 
 ## Lamp pulse + telegraph shrink extrapolate the beat clock from the last
@@ -255,6 +302,10 @@ func _animate_beat() -> void:
 	if pulsing and _beat != _ticked_beat:
 		_ticked_beat = _beat
 		play_sfx(&"tick")
+		# The beat lands visibly: a floor ripple spreads from under the lamp
+		# and the pads hop with it (M13-18).
+		_beat_at = _now_sec()
+		_floor_ripple(Vector2.ZERO, PULSE_COLOR, BEAT_RIPPLE_REACH)
 	var color := PULSE_COLOR if pulsing else IDLE_COLOR
 	_lamp_material.albedo_color = color
 	_lamp_material.emission = color
@@ -285,6 +336,50 @@ func _update_rigs() -> void:
 			continue
 		if rig.current_action() != desired:
 			rig.play(desired)
+
+
+## An expanding, fading floor ring at `world_pos` — the beat's visible
+## shockwave. One-shot and self-freeing (M13-01 convention).
+func _floor_ripple(world_pos: Vector2, color: Color, reach: float = RIPPLE_REACH) -> void:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.5
+	mesh.outer_radius = 0.62
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = color
+	mesh.material = material
+	var ring := MeshInstance3D.new()
+	ring.name = "BeatRipple"
+	# Sibling name collisions get auto-renamed to "@MeshInstance3D@<id>", so
+	# the group — not the name — is the reliable handle (tests count it).
+	ring.add_to_group(&"beat_ripples")
+	ring.mesh = mesh
+	ring.rotation.x = PI / 2.0  # lay the ring flat on the floor
+	ring.scale = Vector3.ONE * 0.4
+	ring.position = to_arena(world_pos, 0.12)
+	arena.add_child(ring)
+	var tween := ring.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(ring, "scale", Vector3.ONE * reach, RIPPLE_SEC).set_trans(
+		Tween.TRANS_CUBIC
+	)
+	tween.tween_property(material, "albedo_color:a", 0.0, RIPPLE_SEC)
+	tween.chain().tween_callback(ring.queue_free)
+
+
+## A cleared step twinkles over your rig.
+func _rig_sparkle(slot: int) -> void:
+	var rig := rig_for_slot(slot)
+	if rig != null:
+		fx_sparkle(Vector2(rig.position.x, rig.position.z), HIT_SPARKLE_COLOR, 1.2)
+
+
+## A strike kicks up a dull dust puff where you stand.
+func _rig_dust(slot: int) -> void:
+	var rig := rig_for_slot(slot)
+	if rig != null:
+		fx_dust(Vector2(rig.position.x, rig.position.z))
 
 
 func _now_sec() -> float:
