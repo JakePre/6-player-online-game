@@ -31,6 +31,8 @@ var _tick_accum := 0.0
 var _downed := {}  # slot (int) -> true, once the ko pose + dim have been applied
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _alive_seen := -1
+# Snapshot countdown to the next fuse spark (M13-04).
+var _spark_left := 0.0
 
 
 func _physics_process(_delta: float) -> void:
@@ -97,10 +99,29 @@ func _render_3d(game: Dictionary) -> void:
 		for slot: int in players:
 			if slot not in alive and not _downed.has(slot):
 				var state: Array = players[slot]
-				_spawn_blast(Vector2(state[0], state[1]))
+				var at := Vector2(state[0], state[1])
+				_spawn_blast(at)
+				# Debris + dust under the shockwave (M13-04).
+				fx_burst(at, BLAST_COLOR, 1.0)
+				fx_dust(at)
 	_alive_seen = alive.size()
 	_update_players()
 	_update_bomb()
+	_trail_sparks()
+
+
+## The lit fuse sheds sparks over the carrier (M13-04), faster as it runs
+## down - cadenced off snapshots so every client sees the same trail.
+func _trail_sparks() -> void:
+	var carrier_state: Array = players.get(carrier, [])
+	if carrier not in alive or carrier_state.size() < 2:
+		return
+	_spark_left -= SNAPSHOT_INTERVAL
+	if _spark_left > 0.0:
+		return
+	var urgency := 1.0 - clampf(fuse / HotPotato.FUSE_MAX_SEC, 0.0, 1.0)
+	_spark_left = lerpf(0.6, 0.2, urgency)
+	fx_sparkle(Vector2(carrier_state[0], carrier_state[1]), BOMB_COLOR, BOMB_HEIGHT)
 
 
 ## Expanding, fading orange shockwave sphere at the blast spot.

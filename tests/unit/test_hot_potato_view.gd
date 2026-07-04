@@ -85,3 +85,28 @@ func test_elimination_requests_screen_shake() -> void:
 		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "carrier": 0, "fuse": 9.0, "alive": [0]}
 	)
 	assert_signal_emitted(view, "shake_requested")
+
+
+## M13-04: the lit fuse sheds sparks over the carrier, and the pop adds
+## debris + dust under the shockwave.
+func test_carrier_trails_sparks_on_a_cadence() -> void:
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "carrier": 1, "fuse": 9.0, "alive": [0, 1]}
+	)
+	var start: int = view.arena.get_child_count()
+	for _i in 20:
+		view.render(
+			{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "carrier": 1, "fuse": 8.0, "alive": [0, 1]}
+		)
+	assert_gt(view.arena.get_child_count(), start, "sparks shed while carried")
+
+
+func test_pop_adds_debris_and_dust() -> void:
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "carrier": 1, "fuse": 0.2, "alive": [0, 1]}
+	)
+	var before: int = view.arena.get_child_count()
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "carrier": 0, "fuse": 9.0, "alive": [0]}
+	)
+	assert_gte(view.arena.get_child_count(), before + 3, "shockwave + debris burst + dust")
