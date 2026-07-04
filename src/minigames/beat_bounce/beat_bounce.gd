@@ -63,7 +63,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Beat Bounce",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 90.0,
 				"rules":
 				(

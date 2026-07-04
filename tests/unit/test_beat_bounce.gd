@@ -174,3 +174,25 @@ func test_snapshot_shape() -> void:
 	assert_eq(snap.phase, BeatBounce.Phase.WATCH)
 	assert_eq(snap.pad_count, BeatBounce.PAD_COUNT)
 	assert_true(snap.has("beat") and snap.has("next_in") and snap.has("progress"))
+
+
+func test_max_players_raised_to_twenty_four() -> void:
+	assert_eq(BeatBounce.make_meta().max_players, 24)
+
+
+## No arena/position state (M15): a 24-player match just tracks 24 sets of
+## strikes/alive/progress against the same shared beat clock and pad sequence.
+func test_setup_handles_twenty_four_players() -> void:
+	var game := _make_game(24)
+	assert_eq(game.alive.size(), 24)
+	for slot in 24:
+		assert_true(game.alive[slot])
+		assert_eq(game.strikes[slot], 0)
+	# Everyone can clear a step on the same beat with no exclusivity conflict.
+	_tick_until(game, func() -> bool: return _window_open(game))
+	var expected: int = game.sequence[game.phase_step]
+	for slot in 24:
+		game.handle_input(slot, {"pad": expected})
+	for slot in 24:
+		assert_eq(game.strikes[slot], 0)
+		assert_eq(game.progress[slot], 1)
