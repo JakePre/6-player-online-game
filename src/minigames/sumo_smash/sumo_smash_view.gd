@@ -48,15 +48,9 @@ func _setup_3d() -> void:
 	platform.mesh = mesh
 	platform.position = Vector3(0.0, PLATFORM_THICKNESS / 2.0, 0.0)
 	arena.add_child(platform)
-	# Screen-space dash indicator for the local player (#140): added after
-	# the viewport container so it draws on top of the 3D arena.
-	_dash_label = Label.new()
-	_dash_label.name = "DashIndicator"
-	_dash_label.add_theme_font_size_override(&"font_size", 24)
-	_dash_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_dash_label.position.y -= 48.0
-	_dash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_dash_label)
+	# Screen-space dash indicator for the local player (#140), on the
+	# always-on-top banner layer (#258).
+	_dash_label = make_banner(&"DashIndicator")
 
 
 func _render_3d(game: Dictionary) -> void:

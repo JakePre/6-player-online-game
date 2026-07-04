@@ -38,6 +38,8 @@ const BLACKOUT_DIM := Color(0.0, 0.0, 0.02, 0.88)
 ## parent to; populated by _build_scene_tree() before _setup_3d() runs.
 var arena: Node3D
 
+var _banner_layer: CanvasLayer
+
 var _viewport: SubViewport
 var _camera_rig: IsoCameraRig
 var _rigs := {}  # slot (int) -> CharacterRig
@@ -205,6 +207,26 @@ func _celebrate(placements: Array) -> void:
 		var rig: CharacterRig = _rigs.get(int(slot))
 		if rig != null and rig.visible:
 			rig.play(&"cheer")
+
+
+## Gameplay-critical screen text (dash bars, charge banners, held-item
+## prompts) must never hide behind the arena or the emote chrome (#258):
+## banners live on a high CanvasLayer, bottom-center, above the emote band.
+func make_banner(banner_name: StringName, font_size := 24) -> Label:
+	if _banner_layer == null:
+		_banner_layer = CanvasLayer.new()
+		_banner_layer.name = "BannerLayer"
+		_banner_layer.layer = 5
+		add_child(_banner_layer)
+	var label := Label.new()
+	label.name = banner_name
+	label.add_theme_font_size_override(&"font_size", font_size)
+	label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	label.position.y -= 120.0
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_banner_layer.add_child(label)
+	return label
 
 
 # --- Overridables ------------------------------------------------------------
