@@ -11,6 +11,9 @@ const FIRING_LINE := 6.0
 const AIM_SPEED := 12.0
 const CROSSHAIR_HEIGHT := 0.15
 const COOLDOWN_ALPHA := 0.25
+## FX pass (M13-17): a fired-shot tracer streak and a burst when a target breaks.
+const TRACER_SEC := 0.12
+const TRACER_THICKNESS := 0.05
 
 const KIND_COLORS := {
 	TargetRange.Kind.STANDARD: Color(0.85, 0.3, 0.25),
@@ -23,6 +26,7 @@ var _scores := {}
 var _cooldown := 0.0
 
 var _target_nodes := {}  # id (int) -> MeshInstance3D
+var _target_colors := {}  # id (int) -> Color (kind tint, for the break burst)
 var _crosshairs := {}  # slot (int) -> MeshInstance3D
 var _aim_beams := {}  # slot (int) -> MeshInstance3D (#214 aim lines)
 
@@ -51,6 +55,7 @@ func _physics_process(delta: float) -> void:
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed(&"action_primary"):
 		NetManager.send_match_input({"fire": true})
+		_fire_tracer()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -60,6 +65,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
 		_aim_at_mouse()
 		NetManager.send_match_input({"ax": _aim.x, "ay": _aim.y, "fire": true})
+		_fire_tracer()
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -113,8 +119,15 @@ func _update_targets(target_list: Array) -> void:
 		node.position = Vector3(float(entry[1]), float(entry[3]), float(entry[2]))
 	for id: int in _target_nodes.keys():
 		if not seen.has(id):
-			(_target_nodes[id] as MeshInstance3D).queue_free()
+			var node := _target_nodes[id] as MeshInstance3D
+			# On-screen removal means it was shot; a target recycled off the far
+			# edge (sim drift) leaves from beyond the arena and pops nothing.
+			if absf(node.position.x) <= TargetRange.ARENA_HALF:
+				var tint: Color = _target_colors.get(id, KIND_COLORS[TargetRange.Kind.STANDARD])
+				fx_burst(Vector2(node.position.x, node.position.z), tint, node.position.y)
+			node.queue_free()
 			_target_nodes.erase(id)
+			_target_colors.erase(id)
 
 
 func _update_crosshairs(aim_list: Dictionary) -> void:
@@ -147,6 +160,7 @@ func _build_target(id: int, radius: float, kind: int) -> MeshInstance3D:
 	mesh.height = radius * 2.0
 	var material := StandardMaterial3D.new()
 	var color: Color = KIND_COLORS.get(kind, KIND_COLORS[TargetRange.Kind.STANDARD])
+	_target_colors[id] = color
 	material.albedo_color = color
 	material.emission_enabled = true
 	material.emission = color * 0.4
@@ -232,3 +246,32 @@ func _update_aim_beam(slot: int, ring: MeshInstance3D) -> void:
 	beam.visible = true
 	beam.look_at_from_position((from + to) / 2.0, to, Vector3.UP)
 	beam.scale = Vector3(1.0, 1.0, length)
+
+
+## A bright player-colored streak from the shooter to where they just fired,
+## a fraction of a second long (M13-17). Fire-and-forget: it fades and frees
+## itself, so this stays a one-file view change.
+func _fire_tracer() -> void:
+	var rig := rig_for_slot(my_slot)
+	if rig == null:
+		return
+	var from := rig.position + Vector3(0.0, 0.9, 0.0)
+	var to := to_arena(_aim, CROSSHAIR_HEIGHT)
+	var length := from.distance_to(to)
+	if length < 0.1:
+		return
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(TRACER_THICKNESS, TRACER_THICKNESS, length)
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = player_color(my_slot)
+	mesh.material = material
+	var tracer := MeshInstance3D.new()
+	tracer.name = "Tracer"
+	tracer.mesh = mesh
+	tracer.look_at_from_position((from + to) / 2.0, to, Vector3.UP)
+	arena.add_child(tracer)
+	var tween := tracer.create_tween()
+	tween.tween_property(material, "albedo_color:a", 0.0, TRACER_SEC)
+	tween.tween_callback(tracer.queue_free)
