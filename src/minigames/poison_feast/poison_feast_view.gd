@@ -37,7 +37,9 @@ func _physics_process(_delta: float) -> void:
 
 
 func _arena_half() -> float:
-	return PoisonFeast.ARENA_HALF
+	# Sim and view derive the same play size from the lobby count via the
+	# shared base const, so the rendered floor/camera match the scaled arena.
+	return MinigameScaling.arena_half(PoisonFeast.ARENA_HALF, names.size())
 
 
 func _setup_3d() -> void:

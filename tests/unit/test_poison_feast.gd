@@ -34,6 +34,38 @@ func test_setup_spreads_players_with_zero_scores_and_serves_a_wave() -> void:
 		assert_true(dish.tier in PoisonFeast.TIER_STATS, "spawned tiers come from the table")
 
 
+func test_max_players_raised_to_twelve() -> void:
+	assert_eq(PoisonFeast.make_meta().max_players, 12)
+
+
+## M15: a 12-player match gets a bigger table and proportionally more dishes.
+func test_arena_and_dish_supply_scale_at_twelve() -> void:
+	var game := _make_game(12)
+	assert_gt(game._play_half, PoisonFeast.ARENA_HALF, "the table grows for a crowd")
+	assert_gt(game._dishes_per_wave, PoisonFeast.DISHES_PER_WAVE, "more dishes per wave")
+	assert_gt(game._max_dishes, PoisonFeast.MAX_ACTIVE_DISHES, "higher active-dish cap")
+	assert_eq(game.dishes.size(), game._dishes_per_wave, "first wave uses the scaled count")
+
+
+## Backward compatibility: at the 6-player baseline nothing scales.
+func test_six_players_unchanged() -> void:
+	var game := _make_game(6)
+	assert_almost_eq(game._play_half, PoisonFeast.ARENA_HALF, 0.001)
+	assert_eq(game._dishes_per_wave, PoisonFeast.DISHES_PER_WAVE)
+	assert_eq(game._max_dishes, PoisonFeast.MAX_ACTIVE_DISHES)
+
+
+## Spawns fan out over rings (no overlap) and stay inside the scaled table.
+func test_spawns_distinct_and_within_arena_at_twelve() -> void:
+	var game := _make_game(12)
+	var seen := {}
+	for slot in 12:
+		var pos: Vector2 = game.positions[slot]
+		assert_lte(pos.length(), game._play_half, "spawn inside the scaled table")
+		seen[pos] = true
+	assert_eq(seen.size(), 12, "every player gets a distinct spawn")
+
+
 func test_clean_dish_scores_its_points() -> void:
 	var game := _make_game(2)
 	_serve(game, PoisonFeast.Tier.CLEAN, false)
