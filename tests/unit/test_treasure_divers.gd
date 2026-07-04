@@ -108,3 +108,34 @@ func test_snapshot_shape() -> void:
 	assert_eq((snapshot.players[0] as Array).size(), 6, "[x, y, coins, diving, air, stun]")
 	assert_eq(snapshot.players[0][3], 1)
 	assert_eq(snapshot.players[1][3], 0)
+
+
+func test_max_players_raised_to_twelve() -> void:
+	assert_eq(TreasureDivers.make_meta().max_players, 12)
+
+
+## M15: a 12-player match gets a bigger arena and proportionally more treasure.
+func test_arena_and_coin_supply_scale_at_twelve() -> void:
+	var game := _game_with(12)
+	assert_gt(game._play_half, TreasureDivers.ARENA_HALF, "the arena grows for a crowd")
+	assert_gt(game._coins_per_wave, TreasureDivers.COINS_PER_WAVE, "more coins per wave")
+	assert_gt(game._max_coins, TreasureDivers.MAX_ACTIVE_COINS, "higher active-coin cap")
+
+
+## Backward compatibility: at the 6-player baseline nothing scales.
+func test_six_players_unchanged() -> void:
+	var game := _game_with(6)
+	assert_almost_eq(game._play_half, TreasureDivers.ARENA_HALF, 0.001)
+	assert_eq(game._coins_per_wave, TreasureDivers.COINS_PER_WAVE)
+	assert_eq(game._max_coins, TreasureDivers.MAX_ACTIVE_COINS)
+
+
+## Spawns fan out over rings (no overlap) and stay inside the scaled arena.
+func test_spawns_distinct_and_within_arena_at_twelve() -> void:
+	var game := _game_with(12)
+	var seen := {}
+	for slot in 12:
+		var pos: Vector2 = game.positions[slot]
+		assert_lte(pos.length(), game._play_half, "spawn inside the scaled arena")
+		seen[pos] = true
+	assert_eq(seen.size(), 12, "every player gets a distinct spawn")

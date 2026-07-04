@@ -29,6 +29,15 @@ var air := {}
 var stunned := {}
 var treasure: Array = []
 
+## Play area and coin economy scale with the lobby size (M15, ADR 003 F4),
+## same convention as Coin Scramble: a 12-player match gets a bigger arena and
+## proportionally more treasure so density and per-capita pacing hold. At
+## <=6 players these equal the consts above, so the original game is
+## unchanged.
+var _play_half := ARENA_HALF
+var _coins_per_wave := COINS_PER_WAVE
+var _max_coins := MAX_ACTIVE_COINS
+
 var _wave_left := 0.0
 
 
@@ -42,7 +51,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Treasure Divers",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 12,
 				"duration_sec": 60.0,
 				"rules":
 				"Treasure sinks to the seabed — dive for it, but surface before your air runs out!",
@@ -52,9 +61,12 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	_play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size())
+	_coins_per_wave = MinigameScaling.supply(COINS_PER_WAVE, slots.size())
+	_max_coins = MinigameScaling.supply(MAX_ACTIVE_COINS, slots.size())
+	var spawns := SpawnLayout.ring_positions(slots.size(), _play_half * 0.6)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 		coins[slots[i]] = 0
 		diving[slots[i]] = false
@@ -81,7 +93,7 @@ func _tick(delta: float) -> void:
 		if stunned[slot] > 0.0:
 			speed = 0.0
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
-		positions[slot] = pos.limit_length(ARENA_HALF)
+		positions[slot] = pos.limit_length(_play_half)
 		_tick_air(slot, delta)
 	_collect_treasure()
 	_spawn_waves(delta)
@@ -163,12 +175,12 @@ func _spawn_waves(delta: float) -> void:
 	if _wave_left > 0.0:
 		return
 	_wave_left = COIN_WAVE_SEC
-	for _i in COINS_PER_WAVE:
-		if treasure.size() >= MAX_ACTIVE_COINS:
+	for _i in _coins_per_wave:
+		if treasure.size() >= _max_coins:
 			return
 		treasure.append(
 			Vector2(
-				rng.randf_range(-ARENA_HALF * 0.9, ARENA_HALF * 0.9),
-				rng.randf_range(-ARENA_HALF * 0.9, ARENA_HALF * 0.9)
+				rng.randf_range(-_play_half * 0.9, _play_half * 0.9),
+				rng.randf_range(-_play_half * 0.9, _play_half * 0.9)
 			)
 		)
