@@ -40,15 +40,23 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## This lobby's grid dimension, mirroring the sim's M15 scaling formula so
+## the built tile-node grid matches what the snapshot sends. Equal
+## ThinIce.GRID_SIZE at <=6 players.
+func _grid_size() -> int:
+	return roundi(ThinIce.GRID_SIZE * sqrt(MinigameScaling.growth(names.size())))
+
+
 func _arena_half() -> float:
-	return ThinIce.HALF_EXTENT
+	return _grid_size() * ThinIce.TILE_SIZE / 2.0
 
 
 ## The ice grid IS the floor: a dark water plane below, one box per tile with
 ## its top surface at y=0 so rigs stand on the ice.
 func _build_floor() -> void:
+	var half := _arena_half()
 	var water_mesh := PlaneMesh.new()
-	water_mesh.size = Vector2.ONE * ThinIce.HALF_EXTENT * 2.5
+	water_mesh.size = Vector2.ONE * half * 2.5
 	var water_material := StandardMaterial3D.new()
 	water_material.albedo_color = WATER_COLOR
 	water_mesh.material = water_material
@@ -71,16 +79,17 @@ func _build_floor() -> void:
 	var tile_mesh := BoxMesh.new()
 	tile_mesh.size = Vector3(ThinIce.TILE_SIZE, TILE_THICKNESS, ThinIce.TILE_SIZE)
 
-	for y in ThinIce.GRID_SIZE:
-		for x in ThinIce.GRID_SIZE:
+	var grid_size := _grid_size()
+	for y in grid_size:
+		for x in grid_size:
 			var node := MeshInstance3D.new()
 			node.name = "Tile_%d_%d" % [x, y]
 			node.mesh = tile_mesh
 			node.material_override = _intact_material
 			node.position = Vector3(
-				-ThinIce.HALF_EXTENT + (x + 0.5) * ThinIce.TILE_SIZE,
+				-half + (x + 0.5) * ThinIce.TILE_SIZE,
 				-TILE_THICKNESS / 2.0,
-				-ThinIce.HALF_EXTENT + (y + 0.5) * ThinIce.TILE_SIZE
+				-half + (y + 0.5) * ThinIce.TILE_SIZE
 			)
 			arena.add_child(node)
 			_tile_nodes.append(node)
@@ -173,12 +182,11 @@ func _update_tiles() -> void:
 ## sight with their tile. `fallen` groups simultaneous falls (see
 ## ThinIce._flush_falls), so it flattens one level.
 func _tile_center(idx: int) -> Vector2:
-	var x := idx % ThinIce.GRID_SIZE
-	var y := int(floorf(float(idx) / ThinIce.GRID_SIZE))
-	return Vector2(
-		-ThinIce.HALF_EXTENT + (x + 0.5) * ThinIce.TILE_SIZE,
-		-ThinIce.HALF_EXTENT + (y + 0.5) * ThinIce.TILE_SIZE
-	)
+	var grid_size := _grid_size()
+	var half := _arena_half()
+	var x := idx % grid_size
+	var y := int(floorf(float(idx) / grid_size))
+	return Vector2(-half + (x + 0.5) * ThinIce.TILE_SIZE, -half + (y + 0.5) * ThinIce.TILE_SIZE)
 
 
 func _update_players() -> void:

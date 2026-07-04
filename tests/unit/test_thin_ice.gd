@@ -17,7 +17,7 @@ func test_meta() -> void:
 	assert_eq(meta.id, &"thin_ice")
 	assert_eq(meta.category, MinigameMeta.Category.FFA)
 	assert_eq(meta.min_players, 2)
-	assert_eq(meta.max_players, 6)
+	assert_eq(meta.max_players, 12)
 
 
 func test_registered_in_catalog() -> void:
@@ -35,10 +35,35 @@ func test_spawns_scale_with_player_count() -> void:
 			player_slots.append(slot)
 		var game := _game(player_slots)
 		assert_eq(game.positions.size(), count)
+		# <=6 players is the baseline: the grid stays at ThinIce.GRID_SIZE.
 		assert_eq(game.tiles.size(), ThinIce.GRID_SIZE * ThinIce.GRID_SIZE)
 		for slot: int in player_slots:
 			var pos: Vector2 = game.positions[slot]
-			assert_almost_eq(pos.length(), ThinIce.HALF_EXTENT * 0.6, 0.001, "%d players" % count)
+			assert_almost_eq(pos.length(), game._half_extent * 0.6, 0.001, "%d players" % count)
+
+
+## M15: grid area scales with player count (sqrt of MinigameScaling.growth),
+## so tiles-per-player density stays close to the 6-player baseline instead
+## of the destruction rate spiking with more feet on a fixed-size grid.
+func test_grid_scales_at_twelve_players_and_density_holds() -> void:
+	var baseline := _game([0, 1, 2, 3, 4, 5] as Array[int])
+	var baseline_density := float(baseline.tiles.size()) / 6.0
+
+	var player_slots: Array[int] = []
+	for i in 12:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	assert_gt(game._grid_size, ThinIce.GRID_SIZE, "the grid grows for a crowd")
+	assert_eq(game.tiles.size(), game._grid_size * game._grid_size)
+	var density := float(game.tiles.size()) / 12.0
+	assert_almost_eq(density, baseline_density, 1.0, "tiles-per-player density holds steady")
+	for slot in 12:
+		var pos: Vector2 = game.positions[slot]
+		assert_lte(pos.length(), game._half_extent, "spawn stays inside the scaled arena")
+
+
+func test_max_players_raised_to_twelve() -> void:
+	assert_eq(ThinIce.make_meta().max_players, 12)
 
 
 func test_starting_tiles_are_intact() -> void:
