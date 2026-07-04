@@ -97,6 +97,26 @@ func test_timeout_ranks_survivors_ahead_of_the_fallen() -> void:
 	assert_eq(game.get_results().placements, [[0, 1]])
 
 
+func test_max_players_raised_to_twenty_four() -> void:
+	assert_eq(MemoryMatch.make_meta().max_players, 24)
+
+
+## No player collision (M15): the fixed grid is shared freely, so a
+## 24-player match just tracks 24 independent positions against the same
+## flashed pattern.
+func test_setup_handles_twenty_four_players() -> void:
+	var game := _game_with(24)
+	assert_eq(game.positions.size(), 24)
+	assert_eq(game._in_slots().size(), 24)
+	# Park everyone on a safe tile; nobody should fall on the check.
+	var safe_center := _tile_center(game.safe_tiles[0])
+	for slot in 24:
+		game.positions[slot] = safe_center
+	_end_phase(game)
+	_end_phase(game)
+	assert_eq(game._in_slots().size(), 24, "everyone standing on a safe tile survives")
+
+
 func test_tile_of_maps_positions_to_indices() -> void:
 	var game := _game_with(2)
 	assert_eq(
