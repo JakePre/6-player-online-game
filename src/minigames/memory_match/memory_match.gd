@@ -42,7 +42,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Memory Match",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 24,
 				"duration_sec": 75.0,
 				"rules":
 				"The floor flashes the safe tiles, then goes dark. Remember. Stand. Survive.",
