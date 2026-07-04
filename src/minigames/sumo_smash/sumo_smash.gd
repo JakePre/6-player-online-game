@@ -36,7 +36,9 @@ static func make_meta() -> MinigameMeta:
 				"name": "Sumo Smash",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
-				"max_players": 6,
+				# 8 by design (ADR 003): the platform stays this one tiny disc on
+				# purpose — bigger would turn the shove-brawl into random pinball.
+				"max_players": 8,
 				"duration_sec": 60.0,
 				"rules": "Shove everyone off the platform! Dash to hit harder — it has a cooldown.",
 			}
