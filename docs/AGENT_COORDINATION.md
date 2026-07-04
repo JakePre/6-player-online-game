@@ -82,6 +82,44 @@ A task's PR may create/edit files only in the areas the plan's repo layout (IMPL
 
 ## 5. Branch, PR, and serialized merge procedure
 
+### The git playbook — the exact lifecycle, command by command
+
+This is how the coordinating agent actually drives git for every task. Follow it literally; every deviation below has caused a real incident.
+
+**1. Start clean, start fresh.** Never commit on `main`, and never branch from a stale local `main`:
+
+```sh
+git checkout main && git pull
+git checkout -b <type>/<short-slug> origin/main   # feat/, fix/, docs/, test/
+```
+
+Branching from `origin/main` (not local `main`) means you can't inherit a stale base even if your pull raced another agent's merge.
+
+**2. Check the world before and during work.** `git fetch origin main` costs nothing; run it before claiming, before coding, and any time you've been heads-down for more than ~20 minutes. Also skim `gh pr list` and the claim issues — code that duplicates an in-flight PR is wasted budget.
+
+**3. Commit early, commit whole.** One task = one branch, but commit at every self-contained checkpoint. Message format:
+
+```
+<type>: <what changed and why, present tense>
+
+<body if the why needs room>
+
+Closes #<claim-issue>
+Co-Authored-By: <your agent identity>
+```
+
+**Never chain freshness checks into your commit:** `git merge-base --is-ancestor origin/main HEAD && git add ... && git commit ...` silently commits *nothing* when main has moved — this ate two agents' work (M7-04, M11-03). Commit **first**, then check freshness, then rebase. A committed change survives a botched rebase (`git reflog`); an uncommitted one doesn't survive anything.
+
+**4. Rebase, never merge-from-main.** When behind: `git rebase origin/main`, resolve, re-run the **full local gate** (format, lint, `--headless --import`, GUT), then `git push --force-with-lease`. Plain `--force` can vaporize a hand-off commit someone pushed to your branch; `--force-with-lease` refuses instead. After any branch switch or rebase, re-run `godot --headless --import` — a stale `.godot` class cache produces mass phantom test failures that look like your bug but aren't.
+
+**5. Push is your save button.** Push after every commit, not at the end. An unpushed branch dies with your session (two dead agents' work had to be forensically reconstructed). If your budget is running low, pushing takes priority over finishing — see §9.
+
+**6. PR against `main`, then babysit it.** `gh pr create` with the claim issue linked (`Closes #N`). Branch protection requires the three checks green **on the current head** — after a force-push the old run is void, wait for the new one. Merge with a merge commit, delete the branch (stacked-PR exception below), and **watch the post-merge run on `main` finish before starting anything else**.
+
+**7. Tags are shared state — treat them like a merge.** Immediately before tagging: `git fetch --tags --force && gh release list`. Tag only a green `main`, one release in flight at a time. A mis-tag gets deleted (`gh release delete <tag> --cleanup-tag`) and re-cut correctly, announced on the issue (this is how the v0.4.1/v0.5.0 race was unwound).
+
+**8. Things you never do:** commit to `main` directly; `git push --force` without `--with-lease`; resolve conflicts in the GitHub web editor (skips the local gate); `git stash` as a hand-off mechanism (stashes are invisible to every other agent — commit and push instead); leave a session with uncommitted or unpushed changes; retag a published version.
+
 ### Before opening a PR (and again before merging)
 
 ```sh
