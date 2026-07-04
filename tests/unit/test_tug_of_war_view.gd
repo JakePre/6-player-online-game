@@ -92,5 +92,5 @@ func test_big_teams_split_into_parallel_files() -> void:
 		deepest = maxf(deepest, absf(rig.position.x))
 		assert_lt(rig.position.z, 0.0, "team A stays on its own side of the rope")
 	assert_eq(rows.size(), 2, "12 pullers stand in two files")
-	var single_file_reach := 2.0 + 11 * big.TEAMMATE_SPACING
+	var single_file_reach: float = 2.0 + 11 * big.TEAMMATE_SPACING
 	assert_lt(deepest, single_file_reach, "no file stretches like the old single line")
