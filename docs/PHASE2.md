@@ -146,7 +146,40 @@ Rules of engagement:
    so every per-game task stays a one-file view change. The fan-out is
    parallel after it, same claim rules as M8/M10.
 
-## 8. Sequencing
+## 8. M14 — Genre Hop (owner-directed expansion; GATED)
+
+**Do not claim any M14 task until every M10, M12, and M13 task is checked.** This
+is the next expansion, parked deliberately: finish the current lineup first.
+
+The pitch (owner, 2026-07-04): wild genre hopping — each game is a faithful,
+*single-round* distillation of a famous genre, still ≤ ~90 seconds, still on the
+Minigame Contract. Homage names, never clone names. All of these must run
+pad-only and KB/M-only like everything else (M12-05 rule).
+
+### Owner-requested five
+| # | Name | One quick round of… | Notes |
+|---|---|---|---|
+| M14-01 | Loadout Duel | a Duck-Game-style arena shooter | Weapons/armor spawn on platforms; grab what you find; one hit KOs; last duck standing. Physics comedy encouraged |
+| M14-02 | Turbo Lap | a kart racer — exactly one lap | Drift + boost pads + 2–3 pickup items (shell-ish homing nuisance, oil slick, boost); finish order = placement |
+| M14-03 | Knock-Off | a platform fighter, 1 stock each | Percent-style knockback that grows per hit; off-stage = out; small stage, 2 jumps, one attack + one smash |
+| M14-04 | Shred Session | a rhythm-game song (~60 s) | 4-lane note highway on the pad/WASD lanes (Fish Frenzy input DNA); streaks multiply; best score wins |
+| M14-05 | Ro-Sham-Bo Royale | mass rock-paper-scissors | Simultaneous throws in rapid elimination pools; losers spectate-vote on a bonus round; fastest correct counter-throws break ties |
+
+### Suggested additions (agent proposals — owner may veto/add)
+| # | Name | One quick round of… | Notes |
+|---|---|---|---|
+| M14-06 | Blast Grid | a Bomberman round | Grid arena, drop bombs, chain blasts through soft walls, last standing; power-ups: +range, +bombs |
+| M14-07 | Micro Mayhem | a WarioWare micro-game string | Five 5-second micro-challenges back-to-back (mash! dodge! pick the odd one! freeze! copy!); most micro-wins takes it |
+| M14-08 | Putt Panic | one mini-golf hole | Aim + power on a shared hole with moving obstacles; stroke count = placement; 30 s shot clock |
+| M14-09 | Tumble Run | a Fall-Guys qualifier | Obstacle gauntlet with sweepers and moving floors; first N to finish qualify for full points, stragglers ranked by distance |
+| M14-10 | Nom Arena | an agar.io round | Eat dots to grow, eat smaller players to steal their mass, split to lunge; biggest blob at the bell wins |
+
+### Engineering notes
+- Every entry stays a pure server sim + `MinigameView3D`/2D-policy view + GUT tests + one catalog line — the contract has absorbed 32 games; these are bigger sims, not new architecture.
+- Turbo Lap and Knock-Off need velocity/physics-feel work beyond current sims — budget them L. Shred Session needs an audio-synced note chart (extend the M6-01 music system with a beat-map loop). Ro-Sham-Bo and Micro Mayhem are S/M palate cleansers.
+- Mutator knobs (§3) apply to all of them — Overdrive on Turbo Lap, Mirror Mode on Knock-Off, and Golden Round on Nom Arena are the intended chaos.
+
+## 9. Sequencing
 
 ```
 M9 (mutator framework first — wave-2 games ship mutator-clean against it)
