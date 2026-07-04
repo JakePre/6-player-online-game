@@ -30,6 +30,18 @@ func test_setup_builds_iso_arena_with_rigs() -> void:
 	assert_null(view.rig_for_slot(4), "no rig for slots not in the room")
 
 
+## M15: the view derives its floor/camera size from the lobby count with the
+## same formula the sim uses, so the rendered arena matches the scaled one.
+func test_arena_half_scales_with_lobby_size() -> void:
+	assert_almost_eq(view._arena_half(), KingOfTheHill.ARENA_HALF, 0.001, "2 players = base arena")
+	var big := _instantiate_view()
+	var names := {}
+	for i in 12:
+		names[i] = "P%d" % (i + 1)
+	big.setup(names, 0)
+	assert_gt(big._arena_half(), KingOfTheHill.ARENA_HALF, "12 players get a bigger floor")
+
+
 func test_render_replaces_replicated_state() -> void:
 	view.render({"players": {0: [1.0, -2.0, 4], 1: [0.0, 0.0, 0]}, "zone": [2.0, 3.0, 1.5]})
 	assert_eq(view.players.size(), 2)

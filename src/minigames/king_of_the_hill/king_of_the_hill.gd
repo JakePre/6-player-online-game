@@ -51,6 +51,16 @@ var anchor_left := 0.0
 var _drift_target := Vector2.ZERO
 var _item_accum := 0.0
 
+## Play area and hill zone scale with the lobby (M15, ADR 003 F4): a fixed
+## zone size is what turns a big lobby into a body-blocking scrum, so the
+## zone grows by the same per-player-area formula as the arena. Pillars and
+## items are untouched — they are not what the ADR flags. At <=6 players
+## these equal the consts above, so the original game is unchanged.
+var _play_half := ARENA_HALF
+var _zone_start_radius := ZONE_START_RADIUS
+var _zone_min_radius := ZONE_MIN_RADIUS
+var _zone_margin := ZONE_MARGIN
+
 
 static func make_meta() -> MinigameMeta:
 	return (
@@ -62,7 +72,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "King of the Hill",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 12,
 				"duration_sec": 60.0,
 				"rules":
 				"Stand in the zone to score — it drifts and shrinks! Grab items to shove or anchor.",
@@ -72,9 +82,13 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	_play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size())
+	_zone_start_radius = MinigameScaling.arena_half(ZONE_START_RADIUS, slots.size())
+	_zone_min_radius = MinigameScaling.arena_half(ZONE_MIN_RADIUS, slots.size())
+	_zone_margin = _zone_start_radius + 0.5
+	var spawns := SpawnLayout.ring_positions(slots.size(), _play_half * 0.6)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 		score_accum[slots[i]] = 0.0
 	zone_center = Vector2.ZERO
@@ -83,13 +97,13 @@ func _setup() -> void:
 	for _i in PILLAR_COUNT:
 		for _attempt in 12:
 			var candidate := Vector2(
-				rng.randf_range(-ARENA_HALF + 1.5, ARENA_HALF - 1.5),
-				rng.randf_range(-ARENA_HALF + 1.5, ARENA_HALF - 1.5)
+				rng.randf_range(-_play_half + 1.5, _play_half - 1.5),
+				rng.randf_range(-_play_half + 1.5, _play_half - 1.5)
 			)
 			# Keep pillars off the starting zone and the spawn ring.
 			if (
-				candidate.length() > ZONE_START_RADIUS + 1.0
-				and candidate.length() < ARENA_HALF * 0.85
+				candidate.length() > _zone_start_radius + 1.0
+				and candidate.length() < _play_half * 0.85
 			):
 				pillars.append(candidate)
 				break
@@ -107,7 +121,7 @@ func _tick(delta: float) -> void:
 	for slot: int in slots:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.clamp(
-			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+			Vector2(-_play_half, -_play_half), Vector2(_play_half, _play_half)
 		)
 	for slot: int in slots:
 		_push_out_of_pillars(slot)
@@ -132,7 +146,7 @@ func _tick(delta: float) -> void:
 ## Shrinks linearly from start to minimum over the zone's lifetime.
 func zone_radius() -> float:
 	var t := clampf(zone_age / ZONE_LIFETIME_SEC, 0.0, 1.0)
-	return lerpf(ZONE_START_RADIUS, ZONE_MIN_RADIUS, t)
+	return lerpf(_zone_start_radius, _zone_min_radius, t)
 
 
 func points(slot: int) -> int:
@@ -189,18 +203,18 @@ func _relocate_zone() -> void:
 	# camper cannot straddle back-to-back zones.
 	for _attempt in 8:
 		zone_center = Vector2(
-			rng.randf_range(-ARENA_HALF + ZONE_MARGIN, ARENA_HALF - ZONE_MARGIN),
-			rng.randf_range(-ARENA_HALF + ZONE_MARGIN, ARENA_HALF - ZONE_MARGIN)
+			rng.randf_range(-_play_half + _zone_margin, _play_half - _zone_margin),
+			rng.randf_range(-_play_half + _zone_margin, _play_half - _zone_margin)
 		)
-		if zone_center.distance_to(previous) >= ZONE_START_RADIUS * 1.5:
+		if zone_center.distance_to(previous) >= _zone_start_radius * 1.5:
 			break
 	_drift_target = _random_zone_point()
 
 
 func _random_zone_point() -> Vector2:
 	return Vector2(
-		rng.randf_range(-ARENA_HALF + ZONE_MARGIN, ARENA_HALF - ZONE_MARGIN),
-		rng.randf_range(-ARENA_HALF + ZONE_MARGIN, ARENA_HALF - ZONE_MARGIN)
+		rng.randf_range(-_play_half + _zone_margin, _play_half - _zone_margin),
+		rng.randf_range(-_play_half + _zone_margin, _play_half - _zone_margin)
 	)
 
 
@@ -238,8 +252,8 @@ func _spawn_items(delta: float) -> void:
 			{
 				"pos":
 				Vector2(
-					rng.randf_range(-ARENA_HALF + 1.0, ARENA_HALF - 1.0),
-					rng.randf_range(-ARENA_HALF + 1.0, ARENA_HALF - 1.0)
+					rng.randf_range(-_play_half + 1.0, _play_half - 1.0),
+					rng.randf_range(-_play_half + 1.0, _play_half - 1.0)
 				),
 				"type": Item.SHOVE if rng.randf() < 0.5 else Item.ANCHOR,
 			}
@@ -274,7 +288,7 @@ func _use_item(slot: int) -> void:
 					var axis := away.normalized() if away.length() > 0.001 else Vector2.RIGHT
 					var pos: Vector2 = positions[other] + axis * SHOVE_DISTANCE
 					positions[other] = pos.clamp(
-						Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+						Vector2(-_play_half, -_play_half), Vector2(_play_half, _play_half)
 					)
 		Item.ANCHOR:
 			anchor_left = ANCHOR_SEC

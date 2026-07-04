@@ -192,3 +192,53 @@ func test_item_pickup_pays_points() -> void:
 		0.2,
 		"grabbing pays instantly (#260)"
 	)
+
+
+func test_max_players_raised_to_twelve() -> void:
+	assert_eq(KingOfTheHill.make_meta().max_players, 12)
+
+
+## M15: a fixed-size hill is exactly the body-blocking scrum the ADR flags, so
+## a 12-player match grows both the arena AND the zone itself.
+func test_arena_and_zone_scale_at_twelve() -> void:
+	var game := _make_game(12)
+	assert_gt(game._play_half, KingOfTheHill.ARENA_HALF, "the arena grows for a crowd")
+	assert_gt(game._zone_start_radius, KingOfTheHill.ZONE_START_RADIUS, "the hill grows too")
+	assert_gt(game._zone_min_radius, KingOfTheHill.ZONE_MIN_RADIUS, "so does its shrunk floor")
+	assert_almost_eq(
+		game.zone_radius(), game._zone_start_radius, 0.001, "starts at the scaled size"
+	)
+
+
+## Backward compatibility: at the 6-player baseline nothing scales.
+func test_six_players_unchanged() -> void:
+	var game := _make_game(6)
+	assert_almost_eq(game._play_half, KingOfTheHill.ARENA_HALF, 0.001)
+	assert_almost_eq(game._zone_start_radius, KingOfTheHill.ZONE_START_RADIUS, 0.001)
+	assert_almost_eq(game._zone_min_radius, KingOfTheHill.ZONE_MIN_RADIUS, 0.001)
+
+
+## Spawns fan out over rings (no overlap) and stay inside the scaled arena.
+func test_spawns_distinct_and_within_arena_at_twelve() -> void:
+	var game := _make_game(12)
+	var seen := {}
+	for slot in 12:
+		var pos: Vector2 = game.positions[slot]
+		assert_lte(pos.length(), game._play_half, "spawn inside the scaled arena")
+		seen[pos] = true
+	assert_eq(seen.size(), 12, "every player gets a distinct spawn")
+
+
+## The scaled zone still shrinks to its (scaled) minimum and still relocates
+## meaningfully clear of its old spot, at a full 12-player lobby.
+func test_zone_shrink_and_relocation_scale_too() -> void:
+	var game := _make_game(12)
+	game.zone_age = KingOfTheHill.ZONE_LIFETIME_SEC
+	assert_almost_eq(game.zone_radius(), game._zone_min_radius, 0.01)
+	var previous := game.zone_center
+	game._relocate_zone()
+	assert_gte(
+		game.zone_center.distance_to(previous),
+		game._zone_start_radius * 1.5,
+		"still jumps meaningfully clear of the old zone"
+	)
