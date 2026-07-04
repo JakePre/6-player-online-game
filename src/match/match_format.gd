@@ -29,8 +29,16 @@ static func clock(seconds: float) -> String:
 	return "%d:%02d" % [whole / 60, whole % 60]
 
 
+## Always-on number + name (ADR 003 F2 / M15-02): colour wraps past the
+## palette size but the P-number never does, so "P7 Alice" stays unambiguous
+## in a 24-player room. This is the single funnel every nameplate, toast,
+## results/standings/series line and coin chip pulls names through — the
+## number channel rides along everywhere at once. Nameless slots read as
+## just their number.
 static func player_name(names: Dictionary, slot: int) -> String:
-	return names.get(slot, "Player %d" % (slot + 1))
+	var label := PlayerPalette.label_for_slot(slot)
+	var display := String(names.get(slot, ""))
+	return label if display.is_empty() else "%s %s" % [label, display]
 
 
 ## One line per player from tie-grouped placements: "1st  Alice  +30".

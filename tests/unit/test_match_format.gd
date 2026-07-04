@@ -25,19 +25,22 @@ func test_clock_rounds_up_and_clamps() -> void:
 	assert_eq(MatchFormat.clock(-1.0), "0:00")
 
 
-func test_player_name_falls_back_to_slot() -> void:
-	assert_eq(MatchFormat.player_name(NAMES, 1), "Bob")
-	assert_eq(MatchFormat.player_name(NAMES, 5), "Player 6")
+## M15-02 (ADR 003 F2): every name carries its always-on P-number; nameless
+## slots read as just the number. The number never wraps, unlike the colour.
+func test_player_name_carries_the_player_number() -> void:
+	assert_eq(MatchFormat.player_name(NAMES, 1), "P2 Bob")
+	assert_eq(MatchFormat.player_name(NAMES, 5), "P6", "nameless slots are just their number")
+	assert_eq(MatchFormat.player_name(NAMES, 23), "P24", "numbers stay unique past the palette")
 
 
 func test_result_lines_ties_share_rank_and_skip_past() -> void:
 	var lines := MatchFormat.result_lines([[1, 2], [0]], {1: 30, 2: 30, 0: 15}, NAMES)
-	assert_eq(lines, ["1st  Bob  +30", "1st  Cleo  +30", "3rd  Alice  +15"])
+	assert_eq(lines, ["1st  P2 Bob  +30", "1st  P3 Cleo  +30", "3rd  P1 Alice  +15"])
 
 
 func test_standings_lines_sorted_with_shared_ranks() -> void:
 	var lines := MatchFormat.standings_lines({0: 20, 1: 45, 2: 20}, NAMES)
-	assert_eq(lines, ["1st  Bob  45", "2nd  Alice  20", "2nd  Cleo  20"])
+	assert_eq(lines, ["1st  P2 Bob  45", "2nd  P1 Alice  20", "2nd  P3 Cleo  20"])
 
 
 func test_series_lines_rank_and_tie() -> void:
@@ -47,6 +50,6 @@ func test_series_lines_rank_and_tie() -> void:
 		{"slot": 2, "points": 9, "coins": 40},
 	]
 	var lines := MatchFormat.series_lines(rows, {0: "Alice", 1: "Bob", 2: "Cid"})
-	assert_eq(lines[0], "1st  Bob — 17 pts")
-	assert_eq(lines[1], "1st  Alice — 17 pts", "identical points+coins share the rank")
-	assert_eq(lines[2], "3rd  Cid — 9 pts")
+	assert_eq(lines[0], "1st  P2 Bob — 17 pts")
+	assert_eq(lines[1], "1st  P1 Alice — 17 pts", "identical points+coins share the rank")
+	assert_eq(lines[2], "3rd  P3 Cid — 9 pts")

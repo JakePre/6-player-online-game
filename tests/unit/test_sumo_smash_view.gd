@@ -54,7 +54,7 @@ func test_cooldown_on_nameplate() -> void:
 	var rig: CharacterRig = view.rig_for_slot(0)
 	assert_string_contains(rig.display_name, "1.5")
 	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
-	assert_eq(view.rig_for_slot(0).display_name, "Alice", "ready again")
+	assert_eq(view.rig_for_slot(0).display_name, "P1 Alice", "ready again")
 
 
 func test_local_dash_indicator_tracks_cooldown() -> void:

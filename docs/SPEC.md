@@ -114,8 +114,8 @@ Every minigame implements the shared **Minigame Contract** (see plan §M3): decl
 ## 8. Characters
 
 - Roster of **8 characters** from CC0 animated packs (KayKit character packs — knight, mage, barbarian, rogue, skeleton, etc.), giving distinct silhouettes with shared humanoid rigs and reusable animations (idle/run/jump/attack/KO/dance).
-- Each player also gets a **player color** (fixed palette of 6) applied as outline + nameplate + minimap marker; color is the primary identity channel, character is flavor.
-- Duplicate character picks allowed (colors disambiguate).
+- Each player also gets a **player color** (fixed palette of 6) applied as outline + nameplate + minimap marker; color is the primary identity channel, character is flavor. **AMENDED 2026-07-04 → identity is color + number** (see [ADR 003](adr/003-player-count-24.md) F2): the palette grew to 12 colors and wraps in larger rooms, so every name carries an always-unique "P<n>" number everywhere it renders.
+- Duplicate character picks allowed (colors disambiguate; player numbers disambiguate past the palette).
 - Victory dance on podium; KO'd characters ragdoll or play the KO animation.
 
 ## 9. Multiplayer architecture

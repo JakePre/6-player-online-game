@@ -63,7 +63,7 @@ func test_eliminated_player_goes_down_dimmed() -> void:
 	var rig: CharacterRig = view.rig_for_slot(1)
 	assert_eq(rig.current_action(), &"ko")
 	assert_eq(rig.player_color, view.ELIMINATED_COLOR)
-	assert_eq(rig.display_name, "Bob", "no fuse on an eliminated nameplate")
+	assert_eq(rig.display_name, "P2 Bob", "no fuse on an eliminated nameplate")
 
 
 func test_render_tolerates_missing_keys() -> void:
