@@ -178,7 +178,7 @@ Action — [x] **M10-17** Rumble Ring (M, arena brawler: swing/charge/block, KO 
 ### M12 — Feel & fairness (Phase 2, PHASE2.md §6 — after the roster completes)
 - [ ] **M12-01** (M) Balance pass across all 33 games at 2/4/6 players, driven by nightly-run data; tuning-only PRs ⛓ M10 complete
 - [ ] **M12-02** (S) `play_sfx` hook adoption in every minigame view (pickups/hits/KOs) ⛓ M6-01, M10 complete
-- [ ] **M12-03** (M) Accessibility: colorblind-safe palette variant, input remapping UI, reduced-motion toggle ⛓ M6-02
+- [x] **M12-03** (M) Accessibility: colorblind-safe palette variant, input remapping UI, reduced-motion toggle ⛓ M6-02
 - [x] **M12-04** (M) Latency feel: client-side snapshot interpolation in `MinigameView3D` (30 Hz snapshots → smooth 60+ fps motion) ⛓ M8-01
 - [ ] **M12-05** (S) Input parity audit: every minigame playable gamepad-only and keyboard/mouse-only; add a stick-driven tile cursor to Trap Corridor's trap placement ⛓ M10 complete
 

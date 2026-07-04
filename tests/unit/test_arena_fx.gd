@@ -40,6 +40,19 @@ func test_effects_free_themselves_when_finished() -> void:
 	assert_false(is_instance_valid(fx), "finished one-shots clean themselves up")
 
 
+## M12-03 reduced motion: the effect still returns a valid node so callers
+## keep working, but it never emits and frees itself on the next frame.
+func test_reduced_motion_suppresses_emission() -> void:
+	ArenaFX.reduced_motion = true
+	var fx := ArenaFX.burst(root, Vector3.ZERO, Color.RED)
+	assert_false(fx.emitting, "no particles fly under reduced motion")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_false(is_instance_valid(fx), "and the node cleans itself up")
+	ArenaFX.reduced_motion = false
+	assert_true(ArenaFX.burst(root, Vector3.ZERO).emitting, "normal mode still emits")
+
+
 func test_view_wrappers_parent_into_the_arena() -> void:
 	var scene: PackedScene = load("res://src/minigames/king_of_the_hill/king_of_the_hill_view.tscn")
 	var view: MinigameView = scene.instantiate()
