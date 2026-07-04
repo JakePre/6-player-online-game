@@ -2,6 +2,8 @@ extends MinigameView
 ## Heist Night client view (M4-16): arena that dims when the lights cycle
 ## off (player positions vanish from the snapshot — sneak!), vaults with
 ## coin totals, and the post-round theft reveal.
+## M13-27 FX pass (2D juice per PHASE2.md §7): a scanline sweeps the
+## blueprint while the feed is live, and a vault being robbed pulses.
 
 ## Deliberate security-blueprint look (#210, PHASE2.md §7 — intentionally
 ## 2D): cyan linework on navy, survey grid, vaults as outlined rooms.
@@ -14,6 +16,9 @@ const COIN_COLOR := Color(1.0, 0.85, 0.25)
 const VAULT_FILL := Color(0.12, 0.2, 0.34)
 const GRID_STEP := 2.0
 const NAME_OFFSET := 14.0
+const ALARM_COLOR := Color(0.95, 0.3, 0.3)
+const SCAN_PERIOD_SEC := 6.0
+const PULSE_DURATION := 0.7
 
 ## Latest replicated state, straight from HeistNight.get_snapshot().
 var dark := false
@@ -22,9 +27,30 @@ var vaults := {}
 var coins: Array = []
 var reveal := {}
 
+# M13-27 FX state: in-flight steal pulses ({slot, age}), last-seen vault
+# totals for theft detection, and the scanline clock.
+var _pulses: Array = []
+var _totals_seen := {}
+var _seen_snapshot := false
+var _scan_clock := 0.0
+
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
+
+
+func _process(delta: float) -> void:
+	var alive: Array = []
+	for pulse: Dictionary in _pulses:
+		pulse.age += delta
+		if pulse.age < PULSE_DURATION:
+			alive.append(pulse)
+	_pulses = alive
+	# The scanline only sweeps while the feed is live; "FEED LOST" freezes it.
+	if not dark:
+		_scan_clock += delta
+	if not dark or not _pulses.is_empty():
+		queue_redraw()
 
 
 func _render(game: Dictionary) -> void:
@@ -33,6 +59,17 @@ func _render(game: Dictionary) -> void:
 	vaults = game.get("vaults", {})
 	coins = game.get("coins", [])
 	reveal = game.get("reveal", {})
+	# Steal pulse (M13-27): only theft makes a vault total drop, so a drop
+	# means a robbery in progress. First sighting seeds silently.
+	if _seen_snapshot:
+		for slot: int in vaults:
+			var total := int(vaults[slot][2])
+			if _totals_seen.has(slot) and total < int(_totals_seen[slot]):
+				_pulses.append({"slot": slot, "age": 0.0})
+	_seen_snapshot = true
+	_totals_seen = {}
+	for slot: int in vaults:
+		_totals_seen[slot] = int(vaults[slot][2])
 	queue_redraw()
 
 
@@ -53,6 +90,31 @@ func _draw() -> void:
 		draw_line(Vector2(arena.position.x, gy), Vector2(arena.end.x, gy), grid, 1.0)
 		gy += step
 	draw_rect(arena, BLUEPRINT_LINE, false, 2.0)
+	# Scanline sweep (M13-27): the live feed reads as a slow scan down the
+	# blueprint, with a short fading trail. Gone while the feed is cut.
+	if not dark:
+		var scan_y := arena.position.y + fmod(_scan_clock / SCAN_PERIOD_SEC, 1.0) * arena.size.y
+		for i in 4:
+			var trail_y := scan_y - float(i) * 3.0
+			if trail_y < arena.position.y:
+				break
+			var alpha := 0.4 * (1.0 - float(i) / 4.0)
+			draw_line(
+				Vector2(arena.position.x, trail_y),
+				Vector2(arena.end.x, trail_y),
+				Color(BLUEPRINT_LINE, alpha),
+				2.0 if i == 0 else 1.0
+			)
+	# Steal pulses (M13-27): an expanding alarm ring on the robbed vault.
+	for pulse: Dictionary in _pulses:
+		if not vaults.has(pulse.slot):
+			continue
+		var vault_state: Array = vaults[pulse.slot]
+		var center := _to_px(Vector2(vault_state[0], vault_state[1]), px_per_unit)
+		var progress: float = pulse.age / PULSE_DURATION
+		var ring_radius := HeistNight.VAULT_RADIUS * px_per_unit * (1.0 + progress)
+		var ring_color := Color(ALARM_COLOR, 1.0 - progress)
+		draw_arc(center, ring_radius, 0.0, TAU, 32, ring_color, 1.0 + 2.0 * (1.0 - progress))
 	var font := get_theme_default_font()
 	var font_size := get_theme_default_font_size()
 	for slot: int in vaults:

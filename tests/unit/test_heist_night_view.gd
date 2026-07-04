@@ -49,3 +49,37 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_false(view.dark)
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.reveal, {})
+
+
+## M13-27: a vault total dropping (theft) fires a steal pulse; the first
+## snapshot seeds silently and gains never pulse.
+func test_vault_drop_fires_steal_pulse() -> void:
+	view.render({"vaults": {0: [3.0, 3.0, 5], 1: [-3.0, -3.0, 2]}})
+	assert_eq(view._pulses.size(), 0, "first sighting seeds silently")
+	view.render({"vaults": {0: [3.0, 3.0, 3], 1: [-3.0, -3.0, 2]}})
+	assert_eq(view._pulses.size(), 1, "only the robbed vault pulses")
+	assert_eq(int(view._pulses[0].slot), 0)
+
+
+func test_vault_gain_does_not_pulse() -> void:
+	view.render({"vaults": {0: [3.0, 3.0, 5]}})
+	view.render({"vaults": {0: [3.0, 3.0, 9]}})
+	assert_eq(view._pulses.size(), 0, "banking coins is not a robbery")
+
+
+func test_steal_pulses_expire() -> void:
+	view.render({"vaults": {0: [3.0, 3.0, 5]}})
+	view.render({"vaults": {0: [3.0, 3.0, 4]}})
+	assert_eq(view._pulses.size(), 1)
+	view._process(view.PULSE_DURATION + 0.05)
+	assert_eq(view._pulses.size(), 0, "pulses free themselves after their lifetime")
+
+
+func test_scanline_freezes_while_feed_is_lost() -> void:
+	view.render({"dark": false})
+	view._process(0.5)
+	assert_gt(view._scan_clock, 0.0, "live feed sweeps")
+	var clock: float = view._scan_clock
+	view.render({"dark": true})
+	view._process(0.5)
+	assert_eq(view._scan_clock, clock, "FEED LOST freezes the scanline")
