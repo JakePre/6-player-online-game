@@ -249,7 +249,9 @@ func _show_podium(standings: Array, series: Dictionary = {}) -> void:
 		_names[row.slot] = row.name
 	var subtitle := ""
 	if not standings.is_empty():
-		subtitle = "%s wins the match!" % standings[0].name
+		# Through the identity funnel so the banner carries the player number
+		# like every other line (M15-02).
+		subtitle = "%s wins the match!" % MatchFormat.player_name(_names, int(standings[0].slot))
 	# Series context (M11-02): champion banner on the final match, running
 	# series score otherwise.
 	if int(series.get("length", 1)) > 1:

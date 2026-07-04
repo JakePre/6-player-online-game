@@ -119,8 +119,8 @@ func test_results_render_placement_lines() -> void:
 	assert_eq(screen.get_node("%ResultsTitle").text, "Round 1 results")
 	var list: VBoxContainer = screen.get_node("%ResultsList")
 	assert_eq(list.get_child_count(), 2)
-	assert_eq((list.get_child(0) as Label).text, "1st  Bob  +30")
-	assert_eq((list.get_child(1) as Label).text, "2nd  Alice  +20")
+	assert_eq((list.get_child(0) as Label).text, "1st  P2 Bob  +30")
+	assert_eq((list.get_child(1) as Label).text, "2nd  P1 Alice  +20")
 
 
 func test_snapshot_updates_timer_and_recovers_play_state() -> void:
@@ -158,10 +158,10 @@ func test_match_ended_shows_final_standings() -> void:
 	var panel: StandingsPanel = screen.get_node("%StandingsPanel")
 	assert_true(panel.visible)
 	assert_eq(panel.get_node("%StandingsTitle").text, "Final standings")
-	assert_eq(panel.get_node("%StandingsSubtitle").text, "Bob wins the match!")
+	assert_eq(panel.get_node("%StandingsSubtitle").text, "P2 Bob wins the match!")
 	var list: VBoxContainer = panel.get_node("%StandingsList")
-	assert_eq((list.get_child(0) as Label).text, "1st  Bob  50")
-	assert_eq((list.get_child(1) as Label).text, "2nd  Alice  40")
+	assert_eq((list.get_child(0) as Label).text, "1st  P2 Bob  50")
+	assert_eq((list.get_child(1) as Label).text, "2nd  P1 Alice  40")
 
 
 func _play_snapshot(game: Dictionary) -> Dictionary:
@@ -275,7 +275,7 @@ func test_emote_feed_shows_and_expires_toasts() -> void:
 	NetManager.emote_received.emit(1, 0)
 	var feed: VBoxContainer = screen.get_node("%EmoteFeed")
 	assert_eq(feed.get_child_count(), 1)
-	assert_eq((feed.get_child(0) as Label).text, "Bob %s" % Emotes.EMOTES[0])
+	assert_eq((feed.get_child(0) as Label).text, "P2 Bob %s" % Emotes.EMOTES[0])
 	await wait_seconds(0.4)
 	assert_eq(feed.get_child_count(), 0, "toasts expire after emote_lifetime")
 

@@ -14,8 +14,8 @@ func before_each() -> void:
 
 func test_setup_stores_identity_context() -> void:
 	assert_eq(view.my_slot, 0)
-	assert_eq(view.player_name(1), "Bob")
-	assert_eq(view.player_name(4), "Player 5", "unknown slots fall back")
+	assert_eq(view.player_name(1), "P2 Bob", "names carry the always-on number (M15-02)")
+	assert_eq(view.player_name(4), "P5", "unknown slots fall back to their number")
 	assert_eq(view.player_color(1), PlayerPalette.color_for_slot(1))
 
 

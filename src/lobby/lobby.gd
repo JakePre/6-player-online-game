@@ -185,13 +185,17 @@ func _rebuild_player_list(state: Dictionary) -> void:
 		_player_list.add_child(row)
 
 
+## Rows lead with the always-on player number (ADR 003 F2 / M15-02), the same
+## "P3" every nameplate and results line shows, so players learn their number
+## in the lobby before the first round.
 func _member_line(member: Dictionary, host_slot: int) -> String:
+	var numbered := "%s %s" % [PlayerPalette.label_for_slot(member.slot), member.name]
 	var host_mark := " (host)" if member.slot == host_slot else ""
 	var character_name := CharacterRoster.display_name_for(member.character_id)
 	if not member.connected:
-		return "%s%s [%s] — disconnected" % [member.name, host_mark, character_name]
+		return "%s%s [%s] — disconnected" % [numbered, host_mark, character_name]
 	var ready_mark := "ready" if member.ready else "not ready"
-	return "%s%s [%s] — %s" % [member.name, host_mark, character_name, ready_mark]
+	return "%s%s [%s] — %s" % [numbered, host_mark, character_name, ready_mark]
 
 
 func _my_ready(state: Dictionary) -> bool:
