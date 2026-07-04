@@ -41,7 +41,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Heist Night",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 3,
-				"max_players": 6,
+				"max_players": 8,
 				"duration_sec": 60.0,
 				"rules":
 				"Bank coins in your vault — and when the lights go out, rob everyone else's!",

@@ -31,13 +31,30 @@ func test_registered_in_catalog() -> void:
 
 
 func test_setup_scales_with_player_count() -> void:
-	for count: int in [3, 4, 6]:
+	for count: int in [3, 4, 6, 8]:
 		var player_slots: Array[int] = []
 		for slot in count:
 			player_slots.append(slot)
 		var game := _game(player_slots)
 		assert_eq(game.vaults.size(), count)
 		assert_eq(game.vault_pos.size(), count)
+
+
+func test_max_players_raised_to_eight() -> void:
+	assert_eq(HeistNight.make_meta().max_players, 8)
+
+
+## No-crowd fairness (M15 8-cap): the vault ring already auto-distributes by
+## slot count, and at 8 players every vault stays clear of its neighbours.
+func test_vaults_are_spread_at_eight_players() -> void:
+	var player_slots: Array[int] = []
+	for i in 8:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	for a in 8:
+		for b in range(a + 1, 8):
+			var dist: float = (game.vault_pos[a] as Vector2).distance_to(game.vault_pos[b])
+			assert_gt(dist, HeistNight.VAULT_RADIUS * 2.0, "vaults %d/%d don't overlap" % [a, b])
 
 
 func test_light_cycle_from_elapsed() -> void:
