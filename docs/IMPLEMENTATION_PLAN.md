@@ -77,7 +77,7 @@ class_name MinigameMeta extends Resource
 
 ## 5. Milestones & task board
 
-Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on.
+Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on. Every remaining task also carries a recommended model tier (complexity signal, not an assignment) in [MODEL_ROUTING.md](MODEL_ROUTING.md).
 
 ### M0 — Repo & toolchain bootstrap
 - [x] **M0-01** (M) Godot 4.4 project scaffold at repo root, folder layout §3, project settings (window, physics tick 30 Hz, input map for WASD/gamepad/mouse)
