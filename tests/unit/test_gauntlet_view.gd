@@ -73,3 +73,41 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.hazards.size(), 0)
 	assert_eq(view.radius, Gauntlet.START_RADIUS)
+
+
+func _particle_count() -> int:
+	var count := 0
+	for child in view.arena.get_children():
+		if child is CPUParticles3D:
+			count += 1
+	return count
+
+
+## M13-31: the platform sheds crumble dust each time it shrinks a stage.
+func test_shrinking_platform_crumbles_dust() -> void:
+	view.render({"radius": Gauntlet.START_RADIUS, "players": {}, "hazards": []})
+	var before := _particle_count()
+	view.render({"radius": Gauntlet.START_RADIUS - 3.0, "players": {}, "hazards": []})
+	assert_gt(_particle_count(), before, "a shrink crumbles the shed rim")
+
+
+## M13-31: a freshly-armed hazard pops a warning spark; a detonating one bursts.
+func test_hazard_telegraph_sparks_then_bursts() -> void:
+	var armed := {"radius": Gauntlet.START_RADIUS, "players": {}, "hazards": [[2.0, 0.0, 1.5, 0.8]]}
+	view.render(armed)
+	var after_spawn := _particle_count()
+	assert_gt(after_spawn, 0, "a new hazard telegraphs a spark")
+	# Same radius so no crumble; the hazard vanishes (detonates).
+	view.render({"radius": Gauntlet.START_RADIUS, "players": {}, "hazards": []})
+	assert_gt(_particle_count(), after_spawn, "a detonating hazard bursts")
+
+
+## M13-31: losing a life bursts where the player stood.
+func test_losing_a_life_bursts() -> void:
+	var two := {"radius": Gauntlet.START_RADIUS, "players": {0: [0.0, 0.0, 2, 0.0]}, "hazards": []}
+	view.render(two)
+	var before := _particle_count()
+	view.render(
+		{"radius": Gauntlet.START_RADIUS, "players": {0: [0.0, 0.0, 1, 0.0]}, "hazards": []}
+	)
+	assert_gt(_particle_count(), before, "a lost life bursts at the player")
