@@ -33,3 +33,23 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.coins.size(), 0)
+
+
+## M13-02: pickups sparkle in the collector's color, fresh coins dust in.
+func test_pickup_sparkles_once_seeded() -> void:
+	view.render({"players": {0: [0.0, 0.0, 2]}, "coins": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [0.0, 0.0, 3]}, "coins": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "count up = one sparkle")
+
+
+func test_fresh_coins_dust_in_after_seeding() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0]}, "coins": [[1.0, 1.0]]})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [0.0, 0.0, 0]}, "coins": [[1.0, 1.0], [4.0, -2.0]]})
+	# +1 dust for the new coin, +1 rebuilt coin node (pool rebuilds each render).
+	var dust_count := 0
+	for child in view.arena.get_children():
+		if child is CPUParticles3D:
+			dust_count += 1
+	assert_eq(dust_count, 1, "only the new coin dusts, the old one is known")
