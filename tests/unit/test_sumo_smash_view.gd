@@ -70,3 +70,33 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.out, [])
+
+
+## M13-06: dashes trail dust, big displacements burst (a shove landed),
+## ring-outs splash + shake — all seeded for rejoiners.
+func test_dash_trails_dust() -> void:
+	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"radius": 8.0, "players": {0: [0.3, 0.0, 0.0, 1]}, "out": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "dash puffs")
+
+
+func test_shove_displacement_bursts() -> void:
+	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"radius": 8.0, "players": {0: [0.1, 0.0, 0.0, 0]}, "out": []})
+	assert_eq(view.arena.get_child_count(), before, "normal movement is quiet")
+	view.render({"radius": 8.0, "players": {0: [0.5, 0.0, 0.0, 0]}, "out": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "a shove-sized jump bursts")
+
+
+func test_ringout_splashes_and_shakes_once_seeded() -> void:
+	watch_signals(view)
+	view.render(
+		{"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0], 1: [7.9, 0.0, 0.0, 0]}, "out": []}
+	)
+	assert_signal_not_emitted(view, "shake_requested")
+	var before: int = view.arena.get_child_count()
+	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": [[1]]})
+	assert_signal_emitted(view, "shake_requested")
+	assert_eq(view.arena.get_child_count(), before + 1, "splash where they went over")

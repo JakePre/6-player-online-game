@@ -14,6 +14,10 @@ var players := {}
 var out: Array = []
 
 var _dash_label: Label
+# M13-06 FX state: last replicated pos per slot (shove detection + ring-out
+# splash), and out-count seeding for rejoiners.
+var _last_pos := {}
+var _out_seen := -1
 var _was_ready := true
 
 
@@ -58,6 +62,7 @@ func _setup_3d() -> void:
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
 	out = game.get("out", [])
+	_fx_on_ringouts()
 	for slot: int in names:
 		var rig := rig_for_slot(slot)
 		if rig == null:
@@ -67,11 +72,20 @@ func _render_3d(game: Dictionary) -> void:
 			continue
 		rig.visible = true
 		var state: Array = players[slot]
-		update_rig(slot, Vector2(state[0], state[1]))
-		rig.position.y = PLATFORM_THICKNESS
+		var at := Vector2(state[0], state[1])
+		# Height rides update_rig (M12-04's interpolator owns position; setting
+		# rig.position.y directly after this call would flicker every frame).
+		update_rig(slot, at, PLATFORM_THICKNESS)
 		var dashing := int(state[3]) == 1
 		if dashing and rig.current_action() != &"run":
 			rig.play(&"run")
+		# M13-06: dashes trail dust; a sudden non-dash displacement means a
+		# shove landed - burst at the contact. Seeded via _last_pos.
+		if dashing:
+			fx_dust(at)
+		elif _last_pos.has(slot) and (_last_pos[slot] as Vector2).distance_to(at) > 0.25:
+			fx_burst(at, player_color(slot), 0.6)
+		_last_pos[slot] = at
 		var cooldown := float(state[2])
 		var caption := player_name(slot)
 		if cooldown > 0.0:
@@ -98,3 +112,19 @@ func _update_dash_indicator(cooldown: float) -> void:
 		_dash_label.text = "DASH %s" % bar
 		_dash_label.modulate = Color(1.0, 0.75, 0.4)
 	_was_ready = ready
+
+
+## Ring-outs splash where the player left the platform and rattle the screen
+## (M13-06); the seeding snapshot stays calm for rejoiners.
+func _fx_on_ringouts() -> void:
+	var out_count := 0
+	for group: Array in out:
+		out_count += group.size()
+	if _out_seen >= 0 and out_count > _out_seen:
+		request_shake(10.0)
+		for group: Array in out:
+			for slot: int in group:
+				if _last_pos.has(slot):
+					fx_splash(_last_pos[slot])
+					_last_pos.erase(slot)
+	_out_seen = out_count
