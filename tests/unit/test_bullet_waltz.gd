@@ -116,3 +116,39 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.players[0].size(), 3)
 	assert_eq(snapshot.bullets, [[1.0, 2.0]])
 	assert_eq(snapshot.out, [])
+
+
+func _slots(n: int) -> Array[int]:
+	var out: Array[int] = []
+	for i in n:
+		out.append(i)
+	return out
+
+
+## M15 †-cap: Bullet Waltz scales to 24.
+func test_scales_to_24_players() -> void:
+	assert_eq(BulletWaltz.make_meta().max_players, 24)
+
+
+## The dodge floor and the range bullets must clear grow with the lobby, and a
+## crowd spawns spread out rather than piled on one ring.
+func test_arena_and_spawns_scale_with_the_lobby() -> void:
+	var big := _game(_slots(24))
+	assert_gt(big._play_half, BulletWaltz.ARENA_HALF, "24 players get a bigger arena")
+	assert_almost_eq(big._bullet_range, big._play_half * BulletWaltz.BULLET_RANGE_FACTOR, 0.001)
+	var placed: Array[Vector2] = []
+	for slot: int in big.slots:
+		var pos: Vector2 = big.positions[slot]
+		assert_lte(pos.length(), big._play_half + 0.001, "everyone spawns in bounds")
+		for other: Vector2 in placed:
+			assert_gt(
+				pos.distance_to(other), BulletWaltz.PLAYER_RADIUS * 2.0, "no overlapping spawns"
+			)
+		placed.append(pos)
+
+
+## The tuned <=6-player game is byte-for-byte unchanged.
+func test_small_lobbies_keep_the_tuned_arena() -> void:
+	var small := _game(_slots(6))
+	assert_almost_eq(small._play_half, BulletWaltz.ARENA_HALF, 0.001)
+	assert_almost_eq(small._bullet_range, BulletWaltz.BULLET_RANGE, 0.001)

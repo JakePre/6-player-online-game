@@ -2,12 +2,13 @@ extends GutTest
 ## Bullet Waltz client view (M10-18): renders replicated snapshots in the
 ## shared iso-arena without simulating anything locally.
 
+const VIEW_SCENE := preload("res://src/minigames/bullet_waltz/bullet_waltz_view.tscn")
+
 var view: MinigameView3D
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/bullet_waltz/bullet_waltz_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -85,3 +86,16 @@ func test_ko_pops_a_blast() -> void:
 	# Slot 0 is eliminated: gone from players, listed in an out group.
 	view.render({"players": {1: [2.0, 0.0, 0]}, "bullets": [], "out": [[0]]})
 	assert_gt(_particle_count(), before, "a KO blasts a burst")
+
+
+## M15 †-cap: the framed floor grows with a big lobby to match the scaled sim,
+## and the 2-player before_each view stays on the tuned baseline.
+func test_arena_frames_scale_with_the_crowd() -> void:
+	assert_almost_eq(view._arena_half(), BulletWaltz.ARENA_HALF, 0.001, "small lobby is unchanged")
+	var crowd: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(crowd)
+	var names := {}
+	for i in 24:
+		names[i] = "P%d" % i
+	crowd.setup(names, 0)
+	assert_gt(crowd._arena_half(), BulletWaltz.ARENA_HALF, "24 players get a bigger floor")
