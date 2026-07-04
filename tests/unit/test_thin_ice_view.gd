@@ -2,12 +2,13 @@ extends GutTest
 ## Thin Ice client view (M8-06): renders replicated snapshots in the shared
 ## iso-arena without simulating anything locally.
 
+const VIEW_SCENE := preload("res://src/minigames/thin_ice/thin_ice_view.tscn")
+
 var view: MinigameView
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/thin_ice/thin_ice_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -109,3 +110,21 @@ func test_tile_transitions_fire_fx_once_seeded() -> void:
 	assert_eq(view.arena.get_child_count(), before + 2, "one chip puff + one give-way splash")
 	view.render({"tiles": grid2, "players": {}, "fallen": []})
 	assert_eq(view.arena.get_child_count(), before + 2, "no transition, no FX")
+
+
+## M15: the view mirrors the sim's grid-scaling formula, so a 12-player
+## lobby builds a bigger tile grid matching what the snapshot's tiles array
+## will be sized to.
+func test_grid_scales_at_twelve_players() -> void:
+	assert_eq(view._grid_size(), ThinIce.GRID_SIZE, "2 players = baseline grid")
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	var names := {}
+	for i in 12:
+		names[i] = "P%d" % (i + 1)
+	big.setup(names, 0)
+	assert_gt(big._grid_size(), ThinIce.GRID_SIZE, "12 players get a bigger grid")
+	var last: int = int(big._grid_size()) - 1
+	assert_not_null(
+		big.arena.get_node_or_null("Tile_%d_%d" % [last, last]), "the grown grid actually built"
+	)

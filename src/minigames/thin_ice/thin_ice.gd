@@ -15,20 +15,26 @@ const COLLAPSE_SEC := 0.8
 ## one damage step, and keeps applying while you stay.
 const STAND_DAMAGE_SEC := 1.5
 
+## Grid size at the 6-player baseline; scales with lobby size (M15) so
+## tiles-per-player density stays ~constant (the destruction rate keeps
+## feeling the same at 12 as it does at 6). Unchanged at <=6 players.
 const GRID_SIZE := 7
 const TILE_SIZE := 2.0
-const HALF_EXTENT := GRID_SIZE * TILE_SIZE / 2.0
 const MOVE_SPEED := 5.0
 const PLAYER_RADIUS := 0.4
 
 var positions := {}
 var move_dirs := {}
-## Row-major GRID_SIZE * GRID_SIZE array of TileState.
+## Row-major _grid_size * _grid_size array of TileState.
 var tiles: Array = []
 ## Last tile coordinate (Vector2i) each player was resolved onto.
 var last_tile := {}
 ## Slots in fall order; same-tick falls share a tie group.
 var fall_order: Array = []
+## This match's grid dimension and half-extent, derived from player count
+## in _setup(); equal GRID_SIZE/HALF_EXTENT at <=6 players.
+var _grid_size := GRID_SIZE
+var _half_extent := GRID_SIZE * TILE_SIZE / 2.0
 
 var _pending_falls: Array = []
 ## Collapse countdowns for BREAKING tiles, {tile index: seconds left}.
@@ -47,7 +53,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Thin Ice",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 12,
 				"duration_sec": 45.0,
 				"rules":
 				"The ice cracks underfoot — even standing still! Flashing ice is about to drop. Keep moving!",
@@ -57,11 +63,15 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
-	tiles.resize(GRID_SIZE * GRID_SIZE)
+	# Grid area scales with player count the same way MinigameScaling scales
+	# arena area, so tiles-per-player density holds steady.
+	_grid_size = roundi(GRID_SIZE * sqrt(MinigameScaling.growth(slots.size())))
+	_half_extent = _grid_size * TILE_SIZE / 2.0
+	tiles.resize(_grid_size * _grid_size)
 	tiles.fill(TileState.INTACT)
 	for i in slots.size():
 		var angle := TAU * i / slots.size()
-		var pos := Vector2(cos(angle), sin(angle)) * HALF_EXTENT * 0.6
+		var pos := Vector2(cos(angle), sin(angle)) * _half_extent * 0.6
 		positions[slots[i]] = pos
 		move_dirs[slots[i]] = Vector2.ZERO
 		last_tile[slots[i]] = _tile_of(pos)
@@ -78,7 +88,7 @@ func _tick(delta: float) -> void:
 	for slot: int in _in_slots():
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.clamp(
-			Vector2(-HALF_EXTENT, -HALF_EXTENT), Vector2(HALF_EXTENT, HALF_EXTENT)
+			Vector2(-_half_extent, -_half_extent), Vector2(_half_extent, _half_extent)
 		)
 	_resolve_tile_entries()
 	_tick_standing(delta)
@@ -96,7 +106,7 @@ func get_snapshot() -> Dictionary:
 		var pos: Vector2 = positions[slot]
 		players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01)]
 	return {
-		"grid_size": GRID_SIZE,
+		"grid_size": _grid_size,
 		"tile_size": TILE_SIZE,
 		"tiles": tiles.duplicate(),
 		"players": players,
@@ -194,10 +204,10 @@ func _out_placements() -> Array:
 
 
 func _tile_of(pos: Vector2) -> Vector2i:
-	var tx := clampi(int(floor((pos.x + HALF_EXTENT) / TILE_SIZE)), 0, GRID_SIZE - 1)
-	var ty := clampi(int(floor((pos.y + HALF_EXTENT) / TILE_SIZE)), 0, GRID_SIZE - 1)
+	var tx := clampi(int(floor((pos.x + _half_extent) / TILE_SIZE)), 0, _grid_size - 1)
+	var ty := clampi(int(floor((pos.y + _half_extent) / TILE_SIZE)), 0, _grid_size - 1)
 	return Vector2i(tx, ty)
 
 
 func _tile_index(tile: Vector2i) -> int:
-	return tile.y * GRID_SIZE + tile.x
+	return tile.y * _grid_size + tile.x
