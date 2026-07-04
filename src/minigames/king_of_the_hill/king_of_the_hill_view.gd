@@ -27,6 +27,8 @@ var _zone_material: StandardMaterial3D
 var _pillars_built := false
 var _item_nodes: Array[MeshInstance3D] = []
 var _held_label: Label
+## Last-seen held map, for pickup-moment detection (#260).
+var _last_held := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -125,7 +127,16 @@ func _update_items() -> void:
 		_item_nodes.append(node)
 
 
+## Pickup flash + sound so grabbing reads (#260).
+func _update_held_feedback() -> void:
+	for slot: int in held:
+		if not _last_held.has(slot) and slot == my_slot:
+			play_sfx(&"coin")
+	_last_held = held.duplicate()
+
+
 func _update_held() -> void:
+	_update_held_feedback()
 	if _held_label == null:
 		return
 	if held.has(my_slot):
