@@ -121,6 +121,31 @@ Everything about spatial jockeying (Sumo, KotH, Thin Ice, Color Clash,
 Rumble Ring, Bullet Waltz, the Gauntlet, ...) stays on the 3D iso tier.
 Candidates may move between tiers only with an owner-approved issue.
 
+## 9. Animation & asset pass (M13)
+
+Owner directive (playtest, 2026-07-03, #262): **add animations and assets
+everywhere they'd improve the experience — the whole shebang.** Falling
+meteors, swimming fish, pickup sparkles, impact bursts. The standing rule
+for the whole milestone:
+
+> If an asset or animation would improve the experience, add it.
+
+Rules of engagement:
+1. **View-only.** M13 tasks never touch sims, snapshots, or the protocol —
+   presentation exclusively. A task that needs sim data the snapshot lacks
+   files a framework issue first.
+2. **Respect §7 tiers.** The intentionally-2D games (Hurdle Dash, Relay
+   Sprint, Heist Night) get 2D-appropriate juice — better linework, flashes,
+   screen-space effects — never a 3D "upgrade".
+3. **Assets:** CC0/CC-BY only, every import logged in `assets/CREDITS.md`
+   (SPEC §10). Prefer the already-imported Kenney kits and KayKit rig
+   actions (`hit`, `ko`, `cheer`, `interact`, `pickup`, the jump set) before
+   importing anything new.
+4. **M13-01 first.** Shared FX helpers (one-shot impact bursts, pickup
+   sparkles, splash/dust puffs, self-freeing) land as one small framework PR
+   so every per-game task stays a one-file view change. The fan-out is
+   parallel after it, same claim rules as M8/M10.
+
 ## 8. Sequencing
 
 ```
