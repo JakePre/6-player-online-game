@@ -50,6 +50,20 @@ func test_teams_stand_relative_to_the_rope() -> void:
 	assert_gt(rig_b.position.x, 2.0, "team B mirrors on +x")
 
 
+## #314 FX: the win burst fires exactly once, when the rope reaches the line.
+func test_win_burst_fires_once_at_the_line() -> void:
+	view.render({"rope": -8.0, "win_offset": 10.0, "team_a": [0], "team_b": [1]})
+	assert_false(view._win_fired, "no win before the line")
+	var before := view.arena.get_child_count()
+	view.render({"rope": -10.0, "win_offset": 10.0, "team_a": [0], "team_b": [1]})
+	assert_true(view._win_fired, "dragging the knot over the line fires the burst")
+	assert_gt(view.arena.get_child_count(), before, "burst meshes spawned")
+	# A second at-the-line render must not re-fire the one-shot burst.
+	var mid := view.arena.get_child_count()
+	view.render({"rope": -10.0, "win_offset": 10.0, "team_a": [0], "team_b": [1]})
+	assert_lte(view.arena.get_child_count(), mid, "the burst does not re-fire while held")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.rope, 0.0)
