@@ -67,7 +67,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Cart Push",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 4,
-				"max_players": 6,
+				"max_players": 8,
 				"even_players": true,
 				"duration_sec": 75.0,
 				"rules":
