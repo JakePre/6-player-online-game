@@ -71,12 +71,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _arena_half() -> float:
-	return TreasureDivers.ARENA_HALF
+	# Grow the framed floor with the lobby to match the sim's scaled play area
+	# (M15, ADR 003 F4); at <=6 players this is the tuned TreasureDivers.ARENA_HALF.
+	return MinigameScaling.arena_half(TreasureDivers.ARENA_HALF, names.size())
 
 
 func _setup_3d() -> void:
 	var water_mesh := PlaneMesh.new()
-	water_mesh.size = Vector2.ONE * TreasureDivers.ARENA_HALF * 2.0
+	water_mesh.size = Vector2.ONE * _arena_half() * 2.0
 	var water_material := StandardMaterial3D.new()
 	water_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	water_material.albedo_color = WATER_COLOR
