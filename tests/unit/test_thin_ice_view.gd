@@ -93,3 +93,19 @@ func test_new_fall_requests_screen_shake() -> void:
 	assert_signal_not_emitted(view, "shake_requested", "seeding snapshot stays calm")
 	view.render({"tiles": grid, "players": {}, "fallen": [[1], [0]]})
 	assert_signal_emitted(view, "shake_requested")
+
+
+## M13-05: tiles chip when they crack, splash when they give way; the seeding
+## snapshot fires nothing.
+func test_tile_transitions_fire_fx_once_seeded() -> void:
+	var grid := _full_grid(ThinIce.TileState.INTACT)
+	grid[0] = ThinIce.TileState.CRACKED
+	view.render({"tiles": grid, "players": {}, "fallen": []})
+	var before: int = view.arena.get_child_count()
+	var grid2 := grid.duplicate()
+	grid2[1] = ThinIce.TileState.CRACKED
+	grid2[0] = ThinIce.TileState.GONE
+	view.render({"tiles": grid2, "players": {}, "fallen": []})
+	assert_eq(view.arena.get_child_count(), before + 2, "one chip puff + one give-way splash")
+	view.render({"tiles": grid2, "players": {}, "fallen": []})
+	assert_eq(view.arena.get_child_count(), before + 2, "no transition, no FX")
