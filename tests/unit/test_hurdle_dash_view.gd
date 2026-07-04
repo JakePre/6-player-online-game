@@ -40,3 +40,33 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.hurdles, [])
+
+
+## M13-30: a stun timer starting means a hurdle clip — one spark burst; the
+## first snapshot seeds silently and an ongoing stun doesn't re-spark.
+func test_hurdle_clip_fires_spark() -> void:
+	view.render({"players": {0: [5.0, 0, 0.8, false]}, "hurdles": []})
+	assert_eq(view._sparks.size(), 0, "first sighting seeds silently")
+	view.render({"players": {0: [5.0, 0, 0.0, false]}, "hurdles": []})
+	view.render({"players": {0: [5.0, 0, 0.8, false]}, "hurdles": []})
+	assert_eq(view._sparks.size(), 1, "stun starting = one spark")
+	assert_eq(int(view._sparks[0].slot), 0)
+	view.render({"players": {0: [5.0, 0, 0.6, false]}, "hurdles": []})
+	assert_eq(view._sparks.size(), 1, "an ongoing stun doesn't re-spark")
+
+
+func test_sparks_expire() -> void:
+	view.render({"players": {0: [5.0, 0, 0.0, false]}, "hurdles": []})
+	view.render({"players": {0: [5.0, 0, 0.8, false]}, "hurdles": []})
+	assert_eq(view._sparks.size(), 1)
+	view._process(view.SPARK_DURATION + 0.05)
+	assert_eq(view._sparks.size(), 0, "sparks free themselves after their lifetime")
+
+
+func test_speed_tracks_progress_delta() -> void:
+	view.render({"players": {0: [2.0, 0, 0.0, false]}, "hurdles": []})
+	assert_eq(float(view._speeds[0]), 0.0, "first sighting has no delta")
+	view.render({"players": {0: [3.5, 0, 0.0, false]}, "hurdles": []})
+	assert_almost_eq(float(view._speeds[0]), 1.5, 0.001)
+	view.render({"players": {0: [3.5, 0, 0.0, false]}, "hurdles": []})
+	assert_eq(float(view._speeds[0]), 0.0, "standing still has no speed lines")
