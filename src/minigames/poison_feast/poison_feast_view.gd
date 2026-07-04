@@ -17,6 +17,7 @@ const TIER_COLORS := {
 	PoisonFeast.Tier.DELICACY: Color(0.7, 0.35, 0.9),
 	PoisonFeast.Tier.GOLDEN: Color(1.0, 0.85, 0.2),
 }
+const POISON_PUFF_COLOR := Color(0.4, 0.85, 0.35)
 
 ## Latest replicated state, straight from PoisonFeast.get_snapshot().
 var players := {}
@@ -24,9 +25,11 @@ var dishes: Array = []
 var pot := 0
 
 var _dish_nodes := {}  # id (int) -> Node3D
+var _dish_tiers := {}  # id (int) -> tier, for the tier-colored bite burst (M13-25)
 var _pot_label: Label
 var _staggered := {}  # slot (int) -> bool, for one-shot flinches
 var _my_score := 0
+var _prev_pot := 0
 
 
 func _physics_process(_delta: float) -> void:
@@ -55,6 +58,10 @@ func _render_3d(game: Dictionary) -> void:
 	pot = int(game.get("pot", 0))
 	_pot_label.visible = pot > 0
 	_pot_label.text = "POT: %d — next clean bite takes it!" % pot
+	# A clean bite emptied the pot (M13-25): pop a gold burst on the table.
+	if _prev_pot > 0 and pot == 0:
+		fx_burst(Vector2.ZERO, TIER_COLORS[PoisonFeast.Tier.GOLDEN], 1.0)
+	_prev_pot = pot
 	_update_players()
 	_update_dishes()
 
@@ -72,6 +79,8 @@ func _update_players() -> void:
 			caption += "  (poisoned!)"
 			if not _staggered.get(slot, false):
 				rig.play(&"hit")
+				# A sick green puff over whoever just bit poison (M13-25).
+				fx_burst(Vector2(state[0], state[1]), POISON_PUFF_COLOR, 1.1)
 				if slot == my_slot:
 					play_sfx(&"error")
 					request_shake(6.0)
@@ -91,11 +100,17 @@ func _update_dishes() -> void:
 		var node: Node3D = _dish_nodes.get(id)
 		if node == null:
 			node = _build_dish(id, int(entry[3]))
+			_dish_tiers[id] = int(entry[3])
 		node.position = to_arena(Vector2(float(entry[1]), float(entry[2])))
 	for id: int in _dish_nodes.keys():
 		if not seen.has(id):
-			(_dish_nodes[id] as Node3D).queue_free()
+			var node := _dish_nodes[id] as Node3D
+			# A dish only leaves the list when eaten: burst it in its tier color.
+			var tier: int = _dish_tiers.get(id, PoisonFeast.Tier.CLEAN)
+			fx_burst(Vector2(node.position.x, node.position.z), TIER_COLORS[tier], 0.5)
+			node.queue_free()
 			_dish_nodes.erase(id)
+			_dish_tiers.erase(id)
 
 
 ## A bowl with a tier-colored emissive ring under it: the tier must read at

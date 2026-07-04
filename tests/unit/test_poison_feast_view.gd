@@ -51,6 +51,39 @@ func test_render_replaces_replicated_state() -> void:
 	assert_eq(view.dishes.size(), 0)
 
 
+func _burst_count() -> int:
+	var count := 0
+	for child in view.arena.get_children():
+		if child is CPUParticles3D:
+			count += 1
+	return count
+
+
+## M13-25: a dish only leaves the list when eaten, so its removal bursts.
+func test_eating_a_dish_bursts() -> void:
+	view.render({"players": {}, "dishes": [[7, 2.0, -3.0, 0]]})
+	assert_eq(_burst_count(), 0, "no burst while the dish sits there")
+	view.render({"players": {}, "dishes": []})
+	assert_gt(_burst_count(), 0, "eating the dish bursts")
+
+
+## Biting poison (stagger rising edge) puffs over the eater — for anyone, not
+## just the local player.
+func test_poison_bite_puffs() -> void:
+	view.render({"players": {1: [0.0, 0.0, 0, 0]}, "dishes": []})
+	assert_eq(_burst_count(), 0)
+	view.render({"players": {1: [0.0, 0.0, -3, 1]}, "dishes": []})
+	assert_gt(_burst_count(), 0, "a poisoned bite puffs")
+
+
+## The pot emptying (a clean bite claimed it) pops a burst on the table.
+func test_pot_claim_bursts() -> void:
+	view.render({"players": {}, "dishes": [], "pot": 5})
+	assert_eq(_burst_count(), 0, "no burst while the pot is building")
+	view.render({"players": {}, "dishes": [], "pot": 0})
+	assert_gt(_burst_count(), 0, "claiming the pot pops a burst")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
