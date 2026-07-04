@@ -18,6 +18,9 @@ const AIR_BAR_HEIGHT := 1.35
 const AIR_FULL_COLOR := Color(0.3, 0.95, 1.0)
 const AIR_EMPTY_COLOR := Color(1.0, 0.25, 0.2)
 const COIN_HOVER := 0.4
+## Diver water FX (M13-10).
+const BUBBLE_COLOR := Color(0.75, 0.9, 1.0)
+const BUBBLE_EVERY_SEC := 0.5
 
 ## Latest replicated state, straight from TreasureDivers.get_snapshot().
 var players := {}
@@ -30,6 +33,10 @@ var _air_bars := {}
 var _air_seen := {}
 # slot -> stunned seconds from the previous snapshot, to spot fresh blackouts.
 var _stun_seen := {}
+# slot -> diving flag from the previous snapshot, for surface-crossing splashes.
+var _diving_seen := {}
+# slot -> seconds until that diver's next bubble.
+var _bubble_left := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -135,14 +142,27 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		var is_diving := int(state[3]) == 1
-		update_rig(slot, Vector2(state[0], state[1]), 0.0 if is_diving else SURFACE_HEIGHT)
+		var at := Vector2(state[0], state[1])
+		update_rig(slot, at, 0.0 if is_diving else SURFACE_HEIGHT)
 		rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
 		_air_seen[slot] = float(state[4])
+		# Water FX (M13-10): splash on every surface crossing, bubbles on a
+		# snapshot-cadence timer while under. Seeded so a rejoiner's first
+		# snapshot stays dry.
+		if _diving_seen.has(slot) and bool(_diving_seen[slot]) != is_diving:
+			fx_splash(at)
+		_diving_seen[slot] = is_diving
+		if is_diving:
+			_bubble_left[slot] = float(_bubble_left.get(slot, 0.0)) - SNAPSHOT_INTERVAL
+			if float(_bubble_left[slot]) <= 0.0:
+				_bubble_left[slot] = BUBBLE_EVERY_SEC
+				fx_sparkle(at, BUBBLE_COLOR, 0.9)
 		var stun := float(state[5])
 		if stun > 0.0 and float(_stun_seen.get(slot, 0.0)) <= 0.0:
-			# Fresh blackout: gasp and rattle the screen.
+			# Fresh blackout: gasp, rattle the screen, and burst the surface.
 			rig.play(&"hit")
 			request_shake(8.0)
+			fx_splash(at)
 		_stun_seen[slot] = stun
 
 

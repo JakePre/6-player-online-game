@@ -75,3 +75,31 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.treasure.size(), 0)
+
+
+## M13-10: surface crossings splash, divers bubble, blackouts burst — all
+## seeded so a rejoiner's first snapshot stays dry.
+func test_surface_crossings_splash_once_seeded() -> void:
+	view.render({"players": {0: _player(0.0, 0.0, 0, 0, 1.0, 0.0)}, "treasure": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: _player(0.0, 0.0, 0, 1, 1.0, 0.0)}, "treasure": []})
+	assert_gte(view.arena.get_child_count(), before + 1, "dive-in splashes")
+	var mid: int = view.arena.get_child_count()
+	view.render({"players": {0: _player(0.0, 0.0, 0, 0, 0.8, 0.0)}, "treasure": []})
+	assert_eq(view.arena.get_child_count(), mid + 1, "surfacing splashes too")
+
+
+func test_divers_trail_bubbles_on_a_cadence() -> void:
+	view.render({"players": {0: _player(0.0, 0.0, 0, 1, 1.0, 0.0)}, "treasure": []})
+	var start: int = view.arena.get_child_count()
+	var renders_per_bubble := int(ceil(view.BUBBLE_EVERY_SEC / view.SNAPSHOT_INTERVAL))
+	for _i in renders_per_bubble + 1:
+		view.render({"players": {0: _player(0.0, 0.0, 0, 1, 0.5, 0.0)}, "treasure": []})
+	assert_gt(view.arena.get_child_count(), start, "bubbles while under")
+
+
+func test_blackout_adds_a_surface_burst() -> void:
+	view.render({"players": {0: _player(0.0, 0.0, 0, 0, 0.1, 0.0)}, "treasure": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: _player(0.0, 0.0, 0, 0, 0.0, 2.5)}, "treasure": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "gasp splash at the surface")
