@@ -1,7 +1,8 @@
 class_name Room
 extends RefCounted
-## One room: up to 6 members identified by join code. Pure logic (no Node
-## dependencies) so it is unit-testable; NetManager handles transport.
+## One room: up to NetConfig.MAX_PLAYERS_PER_ROOM members identified by join
+## code. Pure logic (no Node dependencies) so it is unit-testable; NetManager
+## handles transport.
 
 enum State {
 	LOBBY,
@@ -34,8 +35,8 @@ func connected_count() -> int:
 	return count
 
 
-## Disconnected members keep their slot reserved, so a room with 6 members
-## is full even if some of them are currently disconnected.
+## Disconnected members keep their slot reserved, so a room at the cap is
+## full even if some of them are currently disconnected.
 func is_full() -> bool:
 	return members.size() >= NetConfig.MAX_PLAYERS_PER_ROOM
 

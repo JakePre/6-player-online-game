@@ -113,6 +113,36 @@ func test_registered_ids_lists_every_registration() -> void:
 	assert_eq(ids, ["a", "b"])
 
 
+## M15-01: the start gate asks this before any playlist is built — a head
+## count no game supports must return empty instead of crashing the picker.
+func test_eligible_ids_respects_player_count_bounds() -> void:
+	_register(&"duo", MinigameMeta.Category.FFA, 2)  # max_players defaults to 6
+	_register(&"crowd", MinigameMeta.Category.SKILL, 4)
+	var at_two: Array = MinigameCatalog.eligible_ids(2).map(
+		func(id: StringName) -> String: return String(id)
+	)
+	assert_eq(at_two, ["duo"], "below crowd's min_players only duo qualifies")
+	var at_six: Array = MinigameCatalog.eligible_ids(6).map(
+		func(id: StringName) -> String: return String(id)
+	)
+	at_six.sort()
+	assert_eq(at_six, ["crowd", "duo"], "both fit at 6")
+	assert_eq(
+		MinigameCatalog.eligible_ids(7),
+		[],
+		"above every game's max_players nothing is eligible — the start gate's case"
+	)
+
+
+func test_eligible_ids_skips_even_players_games_at_odd_counts() -> void:
+	MinigameCatalog.register(
+		MinigameMeta.create({"id": &"pairs_only", "even_players": true, "min_players": 4}),
+		MinigameBase
+	)
+	assert_false(&"pairs_only" in MinigameCatalog.eligible_ids(5), "no 3v2 drafts (#178)")
+	assert_true(&"pairs_only" in MinigameCatalog.eligible_ids(6))
+
+
 func test_even_players_games_skipped_at_odd_counts() -> void:
 	MinigameCatalog.clear()
 	MinigameCatalog.register(

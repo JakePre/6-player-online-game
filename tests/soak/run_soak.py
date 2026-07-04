@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Soak harness (M1-05): dedicated server + 6 headless bot clients.
+"""Soak harness (M1-05): dedicated server + N headless bot clients.
 
-One bot creates the room, four join it, and one runs the disconnect->rejoin
+One bot creates the room, N-2 join it, and one runs the disconnect->rejoin
 flow. All bots get artificial latency/loss so the pipeline is exercised under
 bad network conditions. Exit code 0 = every bot passed.
 
+Defaults to 6 bots (the CI configuration); --bots raises it up to the room
+cap — 24 verifies the ADR 003 / M15-01 large-room path.
+
 Usage:
-    python tests/soak/run_soak.py --godot path/to/godot [--duration 15]
+    python tests/soak/run_soak.py --godot path/to/godot [--duration 15] [--bots 24]
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ import threading
 import time
 
 PORT = 54545
-BOT_COUNT = 6  # 1 creator + 4 joiners + 1 rejoin-tester
+DEFAULT_BOT_COUNT = 6  # 1 creator + 4 joiners + 1 rejoin-tester
 FAKE_LAG_MS = 80
 FAKE_LOSS = 0.05
 
@@ -68,7 +71,16 @@ def main() -> int:
     parser.add_argument("--godot", default=os.environ.get("GODOT", "godot"))
     parser.add_argument("--duration", type=int, default=15)
     parser.add_argument("--port", type=int, default=PORT)
+    parser.add_argument(
+        "--bots",
+        type=int,
+        default=DEFAULT_BOT_COUNT,
+        help="total bot clients: 1 creator + N-2 joiners + 1 rejoin-tester (min 3)",
+    )
     args = parser.parse_args()
+    if args.bots < 3:
+        print("FAIL: --bots must be at least 3 (creator + joiner + rejoiner)")
+        return 1
 
     lag_args = [f"--fake-lag={FAKE_LAG_MS}", f"--fake-loss={FAKE_LOSS}"]
     server_log: list[str] = []
@@ -98,7 +110,7 @@ def main() -> int:
         print(f"room created: {code}")
 
         bots: list[tuple[str, subprocess.Popen, list[str]]] = [("Creator", creator, creator_log)]
-        for i in range(BOT_COUNT - 2):
+        for i in range(args.bots - 2):
             name = f"Joiner{i + 1}"
             log: list[str] = []
             proc = start(
@@ -132,6 +144,12 @@ def main() -> int:
             print(f"{name}: exit={exit_code} {verdict}")
             if exit_code != 0:
                 failed = True
+
+        # Surface the server's snapshot-cost telemetry (M15-01): the numbers
+        # that justify (or demand) area-of-interest culling as rooms grow.
+        for line in server_log:
+            if "snapshot_cost" in line:
+                print(line)
 
         if failed:
             print("SOAK FAIL")
