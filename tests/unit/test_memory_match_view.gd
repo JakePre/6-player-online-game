@@ -69,3 +69,26 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.safe_tiles.size(), 0)
 	assert_eq(view.phase, MemoryMatch.Phase.SHOW)
+
+
+## M13-12: the pattern landing sparkles over every safe tile; drops splash.
+func test_reveal_wave_sparkles_on_dark_to_show() -> void:
+	view.render(
+		{"players": {}, "phase": MemoryMatch.Phase.SHOW, "safe_tiles": [0, 1], "fallen": []}
+	)
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {}, "phase": MemoryMatch.Phase.DARK, "safe_tiles": [], "fallen": []})
+	assert_eq(view.arena.get_child_count(), before, "going dark is quiet")
+	view.render(
+		{"players": {}, "phase": MemoryMatch.Phase.SHOW, "safe_tiles": [3, 8, 12], "fallen": []}
+	)
+	assert_eq(view.arena.get_child_count(), before + 3, "one sparkle per safe tile on reveal")
+
+
+func test_drop_splashes_into_the_pit() -> void:
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "phase": 0, "safe_tiles": [0], "fallen": []}
+	)
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [0.0, 0.0]}, "phase": 0, "safe_tiles": [0], "fallen": [[1]]})
+	assert_eq(view.arena.get_child_count(), before + 1, "splash where they dropped")
