@@ -8,6 +8,11 @@ extends Node
 ## Machine-readable output lines:
 ##   ROOM_CODE=ABCDEF        (creator only)
 ##   BOT_RESULT PASS|FAIL name=<name> ...
+##   PLAYTEST_TELEMETRY [...]   (creator only, on PASS — #548: one JSON object
+##                               per round: game_id, player_count, placements,
+##                               awards (this round's per-slot coins), and
+##                               duration_ms, for the M12-01 balance pass to
+##                               consume once enough nightly runs accumulate)
 ##
 ## User args: --address=127.0.0.1 --port=7777 --name=Bot1 --rounds=12
 ##            --create | --code=ABCDEF
@@ -59,6 +64,11 @@ var _leaderboards := 0
 var _match_ended_standings: Array = []
 var _got_match_ended := false
 var _room_is_lobby := false
+
+## Balance telemetry (#548), creator-only: one entry per round_results.
+var _telemetry: Array = []
+var _round_game_id := ""
+var _round_started_ms := 0
 
 
 func _ready() -> void:
@@ -158,10 +168,14 @@ func _on_match_event(event: Dictionary) -> void:
 		"round_intro":
 			if event.has("mutator"):
 				_mutated_intros += 1
+			_round_game_id = String(event.minigame.id)
 		"round_started":
 			_rounds_started += 1
+			_round_started_ms = Time.get_ticks_msec()
 		"round_results":
 			_rounds_resulted += 1
+			if _create:
+				_record_telemetry(event)
 		"leaderboard":
 			_leaderboards += 1
 		"match_ended":
@@ -169,6 +183,29 @@ func _on_match_event(event: Dictionary) -> void:
 			_match_ended_standings = event.get("standings", [])
 			_enter_phase(Phase.AWAIT_LOBBY)
 			_check_awaiting_lobby()
+
+
+## One structured record per round (#548). Dictionary keys are stringified
+## explicitly (`awards` arrives keyed by int slot) so JSON.stringify() always
+## produces valid JSON regardless of key type.
+func _record_telemetry(event: Dictionary) -> void:
+	var awards: Dictionary = event.get("awards", {})
+	var string_awards := {}
+	for slot: Variant in awards:
+		string_awards[str(slot)] = int(awards[slot])
+	(
+		_telemetry
+		. append(
+			{
+				"game_id": _round_game_id,
+				"player_count": _expected_members,
+				"round": int(event.get("round", 0)),
+				"placements": event.get("placements", []),
+				"awards": string_awards,
+				"duration_ms": Time.get_ticks_msec() - _round_started_ms,
+			}
+		)
+	)
 
 
 func _check_awaiting_lobby() -> void:
@@ -215,6 +252,8 @@ func _finish() -> void:
 			]
 		)
 	)
+	if _create:
+		print("PLAYTEST_TELEMETRY " + JSON.stringify(_telemetry))
 	_quit(0)
 
 
