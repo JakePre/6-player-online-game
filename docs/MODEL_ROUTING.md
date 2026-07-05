@@ -24,9 +24,9 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | Task | Why |
 |---|---|
 | **M12-01** balance pass, all 33 games at 2/4/6 | The riskiest remaining task: interpret nightly-run data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
-| **M14-01** Loadout Duel (L) | Owner-requested, genre-new loadout/weapon design from a one-line spec; needs the §10 proposal-comment flow before code. ◐ claimed (#509). |
+| **M14-00** side-view platformer framework (L) | Server-side platformer *feel* at 30 Hz (gravity, jump buffering/coyote, knockback) has no precedent in the codebase; its choices are inherited by three games (M14-01/-03/-09). Owner-approved design on #509. |
 | **M14-02** Turbo Lap (L) | Racing handling under 30 Hz server-authoritative snapshots — latency feel, drift, track replication have no precedent in this codebase. |
-| **M14-09** Tumble Run (L) | Physics-platformer obstacle gauntlet; server-side physics + tumble feel is new territory and judgment-heavy. |
+| **M14-09** Tumble Run (L, after M14-00) | Obstacle gauntlet on the side-scroll framework; the platforming physics risk moves into M14-00, leaving hazard/tumble design — reassess as Opus once the framework lands. |
 | ~~**M16-01** design system 2.0 (L)~~ | ✅ done (#506) — `PartyTheme` rebuilt, `docs/STYLE_GUIDE.md` written. Gates the rest of M16. |
 | **M16-13** consistency audit (S) | Small but judgment-dense: spotting "this reads wrong" across every surface with no checklist to follow is exactly what the tier is for. |
 
@@ -36,7 +36,8 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 |---|---|
 | **M10-16** Faulty Wiring (M) | Full minigame (sim + view + tests) against a 30-game template; sabotage role can lean on the private-snapshot hook (#254). |
 | **M10-13** The Mole · **M10-14** Pickpocket Plaza | Claimed/in-flight — listed for §9 rescue purposes. Same profile as M10-16 (hidden-role mechanics, moderate). |
-| **M14-03** Knock-Off (L) | Smash-like brawler, but Sumo Smash + Rumble Ring already prove the shove/KO mechanics — assembly more than invention. |
+| **M14-01** Loadout Duel (M, after M14-00) | ◐ claimed (#509). Design fully approved; the build is assembly on the side-scroll framework (weapon daises, grab/fire/throw, elimination sub-rounds). |
+| **M14-03** Knock-Off (L, after M14-00) | Smash-like brawler on the side-scroll framework: percent knockback + off-stage KO on top of proven shove/KO mechanics — assembly more than invention. |
 | **M14-04** Shred Session · **M14-06** Blast Grid · **M14-08** Putt Panic · **M14-10** Nom Arena (M) | Genre-hop games on the mature minigame contract. Nom Arena has a hard owner constraint: 60 s cap, keep it QUICK. |
 | **M12-03** accessibility (M) | Wide-reaching (reduced-motion touches every FX site; colorblind palette touches identity; remapping needs new settings UI) but each piece is well-specified. |
 | **M12-05** input parity audit (S) | Small, but the audit half means actually judging playability per game; the Trap Corridor stick-cursor is a real little feature. |
