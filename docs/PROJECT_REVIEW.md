@@ -26,10 +26,10 @@ of trouble.
 |---|---|---|---|---|---|
 | 1 | 🔴 High | Finale grudge mechanic unreachable; sabotage tokens center-only | [#462](https://github.com/JakePre/6-player-online-game/issues/462) | Opus 4.8 | ✅ **fixed** (PR #476) |
 | 2 | 🟠 Med-High | Match snapshots at 24 unmeasured; no delta/AOI compression | [#463](https://github.com/JakePre/6-player-online-game/issues/463) | Opus 4.8 | ✅ **measured** → follow-up [#479](https://github.com/JakePre/6-player-online-game/issues/479) |
-| 3 | 🟡 Med | 4 post-ADR games have no documented cap decision | [#464](https://github.com/JakePre/6-player-online-game/issues/464) | Owner decision → Sonnet/Opus | ◑ caps added to ADR matrix; impl in progress |
+| 3 | 🟡 Med | 4 post-ADR games have no documented cap decision | [#464](https://github.com/JakePre/6-player-online-game/issues/464) | Owner decision → Sonnet/Opus | ✅ **fixed** (Basket Brawl→8 PR #460, Fort Siege→12 PR #478, The Mole→8 PR #485, Faulty Wiring→12 PR #475) |
 | 4 | 🟢 Low | `--check-only` missing from the local gate → recurring CI-only parse failures | [#465](https://github.com/JakePre/6-player-online-game/issues/465) | Sonnet 5 | ✅ **fixed** (PR #472) |
 | 5 | 🟡 Med | No nightly 12/24-player full-match verification | [#466](https://github.com/JakePre/6-player-online-game/issues/466) | Opus 4.8 | ☐ open |
-| 6 | 🟢 Low | Repeated per-tick `slots.filter(_is_in)` allocations | [#467](https://github.com/JakePre/6-player-online-game/issues/467) | Sonnet 5 | ☐ open |
+| 6 | 🟢 Low | Repeated per-tick `slots.filter(_is_in)` allocations | [#467](https://github.com/JakePre/6-player-online-game/issues/467) | Sonnet 5 | ✅ **fixed** (PR #477) |
 
 *(Status column updated 2026-07-05 as findings are worked. The measurement in
 #463 quantified the one real bandwidth outlier — **Color Clash @24 ≈ 4.4 MB/s/room**
