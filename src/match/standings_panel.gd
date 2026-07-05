@@ -3,7 +3,9 @@ extends PanelContainer
 ## Standings display (M3-05) shared by the every-5-rounds leaderboard
 ## interstitial and the final podium: rows reveal bottom-up (last place
 ## first) for the SPEC $4 dramatic reveal. Pure presentation — callers
-## format lines with MatchFormat.
+## format lines with MatchFormat. M16-09: each row fades in as it's
+## revealed, on top of the existing bottom-up timing; a no-op under
+## ArenaFX.reduced_motion (the row still just appears, at rest).
 
 ## Seconds between row reveals; callers may shorten it (tests, quick rounds).
 var reveal_interval := 0.5
@@ -38,9 +40,21 @@ func show_lines(title: String, subtitle: String, lines: Array[String], reveal :=
 	_tween = create_tween()
 	for i in range(rows.size() - 1, -1, -1):
 		var row := rows[i]
-		_tween.tween_callback(func() -> void: row.visible = true)
+		_tween.tween_callback(_reveal_row.bind(row))
 		if i > 0:
 			_tween.tween_interval(reveal_interval)
+
+
+## Shows `row` and, unless reduced motion is on, fades it in — the reveal
+## stays instant either way (tests key off `.visible`), just dressed up.
+func _reveal_row(row: Label) -> void:
+	row.visible = true
+	if ArenaFX.reduced_motion:
+		return
+	row.modulate.a = 0.0
+	var fade := row.create_tween()
+	fade.set_trans(PartyTheme.TRANS_DEFAULT).set_ease(PartyTheme.EASE_DEFAULT)
+	fade.tween_property(row, "modulate:a", 1.0, PartyTheme.DUR_FAST)
 
 
 func revealed_count() -> int:
