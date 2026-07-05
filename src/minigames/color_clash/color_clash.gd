@@ -17,6 +17,12 @@ const TEAM_THRESHOLD := 4
 ## Most teams a large lobby splits into (ADR 003: 4 teams of 6 at 24).
 const MAX_TEAMS := 4
 const UNPAINTED := -1
+## Full-grid keyframe cadence for replication (#479). Snapshots are
+## unreliable_ordered, so a single dropped tile delta would leave a client's
+## tile wrong forever — a periodic full grid self-heals dropped deltas and
+## mounts late joiners, at a bounded staleness of this many broadcasts (~1s at
+## the 30 Hz snapshot rate). Between keyframes only changed tiles are sent.
+const KEYFRAME_EVERY := 30
 
 var positions := {}
 var move_dirs := {}
@@ -32,6 +38,11 @@ var grid: Array = []
 ## through the snapshot.
 var grid_dim := GRID_SIZE
 var arena_half := ARENA_HALF
+## Grid as of the last snapshot, for diffing tile deltas, plus the snapshot
+## counter that schedules keyframes. Kept in lockstep with what clients hold,
+## so a delta always describes the exact change since the last send.
+var _prev_grid: Array = []
+var _snapshot_seq := 0
 
 
 ## N x N grid dimension for a lobby of `count`: grows so tiles-per-player
@@ -130,14 +141,32 @@ func get_snapshot() -> Dictionary:
 	for slot: int in slots:
 		var pos: Vector2 = positions[slot]
 		players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), faction_of[slot]]
-	return {
+	var snapshot := {
 		"players": players,
-		"grid": grid.duplicate(),
 		"counts": _tile_counts(),
 		"teams": teams.duplicate(true),
 		"dim": grid_dim,
 		"half": arena_half,
 	}
+	# Paint replication (#479): a full grid is 24x24 ints at the 24-player cap —
+	# too big to broadcast every tick. Send a full-grid keyframe on the cadence
+	# (and whenever the board was just resized, so _prev_grid can't be diffed),
+	# and only the tiles that flipped in between. Broadcasts happen exactly once
+	# per tick (NetManager._broadcast_snapshots), so advancing the counter and
+	# diffing against _prev_grid here is deterministic.
+	var keyframe := _snapshot_seq % KEYFRAME_EVERY == 0 or _prev_grid.size() != grid.size()
+	_snapshot_seq += 1
+	if keyframe:
+		snapshot["grid"] = grid.duplicate()
+		_prev_grid = grid.duplicate()
+	else:
+		var changes: Array = []
+		for i in grid.size():
+			if grid[i] != _prev_grid[i]:
+				changes.append([i, grid[i]])
+				_prev_grid[i] = grid[i]
+		snapshot["grid_changes"] = changes
+	return snapshot
 
 
 ## Most tiles wins. FFA: players ranked by their own tiles (ties grouped).
