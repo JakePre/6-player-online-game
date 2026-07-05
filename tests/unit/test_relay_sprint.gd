@@ -1,6 +1,7 @@
 extends GutTest
-## Relay Sprint (SPEC $7 #12): leg handoffs, hazard knockback, finish order,
-## the three-team award path at six players, and the FFA sprint fallback.
+## Relay Sprint (SPEC $7 #12, M15 12-cap): leg handoffs, hazard knockback,
+## finish order, the multi-team award path up to twelve players, and the FFA
+## sprint fallback.
 
 const TICK := 1.0 / 30.0
 
@@ -39,6 +40,7 @@ func test_meta() -> void:
 	var meta := RelaySprint.make_meta()
 	assert_eq(meta.id, &"relay_sprint")
 	assert_eq(meta.category, MinigameMeta.Category.TEAM)
+	assert_eq(meta.max_players, 12, "M15: scales to six teams of two")
 
 
 func test_registered_in_catalog() -> void:
@@ -60,6 +62,24 @@ func test_two_teams_at_four_players() -> void:
 	var game := _game([0, 1, 2, 3] as Array[int])
 	assert_true(game.team_mode)
 	assert_eq(game.teams.size(), 2)
+
+
+## M15: six teams of two at the new twelve-player cap; every player is on
+## exactly one team and each lane still gets its own independent runner.
+func test_six_teams_of_two_at_twelve_players() -> void:
+	var player_slots: Array[int] = []
+	for slot in 12:
+		player_slots.append(slot)
+	var game := _game(player_slots)
+	assert_true(game.team_mode)
+	assert_eq(game.teams.size(), 6)
+	var seen := {}
+	for team: Array in game.teams:
+		assert_eq(team.size(), 2)
+		for slot: int in team:
+			assert_false(seen.has(slot), "slot %d assigned to only one team" % slot)
+			seen[slot] = true
+	assert_eq(seen.size(), 12)
 
 
 func test_ffa_sprint_fallback_at_two_and_odd_counts() -> void:
@@ -139,3 +159,37 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.lanes[0].size(), 5)
 	assert_eq(snapshot.track_len, RelaySprint.TRACK_LEN)
 	assert_eq(snapshot.hazards.size(), RelaySprint.HAZARD_POSITIONS.size())
+
+
+## M15: the timeout-ranks-by-progress path must generalize past the original
+## three-team case — every one of the six lanes at twelve players is ordered
+## by total distance covered, not just the first few.
+func test_timeout_ranking_generalizes_to_six_teams() -> void:
+	var player_slots: Array[int] = []
+	for slot in 12:
+		player_slots.append(slot)
+	var game := _game(player_slots)
+	# Team i gets progress proportional to i, so team 5 leads and team 0 trails.
+	for team_index in game.teams.size():
+		game.progress[team_index] = float(team_index) * 2.0
+	game.duration_override = game.elapsed + TICK
+	for team_index in game.teams.size():
+		var runner: int = game.teams[team_index][0]
+		game.handle_input(runner, {"mx": 0.0, "my": 0.0})
+	game.tick(TICK)
+	assert_true(game.finished)
+	var placements: Array = game.get_results().placements
+	assert_eq(placements.size(), 6, "every team ranked, none dropped")
+	for i in placements.size():
+		assert_eq(placements[i], game.teams[5 - i], "ordered furthest-first")
+	assert_true(game.get_results().team_mode)
+
+
+func test_snapshot_shape_at_twelve_players() -> void:
+	var player_slots: Array[int] = []
+	for slot in 12:
+		player_slots.append(slot)
+	var game := _game(player_slots)
+	var snapshot := game.get_snapshot()
+	assert_eq(snapshot.lanes.size(), 6, "six lanes for six teams")
+	assert_eq(snapshot.lanes[0].size(), 5, "same per-lane shape as at six players")

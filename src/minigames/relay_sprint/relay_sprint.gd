@@ -1,10 +1,12 @@
 class_name RelaySprint
 extends MinigameBase
-## Relay Sprint (M4-11, SPEC $7 #12): relay through a hazard lane — each
-## teammate runs one leg and tags the next. 2v2v2 at six players (the
-## three-team SPEC $5 award table), 2v2 at four; head-to-head FFA sprint at
-## two (SPEC fallback) and at odd counts (deviation noted in the PR).
-## Server-side simulation only — the client renders get_snapshot().
+## Relay Sprint (M4-11, SPEC $7 #12, M15 12-cap ADR 003): relay through a
+## hazard lane — each teammate runs one leg and tags the next. Even counts
+## from four up split into 2-person teams (2v2v2 at six, up to six teams of
+## two at the twelve-player cap, using Economy's N-team award table); head-
+## to-head FFA sprint at two (SPEC fallback) and at odd counts (deviation
+## noted in the PR). Server-side simulation only — the client renders
+## get_snapshot().
 
 const TRACK_LEN := 24.0
 const RUN_SPEED := 6.0
@@ -43,7 +45,11 @@ static func make_meta() -> MinigameMeta:
 				"name": "Relay Sprint",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
-				"max_players": 6,
+				# 12 by design (ADR 003): independent 2-person lanes, so team count
+				# grows cleanly with headcount (6 teams of 2 at the cap) — the only
+				# limiter was stacked-lane readability, already solved by the
+				# shared M15-07 LaneLayout.fitted_scale() in the view.
+				"max_players": 12,
 				"duration_sec": 75.0,
 				"rules":
 				"Run your leg, dodge the sweepers, tag your partner. First team home wins!",
