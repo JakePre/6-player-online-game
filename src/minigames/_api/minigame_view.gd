@@ -13,6 +13,12 @@ extends Control
 ## and the match screen shakes the play area. Strength is in pixels.
 signal shake_requested(strength: float)
 
+## Fired alongside every play_sfx() call (#486), so tests can verify a
+## snapshot transition triggered the expected sound the same way
+## shake_requested already lets them verify a shake — watch_signals(view) +
+## assert_signal_emitted(view, "sfx_requested"), no AudioManager mocking.
+signal sfx_requested(name: StringName)
+
 var names := {}
 var my_slot := -1
 ## The round mutator's view flags (M9-05), assigned by the match screen
@@ -78,6 +84,7 @@ func has_view_flag(flag: StringName) -> bool:
 ## view code (e.g. on pickup/hit snapshots). Unknown names no-op.
 func play_sfx(name: StringName) -> void:
 	AudioManager.play_sfx(name)
+	sfx_requested.emit(name)
 
 
 func player_color(slot: int) -> Color:
