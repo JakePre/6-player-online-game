@@ -218,3 +218,156 @@ func test_grudge_fires_once_then_prompt_hides() -> void:
 		{"radius": 10.0, "players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
 	)
 	assert_false(prompt.visible, "grudge stays spent")
+
+
+# --- Finale chrome (M16-11) ---------------------------------------------------
+
+
+func _intro_card(v: MinigameView) -> VBoxContainer:
+	return v.get_node("FinaleChrome/IntroCard")
+
+
+func _intro_title(v: MinigameView) -> Label:
+	return v.get_node("FinaleChrome/IntroCard/IntroTitle")
+
+
+func _event_banner(v: MinigameView) -> PanelContainer:
+	return v.get_node("FinaleChrome/EventBanner")
+
+
+func _event_label(v: MinigameView) -> Label:
+	return v.get_node("FinaleChrome/EventBanner/EventLabel")
+
+
+func test_intro_treatment_flashes_on_first_render() -> void:
+	var v := _make_view(3)
+	assert_false(_intro_card(v).visible, "intro is hidden before any snapshot")
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0], 2: [2.0, 0.0, 2, 0.0]},
+				"hazards": [],
+			}
+		)
+	)
+	assert_true(_intro_card(v).visible, "intro flashes the instant the finale replicates")
+	assert_string_contains(_intro_title(v).text, "GAUNTLET")
+
+
+func test_losing_last_life_pops_an_elimination_banner() -> void:
+	var v := _make_view(3)
+	var alive := {
+		"radius": 10.0,
+		"players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0], 2: [2.0, 0.0, 2, 0.0]},
+		"hazards": [],
+	}
+	v.render(alive)
+	# Slot 2 loses its last life while two players remain (no premature champion).
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0], 2: [2.0, 0.0, 0, 0.0]},
+				"hazards": [],
+			}
+		)
+	)
+	assert_true(_event_banner(v).visible, "elimination raises the event banner")
+	assert_string_contains(_event_label(v).text, "ELIMINATED")
+	assert_string_contains(_event_label(v).text, "P3", "the eliminated player is named")
+
+
+func test_respawnable_life_loss_does_not_banner() -> void:
+	var v := _make_view(3)
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0], 2: [2.0, 0.0, 2, 0.0]},
+				"hazards": [],
+			}
+		)
+	)
+	# Slot 2 drops from 2 to 1 life — bruised, not eliminated.
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0], 2: [2.0, 0.0, 1, 3.0]},
+				"hazards": [],
+			}
+		)
+	)
+	assert_false(_event_banner(v).visible, "a survivable hit does not fire the banner")
+
+
+func test_last_blob_standing_triggers_the_champion_sequence() -> void:
+	var v := _make_view(3)
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0], 2: [2.0, 0.0, 2, 0.0]},
+				"hazards": [],
+			}
+		)
+	)
+	# Only slot 0 is left with lives.
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 0, 0.0], 2: [2.0, 0.0, 0, 0.0]},
+				"hazards": [],
+			}
+		)
+	)
+	assert_true(v._winner_shown, "the champion sequence fires once")
+	assert_true(_event_banner(v).visible)
+	assert_string_contains(_event_label(v).text, "CHAMPION")
+	assert_string_contains(_event_label(v).text, "P1", "the winner is named")
+
+
+func test_firing_a_grudge_pops_a_strike_banner() -> void:
+	var v := _make_view(3)
+	# Local (slot 0) is out; two rivals remain, so no premature champion.
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 2, 0.0], 2: [2.0, 0.0, 2, 0.0]},
+				"hazards": [],
+			}
+		)
+	)
+	v._cycle_grudge(1)
+	v._fire_grudge()
+	assert_true(_event_banner(v).visible, "the grudge strike raises the banner")
+	assert_string_contains(_event_label(v).text, "GRUDGE")
+
+
+func test_reduced_motion_still_shows_the_intro() -> void:
+	var prior: bool = ArenaFX.reduced_motion
+	ArenaFX.reduced_motion = true
+	var v := _make_view(3)
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0], 2: [2.0, 0.0, 2, 0.0]},
+				"hazards": [],
+			}
+		)
+	)
+	assert_true(_intro_card(v).visible, "reduced motion still reveals the intro (no animation)")
+	assert_almost_eq(_intro_card(v).modulate.a, 1.0, 0.001, "shown at full opacity, no fade")
+	ArenaFX.reduced_motion = prior
