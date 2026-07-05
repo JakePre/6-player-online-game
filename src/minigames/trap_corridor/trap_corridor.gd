@@ -54,7 +54,9 @@ static func make_meta() -> MinigameMeta:
 				"name": "Trap Corridor",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 3,
-				"max_players": 6,
+				# 8 by design (ADR 003): serial one-trapper-per-player rounds already
+				# scale match length with N; the fixed 5-lane corridor is the point.
+				"max_players": 8,
 				"duration_sec": 150.0,
 				"rules":
 				"One of you traps the corridor — the rest run it. Roles rotate. Trust no floor tile!",
@@ -144,10 +146,14 @@ func _start_sub_round() -> void:
 	caught.clear()
 	finished_runners.clear()
 	move_dirs.clear()
+	# Runners wait at the start line, spread across the full corridor width by
+	# headcount (not the fixed 5-lane TILE_WIDTH, which only fits <=5 without
+	# spilling outside the corridor — a pre-existing bug this exposed at 6,
+	# and would only worsen at 8, M15).
+	var start_spacing := CORRIDOR_HALF_WIDTH * 2.0 / slots.size()
 	for i in slots.size():
 		var slot: int = slots[i]
-		# Runners wait at the start line, spread across the width.
-		positions[slot] = Vector2(0.0, -CORRIDOR_HALF_WIDTH + (i + 0.5) * TILE_WIDTH)
+		positions[slot] = Vector2(0.0, -CORRIDOR_HALF_WIDTH + (i + 0.5) * start_spacing)
 		move_dirs[slot] = Vector2.ZERO
 
 
