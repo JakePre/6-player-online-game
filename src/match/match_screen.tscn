@@ -186,6 +186,7 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
+theme_type_variation = &"CardPanel"
 
 [node name="ResultsColumn" type="VBoxContainer" parent="Center/ResultsPanel"]
 layout_mode = 2
@@ -194,7 +195,7 @@ theme_override_constants/separation = 12
 [node name="ResultsTitle" type="Label" parent="Center/ResultsPanel/ResultsColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_type_variation = &"TitleLabel"
 horizontal_alignment = 1
 
 [node name="ResultsList" type="VBoxContainer" parent="Center/ResultsPanel/ResultsColumn"]
