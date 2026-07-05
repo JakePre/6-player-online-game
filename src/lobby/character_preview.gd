@@ -3,11 +3,14 @@ extends Control
 ## Live 3D preview of the local player's roster pick (M8-13): a small
 ## SubViewport hosting a single CharacterRig (M2-04) so the lobby's
 ## character select actually shows the character. Idles normally, cheers
-## while the player is readied.
+## while the player is readied. M16-05: a brief scale-pop "confirm flourish"
+## plays whenever the pick actually changes — no-op under reduced motion.
 
 const RIG_SCENE := preload("res://src/characters/character_rig.tscn")
 ## Slow turntable so the whole character is visible (issue #133).
 const TURNTABLE_RAD_PER_SEC := 0.6
+## Confirm-flourish pop scale (the rig briefly grows, then settles).
+const FLOURISH_SCALE := 1.15
 
 var _rig: CharacterRig
 var _current_id: StringName = &""
@@ -57,11 +60,23 @@ func show_character(id: StringName, color: Color, ready := false) -> void:
 	if id != _current_id:
 		_current_id = id
 		_rig.character_scene = CharacterRoster.scene_for(id)
+		_play_confirm_flourish()
 	_rig.player_color = color
 	_rig.display_name = ""
 	var desired: StringName = &"cheer" if ready else &"idle"
 	if _rig.current_action() != desired:
 		_rig.play(desired)
+
+
+## A brief pop when the pick actually changes, so swapping characters reads
+## as a confirmed choice rather than a silent swap (M16-05).
+func _play_confirm_flourish() -> void:
+	if ArenaFX.reduced_motion:
+		return
+	_rig.scale = Vector3.ONE * FLOURISH_SCALE
+	var tween := create_tween()
+	tween.set_trans(PartyTheme.TRANS_OVERSHOOT).set_ease(PartyTheme.EASE_DEFAULT)
+	tween.tween_property(_rig, "scale", Vector3.ONE, PartyTheme.DUR_MED)
 
 
 func current_character() -> StringName:

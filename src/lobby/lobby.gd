@@ -2,16 +2,22 @@ extends Control
 ## Lobby scene (M2-02): live player list, ready-up, host-controlled round
 ## count (Quick 8 / Standard 12 / Marathon 15) and start gating (SPEC $4).
 ## The server owns all lobby state; this scene renders `room_updated`
-## broadcasts and sends requests through NetManager.
+## broadcasts and sends requests through NetManager. M16-04/05: the room
+## code, player list, match settings, and character carousel are each a
+## themed CardPanel section.
 
 const ROUND_COUNT_LABELS := {8: "Quick", 12: "Standard", 15: "Marathon"}
 const SERIES_LABELS := {1: "Single match", 3: "Best of 3", 5: "Best of 5"}
+## How long the Copy button shows its "Copied!" confirmation before
+## reverting to its normal label.
+const COPY_FEEDBACK_SEC := 1.5
 
 ## Last broadcast room state, kept around so the character carousel buttons
 ## know the current pick without waiting for a round trip.
 var _last_state: Dictionary = {}
 
 @onready var _code_label: Label = %CodeLabel
+@onready var _copy_button: Button = %CopyButton
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _round_option: OptionButton = %RoundOption
 @onready var _series_option: OptionButton = %SeriesOption
@@ -34,6 +40,7 @@ func _ready() -> void:
 	_ready_button.toggled.connect(func(on: bool) -> void: NetManager.request_set_ready(on))
 	_start_button.pressed.connect(func() -> void: NetManager.request_start_match())
 	_leave_button.pressed.connect(func() -> void: NetManager.request_leave_room())
+	_copy_button.pressed.connect(_on_copy_pressed)
 	_prev_character_button.pressed.connect(_on_character_step.bind(-1))
 	_next_character_button.pressed.connect(_on_character_step.bind(1))
 	for count in NetConfig.ROUND_COUNT_OPTIONS:
@@ -46,13 +53,34 @@ func _ready() -> void:
 			NetManager.request_set_series_length(_series_option.get_item_id(index))
 	)
 	_build_mutator_toggles()
-	_code_label.text = "Room %s" % NetManager.my_room_code
+	_code_label.text = NetManager.my_room_code
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
 	_ready_button.grab_focus()
+	for button: Button in [
+		_copy_button,
+		_prev_character_button,
+		_next_character_button,
+		_ready_button,
+		_start_button,
+		_leave_button,
+	]:
+		ButtonMotion.attach(button)
 	# Returning from a match: the routing broadcast fired before this scene
 	# existed, so seed from the mirror instead of waiting for the next one.
 	if NetManager.my_room_state.has("members"):
 		_on_room_updated(NetManager.my_room_state)
+
+
+## Room-code display's "copy-tap feedback" (M16-04): copies to the system
+## clipboard and swaps the button label briefly to confirm it landed.
+func _on_copy_pressed() -> void:
+	DisplayServer.clipboard_set(_code_label.text)
+	_copy_button.text = "Copied!"
+	get_tree().create_timer(COPY_FEEDBACK_SEC).timeout.connect(
+		func() -> void:
+			if is_instance_valid(_copy_button):
+				_copy_button.text = "Copy code"
+	)
 
 
 func _on_round_option_selected(index: int) -> void:
@@ -115,7 +143,7 @@ func _on_room_updated(state: Dictionary) -> void:
 	_last_state = state
 	var i_am_host: bool = state.host_slot == NetManager.my_slot
 	var in_match: bool = state.state == Room.State.IN_MATCH
-	_code_label.text = "Room %s" % state.code
+	_code_label.text = state.code
 	_rebuild_player_list(state)
 	_round_option.select(_round_option.get_item_index(state.round_count))
 	_round_option.disabled = not i_am_host or in_match
@@ -171,18 +199,42 @@ func _rebuild_player_list(state: Dictionary) -> void:
 	var i_am_host: bool = state.host_slot == NetManager.my_slot
 	for member: Dictionary in state.members:
 		var row := HBoxContainer.new()
+		row.add_theme_constant_override(&"separation", PartyTheme.SPACE_SM)
+		# A small color-swatch "portrait" chip stands in for a character
+		# thumbnail (M16-04/05) until real per-character art lands.
+		var portrait := ColorRect.new()
+		portrait.custom_minimum_size = Vector2(20, 20)
+		portrait.color = PlayerPalette.color_for_slot(member.slot)
+		row.add_child(portrait)
 		var label := Label.new()
 		label.text = _member_line(member, state.host_slot)
-		label.modulate = PlayerPalette.color_for_slot(member.slot)
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(label)
+		row.add_child(_status_badge(member))
 		# Host-only kick (#141) — never on your own row, lobby only.
 		if i_am_host and member.slot != NetManager.my_slot and state.state == Room.State.LOBBY:
 			var kick := Button.new()
 			kick.text = "Kick"
+			ButtonMotion.attach(kick)
 			kick.pressed.connect(NetManager.request_kick.bind(int(member.slot)))
 			row.add_child(kick)
 		_player_list.add_child(row)
+
+
+## A themed ready/not-ready/disconnected badge, separate from the name line
+## so its color always reads at a glance (M16-04's "ready states" polish).
+func _status_badge(member: Dictionary) -> Label:
+	var badge := Label.new()
+	if not member.connected:
+		badge.text = "disconnected"
+		badge.theme_type_variation = &"DimLabel"
+	elif member.ready:
+		badge.text = "ready"
+		badge.add_theme_color_override(&"font_color", PartyTheme.SUCCESS)
+	else:
+		badge.text = "not ready"
+		badge.theme_type_variation = &"DimLabel"
+	return badge
 
 
 ## Rows lead with the always-on player number (ADR 003 F2 / M15-02), the same
@@ -192,10 +244,7 @@ func _member_line(member: Dictionary, host_slot: int) -> String:
 	var numbered := "%s %s" % [PlayerPalette.label_for_slot(member.slot), member.name]
 	var host_mark := " (host)" if member.slot == host_slot else ""
 	var character_name := CharacterRoster.display_name_for(member.character_id)
-	if not member.connected:
-		return "%s%s [%s] — disconnected" % [numbered, host_mark, character_name]
-	var ready_mark := "ready" if member.ready else "not ready"
-	return "%s%s [%s] — %s" % [numbered, host_mark, character_name, ready_mark]
+	return "%s%s [%s]" % [numbered, host_mark, character_name]
 
 
 func _my_ready(state: Dictionary) -> bool:

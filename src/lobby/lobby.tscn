@@ -24,7 +24,7 @@ theme_override_constants/margin_bottom = 16
 
 [node name="Layout" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 
 [node name="Scroll" type="ScrollContainer" parent="Margin/Layout"]
 layout_mode = 2
@@ -38,99 +38,150 @@ size_flags_vertical = 3
 [node name="Column" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter"]
 custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 
-[node name="CodeLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="RoomCard" type="PanelContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="RoomColumn" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/RoomCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CodeLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/RoomCard/RoomColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
+theme_type_variation = &"DisplayLabel"
 horizontal_alignment = 1
 
-[node name="Hint" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="Hint" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/RoomCard/RoomColumn"]
 layout_mode = 2
+theme_type_variation = &"DimLabel"
 text = "Share this code with friends so they can join."
 horizontal_alignment = 1
 
-[node name="PlayerList" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="CopyButton" type="Button" parent="Margin/Layout/Scroll/ScrollCenter/Column/RoomCard/RoomColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Copy code"
+
+[node name="PlayersCard" type="PanelContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="PlayersColumn" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/PlayersCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlayersHeader" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/PlayersCard/PlayersColumn"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+text = "Players"
+
+[node name="PlayerList" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/PlayersCard/PlayersColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 160)
 layout_mode = 2
+theme_override_constants/separation = 6
 
-[node name="RoundRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="SettingsCard" type="PanelContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="SettingsColumn" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SettingsHeader" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+text = "Match settings"
+
+[node name="RoundRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn"]
 layout_mode = 2
 
-[node name="RoundLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/RoundRow"]
+[node name="RoundLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/RoundRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Rounds"
 
-[node name="RoundOption" type="OptionButton" parent="Margin/Layout/Scroll/ScrollCenter/Column/RoundRow"]
+[node name="RoundOption" type="OptionButton" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/RoundRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SeriesRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="SeriesRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn"]
 layout_mode = 2
 
-[node name="SeriesLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/SeriesRow"]
+[node name="SeriesLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/SeriesRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Series"
 
-[node name="SeriesOption" type="OptionButton" parent="Margin/Layout/Scroll/ScrollCenter/Column/SeriesRow"]
+[node name="SeriesOption" type="OptionButton" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/SeriesRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SeriesBoard" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="SeriesBoard" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+theme_type_variation = &"DimLabel"
 autowrap_mode = 2
 
-[node name="MutatorBox" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="MutatorBox" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 
-[node name="MutatorTitle" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/MutatorBox"]
+[node name="MutatorTitle" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/MutatorBox"]
 layout_mode = 2
+theme_type_variation = &"HeaderLabel"
 text = "Mutators"
 
-[node name="MutatorToggles" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/MutatorBox"]
+[node name="MutatorToggles" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/MutatorBox"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="CharacterRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="CharacterCard" type="PanelContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 layout_mode = 2
+theme_type_variation = &"CardPanel"
 
-[node name="CharacterRowLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
-custom_minimum_size = Vector2(120, 0)
+[node name="CharacterColumn" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterCard"]
 layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CharacterHeader" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterCard/CharacterColumn"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
 text = "Character"
 
-[node name="PrevCharacterButton" type="Button" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
+[node name="CharacterRow" type="HBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterCard/CharacterColumn"]
+layout_mode = 2
+
+[node name="PrevCharacterButton" type="Button" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterCard/CharacterColumn/CharacterRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "<"
 
-[node name="CharacterLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
+[node name="CharacterLabel" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterCard/CharacterColumn/CharacterRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 horizontal_alignment = 1
 
-[node name="NextCharacterButton" type="Button" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
+[node name="NextCharacterButton" type="Button" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterCard/CharacterColumn/CharacterRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = ">"
 
-[node name="ColorSwatch" type="ColorRect" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterRow"]
+[node name="ColorSwatch" type="ColorRect" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterCard/CharacterColumn/CharacterRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 
-[node name="CharacterPreview" type="Control" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
+[node name="CharacterPreview" type="Control" parent="Margin/Layout/Scroll/ScrollCenter/Column/CharacterCard/CharacterColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 160)
 layout_mode = 2
@@ -142,7 +193,7 @@ layout_mode = 2
 [node name="BottomColumn" type="VBoxContainer" parent="Margin/Layout/BottomCenter"]
 custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
 [node name="ReadyButton" type="Button" parent="Margin/Layout/BottomCenter/BottomColumn"]
 unique_name_in_owner = true
@@ -166,4 +217,5 @@ text = "Leave room"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
+theme_type_variation = &"HintLabel"
 autowrap_mode = 3

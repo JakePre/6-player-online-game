@@ -1,0 +1,133 @@
+extends GutTest
+## Lobby scene (M16-04/05 visual pass): the room-code copy button, the
+## per-row ready/portrait chip, and the character confirm-flourish. No test
+## file existed for lobby.gd before this pass; the required-nodes check
+## guards against a future scene rebuild silently dropping a %UniqueName the
+## script depends on (the test_main_menu.gd pattern from M16-03).
+
+const SCENE_PATH := "res://src/lobby/lobby.tscn"
+
+## Every node lobby.gd reaches by unique name (%Name) — dropping any of these
+## in a scene rebuild would crash the live lobby.
+const REQUIRED_NODES: Array[String] = [
+	"CodeLabel",
+	"CopyButton",
+	"PlayerList",
+	"RoundOption",
+	"SeriesOption",
+	"SeriesBoard",
+	"MutatorBox",
+	"MutatorToggles",
+	"CharacterLabel",
+	"PrevCharacterButton",
+	"NextCharacterButton",
+	"ColorSwatch",
+	"CharacterPreview",
+	"ReadyButton",
+	"StartButton",
+	"LeaveButton",
+	"StatusLabel",
+]
+
+var lobby: Control
+
+
+func before_each() -> void:
+	var scene: PackedScene = load(SCENE_PATH)
+	lobby = scene.instantiate()
+	add_child_autofree(lobby)
+
+
+func after_each() -> void:
+	ArenaFX.reduced_motion = false
+
+
+func _scene_node_names() -> Array[String]:
+	var scene: PackedScene = load(SCENE_PATH)
+	var state := scene.get_state()
+	var names: Array[String] = []
+	for i in state.get_node_count():
+		names.append(state.get_node_name(i))
+	return names
+
+
+func test_scene_loads() -> void:
+	var scene: PackedScene = load(SCENE_PATH)
+	assert_true(scene.can_instantiate(), "the restyled lobby scene is valid")
+
+
+func test_keeps_every_node_the_script_depends_on() -> void:
+	var names := _scene_node_names()
+	for required in REQUIRED_NODES:
+		assert_true(required in names, "lobby keeps %%%s (script depends on it)" % required)
+
+
+func test_copy_button_copies_the_room_code_and_confirms() -> void:
+	lobby.get_node("%CodeLabel").text = "ABC123"
+	var copy_button: Button = lobby.get_node("%CopyButton")
+	# A headless test runner has no real OS clipboard to round-trip through
+	# (DisplayServer.clipboard_get() reliably reads back "" in CI); the
+	# button's own confirmation state is what's actually testable here.
+	copy_button.pressed.emit()
+	assert_eq(copy_button.text, "Copied!", "the button confirms the copy immediately")
+
+
+func test_status_badge_reads_ready_not_ready_and_disconnected() -> void:
+	assert_eq(lobby._status_badge({"connected": true, "ready": true}).text, "ready")
+	assert_eq(lobby._status_badge({"connected": true, "ready": false}).text, "not ready")
+	assert_eq(lobby._status_badge({"connected": false, "ready": false}).text, "disconnected")
+
+
+func test_player_list_rebuild_adds_a_portrait_chip_per_row() -> void:
+	(
+		lobby
+		. _rebuild_player_list(
+			{
+				"host_slot": 0,
+				"state": Room.State.LOBBY,
+				"members":
+				[
+					{
+						"slot": 0,
+						"name": "Alice",
+						"connected": true,
+						"ready": true,
+						"character_id": &"knight"
+					},
+					{
+						"slot": 1,
+						"name": "Bob",
+						"connected": true,
+						"ready": false,
+						"character_id": &"mage"
+					},
+				],
+			}
+		)
+	)
+	var player_list: VBoxContainer = lobby.get_node("%PlayerList")
+	assert_eq(player_list.get_child_count(), 2, "one row per member")
+	var first_row: HBoxContainer = player_list.get_child(0)
+	assert_true(first_row.get_child(0) is ColorRect, "the row leads with a portrait chip")
+
+
+func test_character_preview_flourishes_on_a_real_pick_change() -> void:
+	var preview: CharacterPreview = lobby.get_node("%CharacterPreview")
+	var ids := CharacterRoster.ids()
+	# The first reveal flourishes too (there's no prior pick to compare
+	# against); settle it manually so the assertion below isolates the pop
+	# triggered by the *second*, real pick change.
+	preview.show_character(ids[0], Color.WHITE)
+	preview._rig.scale = Vector3.ONE
+	preview.show_character(ids[1 % ids.size()], Color.WHITE)
+	assert_ne(preview._rig.scale, Vector3.ONE, "the flourish just kicked off a pop")
+
+
+func test_character_preview_flourish_is_skipped_under_reduced_motion() -> void:
+	var preview: CharacterPreview = lobby.get_node("%CharacterPreview")
+	var ids := CharacterRoster.ids()
+	preview.show_character(ids[0], Color.WHITE)
+	preview._rig.scale = Vector3.ONE
+	ArenaFX.reduced_motion = true
+	preview.show_character(ids[1 % ids.size()], Color.WHITE)
+	assert_eq(preview._rig.scale, Vector3.ONE, "no pop under reduced motion")
