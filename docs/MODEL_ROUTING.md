@@ -23,7 +23,8 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 
 | Task | Why |
 |---|---|
-| **M12-01** balance pass, all 35 games at 2/4/6 | The riskiest remaining task — and **the only open task in the plan**. ⛔ Blocked on data: the pre-#560 telemetry was tie-noise (idle bots, 0.4 s rounds); the fixed `balance-telemetry-{2,4,6}` artifacts (#560, nightly `balance` job) need a few nights to accumulate first. Then: interpret the data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
+| **M12-01** balance pass, all 35 games at 2/4/6 | The riskiest remaining task. ⛔ Blocked on data: the pre-#560 telemetry was tie-noise (idle bots, 0.4 s rounds); the fixed `balance-telemetry-{2,4,6}` artifacts (#560, nightly `balance` job) need a few nights to accumulate first. Then: interpret the data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
+| **M17-06** closing controller verification sweep (M) | Milestone-closing audit with no checklist: gamepad-only end-to-end across every surface and game on multiple pad layouts, judging "does this feel playable," fixing or routing what it finds. Same tier logic as M16-13. ⛓ M17-01..05. |
 | ~~**M14-00** side-view platformer framework (L)~~ | ✅ done — `SideScrollSim`/`SideScrollView` landed; M14-01/-03/-09 built on it. |
 | ~~**M14-02** Turbo Lap (L)~~ | ✅ done |
 | ~~**M14-09** Tumble Run (L)~~ | ✅ done |
@@ -33,17 +34,30 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 
 ## Opus 4.8 — real engineering, clear precedent
 
-Everything in this tier is **done** — kept as a record, not a work queue.
-The M10/M14 roster, M12 feel-and-fairness pieces (except the data-blocked
-M12-01 above), every M15 cap, and all M16 surfaces (M16-02/03/07/08/09/11)
-shipped; the finale wiring follow-ups (#554/#560) closed the last gaps.
+Live (M17, owner directive 2026-07-05 — full controller support):
+
+| Task | Why |
+|---|---|
+| **M17-01** controller compatibility layer (M) | Bundle + boot-load the community SDL gamecontrollerdb, hot-plug handling, unknown-GUID logging. Well-trodden Godot pattern (`Input.add_joy_mapping`), real integration work. |
+| **M17-02** post-M12-05 gamepad parity audit (M) | Re-run the M12-05 playbook over the 9 M14 games + finale shop/targeting. Clear precedent (#490), per-game judgment. |
+| **M17-03** controller rebinding in the remap UI (M) | Extends the M12-03 settings pattern from key capture to pad button/axis capture + persistence. |
+| **M17-04** menu/chrome controller navigation (M) | Focus chains + `ui_cancel` back across every screen; mechanical per screen but interaction design at the edges (dropdowns, shop, emote bar). |
+| **#565** release self-heal vs branch protection (S) | Pick + implement one of the three listed mechanisms (PR-based sync is the likely winner). |
+
+Everything else in this tier is **done** — the M10/M14 roster, M12
+feel-and-fairness pieces (except data-blocked M12-01), every M15 cap, and all
+M16 surfaces shipped; the finale wiring follow-ups (#554/#560) closed the
+last gaps.
 
 ## Sonnet 5 — mechanical, pattern-following
 
-Everything below is **done** — kept as a record, not a work queue. Live
-availability as of 2026-07-05 (evening): **none at any tier** except the
-data-gated M12-01 (see Structural notes). Next agent: check here before
-re-deriving this from scratch.
+Live: **M17-05** regression guards (S) — GUT tests locking in joypad+keyboard
+coverage per action, pad mentions in every game's controls hint, and remap
+round-tripping (⛓ M17-03). Plus **#564** landing owner-generated image
+batches as they arrive (mechanical: files + CREDITS rows + status flips).
+
+Everything below is **done** — kept as a record, not a work queue. Next
+agent: check here before re-deriving this from scratch.
 
 | Task | Status |
 |---|---|
@@ -78,7 +92,11 @@ All seven review findings are closed — the full audit's follow-ups are done.
 
 ## Structural notes
 
-- **The plan board is complete except M12-01** (as of 2026-07-05 evening):
+- **M17 (full controller support) opened 2026-07-05 (late)** by owner
+  directive alongside the v0.6.1 cut: M17-01..04 (Opus) are parallel and
+  claimable now; M17-05 (Sonnet) ⛓ M17-03; M17-06 (Fable) closes the
+  milestone ⛓ all. See IMPLEMENTATION_PLAN §M17.
+- **The plan board is otherwise complete except M12-01** (as of 2026-07-05 evening):
   M14 Genre Hop, M15 caps, and all of M16 shipped; the M16-13 closing audit
   merged as PR #556. The finale — built across M5/M8/M13/M16 but never
   reachable — was wired into the live match flow by #554 (PR #558,

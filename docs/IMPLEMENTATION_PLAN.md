@@ -223,6 +223,23 @@ Every surface the player sees gets a real visual design pass. M6-04 made the UI 
 - [x] **M16-12** (M) Per-minigame key art: batch image requests for intro-card art across the full roster (M14 games add theirs in their own PRs); every card ships with the M16-07 styled fallback first ⛓ M16-07
 - [x] **M16-13** (S) Consistency audit: final sweep of every surface for unthemed controls, default-Godot gray, stray spacing/type inconsistencies; fix on sight ⛓ all of M16-02..12
 
+### M17 — Full controller support (owner directive 2026-07-05: "verify full working controller support in every game, support as many controllers as humanly possible")
+
+State of play: every input action already carries keyboard + joypad events on
+all devices, gameplay views read actions (not raw keys), and M12-05 audited
+gamepad parity across the pre-M14 roster. M17 closes what's left: device
+*coverage* (controllers Godot 4.4.1's frozen built-in DB doesn't recognize),
+controller rebinding, menu navigation, and parity for everything shipped
+after M12-05. Recommended model tiers are designated per task in
+[MODEL_ROUTING.md](MODEL_ROUTING.md); one task = one claim = one PR as usual.
+
+- [ ] **M17-01** (M, Opus) Controller compatibility layer: bundle the community SDL `gamecontrollerdb.txt` (zlib license → `assets/CREDITS.md` row), load it at boot via `Input.add_joy_mapping` for all desktop platforms, handle `joy_connection_changed` (hot-plug toast via M6-03 toasts; log unknown GUIDs so unmapped pads are diagnosable), and document a refresh cadence (the DB is a text file — updating it is a Sonnet chore) ⛓ none
+- [ ] **M17-02** (M, Opus) Post-M12-05 gamepad parity audit: the 9 M14 games (incl. SideScrollSim jump/dash feel on stick+buttons), the finale buy-in shop, and Gauntlet sabotage/grudge targeting — each playable gamepad-only and kb/mouse-only; fix on sight, per-game notes on the claim issue ⛓ none
+- [ ] **M17-03** (M, Opus) Controller rebinding: extend the M12-03 remap UI to capture `InputEventJoypadButton`/`JoypadMotion` alongside keys (per-action pad column, persisted in SettingsStore like keybinds) ⛓ none
+- [ ] **M17-04** (M, Opus) Full menu/chrome controller navigation: focus chains + initial focus on every screen (menu, lobby incl. Round/Series dropdowns + mutator toggles, character select, settings, shop panel, results/podium, credits), `ui_cancel` as universal back, visible focus ring already themed (M16-01) ⛓ none
+- [ ] **M17-05** (S, Sonnet) Regression guards: GUT tests asserting every input-map action keeps ≥1 joypad and ≥1 keyboard event, every registered game's `controls` hint names a pad binding, and the remap UI round-trips pad bindings ⛓ M17-03
+- [ ] **M17-06** (M, Fable) Closing verification sweep: gamepad-only end-to-end pass — menu → lobby → all 35 games → finale → podium — on at least Xbox- and PS-layout pads plus one generic/DB-mapped pad; findings fixed on sight or filed; README gains a supported-controllers note ⛓ M17-01..05
+
 ## 6. Suggested build order / critical path
 
 ```
