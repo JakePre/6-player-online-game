@@ -72,7 +72,23 @@ func _ready() -> void:
 	if override_port > 0:
 		_port_edit.text = str(override_port)
 	_setup_update_flow()
+	_apply_button_motion()
 	_host_button.grab_focus()
+
+
+## M16-03: the shared hover/press motion on every menu button. No-op under
+## reduced motion (the helper checks); the themed color/shadow states remain.
+func _apply_button_motion() -> void:
+	for button: Button in [
+		_host_button,
+		_join_button,
+		_rejoin_button,
+		_settings_button,
+		_credits_button,
+		_quit_button,
+		_update_button,
+	]:
+		ButtonMotion.attach(button)
 
 
 ## Self-update (#144): check quietly on menu load; the button only appears
@@ -104,7 +120,7 @@ func _on_update_pressed() -> void:
 	if _update_url.is_empty():
 		return
 	_update_button.disabled = true
-	_status_label.text = "Downloading v%s ..." % _update_version
+	_set_status("Downloading v%s ..." % _update_version)
 	_updater.download_and_stage(_update_version, _update_url)
 
 
@@ -166,7 +182,7 @@ func _begin(request: PendingRequest) -> void:
 	if _is_connected():
 		_dispatch_pending()
 		return
-	_status_label.text = "Connecting to %s:%s ..." % [_address_edit.text, _port_edit.text]
+	_set_status("Connecting to %s:%s ..." % [_address_edit.text, _port_edit.text])
 	var err := NetManager.connect_to_server(_address_edit.text, int(_port_edit.text))
 	if err != OK:
 		_pending = PendingRequest.NONE
@@ -232,8 +248,18 @@ func _set_busy(busy: bool) -> void:
 		_status_label.text = ""
 
 
-func _show_error(text: String) -> void:
+## Status line: gold for info/progress, red for errors (STYLE_GUIDE semantics —
+## DANGER means something went wrong). StatusLabel is a HintLabel (accent) by
+## default, so info needs no override.
+func _set_status(text: String, is_error := false) -> void:
 	_status_label.text = text
+	_status_label.add_theme_color_override(
+		&"font_color", PartyTheme.DANGER if is_error else PartyTheme.ACCENT
+	)
+
+
+func _show_error(text: String) -> void:
+	_set_status(text, true)
 
 
 func _is_connected() -> bool:
