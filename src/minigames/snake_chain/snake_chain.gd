@@ -6,7 +6,13 @@ extends MinigameBase
 ## onto the floor and respawns you small. Teams at even counts >= 4 sum
 ## their pellets (friendly bodies still block — discipline matters); FFA
 ## otherwise (#178). Server-side simulation only.
+##
+## Scales to 12 (ADR 003): the arena grows with the sqrt of the head count so
+## dense chains keep room to weave instead of gridlocking, and the pellet
+## supply grows linearly so a bigger lobby doesn't starve. Snake bodies keep
+## their physical size; at <=6 players everything equals the base consts.
 
+## Base 6-player arena/supply; arena_half_for()/max_pellets_for() scale them.
 const ARENA_HALF := 9.0
 const MOVE_SPEED := 5.5
 const HEAD_RADIUS := 0.4
@@ -19,6 +25,8 @@ const SELF_GRACE_SEGMENTS := 4
 const PELLET_RADIUS := 0.6
 const PELLET_WAVE_SEC := 1.2
 const MAX_ACTIVE_PELLETS := 10
+## Crash spill can push the floor this far over the steady-state cap.
+const SPILL_HEADROOM := 6
 const CRASH_INVULN_SEC := 2.0
 const TEAM_THRESHOLD := 4
 
@@ -31,6 +39,9 @@ var invuln_left := {}
 var pellets: Array[Vector2] = []
 ## Two teams of slots at even counts >= 4; empty in FFA.
 var teams: Array = []
+## Per-instance arena/supply (base at <=6 players, scaled up to 12).
+var arena_half := ARENA_HALF
+var max_pellets := MAX_ACTIVE_PELLETS
 
 var _sample_accum := {}
 var _pellet_accum := 0.0
@@ -46,7 +57,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Snake Chain",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 12,
 				"duration_sec": 60.0,
 				"rules": "Eat to grow the conga — crash into ANY body and you spill your pellets!",
 			}
@@ -54,7 +65,22 @@ static func make_meta() -> MinigameMeta:
 	)
 
 
+## Arena half-extent for `count` players: grows with the sqrt of the head count
+## (MinigameScaling) so per-player floor area stays constant and dense chains
+## keep room to weave. Never below the tuned 6-player base.
+static func arena_half_for(count: int) -> float:
+	return MinigameScaling.arena_half(ARENA_HALF, count)
+
+
+## Steady-state pellet count for `count` players: grows linearly so food
+## per-capita stays constant and a bigger lobby doesn't starve.
+static func max_pellets_for(count: int) -> int:
+	return MinigameScaling.supply(MAX_ACTIVE_PELLETS, count)
+
+
 func _setup() -> void:
+	arena_half = arena_half_for(slots.size())
+	max_pellets = max_pellets_for(slots.size())
 	team_mode = slots.size() >= TEAM_THRESHOLD and slots.size() % 2 == 0
 	if team_mode:
 		var shuffled := slots.duplicate()
@@ -67,7 +93,7 @@ func _setup() -> void:
 	for i in slots.size():
 		var slot: int = slots[i]
 		var angle := TAU * i / slots.size()
-		positions[slot] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.6
+		positions[slot] = Vector2(cos(angle), sin(angle)) * arena_half * 0.6
 		headings[slot] = Vector2(-cos(angle), -sin(angle))
 		trails[slot] = []
 		pellets_eaten[slot] = 0
@@ -89,7 +115,7 @@ func _tick(delta: float) -> void:
 		var pos: Vector2 = positions[slot] + (headings[slot] as Vector2) * MOVE_SPEED * delta
 		# Walls turn you, they don't kill you: clamp and slide.
 		positions[slot] = pos.clamp(
-			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+			Vector2(-arena_half, -arena_half), Vector2(arena_half, arena_half)
 		)
 		_sample_accum[slot] = float(_sample_accum[slot]) + delta
 		if float(_sample_accum[slot]) >= SAMPLE_SEC:
@@ -200,29 +226,29 @@ func _crash(slot: int) -> void:
 	var spilled := int(pellets_eaten[slot]) / 2
 	pellets_eaten[slot] = int(pellets_eaten[slot]) - spilled
 	for _i in spilled:
-		if pellets.size() >= MAX_ACTIVE_PELLETS + 6:
+		if pellets.size() >= max_pellets + SPILL_HEADROOM:
 			break
 		var offset := Vector2(rng.randf_range(-2.0, 2.0), rng.randf_range(-2.0, 2.0))
 		pellets.append(
 			((positions[slot] as Vector2) + offset).clamp(
-				Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+				Vector2(-arena_half, -arena_half), Vector2(arena_half, arena_half)
 			)
 		)
 	var pos: Vector2 = positions[slot]
 	var edge := Vector2(signf(pos.x) if absf(pos.x) > absf(pos.y) else 0.0, 0.0)
 	if edge == Vector2.ZERO:
 		edge = Vector2(0.0, signf(pos.y) if pos.y != 0.0 else 1.0)
-	positions[slot] = edge * ARENA_HALF * 0.9
+	positions[slot] = edge * arena_half * 0.9
 	headings[slot] = -edge
 	trails[slot] = []
 	invuln_left[slot] = CRASH_INVULN_SEC
 
 
 func _spawn_pellets() -> void:
-	while pellets.size() < MAX_ACTIVE_PELLETS:
+	while pellets.size() < max_pellets:
 		pellets.append(
 			Vector2(
-				rng.randf_range(-ARENA_HALF + 1.0, ARENA_HALF - 1.0),
-				rng.randf_range(-ARENA_HALF + 1.0, ARENA_HALF - 1.0)
+				rng.randf_range(-arena_half + 1.0, arena_half - 1.0),
+				rng.randf_range(-arena_half + 1.0, arena_half - 1.0)
 			)
 		)

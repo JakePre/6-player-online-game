@@ -12,6 +12,13 @@ func _game(player_slots: Array[int] = [0, 1]) -> SnakeChain:
 	return game
 
 
+func _slots(count: int) -> Array[int]:
+	var out: Array[int] = []
+	for slot in count:
+		out.append(slot)
+	return out
+
+
 func test_meta_and_catalog() -> void:
 	var meta := SnakeChain.make_meta()
 	assert_eq(meta.id, &"snake_chain")
@@ -108,3 +115,52 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.trails[0], [[1.0, 1.0]])
 	assert_gt(snapshot.pellets.size(), 0)
 	assert_eq(snapshot.teams, [])
+
+
+## ADR 003: the cap rises to 12, and the arena + pellet supply scale with the
+## head count so dense chains keep room and don't starve. The 6-player base
+## is untouched.
+func test_cap_raised_to_twelve() -> void:
+	assert_eq(SnakeChain.make_meta().max_players, 12)
+
+
+func test_arena_grows_with_head_count() -> void:
+	assert_almost_eq(
+		SnakeChain.arena_half_for(6), SnakeChain.ARENA_HALF, 0.001, "the 6-player base is unchanged"
+	)
+	assert_almost_eq(
+		SnakeChain.arena_half_for(2), SnakeChain.ARENA_HALF, 0.001, "small lobbies too"
+	)
+	assert_gt(
+		SnakeChain.arena_half_for(12), SnakeChain.arena_half_for(6), "12 chains get a bigger arena"
+	)
+	# The sim uses the scaled arena, and the spawn ring rides it.
+	var big := _game(_slots(12))
+	assert_almost_eq(big.arena_half, SnakeChain.arena_half_for(12), 0.001)
+	assert_almost_eq(
+		(big.positions[0] as Vector2).length(),
+		SnakeChain.arena_half_for(12) * 0.6,
+		0.001,
+		"chains spawn on the scaled ring"
+	)
+
+
+func test_pellet_supply_scales_to_avoid_starvation() -> void:
+	assert_eq(SnakeChain.max_pellets_for(6), SnakeChain.MAX_ACTIVE_PELLETS, "the base supply holds")
+	assert_gt(
+		SnakeChain.max_pellets_for(12),
+		SnakeChain.MAX_ACTIVE_PELLETS,
+		"a bigger lobby gets more food per-capita"
+	)
+	# A fresh 12-player game fills the floor to the scaled supply.
+	var big := _game(_slots(12))
+	assert_eq(big.max_pellets, SnakeChain.max_pellets_for(12))
+	assert_eq(big.pellets.size(), SnakeChain.max_pellets_for(12), "the floor is stocked to the cap")
+
+
+func test_two_teams_of_six_at_twelve() -> void:
+	var game := _game(_slots(12))
+	assert_true(game.team_mode)
+	assert_eq(game.teams.size(), 2)
+	assert_eq(game.teams[0].size(), 6)
+	assert_eq(game.teams[1].size(), 6)
