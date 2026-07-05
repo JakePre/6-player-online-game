@@ -167,3 +167,24 @@ func test_leaver_points_never_transfer_to_slot_reuser() -> void:
 	assert_eq(carol.slot, bob_slot, "slot reused")
 	assert_false(room.series.points.has(carol.slot), "newcomer starts clean")
 	assert_eq(int(room.series.points[alice.slot]), 10, "others untouched")
+
+
+## #554: finale standings carry explicit placements — two players separated by
+## the finale but equal on coins must NOT share series points; rows without a
+## placement (non-finale matches) keep the legacy score-equality grouping.
+func test_placement_groups_beat_score_equality_when_present() -> void:
+	var series := SeriesTracker.new()
+	series.reset(3)
+	(
+		series
+		. record_match(
+			[
+				{"slot": 0, "name": "A", "score": 50, "placement": 1},
+				{"slot": 1, "name": "B", "score": 50, "placement": 2},
+				{"slot": 2, "name": "C", "score": 50, "placement": 2},
+			]
+		)
+	)
+	assert_eq(series.points[0], 10, "finale winner takes 1st alone despite equal coins")
+	assert_eq(series.points[1], 7, "true finale ties still share the higher value")
+	assert_eq(series.points[2], 7)

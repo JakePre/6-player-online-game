@@ -38,6 +38,9 @@ const DEBUG_CONFIG := {
 	# The 3-2-1 gate (#182) costs 1.8 s per round undebugged; compress it too or
 	# a 12-round match overruns PHASE_TIMEOUT_SEC (#369).
 	"countdown_step_sec": 0.05,
+	# The finale buy-in (#554) is compressed the same way; bots also confirm,
+	# which closes the shop early on the all-confirmed path.
+	"shop_sec": 0.3,
 }
 const LEADERBOARD_EVERY := 5
 ## Seed for the --mutators variant (M9-06): the per-round roll is seed-driven,
@@ -63,6 +66,8 @@ var _mutated_intros := 0
 var _leaderboards := 0
 var _match_ended_standings: Array = []
 var _got_match_ended := false
+var _got_finale_shop := false
+var _got_finale_started := false
 var _room_is_lobby := false
 
 ## Balance telemetry (#548), creator-only: one entry per round_results.
@@ -178,6 +183,15 @@ func _on_match_event(event: Dictionary) -> void:
 				_record_telemetry(event)
 		"leaderboard":
 			_leaderboards += 1
+		"finale_shop":
+			# Exercise the shop (#554): one purchase attempt (may fail broke —
+			# that's fine, the server validates) and a confirm; all bots
+			# confirming closes the shop early via the all-confirmed path.
+			_got_finale_shop = true
+			NetManager.send_match_input({"shop": {"action": "buy", "item": "shield"}})
+			NetManager.send_match_input({"shop": {"action": "confirm"}})
+		"finale_started":
+			_got_finale_started = true
 		"match_ended":
 			_got_match_ended = true
 			_match_ended_standings = event.get("standings", [])
@@ -217,28 +231,9 @@ func _check_awaiting_lobby() -> void:
 
 
 func _finish() -> void:
-	if _rounds_started != _rounds:
-		_fail("rounds_started_%d_of_%d" % [_rounds_started, _rounds])
-		return
-	if _rounds_resulted != _rounds:
-		_fail("rounds_resulted_%d_of_%d" % [_rounds_resulted, _rounds])
-		return
-	if not _got_match_ended:
-		_fail("no_match_ended_event")
-		return
-	if _match_ended_standings.size() != _expected_members:
-		_fail("standings_size_%d_of_%d" % [_match_ended_standings.size(), _expected_members])
-		return
-	var expected_leaderboards := 0
-	var k := LEADERBOARD_EVERY
-	while k < _rounds:
-		expected_leaderboards += 1
-		k += LEADERBOARD_EVERY
-	if _leaderboards != expected_leaderboards:
-		_fail("leaderboards_%d_of_%d" % [_leaderboards, expected_leaderboards])
-		return
-	if _with_mutators and _mutated_intros == 0:
-		_fail("no_mutated_rounds")
+	var reason := _failure_reason()
+	if not reason.is_empty():
+		_fail(reason)
 		return
 	print(
 		(
@@ -255,6 +250,41 @@ func _finish() -> void:
 	if _create:
 		print("PLAYTEST_TELEMETRY " + JSON.stringify(_telemetry))
 	_quit(0)
+
+
+## Empty string = the match verified clean; otherwise the machine-readable
+## failure tag for BOT_RESULT FAIL. Ordered [failed, reason] pairs — the
+## finale checks (#554) assert The Gauntlet actually ran with placements.
+func _failure_reason() -> String:
+	var expected_leaderboards := 0
+	var k := LEADERBOARD_EVERY
+	while k < _rounds:
+		expected_leaderboards += 1
+		k += LEADERBOARD_EVERY
+	var missing_placement := _match_ended_standings.any(
+		func(row: Dictionary) -> bool: return not row.has("placement")
+	)
+	var checks: Array = [
+		[_rounds_started != _rounds, "rounds_started_%d_of_%d" % [_rounds_started, _rounds]],
+		[_rounds_resulted != _rounds, "rounds_resulted_%d_of_%d" % [_rounds_resulted, _rounds]],
+		[not _got_match_ended, "no_match_ended_event"],
+		[not _got_finale_shop, "no_finale_shop_event"],
+		[not _got_finale_started, "no_finale_started_event"],
+		[
+			_match_ended_standings.size() != _expected_members,
+			"standings_size_%d_of_%d" % [_match_ended_standings.size(), _expected_members],
+		],
+		[missing_placement, "standings_missing_placement"],
+		[
+			_leaderboards != expected_leaderboards,
+			"leaderboards_%d_of_%d" % [_leaderboards, expected_leaderboards],
+		],
+		[_with_mutators and _mutated_intros == 0, "no_mutated_rounds"],
+	]
+	for check: Array in checks:
+		if check[0]:
+			return check[1]
+	return ""
 
 
 func _fail(reason: String) -> void:

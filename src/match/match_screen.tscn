@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://src/match/match_screen.gd" id="1"]
 [ext_resource type="PackedScene" path="res://src/match/standings_panel.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://src/finale/shop_panel.tscn" id="3"]
 
 [node name="MatchScreen" type="Control"]
 layout_mode = 3
@@ -204,6 +205,11 @@ layout_mode = 2
 
 [node name="StandingsPanel" parent="Center" instance=ExtResource("2")]
 unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ShopPanel" parent="Center" instance=ExtResource("3")]
+unique_name_in_owner = true
+visible = false
 layout_mode = 2
 
 [node name="CountdownCenter" type="CenterContainer" parent="."]

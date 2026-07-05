@@ -2,7 +2,7 @@ class_name MatchController
 extends RefCounted
 ## Server-side match state machine (M3-01, SPEC $4):
 ## INTRO -> COUNTDOWN -> PLAY -> RESULTS -> (LEADERBOARD every 5 rounds) ->
-## ... -> PODIUM.
+## ... -> FINALE_SHOP -> FINALE_PLAY -> PODIUM (#554).
 ## Pure logic driven by tick(delta); emits `event_emitted` Dictionaries that
 ## NetManager relays to the room, and feeds get_snapshot() into the 30 Hz
 ## room snapshot (ADR 001). Coins live on RoomMember.score.
@@ -17,15 +17,17 @@ enum State {
 	PODIUM,
 	DONE,
 	# Appended after DONE so the wire values of the original states stay
-	# stable across client/server versions (#182).
+	# stable across client/server versions (#182). Same rule for the finale
+	# states below (#554).
 	COUNTDOWN,
+	FINALE_SHOP,
+	FINALE_PLAY,
 }
 
 const LEADERBOARD_EVERY := 5
 ## PHASE2.md $3: roughly this share of rounds draw a mutator from the host's
-## enabled pool. The Gauntlet finale runs outside this controller, so playlist
-## rounds are the only thing that can roll — "never the finale" holds
-## structurally.
+## enabled pool. Mutators roll per playlist round only — the finale clears
+## `current_mutator` on entry, so "never the finale" holds structurally.
 const MUTATOR_ROUND_CHANCE := 0.4
 ## 3-2-1 over the visible arena at 600 ms per digit (#182). The game is
 ## already instantiated during COUNTDOWN so clients render the starting
@@ -38,6 +40,9 @@ var room: Room
 var round_index := 0
 var playlist: Array = []
 var game: MinigameBase
+## The finale buy-in shop (M5-01), live only during FINALE_SHOP; its post-shop
+## balances feed the FINALE_PLAY loadouts and the final ranking's tiebreaks.
+var shop: FinaleShop
 ## The mutator rolled for the current round, or null (M9-03). Knob effects
 ## are wired by the M9-04/05 packs; this controller rolls and announces.
 var current_mutator: Mutator
@@ -46,8 +51,13 @@ var _intro_sec := 10.0
 var _results_sec := 8.0
 var _leaderboard_sec := 5.0
 var _podium_sec := 8.0
+var _shop_sec := FinaleShop.SHOP_SEC
 var _duration_override := 0.0
 var _countdown_step_sec := COUNTDOWN_STEP_SEC
+## SPEC $4: real matches settle in the finale. Harnesses may disable it, and
+## degenerate rooms (fewer than 2 connected, e.g. --debug-minigame solo) skip
+## straight to the podium exactly as before #554.
+var _finale_enabled := true
 var _state_left := 0.0
 var _rng := RandomNumberGenerator.new()
 var _round_slots: Array[int] = []
@@ -56,7 +66,8 @@ var _skip_votes := {}
 
 ## config: rounds (int), seed (int), and for test harnesses only (server must
 ## run --debug-rpcs to accept them from clients): intro_sec, results_sec,
-## leaderboard_sec, podium_sec, duration_override, countdown_step_sec.
+## leaderboard_sec, podium_sec, shop_sec, duration_override,
+## countdown_step_sec, finale (bool).
 func _init(match_room: Room, config: Dictionary) -> void:
 	room = match_room
 	_rng.seed = int(config.get("seed", randi()))
@@ -64,7 +75,9 @@ func _init(match_room: Room, config: Dictionary) -> void:
 	_results_sec = config.get("results_sec", _results_sec)
 	_leaderboard_sec = config.get("leaderboard_sec", _leaderboard_sec)
 	_podium_sec = config.get("podium_sec", _podium_sec)
+	_shop_sec = config.get("shop_sec", _shop_sec)
 	_duration_override = config.get("duration_override", 0.0)
+	_finale_enabled = config.get("finale", true)
 	# Compress the 3-2-1 gate for the playtest harness too, or a full match
 	# overruns the bot's phase budget (#369).
 	_countdown_step_sec = config.get("countdown_step_sec", _countdown_step_sec)
@@ -101,6 +114,17 @@ func tick(delta: float) -> void:
 		if game.finished:
 			_enter_results()
 		return
+	if state == State.FINALE_SHOP:
+		# The shop owns its own clock and closes early once everyone confirms.
+		shop.tick(delta)
+		if not shop.open:
+			_enter_finale_play()
+		return
+	if state == State.FINALE_PLAY:
+		game.tick(delta)
+		if game.finished:
+			_enter_podium_from_finale()
+		return
 	_state_left -= delta
 	if _state_left > 0.0:
 		return
@@ -118,12 +142,21 @@ func tick(delta: float) -> void:
 
 
 func handle_input(slot: int, data: Dictionary) -> void:
-	if state == State.PLAY and slot in _round_slots:
-		# Mirror Mode (M9-05): transformed server-side so it is fair and
-		# cheat-proof.
-		if current_mutator != null:
-			data = current_mutator.transform_input(data)
-		game.handle_input(slot, data)
+	if slot not in _round_slots:
+		return
+	match state:
+		State.PLAY:
+			# Mirror Mode (M9-05): transformed server-side so it is fair and
+			# cheat-proof.
+			if current_mutator != null:
+				data = current_mutator.transform_input(data)
+			game.handle_input(slot, data)
+		State.FINALE_PLAY:
+			# No mutator transforms in the finale (never the finale, M9-03).
+			game.handle_input(slot, data)
+		State.FINALE_SHOP:
+			if data.has("shop"):
+				_handle_shop_input(slot, data.shop)
 
 
 ## Intro ready-skip (SPEC $4): the round starts early once every connected
@@ -155,13 +188,28 @@ func get_snapshot() -> Dictionary:
 		"rounds": playlist.size(),
 		"time_left": maxf(_state_left, 0.0),
 	}
-	if state == State.PLAY:
+	if state in [State.PLAY, State.FINALE_PLAY]:
 		snapshot.time_left = maxf(game.effective_duration() - game.elapsed, 0.0)
 	if state in [State.COUNTDOWN, State.PLAY]:
 		# The id lets late arrivals (rejoin, missed events) mount the right
 		# view; during COUNTDOWN it also shows the starting positions (#182).
 		snapshot["minigame"] = String(playlist[round_index])
 		snapshot["game"] = game.get_snapshot()
+	if state == State.FINALE_PLAY:
+		snapshot["minigame"] = "gauntlet"
+		snapshot["game"] = game.get_snapshot()
+	if state == State.FINALE_SHOP:
+		# Authoritative shop state (#554): the client UI renders purely from
+		# this, so a lost buy intent is visibly un-bought and re-clickable.
+		snapshot.time_left = shop.time_left
+		var players := {}
+		for slot in _round_slots:
+			players[slot] = {
+				"coins": shop.coins_left(slot),
+				"items": shop.loadout(slot),
+				"confirmed": shop.is_confirmed(slot),
+			}
+		snapshot["shop"] = {"players": players}
 	# Late arrivals also learn the round's mutator (M9-03).
 	if current_mutator != null and state in [State.INTRO, State.COUNTDOWN, State.PLAY]:
 		snapshot["mutator"] = current_mutator.to_dict()
@@ -292,16 +340,109 @@ func _next_round() -> void:
 	round_index += 1
 	if round_index < playlist.size():
 		_enter_intro()
+	elif _finale_enabled and _connected_slots().size() >= 2:
+		_enter_finale_shop()
 	else:
-		state = State.PODIUM
-		_state_left = _podium_sec
-		var standings := _standings()
-		# Best-of-N accumulation (M11-01): the room's tracker carries points
-		# and the coin tiebreak across matches; idle at series length 1.
-		room.series.record_match(standings)
-		event_emitted.emit(
-			{"type": "match_ended", "standings": standings, "series": room.series.to_dict()}
-		)
+		_enter_podium(_standings())
+
+
+func _enter_podium(standings: Array) -> void:
+	state = State.PODIUM
+	_state_left = _podium_sec
+	# Best-of-N accumulation (M11-01): the room's tracker carries points
+	# and the coin tiebreak across matches; idle at series length 1.
+	room.series.record_match(standings)
+	event_emitted.emit(
+		{"type": "match_ended", "standings": standings, "series": room.series.to_dict()}
+	)
+
+
+# --- Finale (SPEC $6, #554) ---------------------------------------------------
+
+
+## The 30 s buy-in shop opens once the playlist is exhausted. Purchases arrive
+## as {"shop": {...}} intents on the normal match-input channel; the snapshot
+## carries the authoritative shop state back.
+func _enter_finale_shop() -> void:
+	state = State.FINALE_SHOP
+	current_mutator = null
+	_round_slots = _connected_slots()
+	var coins := {}
+	for slot in _round_slots:
+		var member := room.find_by_slot(slot)
+		coins[slot] = 0 if member == null else member.score
+	shop = FinaleShop.new(coins, _shop_sec)
+	event_emitted.emit({"type": "finale_shop", "time": _shop_sec, "totals": _totals()})
+
+
+func _handle_shop_input(slot: int, action: Dictionary) -> void:
+	var item := StringName(String(action.get("item", "")))
+	match String(action.get("action", "")):
+		"buy":
+			shop.buy(slot, item)
+		"refund":
+			shop.refund(slot, item)
+		"confirm":
+			shop.confirm(slot)
+
+
+## The Gauntlet is entered directly — never via the catalog/playlist — with
+## each player's shop loadout applied on top of the base kit (M5-02).
+func _enter_finale_play() -> void:
+	state = State.FINALE_PLAY
+	game = Gauntlet.new()
+	game.meta = Gauntlet.make_meta()
+	game.duration_override = _duration_override
+	game.setup(_round_slots, _rng.randi())
+	(game as Gauntlet).apply_loadouts(shop.loadouts())
+	event_emitted.emit({"type": "finale_started", "minigame": game.meta.to_dict()})
+
+
+## Elimination order decides final placement; FinaleRanking splits ties by
+## leftover coins, then coins earned (M5-03). Members who never entered the
+## finale (disconnected before the shop) rank below every participant.
+func _enter_podium_from_finale() -> void:
+	var coins_left := {}
+	for slot in _round_slots:
+		coins_left[slot] = shop.coins_left(slot)
+	var ranked: Array = FinaleRanking.rank(game.get_results().placements, coins_left, _totals())
+	var standings: Array = []
+	var placement := 1
+	for group: Array in ranked:
+		for slot: int in group:
+			standings.append(_standing_row(slot, placement))
+		placement += group.size()
+	for row: Dictionary in _absentee_rows(placement):
+		standings.append(row)
+	game = null
+	_enter_podium(standings)
+
+
+func _standing_row(slot: int, placement: int) -> Dictionary:
+	var member := room.find_by_slot(slot)
+	return {
+		"slot": slot,
+		"name": "" if member == null else member.display_name,
+		"score": 0 if member == null else member.score,
+		"placement": placement,
+	}
+
+
+## Rows for members who sat the finale out entirely, ordered by score with
+## exact ties sharing a placement, numbered after the last finale placement.
+func _absentee_rows(next_placement: int) -> Array:
+	var absent: Array = []
+	for member in room.members:
+		if member.slot not in _round_slots:
+			absent.append(member)
+	absent.sort_custom(func(a: RoomMember, b: RoomMember) -> bool: return a.score > b.score)
+	var rows: Array = []
+	var placement := next_placement
+	for i in absent.size():
+		if i > 0 and absent[i].score != absent[i - 1].score:
+			placement = next_placement + i
+		rows.append(_standing_row(absent[i].slot, placement))
+	return rows
 
 
 func _finish_match() -> void:
