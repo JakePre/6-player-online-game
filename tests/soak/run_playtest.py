@@ -12,10 +12,17 @@ drafts games eligible at that head count, so a 12-bot run exercises the scaled
 Usage:
     python tests/soak/run_playtest.py --godot path/to/godot [--rounds 12] [--players 12]
     python tests/soak/run_playtest.py --godot path/to/godot --telemetry-out out.json
+    python tests/soak/run_playtest.py --godot path/to/godot --balance --players 4 \
+        --telemetry-out balance-telemetry-4.json
 
 --telemetry-out (#548) writes the creator bot's per-round balance telemetry
 (game_id, player_count, placements, awards, duration_ms) as a JSON array, for
 the M12-01 balance pass to consume once a few nights of runs accumulate.
+
+--balance (#560) is the variant that makes that telemetry meaningful: rounds
+run their REAL durations (~15-20 min for a 12-round match) while bots send
+randomized gameplay inputs, so placements reflect the sims actually being
+played instead of the compressed idle smoke run's all-tie noise.
 """
 
 from __future__ import annotations
@@ -115,19 +122,35 @@ def main() -> int:
         help="write the creator bot's per-round balance telemetry (#548) as a JSON array "
         "to this path; skipped if the harness fails or no telemetry line is seen",
     )
+    parser.add_argument(
+        "--balance",
+        action="store_true",
+        help="#560 balance variant: real round durations + randomized bot inputs, so the "
+        "telemetry carries actual balance signal (expect ~15-20 min per 12-round match)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="overall per-bot deadline in seconds (default 120, or 1800 with --balance)",
+    )
     args = parser.parse_args()
     if args.players < 2:
         print("FAIL: --players must be at least 2 (a match needs a creator + one joiner)")
         return 1
+    timeout = args.timeout if args.timeout is not None else (1800.0 if args.balance else 120.0)
 
     common = [
         f"--address=127.0.0.1",
         f"--port={args.port}",
         f"--rounds={args.rounds}",
         f"--players={args.players}",
+        f"--phase-timeout={timeout}",
     ]
     if args.mutators:
         common.append("--mutators")
+    if args.balance:
+        common.append("--balance")
     server_log: list[str] = []
     server = start(godot_cmd(args.godot, ["--server", f"--port={args.port}", "--debug-rpcs"]))
     procs: list[subprocess.Popen] = [server]
@@ -166,8 +189,9 @@ def main() -> int:
 
         # Debug timing compresses a full match into a few seconds, but the CI
         # runner can be slow to schedule 7 headless Godot processes; give it
-        # generous headroom.
-        deadline = time.monotonic() + 120
+        # generous headroom. The --balance variant runs real durations and
+        # gets a correspondingly larger budget.
+        deadline = time.monotonic() + timeout
         failed = False
         for name, proc, log in bots:
             remaining = max(1.0, deadline - time.monotonic())

@@ -15,7 +15,8 @@ extends Node
 ##                               consume once enough nightly runs accumulate)
 ##
 ## User args: --address=127.0.0.1 --port=7777 --name=Bot1 --rounds=12
-##            --create | --code=ABCDEF
+##            --create | --code=ABCDEF [--balance] [--phase-timeout=1800]
+##            [--inputs=idle]
 
 enum Phase {
 	CONNECTING,
@@ -42,6 +43,28 @@ const DEBUG_CONFIG := {
 	# which closes the shop early on the all-confirmed path.
 	"shop_sec": 0.3,
 }
+## The --balance variant (#560): chrome stays compressed (intros and results
+## screens carry no balance signal) but rounds run their REAL durations, so
+## with bots actually playing the telemetry finally means something. No
+## duration_override on purpose.
+const BALANCE_CONFIG := {
+	"intro_sec": 0.5,
+	"results_sec": 0.3,
+	"leaderboard_sec": 0.3,
+	"podium_sec": 0.3,
+	"countdown_step_sec": 0.2,
+	"shop_sec": 5.0,
+}
+## Random-intent pump cadence while a round is live (#560).
+const INPUT_INTERVAL_SEC := 0.25
+## Chance each pump also presses one action key on top of the movement stick.
+const ACTION_CHANCE := 0.3
+## One-shot action keys the roster's sims read off the wire (surveyed across
+## src/minigames/*): booleans pressed at random. Numeric intents (vote, lane,
+## pad, aim) are rolled separately in _random_intent().
+const ACTION_KEYS: Array[String] = [
+	"jump", "act", "fire", "dash", "use", "swing", "throw", "smash", "shove", "pull", "putt", "roll"
+]
 const LEADERBOARD_EVERY := 5
 ## Seed for the --mutators variant (M9-06): the per-round roll is seed-driven,
 ## so this keeps the ">=1 mutated round" pass criterion deterministic.
@@ -53,8 +76,13 @@ var _bot_name := "Bot"
 var _rounds := 12
 var _create := false
 var _with_mutators := false
+var _balance := false
+var _send_inputs := true
+var _phase_timeout_sec := PHASE_TIMEOUT_SEC
 var _join_code := ""
 var _expected_members := 0
+var _input_accum := 0.0
+var _input_rng := RandomNumberGenerator.new()
 
 var _phase := Phase.CONNECTING
 var _phase_started_ms := 0
@@ -86,6 +114,16 @@ func _ready() -> void:
 	_join_code = NetManager._arg_value(args, "--code", "")
 	_create = args.has("--create")
 	_with_mutators = args.has("--mutators")
+	_balance = args.has("--balance")
+	# Bots play by default (#560) — random intents both feed real balance
+	# telemetry and fuzz every sim's _handle_input path nightly. --inputs=idle
+	# restores the old spectate-only behaviour.
+	_send_inputs = NetManager._arg_value(args, "--inputs", "random") != "idle"
+	_phase_timeout_sec = float(
+		NetManager._arg_value(args, "--phase-timeout", str(PHASE_TIMEOUT_SEC))
+	)
+	# Deterministic per seat, distinct across seats.
+	_input_rng.seed = hash(_bot_name)
 
 	NetManager.connected_to_server.connect(_on_connected)
 	NetManager.connection_failed.connect(func() -> void: _fail("connection_failed"))
@@ -104,12 +142,43 @@ func _ready() -> void:
 		_fail("connect_call_failed")
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _phase == Phase.DONE:
 		return
 	var now := Time.get_ticks_msec()
-	if now - _phase_started_ms > PHASE_TIMEOUT_SEC * 1000.0:
+	if now - _phase_started_ms > _phase_timeout_sec * 1000.0:
 		_fail("timeout_in_phase_%d" % _phase)
+		return
+	if _send_inputs and _phase == Phase.IN_MATCH:
+		_input_accum += delta
+		if _input_accum >= INPUT_INTERVAL_SEC:
+			_input_accum = 0.0
+			# The server drops intents outside PLAY/FINALE_PLAY, so pumping
+			# through intros/results is harmless.
+			NetManager.send_match_input(_random_intent())
+
+
+## A plausible random gameplay intent (#560): a movement stick plus sometimes
+## one action key. Sims validate everything off the wire, so keys a game
+## doesn't read simply no-op — one generator covers the whole roster.
+func _random_intent() -> Dictionary:
+	var intent := {
+		"mx": _input_rng.randf_range(-1.0, 1.0),
+		"my": _input_rng.randf_range(-1.0, 1.0),
+	}
+	if _input_rng.randf() < ACTION_CHANCE:
+		match _input_rng.randi_range(0, 3):
+			0:
+				intent[ACTION_KEYS[_input_rng.randi_range(0, ACTION_KEYS.size() - 1)]] = true
+			1:
+				intent["ax"] = _input_rng.randf_range(-1.0, 1.0)
+				intent["ay"] = _input_rng.randf_range(-1.0, 1.0)
+			2:
+				intent["vote"] = _input_rng.randi_range(0, 5)
+			3:
+				intent["lane"] = _input_rng.randi_range(0, 3)
+				intent["pad"] = _input_rng.randi_range(0, 8)
+	return intent
 
 
 func _on_connected() -> void:
@@ -156,7 +225,7 @@ func _on_room_updated(state: Dictionary) -> void:
 	# Everyone present and ready: the host (lowest join_order, i.e. the room
 	# creator here) kicks off the match with the fast debug timing.
 	if _create:
-		var config := DEBUG_CONFIG.duplicate()
+		var config := (BALANCE_CONFIG if _balance else DEBUG_CONFIG).duplicate()
 		config["rounds"] = _rounds
 		# Fixed seed for the mutator variant: the roll is seed-driven, so the
 		# ">=1 mutated round" pass criterion stays deterministic.
