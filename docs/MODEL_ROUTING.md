@@ -24,10 +24,10 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | Task | Why |
 |---|---|
 | **M12-01** balance pass, all 33 games at 2/4/6 | The riskiest remaining task: interpret nightly-run data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
-| **M14-01** Loadout Duel (L) | Owner-requested, genre-new loadout/weapon design from a one-line spec; needs the §10 proposal-comment flow before code. |
+| **M14-01** Loadout Duel (L) | Owner-requested, genre-new loadout/weapon design from a one-line spec; needs the §10 proposal-comment flow before code. ◐ claimed (#509). |
 | **M14-02** Turbo Lap (L) | Racing handling under 30 Hz server-authoritative snapshots — latency feel, drift, track replication have no precedent in this codebase. |
 | **M14-09** Tumble Run (L) | Physics-platformer obstacle gauntlet; server-side physics + tumble feel is new territory and judgment-heavy. |
-| **M16-01** design system 2.0 (L) | Pure taste + system thinking: typography, palette, motion standards. Every other M16 task inherits its choices — a weak foundation costs all 12 downstream surfaces. Writes STYLE_GUIDE.md. |
+| ~~**M16-01** design system 2.0 (L)~~ | ✅ done (#506) — `PartyTheme` rebuilt, `docs/STYLE_GUIDE.md` written. Gates the rest of M16. |
 | **M16-13** consistency audit (S) | Small but judgment-dense: spotting "this reads wrong" across every surface with no checklist to follow is exactly what the tier is for. |
 
 ## Opus 4.8 — real engineering, clear precedent
@@ -90,13 +90,16 @@ All seven review findings are closed — the full audit's follow-ups are done.
 
 - **M14 is open** (v0.6.0 shipped at the boundary 2026-07-05; the release hold
   is lifted) — Genre Hop games are claimable under normal rules. As of
-  2026-07-05: M14-05 (#507) and M14-06 (#505) are claimed; M14-01/02/03/04/
-  08/09/10 are unclaimed.
+  2026-07-05: M14-01 (#509), M14-05 (#507), and M14-06 (#505) are claimed;
+  M14-02/03/04/08/09/10 are unclaimed.
 - **M16 sequencing**: M16-01 (Fable) gates everything; M16-03 (Opus) is the
   exemplar surface to do second; then the Sonnet surfaces fan out in parallel.
   M16-13 audits last. Image needs go through IMAGE_REQUESTS.md — never block
-  on art. As of 2026-07-05, M16-01 is filed (#503) but not yet claimed —
-  nothing else in M16 can start until it lands.
+  on art. **M16-01 merged 2026-07-05** (`docs/STYLE_GUIDE.md` now exists,
+  `src/ui/party_theme.gd` is additive-only per §4). M16-03 is unclaimed —
+  per the sequencing note above, the Sonnet surfaces (M16-04/05/06/10) should
+  wait for it to land as the visual exemplar, even though their plan-file
+  dependency arrow only lists M16-01.
 - **M15 is fully done** — every per-game cap task landed; the section above is
   historical. The live remaining pool is M14 (Genre Hop) + M16 (Beautiful
   UI/UX), both gated at the top (M14-01..10 mostly Fable/Opus; M16 gated on
