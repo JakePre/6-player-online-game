@@ -19,6 +19,9 @@ const PLATFORM_MAX_DIST := 7.0
 const MUSIC_MIN_SEC := 4.0
 const MUSIC_MAX_SEC := 7.0
 const STOP_SEC := 4.0
+## Rejection-sampling budget for _spawn_platforms(), per platform needed
+## (200 attempts / 5 platforms at the 6-player baseline).
+const PLACEMENT_ATTEMPTS_PER_PLATFORM := 40
 
 var positions := {}
 var move_dirs := {}
@@ -29,6 +32,15 @@ var platforms: Array = []
 var down_order: Array = []
 
 var _phase_left := 0.0
+
+## Play area and platform ring scale with the lobby (M15, ADR 003 F4): a
+## fixed-size ring cannot fit N-1 well-spaced platforms much past 12 players,
+## so the ring grows by the same per-player-area formula as the arena.
+## PLATFORM_SPACING and PLATFORM_RADIUS stay fixed — that is the "well-spaced"
+## quality the ring growth is preserving, not a resource to shrink. At <=6
+## players these equal the consts above, so the original game is unchanged.
+var _play_half := ARENA_HALF
+var _platform_max_dist := PLATFORM_MAX_DIST
 
 
 static func make_meta() -> MinigameMeta:
@@ -41,7 +53,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Musical Platforms",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 3,
-				"max_players": 6,
+				"max_players": 12,
 				"duration_sec": 75.0,
 				"rules":
 				"When the music stops, grab a platform — there's one fewer than there are players.",
@@ -51,9 +63,11 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	_play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size())
+	_platform_max_dist = MinigameScaling.arena_half(PLATFORM_MAX_DIST, slots.size())
+	var spawns := SpawnLayout.ring_positions(slots.size(), _play_half * 0.55)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ARENA_HALF * 0.55
+		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 	_phase_left = rng.randf_range(MUSIC_MIN_SEC, MUSIC_MAX_SEC)
 
@@ -70,7 +84,7 @@ func _tick(delta: float) -> void:
 		return
 	for slot: int in _in_slots():
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
-		positions[slot] = pos.limit_length(ARENA_HALF)
+		positions[slot] = pos.limit_length(_play_half)
 	if phase == Phase.STOP:
 		_resolve_claims()
 	_phase_left -= delta
@@ -141,10 +155,11 @@ func _spawn_platforms() -> void:
 	platforms = []
 	var wanted := maxi(_in_slots().size() - 1, 1)
 	var guard := 0
-	while platforms.size() < wanted and guard < 200:
+	var guard_limit := PLACEMENT_ATTEMPTS_PER_PLATFORM * wanted
+	while platforms.size() < wanted and guard < guard_limit:
 		guard += 1
 		var angle := rng.randf_range(0.0, TAU)
-		var dist := rng.randf_range(PLATFORM_SPACING, PLATFORM_MAX_DIST)
+		var dist := rng.randf_range(PLATFORM_SPACING, _platform_max_dist)
 		var pos := Vector2(cos(angle), sin(angle)) * dist
 		var crowded := false
 		for platform: Dictionary in platforms:
