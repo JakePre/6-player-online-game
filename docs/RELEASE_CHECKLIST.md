@@ -1,5 +1,11 @@
 # Release Checklist — the M14 boundary cut
 
+> ## ✅ SHIPPED — [v0.6.0](https://github.com/JakePre/6-player-online-game/releases/tag/v0.6.0) (2026-07-05)
+> All six blockers landed, `main` was green (1106/1106), the tag built all five
+> platform presets, and the release published as Latest. The M14 RELEASE HOLD is
+> **lifted** — Genre Hop is open. This file is retained as the record of the
+> base-game release boundary; the checklist below is historical.
+
 **Owner directive (2026-07-05):** cut a release at the **M14 boundary** — after
 the roster + 24-player scaling + series + mutators + animation pass are
 complete, and *before* the M14 "Genre Hop" batch of new large games begins.
@@ -50,15 +56,15 @@ now HOLD on M14 until the owner cuts the release and lifts the hold.
   coverage. The harness exists (`run_playtest.py --players`); this wires it into
   CI. Worth having before *advertising* 24-player.
 
-## Release hygiene (at tag time — AGENT_COORDINATION §8)
+## Release hygiene (at tag time — AGENT_COORDINATION §8) — done for v0.6.0
 
-- [ ] `main` green; tag only from a freshly-pulled green tip.
-- [ ] `git fetch --tags && gh release list` — pick the next number after the true latest.
-- [ ] Bump the version constant / handshake if the release changes the protocol surface.
-- [ ] Run `run_playtest.py` (6-bot) — and ideally `--players 12` / `--players 24` (#454) — as a final smoke.
-- [ ] Update the in-game credits screen from `assets/CREDITS.md` (M7-04).
-- [ ] Write release notes; announce on the release.
-- [ ] After tagging: **lift the M14 hold** (remove the banner in IMPLEMENTATION_PLAN.md §5 and the note in AGENT_COORDINATION.md §8) so Genre Hop can begin.
+- [x] `main` green; tag only from a freshly-pulled green tip. *(1106/1106, tagged from `7a7418a`.)*
+- [x] `git fetch --tags && gh release list` — pick the next number after the true latest. *(v0.5.2 → v0.6.0.)*
+- [x] Bump the version constant / handshake if the release changes the protocol surface. *(`AppVersion.VERSION` → 0.6.0 in #498; `PROTOCOL_VERSION` unchanged at 7 — no RPC break this cycle. Source drift now self-heals via #499.)*
+- [x] Run `run_playtest.py` (6-bot) — and ideally `--players 12` / `--players 24` (#454) — as a final smoke. *(6-bot multiplayer soak green in CI on the tagged commit; nightly 12/24 variant now wired via #496.)*
+- [x] Update the in-game credits screen from `assets/CREDITS.md` (M7-04). *(Auto-generated from the ledger at runtime — can't drift.)*
+- [x] Write release notes; announce on the release. *(Workflow publishes the standard notes + auto-generated changelog.)*
+- [x] After tagging: **lift the M14 hold** (banner in IMPLEMENTATION_PLAN.md §5 and the note in AGENT_COORDINATION.md §8) so Genre Hop can begin. *(This PR.)*
 
 ## Bottom line
 
