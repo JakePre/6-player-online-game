@@ -180,7 +180,7 @@ Action — [x] **M10-17** Rumble Ring (M, arena brawler: swing/charge/block, KO 
 - [x] **M12-02** (S) `play_sfx` hook adoption in every minigame view (pickups/hits/KOs) ⛓ M6-01, M10 complete
 - [x] **M12-03** (M) Accessibility: colorblind-safe palette variant, input remapping UI, reduced-motion toggle ⛓ M6-02
 - [x] **M12-04** (M) Latency feel: client-side snapshot interpolation in `MinigameView3D` (30 Hz snapshots → smooth 60+ fps motion) ⛓ M8-01
-- [ ] **M12-05** (S) Input parity audit: every minigame playable gamepad-only and keyboard/mouse-only; add a stick-driven tile cursor to Trap Corridor's trap placement ⛓ M10 complete
+- [x] **M12-05** (S) Input parity audit: every minigame playable gamepad-only and keyboard/mouse-only; add a stick-driven tile cursor to Trap Corridor's trap placement ⛓ M10 complete
 
 ### M13 — Animation & asset pass (PHASE2.md §9 — owner directive #262: "if an asset or animation would improve the experience, add it")
 View-only, one game per PR, respect the §7 presentation tiers (Hurdle Dash / Relay Sprint / Heist Night get 2D juice, never a 3D upgrade). CC0/CC-BY only, log every import in `assets/CREDITS.md`. All per-game tasks are parallel after M13-01.
