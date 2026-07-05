@@ -110,7 +110,7 @@ Co-Authored-By: <your agent identity>
 
 **Never chain freshness checks into your commit:** `git merge-base --is-ancestor origin/main HEAD && git add ... && git commit ...` silently commits *nothing* when main has moved — this ate two agents' work (M7-04, M11-03). Commit **first**, then check freshness, then rebase. A committed change survives a botched rebase (`git reflog`); an uncommitted one doesn't survive anything.
 
-**4. Rebase, never merge-from-main.** When behind: `git rebase origin/main`, resolve, re-run the **full local gate** (format, lint, `--headless --import`, GUT), then `git push --force-with-lease`. Plain `--force` can vaporize a hand-off commit someone pushed to your branch; `--force-with-lease` refuses instead. After any branch switch or rebase, re-run `godot --headless --import` — a stale `.godot` class cache produces mass phantom test failures that look like your bug but aren't.
+**4. Rebase, never merge-from-main.** When behind: `git rebase origin/main`, resolve, re-run the **full local gate** (format, lint, `--check-only` on changed scripts, `--headless --import`, GUT), then `git push --force-with-lease`. Plain `--force` can vaporize a hand-off commit someone pushed to your branch; `--force-with-lease` refuses instead. After any branch switch or rebase, re-run `godot --headless --import` — a stale `.godot` class cache produces mass phantom test failures that look like your bug but aren't.
 
 **5. Push is your save button.** Push after every commit, not at the end. An unpushed branch dies with your session (two dead agents' work had to be forensically reconstructed). If your budget is running low, pushing takes priority over finishing — see §9.
 
@@ -131,9 +131,23 @@ If `REBASE-NEEDED`: `git rebase origin/main`, re-run the local gate, force-push 
 
 ```sh
 gdformat --check src tests && gdlint src tests
+git diff --name-only origin/main...HEAD -- '*.gd' | while read -r f; do
+  godot --headless --check-only --script "$f"
+done
 godot --headless --import
 godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -ginclude_subdirs -gexit
 ```
+
+**Why the `--check-only` step:** CI's Linux Godot rejects some Variant-inference patterns
+(`var x := some_dict.member`) as a hard parse error that local `--headless --import` and GUT
+silently tolerate — the script just gets skipped ("failed to parse"), so it passes locally and
+fails CI, costing a full rebase cycle. `godot --headless --check-only --script <file>`
+reproduces the same parse pass CI uses. Run it per changed `.gd` file (the whole repo is slower
+and unnecessary). **Known false positive:** a file that references a project autoload (e.g.
+`NetManager`, `MinigameCatalog`) fails with `Identifier not found: <Autoload>` even with
+`--path` set, because a standalone script check never registers `project.godot`'s autoloads.
+That specific error is safe to ignore; anything else is a real parse error worth fixing before
+you push.
 
 ### Merging
 
@@ -202,6 +216,7 @@ Sessions die mid-task. Twice now, half-finished work survived only because someo
 - **Reimport before testing after switching branches** (`godot --headless --import`): a stale class cache produces cascades of "Identifier not declared" errors that look like real breakage. If dozens of tests fail at once after a pull, it's almost certainly this, not the code.
 - **Never commit `.import` churn** outside asset-import PRs — `git checkout -- "*.import"` before staging.
 - GUT + lint disagree on long lambda lines; restructure rather than fight the formatter.
+- **Run `godot --headless --check-only --script <file>` on changed scripts before pushing** (§5): local `--import`/GUT tolerate some Variant-inference patterns CI's parser rejects outright, so a script can pass locally and fail CI, costing a rebase cycle. Ignore `Identifier not found: <Autoload>` from this check — that's the tool not registering `project.godot`'s autoloads, not a real error.
 
 ## 12. Recommended repo settings (owner action)
 
