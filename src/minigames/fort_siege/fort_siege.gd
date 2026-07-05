@@ -61,7 +61,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Fort Siege",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 4,
-				"max_players": 6,
+				"max_players": 12,
 				"even_players": true,
 				"duration_sec": 90.0,
 				"rules":
