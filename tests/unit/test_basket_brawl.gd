@@ -16,11 +16,26 @@ func test_meta_catalog_and_even_rule() -> void:
 	var meta := BasketBrawl.make_meta()
 	assert_eq(meta.id, &"basket_brawl")
 	assert_eq(meta.category, MinigameMeta.Category.TEAM)
+	assert_eq(meta.max_players, 8)
 	assert_true(meta.even_players, "never drafted at 3 or 5 (#178)")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"basket_brawl") is BasketBrawl)
 	MinigameCatalog.clear()
+
+
+## No-crowd fairness (M15 8-cap, ADR 003 addendum): 4v4 splits evenly and
+## every spawn stays within the arena.
+func test_setup_splits_four_v_four_within_arena_at_eight_players() -> void:
+	var player_slots: Array[int] = []
+	for i in 8:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	assert_eq((game.teams[0] as Array).size(), 4)
+	assert_eq((game.teams[1] as Array).size(), 4)
+	for slot in 8:
+		var pos: Vector2 = game.positions[slot]
+		assert_lt(absf(pos.y), BasketBrawl.ARENA_HALF, "spawn row stays inside the arena")
 
 
 func test_setup_splits_teams_and_centers_ball() -> void:
