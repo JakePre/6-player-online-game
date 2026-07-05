@@ -20,12 +20,14 @@ and the full animation/FX pass. A coherent, feature-complete product.
 | M15: The Mole → 8 (‡ — owner override: capped at 8, not 12; plain bump) | #483 | ✅ merged | Sonnet |
 | M15: Faulty Wiring → 12 (‡ — plain bump) | #474 | ✅ merged | Sonnet |
 | M15: Fort Siege → 12 (‡ — plain bump) | #461 | ✅ merged | Sonnet |
-| M10-14: Pickpocket Plaza (last M10 game) | #359 | ◐ claimed, stalled | Opus |
-| M12-02: `play_sfx` adoption in every view | — | ☐ open | Sonnet |
-| M12-05: input parity audit (gamepad-only / kb-only) | — | ☐ open | Sonnet/Opus |
+| M10-14: Pickpocket Plaza (last M10 game — genuine hidden guard, owner call #359) | #491 | ✅ merged | Opus |
+| M12-02: `play_sfx` adoption in every view | #482 | ✅ merged | Sonnet |
+| M12-05: input parity audit (gamepad-only / kb-only) | #490 | ✅ merged | Sonnet/Opus |
 
-When all six are checked, **the M14 dependency gate opens and the boundary is
-reached** — that is the moment to tag.
+**All six blockers have landed (2026-07-05).** The M14 dependency gate is open
+and the boundary is reached — **this is the moment to tag.** Tagging is an
+owner action (see "Release hygiene" below and AGENT_COORDINATION.md §8): agents
+now HOLD on M14 until the owner cuts the release and lifts the hold.
 
 ## Quality decision — owner call before tagging
 
