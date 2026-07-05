@@ -93,3 +93,70 @@ func test_arm_pulse_advances_only_while_trapping_as_trapper() -> void:
 	view.render({"phase": TrapCorridor.Phase.RUNNING, "trapper": 0})
 	view._process(0.5)
 	assert_eq(view._arm_clock, clock, "no pulse outside the trapping phase")
+
+
+# --- M12-05: keyboard/gamepad input parity for trap placement ----------------
+
+
+## Feeds an action event through the view's _unhandled_input, exactly as the
+## engine would for a keypress or pad button (parity path — no mouse).
+func _press(action: StringName) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = true
+	view._unhandled_input(event)
+
+
+func _trapping_as_local(trapper_slot: int, budget: int) -> void:
+	view.phase = TrapCorridor.Phase.TRAPPING
+	view.trapper = trapper_slot
+	view.traps_left = budget
+
+
+func test_move_actions_step_the_placement_cursor() -> void:
+	_trapping_as_local(0, 6)  # local slot 0 is the trapper
+	view._cursor_col = 3
+	view._cursor_row = 2
+	_press(&"move_left")
+	assert_eq(view._cursor_col, 2, "move_left steps one column")
+	_press(&"move_up")
+	assert_eq(view._cursor_row, 1, "move_up steps one row")
+	_press(&"move_right")
+	_press(&"move_down")
+	assert_eq(view._cursor_col, 3)
+	assert_eq(view._cursor_row, 2, "the four directions all drive the cursor")
+
+
+func test_cursor_never_leaves_the_placeable_tiles() -> void:
+	_trapping_as_local(0, 6)
+	for _i in 20:
+		view._move_cursor(-1, -1)
+	assert_eq(view._cursor_col, 1, "start column stays safe")
+	assert_eq(view._cursor_row, 0)
+	for _i in 20:
+		view._move_cursor(1, 1)
+	assert_eq(view._cursor_col, TrapCorridor.COLS - 2, "finish column stays safe")
+	assert_eq(view._cursor_row, TrapCorridor.ROWS - 1)
+
+
+func test_action_primary_arms_the_cursor_tile() -> void:
+	_trapping_as_local(0, 2)
+	view._cursor_col = 4
+	view._cursor_row = 0
+	_press(&"action_primary")
+	assert_true(4 * TrapCorridor.ROWS + 0 in view.my_traps, "the cursor arms its tile, mouse-free")
+
+
+func test_placement_respects_the_trap_budget() -> void:
+	_trapping_as_local(0, 0)  # no traps left
+	view._place_trap(2, 1)
+	assert_eq(view.my_traps, [], "an empty budget arms nothing")
+
+
+func test_only_the_trapper_drives_the_cursor() -> void:
+	_trapping_as_local(1, 2)  # local slot 0 is NOT the trapper
+	var col_before: int = view._cursor_col
+	_press(&"move_right")
+	_press(&"action_primary")
+	assert_eq(view._cursor_col, col_before, "a non-trapper cannot move the cursor")
+	assert_eq(view.my_traps, [], "a non-trapper arms nothing")

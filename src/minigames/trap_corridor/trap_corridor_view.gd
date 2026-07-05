@@ -13,6 +13,8 @@ const MY_TRAP_COLOR := Color(0.9, 0.6, 0.2, 0.55)
 const FINISH_COLOR := Color(0.4, 0.85, 0.4)
 const SPRING_DURATION := 0.6
 const ARM_PULSE_HZ := 2.5
+## The keyboard/gamepad placement cursor (M12-05, input parity).
+const CURSOR_COLOR := Color(1.0, 1.0, 1.0, 0.9)
 
 ## Latest replicated state, straight from TrapCorridor.get_snapshot().
 var phase := TrapCorridor.Phase.TRAPPING
@@ -33,6 +35,9 @@ var _revealed_seen: Array = []
 var _seen_snapshot := false
 var _arm_clock := 0.0
 var _was_caught := false
+## Keyboard/gamepad placement cursor (M12-05), on a placeable tile by default.
+var _cursor_col := 1
+var _cursor_row := TrapCorridor.ROWS / 2
 
 
 func _physics_process(_delta: float) -> void:
@@ -56,19 +61,60 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 
+## Mouse placement: click a tile to arm it (unchanged — the pointer path).
 func _gui_input(event: InputEvent) -> void:
-	if phase != TrapCorridor.Phase.TRAPPING or my_slot != trapper or traps_left <= 0:
+	if phase != TrapCorridor.Phase.TRAPPING or my_slot != trapper:
 		return
 	var click := event as InputEventMouseButton
 	if click == null or not click.pressed or click.button_index != MOUSE_BUTTON_LEFT:
 		return
 	var tile := _tile_at_pixel(click.position)
-	if tile == [] or NetManager.multiplayer.multiplayer_peer == null:
+	if tile == []:
 		return
-	NetManager.send_match_input({"trap": tile})
-	var index: int = tile[0] * TrapCorridor.ROWS + tile[1]
+	_place_trap(int(tile[0]), int(tile[1]))
+
+
+## Keyboard/gamepad placement (M12-05, input parity): the trapper drives a tile
+## cursor with move_* and arms it with action_primary — so the game is fully
+## playable without a mouse. The pointer path above still works too.
+func _unhandled_input(event: InputEvent) -> void:
+	if phase != TrapCorridor.Phase.TRAPPING or my_slot != trapper or event.is_echo():
+		return
+	if event.is_action_pressed(&"move_left"):
+		_move_cursor(-1, 0)
+	elif event.is_action_pressed(&"move_right"):
+		_move_cursor(1, 0)
+	elif event.is_action_pressed(&"move_up"):
+		_move_cursor(0, -1)
+	elif event.is_action_pressed(&"move_down"):
+		_move_cursor(0, 1)
+	elif event.is_action_pressed(&"action_primary"):
+		_place_trap(_cursor_col, _cursor_row)
+
+
+## The cursor only ever rests on placeable tiles — the start/finish columns
+## stay safe (matching the sim's own clamp), so it can never target a dead tile.
+func _move_cursor(dcol: int, drow: int) -> void:
+	_cursor_col = clampi(_cursor_col + dcol, 1, TrapCorridor.COLS - 2)
+	_cursor_row = clampi(_cursor_row + drow, 0, TrapCorridor.ROWS - 1)
+	queue_redraw()
+
+
+## Arms a tile, remembering it locally (traps are never replicated). Shared by
+## the mouse and cursor paths. The local highlight is recorded first so it never
+## depends on the send; the input RPC only fires from an actual player client —
+## the server is dedicated (id 1, never a player), so a real player is always a
+## non-1 peer, and this also drops the send in the offline unit-test harness
+## (id 1) instead of RPCing to self.
+func _place_trap(col: int, row: int) -> void:
+	if traps_left <= 0:
+		return
+	var index := col * TrapCorridor.ROWS + row
 	if index not in my_traps:
 		my_traps.append(index)
+	var mp := NetManager.multiplayer
+	if mp.has_multiplayer_peer() and mp.get_unique_id() != 1:
+		NetManager.send_match_input({"trap": [col, row]})
 	queue_redraw()
 
 
@@ -116,6 +162,10 @@ func _draw() -> void:
 		trap_color.a = 0.35 + 0.25 * (0.5 + 0.5 * sin(_arm_clock * TAU * ARM_PULSE_HZ))
 		for index: int in my_traps:
 			draw_rect(_tile_rect(rect, tile, index), trap_color)
+		# Placement cursor (M12-05): outline the tile the stick/keyboard will arm.
+		if phase == TrapCorridor.Phase.TRAPPING:
+			var cursor_index := _cursor_col * TrapCorridor.ROWS + _cursor_row
+			draw_rect(_tile_rect(rect, tile, cursor_index), CURSOR_COLOR, false, 3.0)
 	# Spring bursts (M13-26): an expanding, fading ring where a trap went off.
 	for spring: Dictionary in _springs:
 		var progress: float = spring.age / SPRING_DURATION
@@ -155,7 +205,9 @@ func _draw() -> void:
 		else "RUN! (%0.1fs)" % phase_left
 	)
 	if my_slot == trapper and phase == TrapCorridor.Phase.TRAPPING:
-		banner = "Click tiles to place traps — %d left (%0.1fs)" % [traps_left, phase_left]
+		banner = (
+			"Move cursor + Space/Ⓐ to arm (or click) — %d left (%0.1fs)" % [traps_left, phase_left]
+		)
 	draw_string(font, Vector2(rect.position.x, rect.position.y - 12.0), banner, 0, -1, font_size)
 
 

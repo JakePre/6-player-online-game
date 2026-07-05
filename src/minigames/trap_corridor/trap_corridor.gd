@@ -50,7 +50,11 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"trap_corridor",
-				"controls": "Move — WASD / left stick · Trapper: click a tile to arm it",
+				"controls":
+				(
+					"Move — WASD / left stick · Trapper: move the cursor + Space/Ⓐ to arm"
+					+ " (or click a tile)"
+				),
 				"name": "Trap Corridor",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 3,
