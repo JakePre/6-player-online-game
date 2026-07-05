@@ -321,3 +321,42 @@ func test_results_condense_for_large_lobbies() -> void:
 	assert_true(packed.size() <= 12, "24 players pack into <=12 rows, got %d" % packed.size())
 	var few: Array[String] = ["1st", "2nd", "3rd"]
 	assert_eq(screen._fit_result_lines(few), few, "small lobbies unchanged")
+
+
+## M16-07: the intro card's key-art slot stays hidden (styled text fallback) when
+## no art file has been delivered for the round's minigame.
+func test_intro_key_art_hidden_without_art() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	var key_art: TextureRect = screen.get_node("%IntroKeyArt")
+	assert_false(key_art.visible, "no art on disk -> the text lockup is the fallback")
+	assert_null(key_art.texture)
+
+
+## M16-07 / M12-03: each countdown digit punches in, but reduced motion shows it
+## at rest.
+func test_countdown_pop_respects_reduced_motion() -> void:
+	var saved := ArenaFX.reduced_motion
+	ArenaFX.reduced_motion = false
+	screen._countdown_label.scale = Vector2.ONE
+	screen._pop_countdown()
+	assert_gt(screen._countdown_label.scale.x, 1.0, "the digit pops in")
+	ArenaFX.reduced_motion = true
+	screen._countdown_label.scale = Vector2.ONE
+	screen._pop_countdown()
+	assert_eq(screen._countdown_label.scale, Vector2.ONE, "reduced motion holds it still")
+	ArenaFX.reduced_motion = saved
+
+
+## M16-07 / M12-03: the between-rounds wipe plays normally, and does nothing at
+## all under reduced motion.
+func test_transition_wipe_respects_reduced_motion() -> void:
+	var saved := ArenaFX.reduced_motion
+	var wipe: ColorRect = screen.get_node("%TransitionWipe")
+	ArenaFX.reduced_motion = true
+	wipe.visible = false
+	screen._play_transition_wipe()
+	assert_false(wipe.visible, "reduced motion skips the wipe entirely")
+	ArenaFX.reduced_motion = false
+	screen._play_transition_wipe()
+	assert_true(wipe.visible, "the wipe sweeps in normally")
+	ArenaFX.reduced_motion = saved
