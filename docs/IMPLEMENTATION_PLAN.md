@@ -216,7 +216,7 @@ Every surface the player sees gets a real visual design pass. M6-04 made the UI 
 - [x] **M16-05** (M) Character select: roster grid presentation, per-character portrait treatment, selection feedback + confirm flourish ⛓ M16-01
 - [x] **M16-06** (S) Settings + credits screens: apply the system, group/label polish, credits scroll treatment ⛓ M16-01
 - [x] **M16-07** (M) Match chrome: intro cards with a key-art slot (styled text fallback until art lands), countdown treatment, round interstitials, transition wipes between rounds ⛓ M16-01
-- [ ] **M16-08** (M) In-match HUD: timer, score strip, emote bar, coin-fly polish, toast positioning — legible at a glance from 24-player chaos ⛓ M16-01
+- [x] **M16-08** (M) In-match HUD: timer, score strip, emote bar, coin-fly polish, toast positioning — legible at a glance from 24-player chaos ⛓ M16-01
 - [ ] **M16-09** (M) Results & celebration: results panel, leaderboard rows, podium scene dressing, series scoreboard, champion screen ⛓ M16-01
 - [x] **M16-10** (S) Error/edge chrome: toasts, reconnect overlay, connecting/waiting states, version-mismatch + room-full screens — the unhappy paths deserve the same polish ⛓ M16-01
 - [ ] **M16-11** (M) Finale chrome: Gauntlet intro treatment, elimination/grudge banners, winner sequence ⛓ M16-01
