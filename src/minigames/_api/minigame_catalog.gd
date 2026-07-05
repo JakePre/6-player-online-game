@@ -58,6 +58,7 @@ static func register_builtins() -> void:
 	register(FaultyWiring.make_meta(), FaultyWiring)
 	register(PickpocketPlaza.make_meta(), PickpocketPlaza)
 	register(BlastGrid.make_meta(), BlastGrid)
+	register(RoShamBo.make_meta(), RoShamBo)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
