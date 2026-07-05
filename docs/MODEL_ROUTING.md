@@ -65,7 +65,8 @@ before re-deriving this from scratch.
 | ~~M15 remaining 12-caps~~ (8): King of the Hill, Meteor Shower, Musical Platforms, Poison Feast, Relay Sprint, Snake Chain, Thin Ice, Treasure Divers | ✅ done — all at `max_players: 12` |
 | ~~M12-02~~ `play_sfx` adoption sweep | ✅ done (#482) |
 | ~~M14-05~~ Ro-Sham-Bo Royale (S) | ✅ done (#507) |
-| **M16-04** lobby · **M16-05** character select · **M16-06** settings+credits · **M16-10** error/edge chrome (S/M) | ⛔ blocked — needs M16-01 (design system); M16-04/05/06/10 also want the M16-03 exemplar first |
+| **M16-04** lobby · **M16-05** character select · **M16-10** error/edge chrome (S/M) | ✅ M16-01/03 landed, unblocked and unclaimed |
+| ~~M16-06~~ settings+credits (S) | ✅ done (#524) |
 | **M16-12** per-minigame key art (M) | ⛔ blocked — needs M16-07's card slot |
 | ~~Epic #256~~ (M13 tracking issue) | ✅ closed |
 | ~~#467~~ cache per-tick alive set | ✅ closed |
