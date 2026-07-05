@@ -2,6 +2,8 @@ extends Control
 ## In-match chrome (M3-04): intro card with ready-skip, phase timer, running
 ## coin totals, and the round results panel. A pure renderer of match events
 ## and snapshots — the only thing it ever sends is the intro skip vote.
+## M16-08: the always-on HUD (timer, game name, score-strip pills, emote feed)
+## is themed via PartyTheme; the results/standings surface is M16-09's.
 ## The minigame view itself mounts into %PlayArea (M3-06); leaderboard and
 ## podium get dedicated scenes (M3-05), rendered here as simple lists so the
 ## full loop is visible meanwhile.
@@ -180,6 +182,13 @@ func _on_emote_received(slot: int, emote: int) -> void:
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	toast.add_theme_color_override("font_color", PlayerPalette.color_for_slot(slot))
 	_emote_feed.add_child(toast)
+	# Each toast fades in as it drops into the feed (M16-08); reduced motion
+	# (M12-03) shows it at rest.
+	if not ArenaFX.reduced_motion:
+		toast.modulate.a = 0.0
+		var tween := toast.create_tween()
+		tween.set_trans(PartyTheme.TRANS_DEFAULT).set_ease(PartyTheme.EASE_DEFAULT)
+		tween.tween_property(toast, "modulate:a", 1.0, PartyTheme.DUR_FAST)
 	get_tree().create_timer(emote_lifetime).timeout.connect(toast.queue_free)
 
 
@@ -191,6 +200,7 @@ func _build_emote_bar() -> void:
 		button.focus_mode = Control.FOCUS_NONE
 		button.pressed.connect(func() -> void: NetManager.request_send_emote(i))
 		_emote_bar.add_child(button)
+		ButtonMotion.attach(button)
 
 
 func _show_intro(event: Dictionary) -> void:
@@ -397,6 +407,8 @@ func _fly_coins(awards: Dictionary) -> void:
 		var coin := Label.new()
 		coin.name = "CoinFly%d" % slot
 		coin.text = "+%d" % int(awards[slot])
+		# The chunky display face makes the +N read as it flies (M16-08).
+		coin.theme_type_variation = &"HeaderLabel"
 		coin.add_theme_color_override("font_color", PlayerPalette.color_for_slot(slot))
 		add_child(coin)
 		var offset := _coin_grid_offset(placed, earners.size(), size.x)
@@ -438,10 +450,26 @@ func _rebuild_totals_row() -> void:
 	var slots: Array = _names.keys()
 	slots.sort()
 	for slot: int in slots:
-		var chip := Label.new()
-		chip.text = "%s %d" % [MatchFormat.player_name(_names, slot), int(_totals.get(slot, 0))]
-		chip.add_theme_color_override("font_color", PlayerPalette.color_for_slot(slot))
-		_totals_row.add_child(chip)
+		_totals_row.add_child(_make_total_chip(slot))
+
+
+## A compact themed score pill (M16-08): "P# N" in the player's color on a
+## small raised background, so 24 running totals stay scannable at a glance.
+func _make_total_chip(slot: int) -> PanelContainer:
+	var pill := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = PartyTheme.BG_RAISED
+	style.set_corner_radius_all(PartyTheme.RADIUS_SM)
+	style.content_margin_left = PartyTheme.SPACE_SM
+	style.content_margin_right = PartyTheme.SPACE_SM
+	style.content_margin_top = PartyTheme.SPACE_XS
+	style.content_margin_bottom = PartyTheme.SPACE_XS
+	pill.add_theme_stylebox_override(&"panel", style)
+	var chip := Label.new()
+	chip.text = "%s %d" % [MatchFormat.player_name(_names, slot), int(_totals.get(slot, 0))]
+	chip.add_theme_color_override(&"font_color", PlayerPalette.color_for_slot(slot))
+	pill.add_child(chip)
+	return pill
 
 
 func _fill_list(list: VBoxContainer, lines: Array[String]) -> void:
