@@ -170,9 +170,7 @@ func test_grass_is_slower_than_track() -> void:
 		kart.pos = Vector2.ZERO  # stay on grass regardless of motion
 		game.tick(TICK)
 	assert_lte(
-		float(kart.speed),
-		TurboLap.MAX_SPEED * TurboLap.OFFTRACK_GRIP + 0.1,
-		"grass caps the speed"
+		float(kart.speed), TurboLap.MAX_SPEED * TurboLap.OFFTRACK_GRIP + 0.1, "grass caps the speed"
 	)
 
 
