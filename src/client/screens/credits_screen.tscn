@@ -26,15 +26,19 @@ theme_override_constants/separation = 12
 
 [node name="Title" type="Label" parent="Center/Column"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
+theme_type_variation = &"TitleLabel"
 text = "Credits"
 horizontal_alignment = 1
 
-[node name="Scroll" type="ScrollContainer" parent="Center/Column"]
+[node name="ListCard" type="PanelContainer" parent="Center/Column"]
+layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="Scroll" type="ScrollContainer" parent="Center/Column/ListCard"]
 custom_minimum_size = Vector2(0, 380)
 layout_mode = 2
 
-[node name="CreditsList" type="VBoxContainer" parent="Center/Column/Scroll"]
+[node name="CreditsList" type="VBoxContainer" parent="Center/Column/ListCard/Scroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3

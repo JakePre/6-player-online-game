@@ -3,7 +3,7 @@ extends Control
 ## server address override for self-hosters. M12-03 adds accessibility:
 ## colorblind-friendly colors, a reduced-motion toggle, and keyboard
 ## rebinding. Changes apply live and persist immediately via SettingsStore;
-## Back returns to the main menu.
+## Back returns to the main menu. M16-06: each section is a themed CardPanel.
 
 ## Picked up by the app shell router (see AppShell.goto_screen).
 signal navigate(screen: StringName)
@@ -61,6 +61,7 @@ func _ready() -> void:
 	_port_edit.text_changed.connect(func(_text: String) -> void: _apply_and_save())
 	_back_button.pressed.connect(func() -> void: navigate.emit(&"main_menu"))
 	_back_button.grab_focus()
+	ButtonMotion.attach(_back_button)
 
 
 func _build_keybind_rows() -> void:
