@@ -1,16 +1,25 @@
 extends GutTest
-## Musical Platforms client view (M10-02): renders replicated snapshots in
-## the shared iso-arena without simulating anything locally.
+## Musical Platforms client view (M10-02, M15 12-cap): renders replicated
+## snapshots in the shared iso-arena without simulating anything locally.
 
 const VIEW_SCENE := preload("res://src/minigames/musical_platforms/musical_platforms_view.tscn")
 
 var view: MinigameView
 
 
+## The platform pool is sized to `names.size() - 1` at _setup_3d() (#457: it
+## used to be a fixed 5, silently dropping platforms past that). Four named
+## players here gives a pool of three (Platform0..2), matching the tests
+## below that render up to three platforms.
 func before_each() -> void:
-	view = VIEW_SCENE.instantiate()
-	add_child_autofree(view)
-	view.setup({0: "Alice", 1: "Bob"}, 0)
+	view = _new_view({0: "Alice", 1: "Bob", 2: "Carol", 3: "Dave"})
+
+
+func _new_view(names: Dictionary) -> MinigameView:
+	var instance: MinigameView = VIEW_SCENE.instantiate()
+	add_child_autofree(instance)
+	instance.setup(names, 0)
+	return instance
 
 
 func test_view_scene_lives_at_catalog_path() -> void:
@@ -26,14 +35,12 @@ func test_view_scene_lives_at_catalog_path() -> void:
 ## same formula the sim uses, so the rendered arena matches the scaled one.
 func test_arena_half_scales_with_lobby_size() -> void:
 	assert_almost_eq(
-		view._arena_half(), MusicalPlatforms.ARENA_HALF, 0.001, "2 players = base arena"
+		view._arena_half(), MusicalPlatforms.ARENA_HALF, 0.001, "<=6 players = base arena"
 	)
-	var big: MinigameView3D = VIEW_SCENE.instantiate()
-	add_child_autofree(big)
 	var names := {}
 	for i in 12:
 		names[i] = "P%d" % (i + 1)
-	big.setup(names, 0)
+	var big := _new_view(names)
 	assert_gt(big._arena_half(), MusicalPlatforms.ARENA_HALF, "12 players get a bigger floor")
 
 
@@ -69,6 +76,27 @@ func test_platforms_show_free_and_claimed_colors() -> void:
 	assert_false(view.arena.get_node("Platform2").visible)
 	view.render({"players": {}, "phase": MusicalPlatforms.Phase.MUSIC, "platforms": []})
 	assert_false(free_node.visible, "platforms clear when the music restarts")
+
+
+## #457: the pool used to be a fixed 5 regardless of lobby size, so an
+## 11-platform scramble at 12 players silently dropped six of them. The pool
+## now sizes to "players - 1" — the most a first scramble ever needs.
+func test_platform_pool_scales_to_the_lobby_size() -> void:
+	var names := {}
+	for i in 12:
+		names[i] = "P%d" % i
+	var big := _new_view(names)
+	big.render(
+		{
+			"players": {},
+			"phase": MusicalPlatforms.Phase.STOP,
+			"platforms": range(11).map(func(i: int) -> Array: return [float(i), 0.0, -1]),
+			"fallen": []
+		}
+	)
+	for i in 11:
+		assert_true(big.arena.get_node("Platform%d" % i).visible, "platform %d renders" % i)
+	assert_null(big.arena.get_node_or_null("Platform11"), "no extra pool nodes past the true max")
 
 
 func test_downed_player_collapses_and_shake_fires_once_seeded() -> void:
