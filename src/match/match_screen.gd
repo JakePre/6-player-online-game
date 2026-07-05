@@ -21,6 +21,12 @@ const COIN_FLY_SEC := 0.6
 ## so nothing runs off-screen at up to 24 players.
 const COIN_GRID_SPACING := Vector2(80.0, 30.0)
 const RESULTS_MAX_ROWS := 12
+## Intro-card key art (M16-07): the styled text fallback shows until a file
+## lands here for the round's minigame. M16-12 batches these image requests;
+## dropping `<id>.png` in this dir lights the slot up with no code change.
+const KEY_ART_DIR := "res://assets/generated/keyart/"
+## The inter-round wipe covers this fraction of the screen width as a band.
+const WIPE_BAND_FRACTION := 0.4
 
 ## Seconds an emote stays in the feed; tests shorten it.
 var emote_lifetime := 3.0
@@ -43,6 +49,7 @@ var _countdown_digit := 0
 @onready var _play_area: Control = %PlayArea
 @onready var _play_placeholder: Label = %PlayPlaceholder
 @onready var _intro_card: PanelContainer = %IntroCard
+@onready var _intro_key_art: TextureRect = %IntroKeyArt
 @onready var _intro_title: Label = %IntroTitle
 @onready var _intro_category: Label = %IntroCategory
 @onready var _intro_rules: Label = %IntroRules
@@ -56,6 +63,7 @@ var _countdown_digit := 0
 @onready var _standings_panel: StandingsPanel = %StandingsPanel
 @onready var _emote_bar: HBoxContainer = %EmoteBar
 @onready var _emote_feed: VBoxContainer = %EmoteFeed
+@onready var _transition_wipe: ColorRect = %TransitionWipe
 
 
 func _ready() -> void:
@@ -84,6 +92,8 @@ func _on_match_event(event: Dictionary) -> void:
 			_totals.clear()
 			_rebuild_totals_row()
 		"round_intro":
+			# A wipe punctuates the move into each round (M16-07).
+			_play_transition_wipe()
 			_unmount_view()
 			_minigame_id = event.minigame.id
 			_round_view_flags = event.get("mutator", {}).get("view_flags", [])
@@ -189,6 +199,7 @@ func _show_intro(event: Dictionary) -> void:
 	_minigame_name = String(minigame.name)
 	_game_name_label.text = _minigame_name
 	_intro_title.text = minigame.name
+	_apply_key_art(String(minigame.id))
 	_intro_category.text = MatchFormat.category_name(int(minigame.category))
 	_intro_rules.text = minigame.rules
 	# Control hints (M6-04); older servers may not send the key yet.
@@ -217,12 +228,53 @@ func _update_countdown(time_left: float) -> void:
 	if digit != _countdown_digit:
 		_countdown_digit = digit
 		_countdown_label.text = str(digit)
+		_pop_countdown()
 		AudioManager.play_sfx(&"tick")
 
 
 func _hide_countdown() -> void:
 	_countdown_label.visible = false
 	_countdown_digit = 0
+
+
+## Each countdown digit punches in (M16-07). Reduced-motion (M12-03) shows the
+## digit at rest instead of scaling it.
+func _pop_countdown() -> void:
+	if ArenaFX.reduced_motion:
+		return
+	_countdown_label.pivot_offset = _countdown_label.size / 2.0
+	_countdown_label.scale = Vector2(1.35, 1.35)
+	var tween := create_tween()
+	tween.set_trans(PartyTheme.TRANS_OVERSHOOT).set_ease(PartyTheme.EASE_DEFAULT)
+	tween.tween_property(_countdown_label, "scale", Vector2.ONE, PartyTheme.DUR_MED)
+
+
+## A coin-gold band sweeps across between rounds (M16-07). Reduced-motion
+## (M12-03) skips it — no cover, no sweep.
+func _play_transition_wipe() -> void:
+	if ArenaFX.reduced_motion:
+		return
+	var band_w := size.x * WIPE_BAND_FRACTION
+	_transition_wipe.size = Vector2(band_w, size.y)
+	_transition_wipe.position = Vector2(-band_w, 0.0)
+	_transition_wipe.visible = true
+	var tween := create_tween()
+	tween.set_trans(PartyTheme.TRANS_DEFAULT).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(_transition_wipe, "position:x", size.x, PartyTheme.DUR_SLOW)
+	tween.tween_callback(func() -> void: _transition_wipe.visible = false)
+
+
+## The intro card's key-art slot (M16-07): shows `<id>.png` from KEY_ART_DIR if
+## one has been delivered (M16-12), otherwise stays hidden so the styled text
+## lockup is the fallback.
+func _apply_key_art(id: String) -> void:
+	var path := KEY_ART_DIR + id + ".png"
+	if not id.is_empty() and ResourceLoader.exists(path):
+		_intro_key_art.texture = load(path)
+		_intro_key_art.visible = true
+	else:
+		_intro_key_art.texture = null
+		_intro_key_art.visible = false
 
 
 ## Winners hear the win jingle; everyone else the consolation one.
