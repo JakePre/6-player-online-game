@@ -108,6 +108,47 @@ func test_mutator_pool_locked_once_match_started() -> void:
 	MutatorCatalog.clear()
 
 
+func _register_test_minigames() -> void:
+	MinigameCatalog.clear()
+	MinigameCatalog.register(MinigameMeta.create({"id": &"game_a"}), MinigameBase)
+	MinigameCatalog.register(MinigameMeta.create({"id": &"game_b"}), MinigameBase)
+
+
+func test_excluded_game_ids_defaults_empty_and_replicates() -> void:
+	var room := _room_with(2)
+	assert_eq(room.excluded_game_ids, [] as Array[StringName])
+	assert_eq(room.to_state_dict().excluded_game_ids, [])
+
+
+func test_excluded_game_ids_keeps_only_known_ids_deduped() -> void:
+	_register_test_minigames()
+	var room := _room_with(2)
+	assert_true(room.set_excluded_game_ids(["game_a", "bogus", "game_a"]))
+	assert_eq(room.excluded_game_ids, [&"game_a"] as Array[StringName])
+	assert_eq(room.to_state_dict().excluded_game_ids, [&"game_a"])
+	assert_true(room.set_excluded_game_ids([]), "clearing the set is allowed")
+	assert_eq(room.excluded_game_ids, [] as Array[StringName])
+	MinigameCatalog.clear()
+
+
+func test_excluded_game_ids_rejects_set_that_leaves_nothing_eligible() -> void:
+	_register_test_minigames()
+	var room := _room_with(2)
+	assert_false(room.set_excluded_game_ids(["game_a", "game_b"]))
+	assert_eq(room.excluded_game_ids, [] as Array[StringName], "rejected call leaves set untouched")
+	assert_true(room.set_excluded_game_ids(["game_a"]), "excluding only one of two is still fine")
+	MinigameCatalog.clear()
+
+
+func test_excluded_game_ids_locked_once_match_started() -> void:
+	_register_test_minigames()
+	var room := _room_with(2)
+	room.state = Room.State.IN_MATCH
+	assert_false(room.set_excluded_game_ids(["game_a"]))
+	assert_eq(room.excluded_game_ids, [] as Array[StringName])
+	MinigameCatalog.clear()
+
+
 func test_cannot_start_alone() -> void:
 	var room := _room_with(1)
 	_ready_all(room)

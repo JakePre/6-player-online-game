@@ -133,6 +133,33 @@ func test_explicit_playlist_skips_build_playlist_for_a_single_player() -> void:
 	assert_eq(events[1].minigame.id, "slot_order")
 
 
+## #572: when no explicit playlist is supplied, the controller must build one
+## from the room's host-curated exclusion set — never drafting an excluded
+## game even though it is otherwise eligible.
+func test_build_playlist_path_honours_room_excluded_game_ids() -> void:
+	MinigameCatalog.register(MinigameMeta.create({"id": &"other_game"}), SlotOrderGame)
+	var room := _make_room(2)
+	assert_true(room.set_excluded_game_ids(["other_game"]))
+	var controller := (
+		MatchController
+		. new(
+			room,
+			{
+				"seed": 7,
+				"rounds": 4,
+				"intro_sec": 0.1,
+				"results_sec": 0.1,
+				"leaderboard_sec": 0.1,
+				"podium_sec": 0.1,
+				"duration_override": 0.1,
+				"finale": false,
+			}
+		)
+	)
+	for id: StringName in controller.playlist:
+		assert_eq(id, &"slot_order", "excluded game must never be drafted")
+
+
 func test_start_resets_scores_and_enters_intro() -> void:
 	var room := _make_room(3)
 	room.members[0].score = 99
