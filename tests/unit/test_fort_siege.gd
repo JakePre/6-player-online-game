@@ -29,11 +29,50 @@ func test_meta_catalog_and_even_rule() -> void:
 	var meta := FortSiege.make_meta()
 	assert_eq(meta.id, &"fort_siege")
 	assert_eq(meta.category, MinigameMeta.Category.TEAM)
+	assert_eq(meta.max_players, 12)
 	assert_true(meta.even_players, "never drafted at 3 or 5 (#178)")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"fort_siege") is FortSiege)
 	MinigameCatalog.clear()
+
+
+## No-crowd fairness (M15 12-cap, ADR 003 addendum): 6v6 splits evenly and
+## every spawn stays within the arena — the gate/core mechanics have zero
+## exclusivity (more attackers only ever helps, never contends), so the only
+## real constraint is spawn geometry.
+func test_setup_splits_six_v_six_within_arena_at_twelve_players() -> void:
+	var player_slots: Array[int] = []
+	for i in 12:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	assert_eq((game.teams[0] as Array).size(), 6)
+	assert_eq((game.teams[1] as Array).size(), 6)
+	for slot in 12:
+		var pos: Vector2 = game.positions[slot]
+		assert_lt(absf(pos.x), FortSiege.ARENA_HALF, "spawn row stays inside the arena")
+
+
+## The gate-battering mechanic has no per-node cap: every attacker touching
+## the gate contributes, so a full team of 6 batters strictly faster than a
+## team of 2.
+func test_more_attackers_batter_the_gate_faster() -> void:
+	var small := _game([0, 1, 2, 3] as Array[int])  # 2v2
+	for raider: int in small.teams[small.attacking]:
+		small.positions[raider] = Vector2(0.0, FortSiege.GATE_Y)
+	small.tick(TICK)
+	var small_damage := FortSiege.GATE_MAX_HP - small.gate_hp
+
+	var player_slots: Array[int] = []
+	for i in 12:
+		player_slots.append(i)
+	var big := _game(player_slots)  # 6v6
+	for raider: int in big.teams[big.attacking]:
+		big.positions[raider] = Vector2(0.0, FortSiege.GATE_Y)
+	big.tick(TICK)
+	var big_damage := FortSiege.GATE_MAX_HP - big.gate_hp
+
+	assert_gt(big_damage, small_damage, "a full 6-attacker team batters faster than 2")
 
 
 func test_setup_walls_attackers_out() -> void:
