@@ -103,6 +103,22 @@ func test_manual_retry_after_giving_up_starts_over() -> void:
 	assert_false(overlay.get_node("%RetryTimer").is_stopped())
 
 
+## M16-10: giving up reads as an error (DANGER); a fresh attempt clears it back
+## to the theme's default DimLabel color.
+func test_giving_up_colors_the_detail_as_an_error() -> void:
+	overlay.begin(SESSION)
+	for i in range(overlay.RETRY_DELAYS_SEC.size() - 1):
+		NetManager.connection_failed.emit()
+		overlay.get_node("%RetryTimer").timeout.emit()
+	NetManager.connection_failed.emit()
+	var detail: Label = overlay.get_node("%Detail")
+	assert_eq(detail.get_theme_color(&"font_color"), PartyTheme.DANGER)
+	overlay.get_node("%RetryButton").pressed.emit()
+	assert_false(
+		detail.has_theme_color_override(&"font_color"), "a new attempt clears the error tint"
+	)
+
+
 func test_refused_rejoin_is_terminal() -> void:
 	overlay.begin(SESSION)
 	NetManager.connected_to_server.emit()

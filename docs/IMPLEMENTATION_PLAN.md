@@ -218,7 +218,7 @@ Every surface the player sees gets a real visual design pass. M6-04 made the UI 
 - [x] **M16-07** (M) Match chrome: intro cards with a key-art slot (styled text fallback until art lands), countdown treatment, round interstitials, transition wipes between rounds ⛓ M16-01
 - [ ] **M16-08** (M) In-match HUD: timer, score strip, emote bar, coin-fly polish, toast positioning — legible at a glance from 24-player chaos ⛓ M16-01
 - [ ] **M16-09** (M) Results & celebration: results panel, leaderboard rows, podium scene dressing, series scoreboard, champion screen ⛓ M16-01
-- [ ] **M16-10** (S) Error/edge chrome: toasts, reconnect overlay, connecting/waiting states, version-mismatch + room-full screens — the unhappy paths deserve the same polish ⛓ M16-01
+- [x] **M16-10** (S) Error/edge chrome: toasts, reconnect overlay, connecting/waiting states, version-mismatch + room-full screens — the unhappy paths deserve the same polish ⛓ M16-01
 - [ ] **M16-11** (M) Finale chrome: Gauntlet intro treatment, elimination/grudge banners, winner sequence ⛓ M16-01
 - [ ] **M16-12** (M) Per-minigame key art: batch image requests for intro-card art across the full roster (M14 games add theirs in their own PRs); every card ships with the M16-07 styled fallback first ⛓ M16-07
 - [ ] **M16-13** (S) Consistency audit: final sweep of every surface for unthemed controls, default-Godot gray, stray spacing/type inconsistencies; fix on sight ⛓ all of M16-02..12

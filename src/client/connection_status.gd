@@ -23,6 +23,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_label.text = _status_text()
+	_label.add_theme_color_override(&"font_color", _status_color())
 
 
 func _on_ping_timer() -> void:
@@ -40,6 +41,18 @@ func _status_text() -> String:
 			return "Online"
 		_:
 			return "Offline"
+
+
+## M16-10: SUCCESS while online, DANGER while offline; connecting stays the
+## theme's default text color (a transient state, not yet good or bad).
+func _status_color() -> Color:
+	match _connection_status():
+		MultiplayerPeer.CONNECTION_CONNECTED:
+			return PartyTheme.SUCCESS
+		MultiplayerPeer.CONNECTION_CONNECTING:
+			return PartyTheme.TEXT
+		_:
+			return PartyTheme.DANGER
 
 
 func _connection_status() -> MultiplayerPeer.ConnectionStatus:

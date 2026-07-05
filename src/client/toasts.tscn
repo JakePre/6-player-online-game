@@ -26,5 +26,6 @@ offset_right = -16.0
 offset_bottom = -16.0
 grow_horizontal = 0
 grow_vertical = 0
+theme_override_constants/separation = 8
 mouse_filter = 2
 alignment = 2

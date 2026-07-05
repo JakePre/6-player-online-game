@@ -34,6 +34,15 @@ func test_toast_expires_after_its_duration() -> void:
 	assert_eq(toasts.toast_count(), 0)
 
 
+## M16-10: toasts are always refusal/disconnect notices — the DANGER accent.
+func test_toast_uses_the_danger_accent() -> void:
+	toasts.show_toast("Connection to the server was lost.")
+	var card: PanelContainer = toasts.get_node("%Stack").get_child(0)
+	assert_eq(card.theme_type_variation, &"CardPanel")
+	var label: Label = card.get_child(0)
+	assert_eq(label.get_theme_color(&"font_color"), PartyTheme.DANGER)
+
+
 func test_join_failure_text_covers_every_result() -> void:
 	for result: int in NetConfig.JoinResult.values():
 		if result == NetConfig.JoinResult.OK:

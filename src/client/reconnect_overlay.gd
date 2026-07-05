@@ -57,6 +57,7 @@ func _start_attempt() -> void:
 	_attempt += 1
 	_state = State.CONNECTING
 	_retry_button.visible = false
+	_detail.remove_theme_color_override(&"font_color")
 	_update_detail()
 	# Drop any half-dead peer before dialing again.
 	disconnect_func.call()
@@ -114,6 +115,8 @@ func _fail(text: String) -> void:
 	_retry_timer.stop()
 	_retry_button.visible = true
 	_detail.text = text
+	# A give-up state reads as an error, unlike the DimLabel "still trying" text.
+	_detail.add_theme_color_override(&"font_color", PartyTheme.DANGER)
 
 
 func _close(rejoined: bool) -> void:
