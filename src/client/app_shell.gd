@@ -17,6 +17,7 @@ const ROOM_SCREENS: Array[StringName] = [&"room", &"match"]
 
 var _current_screen: Node
 var _current_id := &""
+var _transition: ScreenTransition
 
 @onready var _screen_host: Control = $ScreenHost
 @onready var _reconnect_overlay: Control = $ReconnectOverlay
@@ -26,6 +27,10 @@ var _current_id := &""
 func _ready() -> void:
 	# One shared theme at the root (M6-04); every screen inherits it.
 	theme = PartyTheme.build()
+	# Shared screen-change transition (M16-02); added last so its cover sits
+	# above the mounted screens during a reveal.
+	_transition = ScreenTransition.new()
+	add_child(_transition)
 	SettingsStore.apply(SettingsStore.load_settings(), get_window())
 	NetManager.joined_room.connect(_on_joined_room)
 	NetManager.room_updated.connect(_on_room_updated)
@@ -42,6 +47,9 @@ func _ready() -> void:
 
 func goto_screen(id: StringName) -> void:
 	assert(SCREENS.has(id), "Unknown screen id: %s" % id)
+	# The very first mount (boot -> menu) swaps with no transition, so launch
+	# has no dark flash; every later change reveals from behind the cover.
+	var animate := _current_screen != null
 	if _current_screen != null:
 		_current_screen.queue_free()
 	var scene_path: String = SCREENS[id]
@@ -54,6 +62,8 @@ func goto_screen(id: StringName) -> void:
 	_screen_host.add_child(_current_screen)
 	_current_id = id
 	AudioManager.play_music(&"round" if id == &"match" else &"menu")
+	if animate and _transition != null:
+		_transition.reveal()
 
 
 func _on_joined_room(_code: String, _slot: int, _token: String) -> void:
