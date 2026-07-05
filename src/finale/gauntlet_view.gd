@@ -16,6 +16,15 @@ const HAZARD_FX_COLOR := Color(0.95, 0.35, 0.2)
 const CRUMBLE_PUFFS := 6
 const FX_LIFT := PLATFORM_THICKNESS + 0.1
 
+## Finale chrome (M16-11): themed intro treatment, elimination/grudge callout
+## banners, and a champion sequence — presentation-only, built on the M16-01
+## design system and honouring ArenaFX.reduced_motion. Lives on its own
+## CanvasLayer above the shared banner band.
+const CHROME_LAYER := 6
+const INTRO_HOLD_SEC := 2.2
+const BANNER_HOLD_SEC := 1.7
+const WINNER_HOLD_SEC := 4.5
+
 ## Latest replicated state, straight from Gauntlet.get_snapshot().
 var radius := Gauntlet.START_RADIUS
 var players := {}
@@ -36,6 +45,18 @@ var _last_lives := {}  # slot -> lives (fall/KO burst)
 var _grudge_target := -1
 var _grudge_spent := false
 var _grudge_prompt: Label
+
+## Finale chrome nodes (M16-11).
+var _chrome: CanvasLayer
+var _intro_box: VBoxContainer
+var _intro_title: Label
+var _intro_sub: Label
+var _event_banner: PanelContainer
+var _event_label: Label
+var _intro_tween: Tween
+var _event_tween: Tween
+var _intro_done := false
+var _winner_shown := false
 
 
 func _physics_process(_delta: float) -> void:
@@ -131,6 +152,7 @@ func _fire_grudge() -> void:
 	var state: Array = players[_grudge_target]
 	NetManager.send_match_input({"grudge": [state[0], state[1]]})
 	_grudge_spent = true
+	_show_event("GRUDGE!  → %s" % player_name(_grudge_target), PartyTheme.DANGER)
 	_update_grudge_prompt()
 
 
@@ -176,8 +198,10 @@ func _setup_3d() -> void:
 
 	_grudge_prompt = Label.new()
 	_grudge_prompt.name = "GrudgePrompt"
-	_grudge_prompt.add_theme_font_size_override(&"font_size", 30)
-	_grudge_prompt.add_theme_color_override(&"font_color", HAZARD_FX_COLOR)
+	_grudge_prompt.add_theme_font_override(&"font", PartyTheme.FONT_DISPLAY)
+	_grudge_prompt.add_theme_font_size_override(&"font_size", PartyTheme.SIZE_HEADER)
+	_grudge_prompt.add_theme_color_override(&"font_color", PartyTheme.ACCENT_BRIGHT)
+	_grudge_prompt.add_theme_stylebox_override(&"normal", _chrome_panel(PartyTheme.DANGER))
 	_grudge_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_grudge_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_grudge_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -185,11 +209,18 @@ func _setup_3d() -> void:
 	_grudge_prompt.visible = false
 	add_child(_grudge_prompt)
 
+	_build_chrome()
+
 
 func _render_3d(game: Dictionary) -> void:
 	radius = float(game.get("radius", Gauntlet.START_RADIUS))
 	players = game.get("players", {})
 	hazards = game.get("hazards", [])
+	# The Gauntlet intro treatment flashes once, the instant the finale starts
+	# replicating (M16-11).
+	if not _intro_done:
+		_intro_done = true
+		_flash_intro()
 	_platform_mesh.top_radius = radius
 	_platform_mesh.bottom_radius = radius
 	# The platform shrinks in stages; each step sheds a rim, so crumble it away.
@@ -199,6 +230,7 @@ func _render_3d(game: Dictionary) -> void:
 	_update_players()
 	_update_hazards()
 	_update_grudge_prompt()
+	_check_winner()
 
 
 func _update_players() -> void:
@@ -208,11 +240,15 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		var lives := int(state[2])
+		var prev_lives := int(_last_lives.get(slot, lives))
 		# Fall/KO burst where a player was standing the instant they lose a life.
-		if lives < int(_last_lives.get(slot, lives)):
+		if lives < prev_lives:
 			fx_burst(
 				Vector2(rig.position.x, rig.position.z), HAZARD_FX_COLOR, PLATFORM_THICKNESS + 0.5
 			)
+			# Losing the last life is a finale elimination — call it out (M16-11).
+			if lives == 0:
+				_show_event("%s ELIMINATED" % player_name(slot), PartyTheme.DANGER)
 		_last_lives[slot] = lives
 		var respawning := float(state[3]) > 0.0
 		rig.visible = lives > 0 and not respawning
@@ -267,3 +303,145 @@ func _update_hazards() -> void:
 		if not current_keys.has(key):
 			fx_burst(_last_hazard_keys[key], HAZARD_FX_COLOR, FX_LIFT)
 	_last_hazard_keys = current_keys
+
+
+# --- Finale chrome (M16-11) ---------------------------------------------------
+
+
+## Builds the finale chrome overlay: a centered intro card and a top event
+## banner, both hidden until triggered. Themed with the M16-01 design system.
+func _build_chrome() -> void:
+	_chrome = CanvasLayer.new()
+	_chrome.name = "FinaleChrome"
+	_chrome.layer = CHROME_LAYER
+	add_child(_chrome)
+
+	_intro_box = VBoxContainer.new()
+	_intro_box.name = "IntroCard"
+	_intro_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_intro_box.set_anchors_preset(Control.PRESET_CENTER)
+	_intro_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_intro_box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_intro_box.add_theme_constant_override(&"separation", PartyTheme.SPACE_XS)
+	_intro_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_intro_box.visible = false
+	_chrome.add_child(_intro_box)
+	_intro_title = _styled_label(
+		PartyTheme.FONT_DISPLAY, PartyTheme.SIZE_DISPLAY, PartyTheme.ACCENT_BRIGHT
+	)
+	_intro_title.name = "IntroTitle"
+	_intro_box.add_child(_intro_title)
+	_intro_sub = _styled_label(PartyTheme.FONT_BODY, PartyTheme.SIZE_HEADER, PartyTheme.TEXT)
+	_intro_sub.name = "IntroSub"
+	_intro_box.add_child(_intro_sub)
+
+	_event_banner = PanelContainer.new()
+	_event_banner.name = "EventBanner"
+	_event_banner.add_theme_stylebox_override(&"panel", _chrome_panel(PartyTheme.ACCENT))
+	_event_banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_event_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_event_banner.position.y = 90.0
+	_event_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_event_banner.visible = false
+	_chrome.add_child(_event_banner)
+	_event_label = _styled_label(PartyTheme.FONT_DISPLAY, PartyTheme.SIZE_TITLE, PartyTheme.TEXT)
+	_event_label.name = "EventLabel"
+	_event_banner.add_child(_event_label)
+
+
+## A semi-opaque themed panel keyed to an accent border colour.
+func _chrome_panel(accent: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(PartyTheme.BG_DARK, 0.92)
+	box.set_border_width_all(2)
+	box.border_color = accent
+	box.set_corner_radius_all(PartyTheme.RADIUS_MD)
+	box.content_margin_left = PartyTheme.SPACE_LG
+	box.content_margin_right = PartyTheme.SPACE_LG
+	box.content_margin_top = PartyTheme.SPACE_SM
+	box.content_margin_bottom = PartyTheme.SPACE_SM
+	return box
+
+
+func _styled_label(font: Font, size: int, color: Color) -> Label:
+	var label := Label.new()
+	label.add_theme_font_override(&"font", font)
+	label.add_theme_font_size_override(&"font_size", size)
+	label.add_theme_color_override(&"font_color", color)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
+
+## Flashes "THE GAUNTLET" once as the finale begins replicating.
+func _flash_intro() -> void:
+	if _intro_box == null:
+		return
+	_intro_title.text = "THE GAUNTLET"
+	_intro_sub.text = "Last one standing takes the crown"
+	if _intro_tween != null and _intro_tween.is_valid():
+		_intro_tween.kill()
+	_intro_tween = _reveal(_intro_box, INTRO_HOLD_SEC)
+
+
+## Pops a themed top banner (elimination / grudge) in `color`.
+func _show_event(text: String, color: Color) -> void:
+	if _event_banner == null:
+		return
+	_event_label.text = text
+	_event_label.add_theme_color_override(&"font_color", color)
+	_event_banner.add_theme_stylebox_override(&"panel", _chrome_panel(color))
+	if _event_tween != null and _event_tween.is_valid():
+		_event_tween.kill()
+	_event_tween = _reveal(_event_banner, BANNER_HOLD_SEC)
+
+
+## Once one blob is left standing, crown it — a gold banner plus a burst at the
+## arena center. Fires at most once per finale.
+func _check_winner() -> void:
+	if _winner_shown or players.size() < 2:
+		return
+	var standing := -1
+	var count := 0
+	for slot: int in players:
+		if int((players[slot] as Array)[2]) > 0:
+			count += 1
+			standing = slot
+	if count != 1:
+		return
+	_winner_shown = true
+	_event_label.text = "CHAMPION\n%s" % player_name(standing)
+	_event_label.add_theme_color_override(&"font_color", PartyTheme.ACCENT_BRIGHT)
+	_event_banner.add_theme_stylebox_override(&"panel", _chrome_panel(PartyTheme.ACCENT_BRIGHT))
+	if _event_tween != null and _event_tween.is_valid():
+		_event_tween.kill()
+	_event_tween = _reveal(_event_banner, WINNER_HOLD_SEC)
+	fx_burst(Vector2.ZERO, PartyTheme.ACCENT_BRIGHT, PLATFORM_THICKNESS + 1.0)
+
+
+## Reveals `node` for `hold` seconds then hides it. With reduced motion it just
+## appears and holds; otherwise it fades in and out on the shared motion tokens.
+func _reveal(node: Control, hold: float) -> Tween:
+	node.visible = true
+	if not is_inside_tree() or ArenaFX.reduced_motion:
+		node.modulate.a = 1.0
+		_hide_after(node, hold)
+		return null
+	node.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(node, "modulate:a", 1.0, PartyTheme.DUR_MED)
+	tween.tween_interval(hold)
+	tween.tween_property(node, "modulate:a", 0.0, PartyTheme.DUR_SLOW)
+	tween.tween_callback(_hide_node.bind(node))
+	return tween
+
+
+func _hide_after(node: Control, hold: float) -> void:
+	if not is_inside_tree():
+		return
+	get_tree().create_timer(hold).timeout.connect(_hide_node.bind(node))
+
+
+func _hide_node(node: Control) -> void:
+	if is_instance_valid(node):
+		node.visible = false
