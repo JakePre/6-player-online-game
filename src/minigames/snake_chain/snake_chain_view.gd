@@ -22,7 +22,8 @@ func _physics_process(_delta: float) -> void:
 
 
 func _arena_half() -> float:
-	return SnakeChain.ARENA_HALF
+	# Frame the scaled arena (ADR 003) — `names` is set before setup runs.
+	return SnakeChain.arena_half_for(names.size())
 
 
 func _setup_3d() -> void:
@@ -35,7 +36,8 @@ func _setup_3d() -> void:
 	pellet_material.emission = PELLET_COLOR
 	pellet_material.emission_energy_multiplier = 0.5
 	pellet_mesh.material = pellet_material
-	for i in SnakeChain.MAX_ACTIVE_PELLETS + 6:
+	# Pool covers the scaled steady-state supply plus the crash-spill headroom.
+	for i in SnakeChain.max_pellets_for(names.size()) + SnakeChain.SPILL_HEADROOM:
 		var node := MeshInstance3D.new()
 		node.mesh = pellet_mesh
 		node.visible = false
