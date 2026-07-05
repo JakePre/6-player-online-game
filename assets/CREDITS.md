@@ -30,6 +30,8 @@ packs.
 | "Monkeys Spinning Monkeys" (menu music loop) | `assets/audio/incompetech/menu_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
 | "Pixel Peeker Polka - faster" (round music loop) | `assets/audio/incompetech/round_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
 | "Exhilarate" (finale music loop) | `assets/audio/incompetech/finale_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
+| Lilita One (display font, M16-01) | `assets/fonts/LilitaOne-Regular.ttf` | Juan Montoreano | OFL 1.1 (`assets/fonts/OFL-LilitaOne.txt`) | https://github.com/google/fonts/tree/main/ofl/lilitaone |
+| Nunito variable (body font, M16-01) | `assets/fonts/Nunito-Variable.ttf` | Vernon Adams, Cyreal, Jacques Le Bailly | OFL 1.1 (`assets/fonts/OFL-Nunito.txt`) | https://github.com/google/fonts/tree/main/ofl/nunito |
 
 ## Planned sources (not yet imported)
 
