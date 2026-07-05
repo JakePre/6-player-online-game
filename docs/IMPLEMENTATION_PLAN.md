@@ -200,6 +200,44 @@ Approved — [ ] **M14-06** Blast Grid (M) · [ ] **M14-08** Putt Panic (M) · [
 Framework (unblocks everything; do first) — [x] **M15-01** room/net cap 6→24 + verify 30 Hz snapshot cost at 24 · [x] **M15-02** identity beyond 6 colours (expand palette + always-on nameplate numbers) · [x] **M15-03** placement-scoring formula for N≤24 + N-team award tables · [x] **M15-04** arena/economy scale-with-player-count helper · [x] **M15-05** spawn-layout helper (multi-ring/grid for dense counts) · [x] **M15-06** large-room lobby + results + coin-fly UI (≤24 rows) · [x] **M15-07** many-player view layouts (arc/multi-column lanes)
 Per-game caps — one task per game to raise `max_players` to its ADR 003 target (**24**: Beat Bounce, Bullseye Bowl, Color Clash, Count Quick, Hurdle Dash, Memory Match, Quick Draw, Simon Stomp, Tug of War, Bullet Waltz†, Laser Limbo†, Target Range† · **12**: Coin Scramble, King of the Hill, Meteor Shower, Musical Platforms, Poison Feast, Relay Sprint, Snake Chain, Thin Ice, Treasure Divers, Fort Siege‡, Faulty Wiring‡ · **8 by design**: Sumo Smash, Rumble Ring, Shock Tag, Hot Potato, Cart Push, Wall Builders, Bomb Courier, Heist Night, Trap Corridor, Fish Frenzy, Basket Brawl, The Mole‡). Finale (Gauntlet) → 24. Games capped at 6–8 need only M15-01..03; †-marked 24s depend on M15-04. ‡ = added post-ADR (see ADR 003 addendum) — Fort Siege/Faulty Wiring are plain bumps; The Mole was assessed at 12 needing M15-04 economy wiring, but the **owner overrode it to 8** (plain bump, no scaling needed). Claim per game from the ADR matrix.
 
+### M16 — Make it beautiful (owner directive 2026-07-05): UI/UX visual polish pass, cross-cutting by design
+This is intentionally the widest-reaching milestone in the plan — the goal
+is that *every* screen the player sees (menus, lobby, HUD, all 33+ minigame
+views, finale, credits) reads as a cohesive, polished, good-looking product,
+not a placeholder. It is **presentation-only** (Control/Node3D visuals,
+theming, art) — no gameplay, netcode, or balance changes — so it runs
+independent of the M14 release hold above: like M13's animation pass, it
+does not touch the things the hold is protecting. `M16-01` is the shared
+foundation and must land first; everything else fans out in parallel after
+it, one surface per PR, same claim/branch/PR discipline as M4/M8/M13.
+**Need a generated image for a task?** Do not source or fake one — log a
+request in [UI_IMAGE_REQUESTS.md](UI_IMAGE_REQUESTS.md) (template + append
+rule inside) and continue with a placeholder or without it; the owner runs
+the generation and comments the result back on your claim issue.
+- [ ] **M16-01** (L) Design system v2: global `Theme` resource — refined color
+  palette (primary/secondary/accent/semantic), typography scale + font
+  pairing, spacing/corner-radius/shadow tokens, a small icon set, themed
+  reusable components (buttons, panels, toggles, sliders, tooltips) in
+  `src/ui/`. Must apply globally via the Godot theme system so downstream
+  tasks mostly *inherit* the new look rather than hand-rolling styles per
+  screen. Builds on M6-04's theme unification pass. ⛓ M6-04
+- [ ] **M16-02** (M) Main menu + connection UI visual pass (background art/
+  treatment, transitions, host/join/settings entry flow) ⛓ M16-01
+- [ ] **M16-03** (M) Lobby + character select visual pass (player list,
+  ready-up feedback, character card presentation) ⛓ M16-01
+- [ ] **M16-04** (M) Round chrome visual pass: intro cards, timer HUD,
+  results screen ⛓ M16-01
+- [ ] **M16-05** (S) Leaderboard interstitial + podium visual pass ⛓ M16-01
+- [ ] **M16-06** (M) Settings, accessibility, and credits screens visual pass
+  ⛓ M16-01
+- [ ] **M16-07** (M) Finale shop + Gauntlet HUD visual pass ⛓ M16-01
+- [ ] **M16-08** (S) Toasts/errors/reconnect overlay visual pass (M6-03
+  chrome) ⛓ M16-01
+- [ ] **M16-09** (L, second wave — claim only after M16-02..08 all land)
+  Per-minigame environment art pass: arena backdrops, lighting mood, floor
+  materials — one game per PR, same discipline as M13's per-game fan-out
+  ⛓ M16-01
+
 ## 6. Suggested build order / critical path
 
 ```

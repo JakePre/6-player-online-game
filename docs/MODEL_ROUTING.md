@@ -27,6 +27,7 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | **M14-01** Loadout Duel (L) | Owner-requested, genre-new loadout/weapon design from a one-line spec; needs the §10 proposal-comment flow before code. |
 | **M14-02** Turbo Lap (L) | Racing handling under 30 Hz server-authoritative snapshots — latency feel, drift, track replication have no precedent in this codebase. |
 | **M14-09** Tumble Run (L) | Physics-platformer obstacle gauntlet; server-side physics + tumble feel is new territory and judgment-heavy. |
+| **M16-01** Design system v2 (L) | Sets the palette/typography/component look every other M16 task and every existing screen inherits — a wrong call here is expensive to unwind across 30+ screens. Pure taste/judgment, no established pattern to follow. |
 
 ## Opus 4.8 — real engineering, clear precedent
 
@@ -42,6 +43,8 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | **M15**: Color Clash → 24 | The one cap task with a gameplay change: N-team mode + larger grid so tile counts stay meaningful. |
 | **M15**: Gauntlet finale → 24 | Survival pacing, hazard density, and lives at 24 need verification beyond geometric spawn scaling. |
 | **First M15 12-cap** (suggest Coin Scramble) | Sets the pattern for wiring `MinigameScaling`/`SpawnLayout` into a sim; do it once with a stronger model, then the rest is mechanical. |
+| **M16-02..07** each surface visual pass (M) | Once M16-01's theme/components exist, applying them to a screen is real work (composition, spacing, motion) but follows an established design system — same profile as M8's migrations. |
+| **M16-09** per-minigame environment art (L, second wave) | 33+ games' worth of arena dressing against the M16-01 look; contained per-game like M13, but judging "does this read as beautiful" per arena is more than mechanical. |
 
 ## Sonnet 5 — mechanical, pattern-following
 
@@ -53,6 +56,7 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | **M12-02** `play_sfx` adoption sweep (S) | Mechanical sweep — hook calls at pickups/hits/KOs across views, 30 existing examples to follow. |
 | **M14-05** Ro-Sham-Bo Royale (S) | Simplest new game left — round-based rock-paper-scissors on the mature contract. |
 | **Epic #256** (M13 tracking issue) | All 31 boxes done — verify and close with a summary comment. |
+| **M16-05/06/08** leaderboard/podium, settings/credits, toasts visual passes (S) | Once M16-01 lands, these are smaller and more mechanical than the other surfaces — swap in the new theme/components, minimal new composition. |
 
 ## Project review findings (2026-07-05)
 
@@ -77,3 +81,7 @@ concrete follow-ups the review surfaced; classified here like any other task.
 - Rough counts: **4 Fable-tier**, **~14 Opus-tier**, **~28 Sonnet-tier**. The
   long tail of M15 cap tasks is deliberately cheap because the framework work
   that made them cheap (M15-01..07) is already merged.
+- **M16** ("make it beautiful", owner directive 2026-07-05) is presentation-
+  only and runs independent of the M14 release hold — see IMPLEMENTATION_PLAN.md
+  §5. `M16-01` (design system) gates `M16-02..09`; claim it first if you're
+  starting M16 cold.

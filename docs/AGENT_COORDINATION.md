@@ -66,6 +66,9 @@ A task's PR may create/edit files only in the areas the plan's repo layout (IMPL
 | M8-13 lobby character-select wiring | `src/lobby/` |
 | M6 polish | declared per-PR in the claim issue (this milestone inherently crosses areas — extra care) |
 | M7 deploy/release | `server/deploy/`, `.github/workflows/` (coordinate — see §4) |
+| M16-01 design system | `src/ui/` (theme resource + shared components) |
+| M16-02..08 each surface | declared per-PR in the claim issue (crosses `src/client/`, `src/lobby/`, `src/match/`, `src/finale/`, `src/ui/` depending on surface — extra care, same as M6) |
+| M16-09 each minigame's environment art | `src/minigames/<minigame_id>/` **only**, same rule as M4-xx, + `assets/CREDITS.md` rows for new imports |
 
 **Before creating any new shared-sounding class** (palette, helpers, math utils, constants): search first — `grep -ri <concept> src/` — and check the open PRs' claims. The duplicate-`PlayerPalette` incident is what this line prevents. If the thing your task needs feels reusable, it probably belongs to an existing owned area (e.g. identity/colors → `src/characters/`, protocol constants → `NetConfig`).
 
@@ -79,6 +82,7 @@ A task's PR may create/edit files only in the areas the plan's repo layout (IMPL
 | `src/minigames/_api/minigame_catalog.gd` | M4 PRs add exactly one `register(...)` line in `register_builtins()`; nothing else. |
 | `project.godot` | Autoload/input-map additions are additive and must be declared in the claim issue. |
 | `assets/CREDITS.md` | Append rows to the bottom of the table. Adjacent-append conflicts are trivial — resolve by keeping both rows. |
+| `docs/UI_IMAGE_REQUESTS.md` | Append rows to the bottom of the table only; mark a row `done` in place once wired in, never delete or reorder. Same conflict resolution as `CREDITS.md`. |
 | `export_presets.cfg`, `.github/workflows/ci.yml` | Do not edit under a feature task. Open/comment an `[INFRA]` issue and coordinate explicitly. |
 | `docs/SPEC.md` | Locked (§2 decisions). Deviations are flagged in PR descriptions, not edited in. |
 
