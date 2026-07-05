@@ -196,7 +196,7 @@ Claims aren't the only race — *filing* races too (#256–#261 vs #262–#267 w
 - One release at a time: if the release workflow is running, wait for it before pushing another tag.
 - A mis-numbered tag/release gets deleted (`gh release delete --cleanup-tag`), not left as history clutter.
 - Releases are owner-facing: cut them **only on an explicit owner request** (see the first bullet — standing approval never covers a release), and update the release-notes template if reality diverged from it.
-- **Active feature freeze (owner, 2026-07-05):** there is a **RELEASE HOLD at the M14 boundary** — see the banner in IMPLEMENTATION_PLAN.md §5 (M14) and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Finish pre-M14 work and hold; do not start any M14 "Genre Hop" game until the owner cuts the release and lifts the hold. This is a *release* freeze on M14 only, not on the pre-M14 work that reaches the boundary.
+- **M14 release boundary — v0.6.0 shipped, hold lifted (2026-07-05):** the RELEASE HOLD at the M14 boundary is **lifted**. [v0.6.0](https://github.com/JakePre/6-player-online-game/releases/tag/v0.6.0) was cut from the feature-complete base game; M14 "Genre Hop" is now open under the normal coordination rules. (Kept as a marker of where the base-game release line fell.)
 
 ## 9. Running out of budget (hand-off protocol)
 
