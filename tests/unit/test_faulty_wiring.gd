@@ -1,7 +1,7 @@
 extends GutTest
-## Faulty Wiring server simulation (M10-16): proximity repair, the hidden
-## saboteur's cut + cooldown, the private-role channel, the win/timeout
-## resolutions, the reveal hold, and score ranking.
+## Faulty Wiring server simulation (M10-16, M15 12-cap): proximity repair, the
+## hidden saboteur's cut + cooldown, the private-role channel, the win/timeout
+## resolutions, the reveal hold, score ranking, and spawn spacing at scale.
 
 const TICK := 1.0 / 30.0
 
@@ -146,3 +146,42 @@ func test_timeout_wins_for_the_saboteur() -> void:
 	assert_true(game.finished)
 	var placements: Array = game.get_results().placements
 	assert_true(game.saboteur in placements[0], "the saboteur tops the ranking on a timeout win")
+
+
+func test_max_players_raised_to_twelve() -> void:
+	assert_eq(FaultyWiring.make_meta().max_players, 12)
+
+
+## M15: a plain bump per the ADR 003 addendum — MAX_STACKED_REPAIRERS (3) x
+## NODE_POSITIONS (4) is a built-in ceiling of 12 usefully-occupied slots, so
+## no arena/economy scaling was needed. Verify the fixed single-ring spawn
+## still spaces everyone out cleanly at the new cap.
+func test_spawns_distinct_and_non_overlapping_at_twelve() -> void:
+	var game := _make_game(12)
+	var seen := {}
+	for slot in 12:
+		var pos: Vector2 = game.positions[slot]
+		seen[pos] = true
+		for other in 12:
+			if other == slot:
+				continue
+			var apart: float = pos.distance_to(game.positions[other])
+			assert_gt(apart, FaultyWiring.PLAYER_RADIUS * 2.0, "no two spawns overlap at 12")
+	assert_eq(seen.size(), 12, "every player gets a distinct spawn")
+
+
+## The addendum's math: four nodes can each usefully hold three repairers, so
+## a full 12-player crowd (minus the saboteur) can all contribute at once —
+## nobody is structurally locked out of the co-op at the new cap.
+func test_twelve_players_can_fully_staff_every_node() -> void:
+	var game := _make_game(12)
+	for i in game.nodes.size():
+		for j in FaultyWiring.MAX_STACKED_REPAIRERS:
+			var slot: int = i * FaultyWiring.MAX_STACKED_REPAIRERS + j
+			game.positions[slot] = FaultyWiring.NODE_POSITIONS[i]
+	game.tick(TICK)
+	var capped := FaultyWiring.REPAIR_RATE * FaultyWiring.MAX_STACKED_REPAIRERS * TICK
+	for i in game.nodes.size():
+		assert_almost_eq(
+			float(game.nodes[i]), capped, 0.0001, "node %d repairs at the full stacked rate" % i
+		)

@@ -65,7 +65,10 @@ static func make_meta() -> MinigameMeta:
 				"name": "Faulty Wiring",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 4,
-				"max_players": 6,
+				# 12 by design (ADR 003 addendum): MAX_STACKED_REPAIRERS (3) x
+				# NODE_POSITIONS (4) is a built-in ceiling of 12 usefully-occupied
+				# slots — no arena/economy scaling needed, plain bump.
+				"max_players": 12,
 				"duration_sec": WORK_SEC + REVEAL_SEC + 6.0,
 				"rules":
 				(
