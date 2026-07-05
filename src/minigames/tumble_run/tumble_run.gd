@@ -1,0 +1,326 @@
+class_name TumbleRun
+extends MinigameBase
+## Tumble Run (M14-09, PHASE2.md §8, owner-approved design on #545): a
+## one-screen vertical climb on the M14-00 side-view bones. The framework
+## has no camera scrolling, so the gauntlet is a fixed tall stage — ladder
+## the zigzag ledges to the summit while falling boulders and crumbling
+## ledges knock you back down. No elimination: a knocked-down duck just
+## loses height and climbs again (the comedy of the tumble). Placement is
+## summit order, then highest reached when the clock runs out.
+##
+## Hazards are game-side timed entities (positions + timers applying
+## sim.apply_impulse on contact), never framework changes — precedent:
+## Meteor Shower's server-side hazards.
+
+enum Phase { COUNTDOWN, CLIMB, DONE }
+
+const COUNTDOWN_SEC := 1.5
+const ROUND_CAP_SEC := 75.0
+
+const GOAL_HEIGHT := 30.0
+const LEDGE_COUNT := 9
+const LEDGE_RISE := 3.1
+const LEDGE_WIDTH := 4.0
+const LEDGE_THICKNESS := 0.4
+const LEDGE_X := 4.2
+
+## Crumbling ledges cycle solid → gone → back, staggered by index so the
+## whole climb never vanishes at once.
+const CRUMBLE_SOLID_SEC := 3.0
+const CRUMBLE_GONE_SEC := 1.6
+
+const BOULDER_INTERVAL := 1.4
+const BOULDER_SPEED := 7.0
+const BOULDER_RADIUS := 0.6
+const BOULDER_HIT_RADIUS := 0.9
+
+## A hazard hit pops the duck off its perch (sideways + up) so it tumbles,
+## and briefly stuns so the fall is committed.
+const KNOCKDOWN := Vector2(5.0, 4.0)
+const STUN_SEC := 0.5
+
+var sim: SideScrollSim
+var phase: Phase = Phase.COUNTDOWN
+var phase_left := COUNTDOWN_SEC
+## slot -> {height, summit, summit_at, stun}
+var climbers := {}
+## Each {pos, vel, life}.
+var boulders: Array[Dictionary] = []
+## Parallel to _crumble_ledges(): true while that ledge is solid.
+var crumble_state: Array[bool] = []
+var summit_order: Array = []
+
+var _boulder_accum := 0.0
+var _crumble_clock := 0.0
+
+
+static func make_meta() -> MinigameMeta:
+	return (
+		MinigameMeta
+		. create(
+			{
+				"id": &"tumble_run",
+				"controls": "Move — A/D · Jump — W/Space",
+				"name": "Tumble Run",
+				"category": MinigameMeta.Category.FFA,
+				"min_players": 2,
+				"max_players": 8,
+				"duration_sec": COUNTDOWN_SEC + ROUND_CAP_SEC + 3.0,
+				"rules": "Climb to the top! Dodge boulders and crumbling ledges — first up wins.",
+			}
+		)
+	)
+
+
+static func stage_bounds() -> Rect2:
+	return Rect2(-9.0, -4.0, 18.0, GOAL_HEIGHT + 10.0)
+
+
+## Wide ground floor plus the summit platform — always solid.
+static func solid_platforms() -> Array[Rect2]:
+	return (
+		[
+			Rect2(-8.0, -1.0, 16.0, 1.0),
+			Rect2(-3.0, GOAL_HEIGHT, 6.0, 0.5),
+		]
+		as Array[Rect2]
+	)
+
+
+## The zigzag climbing ledges (one-way), alternating side to side. Static so
+## the view draws the identical ladder.
+static func ledges() -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	for i in LEDGE_COUNT:
+		var side := 1.0 if i % 2 == 0 else -1.0
+		var y := 2.0 + float(i) * LEDGE_RISE
+		rects.append(Rect2(side * LEDGE_X - LEDGE_WIDTH / 2.0, y, LEDGE_WIDTH, LEDGE_THICKNESS))
+	return rects
+
+
+## Every third ledge crumbles; the rest are stable footing.
+static func _crumble_indices() -> Array[int]:
+	var out: Array[int] = []
+	for i in LEDGE_COUNT:
+		if i % 3 == 1:
+			out.append(i)
+	return out
+
+
+func _setup() -> void:
+	sim = SideScrollSim.new()
+	sim.bounds = stage_bounds()
+	crumble_state.resize(LEDGE_COUNT)
+	crumble_state.fill(true)
+	_rebuild_platforms()
+	phase = Phase.COUNTDOWN
+	phase_left = COUNTDOWN_SEC
+	var spawns := _spawn_points()
+	for i in slots.size():
+		sim.add_body(slots[i], spawns[i])
+		climbers[slots[i]] = {"height": spawns[i].y, "summit": false, "summit_at": 0.0, "stun": 0.0}
+
+
+## Solid floor + summit, plus every currently-solid crumble ledge and all
+## stable ledges, pushed to the sim as one-way climbing platforms.
+func _rebuild_platforms() -> void:
+	sim.solids = solid_platforms()
+	var one_way: Array[Rect2] = []
+	var all := ledges()
+	for i in all.size():
+		if crumble_state[i]:
+			one_way.append(all[i])
+	sim.one_way = one_way
+
+
+func _spawn_points() -> Array[Vector2]:
+	var points: Array[Vector2] = []
+	var count := slots.size()
+	for i in count:
+		var t := (float(i) + 0.5) / float(count)
+		points.append(Vector2(lerpf(-6.0, 6.0, t), 0.7))
+	return points
+
+
+func _handle_input(slot: int, data: Dictionary) -> void:
+	if phase != Phase.CLIMB:
+		return
+	var climber: Dictionary = climbers.get(slot, {})
+	if climber.is_empty() or float(climber.stun) > 0.0:
+		return
+	if data.has("mx"):
+		sim.set_move(slot, clampf(float(data.mx), -1.0, 1.0))
+	if data.get("jump", false):
+		sim.press_jump(slot)
+
+
+func _tick(delta: float) -> void:
+	for slot: int in climbers:
+		climbers[slot].stun = maxf(0.0, float(climbers[slot].stun) - delta)
+	phase_left -= delta
+	match phase:
+		Phase.COUNTDOWN:
+			sim.step(delta)
+			if phase_left <= 0.0:
+				phase = Phase.CLIMB
+				phase_left = ROUND_CAP_SEC
+		Phase.CLIMB:
+			_tick_climb(delta)
+
+
+func _tick_climb(delta: float) -> void:
+	_tick_crumble(delta)
+	# Stunned climbers keep their move intent frozen so the tumble commits.
+	for slot: int in climbers:
+		if float(climbers[slot].stun) > 0.0:
+			sim.set_move(slot, 0.0)
+	sim.step(delta)
+	_track_heights()
+	_tick_boulders(delta)
+	if _all_summited() or phase_left <= 0.0:
+		phase = Phase.DONE
+		finish(_rank_players())
+
+
+func _tick_crumble(delta: float) -> void:
+	_crumble_clock += delta
+	var cycle := CRUMBLE_SOLID_SEC + CRUMBLE_GONE_SEC
+	var changed := false
+	var crumble := _crumble_indices()
+	for offset in crumble.size():
+		var index: int = crumble[offset]
+		# Stagger each crumble ledge by a slice of the cycle.
+		var phase_offset := float(offset) * cycle / maxf(1.0, float(crumble.size()))
+		var t := fmod(_crumble_clock + phase_offset, cycle)
+		var solid := t < CRUMBLE_SOLID_SEC
+		if crumble_state[index] != solid:
+			crumble_state[index] = solid
+			changed = true
+	if changed:
+		_rebuild_platforms()
+
+
+func _track_heights() -> void:
+	for slot: int in climbers:
+		var body := sim.body_of(slot)
+		if body.is_empty():
+			continue
+		var climber: Dictionary = climbers[slot]
+		var y: float = (body.pos as Vector2).y
+		climber.height = maxf(float(climber.height), y)
+		if not bool(climber.summit) and y >= GOAL_HEIGHT:
+			climber.summit = true
+			climber.summit_at = elapsed
+			summit_order.append(slot)
+
+
+func _tick_boulders(delta: float) -> void:
+	_boulder_accum += delta
+	if _boulder_accum >= BOULDER_INTERVAL:
+		_boulder_accum -= BOULDER_INTERVAL
+		var x := rng.randf_range(-7.0, 7.0)
+		boulders.append({"pos": Vector2(x, GOAL_HEIGHT + 4.0), "vel": Vector2(0.0, -BOULDER_SPEED)})
+	var alive: Array[Dictionary] = []
+	for boulder in boulders:
+		boulder.pos = (boulder.pos as Vector2) + (boulder.vel as Vector2) * delta
+		if (boulder.pos as Vector2).y < -2.0:
+			continue
+		_boulder_contacts(boulder.pos)
+		alive.append(boulder)
+	boulders = alive
+
+
+func _boulder_contacts(center: Vector2) -> void:
+	for slot: int in climbers:
+		var climber: Dictionary = climbers[slot]
+		if bool(climber.summit) or float(climber.stun) > 0.0:
+			continue
+		var body := sim.body_of(slot)
+		if body.is_empty():
+			continue
+		if (body.pos as Vector2).distance_to(center) <= BOULDER_HIT_RADIUS:
+			_knock_down(slot, climber, center)
+
+
+func _knock_down(slot: int, climber: Dictionary, from_pos: Vector2) -> void:
+	climber.stun = STUN_SEC
+	var away := 1.0 if (sim.body_of(slot).pos as Vector2).x >= from_pos.x else -1.0
+	sim.apply_impulse(slot, Vector2(away * KNOCKDOWN.x, KNOCKDOWN.y))
+
+
+func _all_summited() -> bool:
+	for slot: int in climbers:
+		if not bool(climbers[slot].summit):
+			return false
+	return true
+
+
+## Summiters first in the order they topped out, then the rest by highest
+## point reached (ties grouped).
+func _rank_players() -> Array:
+	var placements: Array = []
+	for slot: int in summit_order:
+		placements.append([slot])
+	var rest: Array = []
+	for slot: int in slots:
+		if not bool(climbers[slot].summit):
+			rest.append(slot)
+	rest.sort_custom(
+		func(a: int, b: int) -> bool: return float(climbers[a].height) > float(climbers[b].height)
+	)
+	var group: Array = []
+	for slot: int in rest:
+		if (
+			group.is_empty()
+			or is_equal_approx(float(climbers[int(group[-1])].height), float(climbers[slot].height))
+		):
+			group.append(slot)
+		else:
+			placements.append(group)
+			group = [slot]
+	if not group.is_empty():
+		placements.append(group)
+	return placements
+
+
+func get_snapshot() -> Dictionary:
+	var players := {}
+	for slot: int in climbers:
+		var climber: Dictionary = climbers[slot]
+		var body := sim.body_of(slot)
+		var pos: Vector2 = body.get("pos", Vector2.ZERO)
+		var flags := 0
+		if float(climber.stun) > 0.0:
+			flags |= 1
+		if bool(climber.summit):
+			flags |= 2
+		if int(body.get("grounded", 0)) == 1:
+			flags |= 4
+		players[slot] = [
+			snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), int(body.get("facing", 1)), flags
+		]
+	var boulder_list: Array = []
+	for boulder in boulders:
+		var pos: Vector2 = boulder.pos
+		boulder_list.append([snappedf(pos.x, 0.01), snappedf(pos.y, 0.01)])
+	return {
+		"players": players,
+		"boulders": boulder_list,
+		"crumble": crumble_state.duplicate(),
+		"phase": int(phase),
+		"standings": _standings(),
+	}
+
+
+## Live order: summiters (by finish), then everyone else by height.
+func _standings() -> Array:
+	var order: Array = summit_order.duplicate()
+	var rest: Array = []
+	for slot: int in climbers:
+		if not bool(climbers[slot].summit):
+			rest.append(slot)
+	rest.sort_custom(
+		func(a: int, b: int) -> bool: return float(climbers[a].height) > float(climbers[b].height)
+	)
+	order.append_array(rest)
+	return order
