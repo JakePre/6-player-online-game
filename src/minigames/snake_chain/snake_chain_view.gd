@@ -15,6 +15,8 @@ var teams: Array = []
 
 var _segment_pools := {}
 var _pellet_pool: Array[MeshInstance3D] = []
+var _counts_seen := {}
+var _invuln_seen := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -87,10 +89,19 @@ func _render_3d(game: Dictionary) -> void:
 		rig.player_color = (
 			player_color(slot).lightened(0.5) if invulnerable else player_color(slot)
 		)
-		var caption := "%s  ●%d" % [player_name(slot), int(state[2])]
+		var count := int(state[2])
+		var caption := "%s  ●%d" % [player_name(slot), count]
 		if invulnerable:
 			caption += "  ✨"
 		rig.display_name = caption
+		if slot == my_slot:
+			# Pickup ping and a personal note when a crash grants fresh invuln.
+			if _counts_seen.has(slot) and count > int(_counts_seen[slot]):
+				play_sfx(&"coin")
+			if invulnerable and not bool(_invuln_seen.get(slot, false)):
+				play_sfx(&"error")
+		_counts_seen[slot] = count
+		_invuln_seen[slot] = invulnerable
 		var pool: Array = _segment_pools.get(slot, [])
 		var trail: Array = trails.get(slot, [])
 		for i in pool.size():

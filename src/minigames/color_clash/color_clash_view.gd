@@ -94,6 +94,8 @@ func _update_tiles() -> void:
 	var splats := 0
 	var leading := leading_faction()
 	var boost := shimmer_boost()
+	var my_faction := _my_faction()
+	var my_faction_painted := false
 	for i in mini(grid.size(), multimesh.instance_count):
 		var faction := int(grid[i])
 		var color := _faction_color(faction)
@@ -103,12 +105,25 @@ func _update_tiles() -> void:
 			if faction != int(_grid_seen[i]) and faction != ColorClash.UNPAINTED:
 				ArenaFX.splash(arena, to_arena(_tile_world_pos(i), PAINT_LIFT + 0.05), color)
 				splats += 1
+				if faction == my_faction:
+					my_faction_painted = true
 		# Coverage shimmer (M13-21): the leading faction's tiles breathe.
 		# (leading == UNPAINTED means "no leader", never "unpainted shimmers".)
 		var is_leading := faction == leading and leading != ColorClash.UNPAINTED
 		var shown := color.lightened(boost) if is_leading else color
 		multimesh.set_instance_color(i, shown)
 	_grid_seen = grid.duplicate()
+	# One ping per snapshot, not per tile, so a mass repaint isn't a chord (M12-02).
+	if my_faction_painted:
+		play_sfx(&"coin")
+
+
+## This client's own faction index, or -1 before teams are known.
+func _my_faction() -> int:
+	for faction in teams.size():
+		if my_slot in (teams[faction] as Array):
+			return faction
+	return -1
 
 
 func tile_color(index: int) -> Color:

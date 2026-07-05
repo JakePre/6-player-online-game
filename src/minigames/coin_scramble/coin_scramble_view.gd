@@ -82,6 +82,8 @@ func _update_players() -> void:
 		var count := int(state[2])
 		if _counts_seen.has(slot) and count > int(_counts_seen[slot]):
 			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+			if slot == my_slot:
+				play_sfx(&"coin")
 		_counts_seen[slot] = count
 
 

@@ -53,6 +53,12 @@ func _render_3d(game: Dictionary) -> void:
 	if _zapped_seen >= 0 and zapped != _zapped_seen:
 		request_shake(9.0)
 		_zap_arc(_zapped_seen, zapped)
+		# Personal read on the hand-off (M12-02): stuck with it stings, passing
+		# it off relieves.
+		if zapped == my_slot:
+			play_sfx(&"error")
+		elif _zapped_seen == my_slot:
+			play_sfx(&"confirm")
 	_zapped_seen = zapped
 
 

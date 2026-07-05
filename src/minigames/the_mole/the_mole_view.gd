@@ -156,10 +156,12 @@ func _update_machine() -> void:
 	# with no name attached — whoever's nearby is a suspect.
 	if sparked and not _sparked_seen:
 		fx_burst(TheMole.MACHINE_POS, SPARK_COLOR)
+		play_sfx(&"error")
 	_sparked_seen = sparked
 	# Delivery sparkle: progress ticking up (seeded on first sight).
 	if _progress_seen >= 0 and progress > _progress_seen:
 		fx_sparkle(TheMole.MACHINE_POS, CELL_COLOR, 1.2)
+		play_sfx(&"coin")
 	_progress_seen = progress
 
 

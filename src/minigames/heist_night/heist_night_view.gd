@@ -66,6 +66,9 @@ func _render(game: Dictionary) -> void:
 			var total := int(vaults[slot][2])
 			if _totals_seen.has(slot) and total < int(_totals_seen[slot]):
 				_pulses.append({"slot": slot, "age": 0.0})
+				# Getting robbed is heard only by the victim (M12-02).
+				if slot == my_slot:
+					play_sfx(&"error")
 	_seen_snapshot = true
 	_totals_seen = {}
 	for slot: int in vaults:

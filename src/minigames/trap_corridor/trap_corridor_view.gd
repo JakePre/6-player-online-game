@@ -32,6 +32,7 @@ var _springs: Array = []
 var _revealed_seen: Array = []
 var _seen_snapshot := false
 var _arm_clock := 0.0
+var _was_caught := false
 
 
 func _physics_process(_delta: float) -> void:
@@ -82,15 +83,24 @@ func _render(game: Dictionary) -> void:
 	revealed = game.get("revealed", [])
 	# Trap springs (M13-26): a trap newly in `revealed` just went off. The
 	# first snapshot seeds silently so a late join doesn't erupt.
-	if _seen_snapshot:
+	var already_seeded := _seen_snapshot
+	if already_seeded:
 		for index: int in revealed:
 			if index not in _revealed_seen:
 				_springs.append({"index": index, "age": 0.0})
+				# The trapper hears their own trap work (M12-02).
+				if my_slot == trapper:
+					play_sfx(&"confirm")
 	_seen_snapshot = true
 	_revealed_seen = revealed.duplicate()
 	caught = game.get("caught", [])
 	scores = game.get("scores", {})
 	traps_left = int(game.get("traps_left", 0))
+	# Getting caught is heard only by the runner it happened to (M12-02).
+	var caught_now := my_slot in caught
+	if already_seeded and caught_now and not _was_caught:
+		play_sfx(&"error")
+	_was_caught = caught_now
 	queue_redraw()
 
 

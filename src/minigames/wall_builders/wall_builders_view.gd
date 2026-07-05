@@ -17,6 +17,8 @@ var teams: Array = []
 var _floor_pool: Array[MeshInstance3D] = []
 var _wall_pools := {}
 var _carry_markers := {}
+var _carrying_seen := {}
+var _walls_seen: Array = [0, 0]
 
 
 func _physics_process(_delta: float) -> void:
@@ -88,6 +90,11 @@ func _render_3d(game: Dictionary) -> void:
 		var height := int(walls[team_index]) if walls.size() > team_index else 0
 		for i in pool.size():
 			(pool[i] as MeshInstance3D).visible = i < height
+		# Your own team's wall rising a row pays off (M12-02).
+		if height > int(_walls_seen[team_index]) and team_index < teams.size():
+			if my_slot in (teams[team_index] as Array):
+				play_sfx(&"confirm")
+		_walls_seen[team_index] = height
 	for slot: int in players:
 		var state: Array = players[slot]
 		var rig := rig_for_slot(slot)
@@ -101,3 +108,6 @@ func _render_3d(game: Dictionary) -> void:
 			if carrying:
 				marker.position = to_arena(Vector2(state[0], state[1]), 2.4)
 		rig.display_name = player_name(slot) + ("  🧱" if carrying else "")
+		if slot == my_slot and carrying and not bool(_carrying_seen.get(slot, false)):
+			play_sfx(&"coin")
+		_carrying_seen[slot] = carrying

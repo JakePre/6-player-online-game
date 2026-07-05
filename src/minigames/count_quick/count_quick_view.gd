@@ -22,6 +22,7 @@ var _swarm_pool: Array[MeshInstance3D] = []
 # Critter wiggle counter + per-slot lock tracking (M13-15).
 var _wiggle_ticks := 0
 var _locked_seen := {}
+var _scores_seen := {}
 var _pad_nodes: Array[Node3D] = []
 var _pad_labels: Array[Label3D] = []
 var _phase_label: Label
@@ -134,7 +135,8 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		update_rig(slot, Vector2(state[0], state[1]))
-		var caption := "%s  %d" % [player_name(slot), int(state[2])]
+		var score := int(state[2])
+		var caption := "%s  %d" % [player_name(slot), score]
 		var locked_now := int(state[3]) == 1
 		if locked_now:
 			caption += "  [LOCKED]"
@@ -143,4 +145,10 @@ func _update_players() -> void:
 		# player's color. Seeded via _locked_seen.
 		if _locked_seen.has(slot) and locked_now and not bool(_locked_seen[slot]):
 			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+			if slot == my_slot:
+				play_sfx(&"click")
 		_locked_seen[slot] = locked_now
+		# A correct guess pays out (M12-02): only the scorer hears it.
+		if slot == my_slot and _scores_seen.has(slot) and score > int(_scores_seen[slot]):
+			play_sfx(&"confirm")
+		_scores_seen[slot] = score
