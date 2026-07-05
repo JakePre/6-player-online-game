@@ -65,6 +65,7 @@ static func register_builtins() -> void:
 	register(NomArena.make_meta(), NomArena)
 	register(KnockOff.make_meta(), KnockOff)
 	register(TumbleRun.make_meta(), TumbleRun)
+	register(ShredSession.make_meta(), ShredSession)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:
