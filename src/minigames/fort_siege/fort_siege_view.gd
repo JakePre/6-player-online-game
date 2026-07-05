@@ -106,6 +106,9 @@ func _update_gate() -> void:
 	if _gate_seen > 0.0 and gate <= 0.0:
 		fx_burst(Vector2(0.0, FortSiege.GATE_Y), GATE_HOT_COLOR)
 		fx_dust(Vector2(0.0, FortSiege.GATE_Y))
+		# Heard from your own side of the wall (M12-02).
+		if teams.size() == 2:
+			play_sfx(&"confirm" if my_slot in teams[attacking] else &"error")
 	_gate_seen = gate
 
 
@@ -116,6 +119,9 @@ func _update_core() -> void:
 		for i in times.size():
 			if float(times[i]) >= 0.0 and float(_times_seen[i]) < 0.0:
 				fx_burst(FortSiege.CORE_POS, CORE_COLOR)
+				# Your own siege succeeding is a win; the other team's is a loss.
+				if i < teams.size():
+					play_sfx(&"confirm" if my_slot in teams[i] else &"error")
 	_times_seen = times.duplicate()
 
 
