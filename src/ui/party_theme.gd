@@ -82,6 +82,7 @@ static func build() -> Theme:
 	_style_labels(theme)
 	_style_selection_controls(theme)
 	_style_bars(theme)
+	_style_popups(theme)
 	return theme
 
 
@@ -194,3 +195,24 @@ static func _style_bars(theme: Theme) -> void:
 		theme.set_stylebox(&"grabber", bar, _flat(BORDER))
 		theme.set_stylebox(&"grabber_highlight", bar, _flat(ACCENT_DIM))
 		theme.set_stylebox(&"grabber_pressed", bar, _flat(ACCENT))
+
+
+## Popup surfaces (M16-13): OptionButton dropdowns (PopupMenu) and native
+## dialogs (AcceptDialog/Window) otherwise render engine-default gray — the
+## only unthemed chrome the consistency audit found still reachable in-game.
+static func _style_popups(theme: Theme) -> void:
+	theme.set_stylebox(&"panel", &"PopupMenu", _elevated(BG_DARK, BORDER))
+	theme.set_stylebox(&"hover", &"PopupMenu", _flat(BG_RAISED, ACCENT))
+	theme.set_color(&"font_color", &"PopupMenu", TEXT)
+	theme.set_color(&"font_hover_color", &"PopupMenu", ACCENT_BRIGHT)
+	theme.set_color(&"font_disabled_color", &"PopupMenu", TEXT_DIM)
+	theme.set_color(&"font_separator_color", &"PopupMenu", TEXT_DIM)
+	theme.set_stylebox(&"panel", &"AcceptDialog", _flat(BG_DARK))
+	# The embedded titlebar is drawn by Window's border style; raise it to the
+	# panel language and put the title in the display face.
+	var titlebar := _flat(BG_RAISED, BORDER)
+	titlebar.expand_margin_top = 36.0
+	theme.set_stylebox(&"embedded_border", &"Window", titlebar)
+	theme.set_color(&"title_color", &"Window", TEXT)
+	theme.set_font(&"title_font", &"Window", FONT_DISPLAY)
+	theme.set_font_size(&"title_font_size", &"Window", SIZE_BUTTON)
