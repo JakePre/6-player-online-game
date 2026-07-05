@@ -179,6 +179,7 @@ Claims aren't the only race — *filing* races too (#256–#261 vs #262–#267 w
 - One release at a time: if the release workflow is running, wait for it before pushing another tag.
 - A mis-numbered tag/release gets deleted (`gh release delete --cleanup-tag`), not left as history clutter.
 - Releases are owner-facing: cut them when the owner asks or has standing approval, and update the release-notes template if reality diverged from it.
+- **Active feature freeze (owner, 2026-07-05):** there is a **RELEASE HOLD at the M14 boundary** — see the banner in IMPLEMENTATION_PLAN.md §5 (M14) and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Finish pre-M14 work and hold; do not start any M14 "Genre Hop" game until the owner cuts the release and lifts the hold. This is a *release* freeze on M14 only, not on the pre-M14 work that reaches the boundary.
 
 ## 9. Running out of budget (hand-off protocol)
 
