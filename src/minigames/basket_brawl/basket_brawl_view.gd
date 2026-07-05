@@ -130,6 +130,9 @@ func _update_score() -> void:
 				var hoop: Array = hoops[1 - team]
 				var color := player_color(int(teams[team][0])) if teams.size() == 2 else BALL_COLOR
 				fx_burst(Vector2(float(hoop[0]), float(hoop[1])), color)
+				# Every dunk is heard from your own team's perspective (M12-02).
+				if teams.size() == 2:
+					play_sfx(&"confirm" if my_slot in teams[team] else &"error")
 	_scores_seen = scores.duplicate()
 	if _score_label != null:
 		_score_label.text = "%d : %d" % [int(scores[0]), int(scores[1])]

@@ -133,6 +133,8 @@ func _update_platforms() -> void:
 			fx_dust(at)
 		if int(_claims_seen.get(i, -1)) == -1 and claimant != -1:
 			fx_sparkle(at, player_color(claimant))
+			if claimant == my_slot:
+				play_sfx(&"confirm")
 		_claims_seen[i] = claimant
 	_platforms_were_empty = platforms.is_empty()
 	_rendered_once = true
@@ -147,4 +149,5 @@ func _shake_on_new_downs() -> void:
 		fallen_count += group.size()
 	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
 		request_shake(9.0)
+		play_sfx(&"error")
 	_fallen_seen = fallen_count

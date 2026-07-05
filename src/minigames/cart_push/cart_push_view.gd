@@ -31,6 +31,7 @@ var _my_team := -1
 var _prev_cart_x := 0.0
 var _cart_dust_accum := 0.0
 var _staggered := {}  # slot (int) -> bool, for one-shot shove-impact puffs
+var _carrying_seen := {}  # slot (int) -> bool, for the ore-pickup ping
 
 
 func _physics_process(_delta: float) -> void:
@@ -99,9 +100,15 @@ func _update_players() -> void:
 		var staggered := flags & 2 == 2
 		if staggered and not _staggered.get(slot, false):
 			fx_dust(Vector2(state[0], state[1]))
+			if slot == my_slot:
+				play_sfx(&"error")
 		_staggered[slot] = staggered
 		rig.display_name = caption
-		_update_carried_ore(slot, flags & 1 == 1)
+		var carrying := flags & 1 == 1
+		if carrying and not _carrying_seen.get(slot, false) and slot == my_slot:
+			play_sfx(&"coin")
+		_carrying_seen[slot] = carrying
+		_update_carried_ore(slot, carrying)
 
 
 func _update_carried_ore(slot: int, is_carrying: bool) -> void:

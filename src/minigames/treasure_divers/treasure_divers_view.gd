@@ -37,6 +37,8 @@ var _stun_seen := {}
 var _diving_seen := {}
 # slot -> seconds until that diver's next bubble.
 var _bubble_left := {}
+# slot -> latest replicated coin count, to spot fresh pickups (M12-02).
+var _coins_seen := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -146,7 +148,12 @@ func _update_players() -> void:
 		var is_diving := int(state[3]) == 1
 		var at := Vector2(state[0], state[1])
 		update_rig(slot, at, 0.0 if is_diving else SURFACE_HEIGHT)
-		rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
+		var coins := int(state[2])
+		rig.display_name = "%s  %d" % [player_name(slot), coins]
+		# Pickup ping (M12-02): only the collector hears their own scoop.
+		if _coins_seen.has(slot) and coins > int(_coins_seen[slot]) and slot == my_slot:
+			play_sfx(&"coin")
+		_coins_seen[slot] = coins
 		_air_seen[slot] = float(state[4])
 		# Water FX (M13-10): splash on every surface crossing, bubbles on a
 		# snapshot-cadence timer while under. Seeded so a rejoiner's first
@@ -165,6 +172,7 @@ func _update_players() -> void:
 			rig.play(&"hit")
 			request_shake(8.0)
 			fx_splash(at)
+			play_sfx(&"error")
 		_stun_seen[slot] = stun
 
 

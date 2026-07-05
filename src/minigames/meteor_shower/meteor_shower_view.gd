@@ -217,4 +217,5 @@ func _shake_on_new_downs() -> void:
 		fallen_count += group.size()
 	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
 		request_shake(11.0)
+		play_sfx(&"error")
 	_fallen_seen = fallen_count

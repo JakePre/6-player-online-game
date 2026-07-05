@@ -62,6 +62,9 @@ func _render(game: Dictionary) -> void:
 		var prev_leg := int(_legs_seen.get(lane_index, leg))
 		if _seen_snapshot and leg > prev_leg and not bool(state[4]):
 			_flashes.append({"lane": lane_index, "age": 0.0})
+			# Only your own team's handoff pings (M12-02).
+			if my_slot in (state[0] as Array):
+				play_sfx(&"confirm")
 		if leg == prev_leg:
 			var prev := float(_progress_seen.get(lane_index, progress))
 			_speeds[lane_index] = maxf(progress - prev, 0.0)

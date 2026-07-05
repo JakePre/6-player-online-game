@@ -28,6 +28,7 @@ var _sparks: Array = []
 var _stun_seen := {}
 var _progress_seen := {}
 var _speeds := {}
+var _finished_seen := {}
 var _seen_snapshot := false
 
 
@@ -64,10 +65,17 @@ func _render(game: Dictionary) -> void:
 		var stun := float(state[2])
 		if _seen_snapshot and stun > 0.0 and float(_stun_seen.get(slot, 0.0)) <= 0.0:
 			_sparks.append({"slot": slot, "age": 0.0})
+			if slot == my_slot:
+				play_sfx(&"error")
 		_stun_seen[slot] = stun
 		var progress := float(state[0])
 		_speeds[slot] = maxf(progress - float(_progress_seen.get(slot, progress)), 0.0)
 		_progress_seen[slot] = progress
+		var finished := bool(state[3])
+		if _seen_snapshot and finished and not bool(_finished_seen.get(slot, false)):
+			if slot == my_slot:
+				play_sfx(&"confirm")
+		_finished_seen[slot] = finished
 	_seen_snapshot = true
 	queue_redraw()
 

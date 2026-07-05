@@ -142,4 +142,6 @@ func _render_3d(game: Dictionary) -> void:
 				request_shake(7.0)  # a bullseye just landed
 			else:
 				fx_sparkle(target_at, player_color(slot), 0.3)
+			if slot == my_slot:
+				play_sfx(&"coin")
 		_scores_seen[slot] = score

@@ -111,6 +111,8 @@ func _update_players() -> void:
 			request_shake(7.0)
 			# The laser bites (M13-13): electric burst at the hit.
 			fx_burst(Vector2(state[0], state[1]), LASER_COLOR, 1.0)
+			if slot == my_slot:
+				play_sfx(&"error")
 		_lives_seen[slot] = current_lives
 	for group: Array in fallen:
 		for slot: int in group:
@@ -170,4 +172,5 @@ func _shake_on_new_downs() -> void:
 		fallen_count += group.size()
 	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
 		request_shake(11.0)
+		play_sfx(&"error")
 	_fallen_seen = fallen_count
