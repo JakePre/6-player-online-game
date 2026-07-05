@@ -107,3 +107,50 @@ jobs:
             --title "Party Rush $GITHUB_REF_NAME" \
             --notes-file notes.md \
             --generate-notes
+
+  sync-source-version:
+    # Builds are already stamped from the tag (see the export job, #166), but
+    # the committed AppVersion.VERSION default used to drift release-to-release
+    # because the manual bump got forgotten (it sat at 0.3.0 through five
+    # releases). This best-effort job keeps main's source const honest by
+    # committing the tag version back after a successful release. It never
+    # fails the run: a drifted source is cosmetic, not a shipped bug.
+    name: Sync source AppVersion to the released tag
+    runs-on: ubuntu-latest
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Commit the tag version back to main if it drifted
+        run: |
+          set -uo pipefail
+          V="${GITHUB_REF_NAME#v}"
+          current="$(sed -n 's/^const VERSION := "\(.*\)"/\1/p' src/client/app_version.gd)"
+          if [ "$current" = "$V" ]; then
+            echo "Source const already at $V — nothing to sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            sed -i "s/^const VERSION := \".*\"/const VERSION := \"$V\"/" src/client/app_version.gd
+            git add src/client/app_version.gd
+            git commit -m "chore: sync AppVersion source const to $GITHUB_REF_NAME [skip ci]"
+            if git push origin HEAD:main; then
+              echo "Synced source const to $V."
+              exit 0
+            fi
+            echo "Push race on attempt $attempt — rebasing onto main and retrying."
+            git reset --soft HEAD~1
+            git restore --staged src/client/app_version.gd || true
+            git checkout -- src/client/app_version.gd
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort || true; }
+          done
+          echo "::warning::Could not sync AppVersion source const after retries (non-fatal; builds are stamped regardless)."
+          exit 0
