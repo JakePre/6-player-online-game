@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Playtest harness (M7-03): dedicated server + 6 headless bots play a full
+"""Playtest harness (M7-03): dedicated server + N headless bots play a full
 match to completion (not just a connection soak — see tests/soak/run_soak.py
 for that). The server runs with --debug-rpcs so the match uses compressed
 round timing and finishes in seconds. Exit code 0 = every bot passed.
 
+Defaults to 6 bots (the CI/nightly config); --players raises it to verify the
+ADR 003 per-game caps in a real match at 12 or 24 players — the playlist only
+drafts games eligible at that head count, so a 12-bot run exercises the scaled
+12-cap games end to end.
+
 Usage:
-    python tests/soak/run_playtest.py --godot path/to/godot [--rounds 12]
+    python tests/soak/run_playtest.py --godot path/to/godot [--rounds 12] [--players 12]
 """
 
 from __future__ import annotations
@@ -18,7 +23,7 @@ import threading
 import time
 
 PORT = 54546
-BOT_COUNT = 6
+DEFAULT_BOT_COUNT = 6
 
 
 def godot_cmd(godot: str, extra: list[str]) -> list[str]:
@@ -70,9 +75,24 @@ def main() -> int:
         action="store_true",
         help="M9-06 variant: host enables the full mutator pool; bots require >=1 mutated round",
     )
+    parser.add_argument(
+        "--players",
+        type=int,
+        default=DEFAULT_BOT_COUNT,
+        help="total bots in the match (default 6 = the CI/nightly config; raise to verify "
+        "the ADR 003 caps in a full match at 12/24)",
+    )
     args = parser.parse_args()
+    if args.players < 2:
+        print("FAIL: --players must be at least 2 (a match needs a creator + one joiner)")
+        return 1
 
-    common = [f"--address=127.0.0.1", f"--port={args.port}", f"--rounds={args.rounds}", f"--players={BOT_COUNT}"]
+    common = [
+        f"--address=127.0.0.1",
+        f"--port={args.port}",
+        f"--rounds={args.rounds}",
+        f"--players={args.players}",
+    ]
     if args.mutators:
         common.append("--mutators")
     server_log: list[str] = []
@@ -101,7 +121,7 @@ def main() -> int:
         print(f"room created: {code}")
 
         bots: list[tuple[str, subprocess.Popen, list[str]]] = [("Creator", creator, creator_log)]
-        for i in range(BOT_COUNT - 1):
+        for i in range(args.players - 1):
             name = f"Joiner{i + 1}"
             log: list[str] = []
             proc = start(
