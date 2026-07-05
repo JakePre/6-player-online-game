@@ -100,6 +100,22 @@ Reconciled from a per-game code analysis of all 31 minigames. "New cap" is the t
 **Result:** a 24-player lobby has **12 eligible minigames** (plus the finale); a 12-player
 lobby has 21; an 8-player lobby has all 31. Small lobbies (2–6) are unchanged.
 
+#### Addendum: games added after this ADR (M10-09/10-12/10-13/10-16)
+
+Four games landed after the matrix above was written and were missed — still at
+`max_players: 6` with no classification. Same analysis, applied fresh:
+
+| Game | Cat | New cap | Why |
+|---|---|---|---|
+| Basket Brawl | TEAM | 8 | Single exclusive ball (shove-brawl for control) — same profile as Cart Push/Wall Builders. A crowd around one contested object is unfair past a modest size; the pusher-cap precedent (an extra player per side has room as a support role) applies here too. |
+| Fort Siege | TEAM | 12 | Its two mechanics have **zero exclusivity**, unlike the shove-brawl class: gate damage scales cleanly with attacker count (`_batter_gate` sums *every* attacker in range, uncapped), and core-capture only needs one attacker present with no defender contesting (more attackers never causes contention, they just have more shots at an opening). Closer to King of the Hill's profile than Cart Push's. Verified spawn geometry at 6v6 (12 total): row offsets max at ±5.0, comfortably inside `ARENA_HALF=9.0`. |
+| The Mole | FFA (hidden-role) | 12 | No player collision, exactly one mole regardless of headcount (mechanic is count-agnostic). But `CELL_TARGET`/`MAX_LOOSE_CELLS`/wave rate are fixed regardless of crew size — without `MinigameScaling`-style economy scaling (same treatment as Coin Scramble/Poison Feast), a bigger crew trivializes the WORK phase almost instantly, starving the mole's sabotage window. Needs the economy wired, not just a bump. |
+| Faulty Wiring | FFA (hidden-role) | 12 | `MAX_STACKED_REPAIRERS=3` × 4 fixed nodes is a **built-in ceiling of 12 usefully-occupied slots** — the design already caps effective crowd size, so 12 total players is the natural fit before extras become non-contributing spectators. No economy scaling needed; the stacking cap does the work. |
+
+None of the four need a 24-cap: Basket Brawl's single-ball exclusivity, and Fort Siege's/The
+Mole's/Faulty Wiring's fixed-size mechanics (four nodes, one machine, one mole) don't have a
+natural crowd-scale story the way the parallel no-contact games do.
+
 ### Framework changes required (gate the per-game caps)
 
 Nothing above works until these land. They are the M15 milestone.
