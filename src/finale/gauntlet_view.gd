@@ -198,8 +198,7 @@ func _setup_3d() -> void:
 
 	_grudge_prompt = Label.new()
 	_grudge_prompt.name = "GrudgePrompt"
-	_grudge_prompt.add_theme_font_override(&"font", PartyTheme.FONT_DISPLAY)
-	_grudge_prompt.add_theme_font_size_override(&"font_size", PartyTheme.SIZE_HEADER)
+	_grudge_prompt.theme_type_variation = PartyTheme.HEADER_VARIATION
 	_grudge_prompt.add_theme_color_override(&"font_color", PartyTheme.ACCENT_BRIGHT)
 	_grudge_prompt.add_theme_stylebox_override(&"normal", _chrome_panel(PartyTheme.DANGER))
 	_grudge_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)

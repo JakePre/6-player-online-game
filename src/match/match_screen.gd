@@ -397,8 +397,11 @@ func _on_shake_requested(strength: float) -> void:
 
 
 ## "+N" coin chips fly from mid-screen to the running-total row (M6-02).
-## Pure decoration: totals are already correct before the flight starts.
+## Pure decoration: totals are already correct before the flight starts, so
+## reduced motion (M12-03) skips the flight outright — nothing to show at rest.
 func _fly_coins(awards: Dictionary) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	var slots: Array = awards.keys()
 	slots.sort()
 	var earners := slots.filter(func(s: int) -> bool: return int(awards.get(s, 0)) > 0)
@@ -415,7 +418,8 @@ func _fly_coins(awards: Dictionary) -> void:
 		coin.position = size / 2.0 + offset - Vector2(size.x * 0.25, 0.0)
 		var target := _totals_row.position + offset
 		var tween := create_tween()
-		tween.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		# EASE_IN is deliberate — chips accelerate away; the curve stays on-token.
+		tween.set_ease(Tween.EASE_IN).set_trans(PartyTheme.TRANS_DEFAULT)
 		tween.tween_property(coin, "position", target, COIN_FLY_SEC)
 		tween.tween_callback(coin.queue_free)
 		placed += 1

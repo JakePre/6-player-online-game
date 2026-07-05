@@ -360,3 +360,14 @@ func test_transition_wipe_respects_reduced_motion() -> void:
 	screen._play_transition_wipe()
 	assert_true(wipe.visible, "the wipe sweeps in normally")
 	ArenaFX.reduced_motion = saved
+
+
+## M16-13 / M12-03: coin chips are pure decoration (totals are correct before
+## the flight), so reduced motion spawns no chips at all.
+func test_coin_fly_respects_reduced_motion() -> void:
+	var saved := ArenaFX.reduced_motion
+	ArenaFX.reduced_motion = true
+	NetManager.match_event_received.emit(_results_event())
+	assert_null(screen.get_node_or_null("CoinFly0"), "reduced motion skips the flight")
+	assert_null(screen.get_node_or_null("CoinFly1"))
+	ArenaFX.reduced_motion = saved

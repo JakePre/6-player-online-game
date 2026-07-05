@@ -87,3 +87,18 @@ func test_meta_roundtrips_controls() -> void:
 	assert_eq(meta.to_dict().controls, "Move — WASD")
 	var without := MinigameMeta.create({"id": &"y"})
 	assert_eq(without.controls_text, "", "controls stay optional")
+
+
+## M16-13: popup chrome must not fall back to engine gray — OptionButton
+## dropdowns (PopupMenu) and native dialogs (AcceptDialog/Window) are the
+## two popup surfaces reachable in-game (lobby settings, update restart).
+func test_popup_surfaces_are_themed() -> void:
+	var theme := PartyTheme.build()
+	var menu: StyleBoxFlat = theme.get_stylebox(&"panel", &"PopupMenu")
+	assert_eq(menu.bg_color, PartyTheme.BG_DARK, "dropdowns sit on the panel color")
+	var hover: StyleBoxFlat = theme.get_stylebox(&"hover", &"PopupMenu")
+	assert_eq(hover.border_color, PartyTheme.ACCENT, "hovered items ring gold")
+	assert_eq(theme.get_color(&"font_hover_color", &"PopupMenu"), PartyTheme.ACCENT_BRIGHT)
+	assert_true(theme.has_stylebox(&"panel", &"AcceptDialog"), "dialogs are themed")
+	assert_eq(theme.get_color(&"title_color", &"Window"), PartyTheme.TEXT)
+	assert_eq(theme.get_font(&"title_font", &"Window"), PartyTheme.FONT_DISPLAY)
