@@ -126,3 +126,32 @@ func test_leading_faction_shimmer_advances() -> void:
 func test_tied_coverage_has_no_leader() -> void:
 	view.render({"players": {}, "grid": [0, 1], "teams": [], "counts": {0: 1, 1: 1}})
 	assert_eq(view.leading_faction(), ColorClash.UNPAINTED)
+
+
+# --- #479: keyframe / delta grid reconstruction ----------------------------
+
+
+## A keyframe carries the full grid; a following delta folds a changed tile into
+## the grid the client already holds, without a full resend.
+func test_delta_folds_into_the_held_grid() -> void:
+	view.render({"players": {}, "grid": [0, -1, 1], "teams": [], "counts": {}})
+	view.render({"players": {}, "grid_changes": [[1, 0]], "teams": [], "counts": {}})
+	assert_eq(view.grid, [0, 0, 1], "the delta repaints only tile 1")
+
+
+## A delta arriving before any keyframe has nothing to build on and is ignored —
+## a rejoiner waits out the bounded window for the next keyframe.
+func test_delta_before_first_keyframe_is_ignored() -> void:
+	view.render({"players": {}, "grid_changes": [[0, 1]], "teams": [], "counts": {}})
+	assert_eq(view.grid, [], "no keyframe yet -> nothing to reconstruct")
+
+
+## The headline self-heal (#479): snapshots are unreliable_ordered, so a dropped
+## delta leaves a tile stale — the next keyframe restores the true grid.
+func test_dropped_delta_heals_on_next_keyframe() -> void:
+	view.render({"players": {}, "grid": [0, -1, -1], "teams": [], "counts": {}})
+	# The server flips tile 1 and 2, but that delta never arrives (dropped).
+	assert_eq(view.grid, [0, -1, -1], "the client's grid is stale after the drop")
+	# The next keyframe carries the true grid and heals the miss.
+	view.render({"players": {}, "grid": [0, 0, 1], "teams": [], "counts": {}})
+	assert_eq(view.grid, [0, 0, 1], "the keyframe restores the true grid")

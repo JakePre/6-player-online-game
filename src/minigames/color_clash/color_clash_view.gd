@@ -78,7 +78,18 @@ func _setup_3d() -> void:
 
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
-	grid = game.get("grid", [])
+	# Grid replication (#479): a keyframe carries the full "grid" — an
+	# authoritative reset that mounts a fresh view and heals any dropped delta.
+	# Between keyframes "grid_changes" carries only the tiles that flipped, which
+	# we fold into the grid we already hold. A delta arriving before the first
+	# keyframe has nothing to build on, so it waits for the keyframe to arrive.
+	if game.has("grid"):
+		grid = (game["grid"] as Array).duplicate()
+	elif game.has("grid_changes") and not grid.is_empty():
+		for change: Array in game["grid_changes"]:
+			var index := int(change[0])
+			if index >= 0 and index < grid.size():
+				grid[index] = int(change[1])
 	teams = game.get("teams", [])
 	_counts = game.get("counts", {})
 	_pulse_ticks += 1

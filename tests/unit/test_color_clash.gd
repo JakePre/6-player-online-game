@@ -156,6 +156,65 @@ func test_snapshot_shape() -> void:
 	assert_almost_eq(float(snapshot.half), ColorClash.ARENA_HALF, 0.001)
 
 
+# --- #479: keyframe / delta grid replication -------------------------------
+
+
+## The first snapshot is a full keyframe so a fresh client can mount the board;
+## it carries "grid", never "grid_changes".
+func test_first_snapshot_is_a_keyframe() -> void:
+	var game := _game()
+	var snapshot := game.get_snapshot()
+	assert_true(snapshot.has("grid"), "the first snapshot is a full keyframe")
+	assert_false(snapshot.has("grid_changes"), "no deltas before the first keyframe")
+
+
+## Between keyframes only the tiles that flipped ride the wire — sending a full
+## 24x24 grid every tick was the bandwidth problem this fixes.
+func test_between_keyframes_only_changed_tiles_are_sent() -> void:
+	var game := _game()
+	game.grid.fill(ColorClash.UNPAINTED)
+	game.get_snapshot()  # keyframe captures the cleared board
+	game.grid[7] = 0  # a single tile flips
+	var snapshot := game.get_snapshot()
+	assert_false(snapshot.has("grid"), "a delta snapshot omits the full grid")
+	assert_eq(snapshot.grid_changes, [[7, 0]], "only the flipped tile is sent")
+
+
+## A tick where the board held still sends an empty delta, not the whole grid.
+func test_deltas_are_empty_when_the_board_holds_still() -> void:
+	var game := _game()
+	game.grid.fill(ColorClash.UNPAINTED)
+	game.get_snapshot()  # keyframe
+	var snapshot := game.get_snapshot()
+	assert_eq(snapshot.grid_changes, [], "an unchanged board sends an empty delta")
+
+
+## The keyframe recurs on the cadence so dropped deltas and late joiners
+## self-heal within a bounded window.
+func test_keyframe_recurs_on_the_cadence() -> void:
+	var game := _game()
+	game.get_snapshot()  # first keyframe (seq 0)
+	for _i in ColorClash.KEYFRAME_EVERY - 1:
+		assert_true(game.get_snapshot().has("grid_changes"), "mid-stream snapshots are deltas")
+	assert_true(game.get_snapshot().has("grid"), "a full keyframe returns on the cadence")
+
+
+## Reconstructing from the keyframe then folding every delta reproduces the
+## server's grid exactly — the invariant clients rely on.
+func test_delta_stream_reconstructs_the_grid() -> void:
+	var game := _game()
+	var client: Array = (game.get_snapshot().grid as Array).duplicate()
+	for tick in 20:
+		game.grid[tick] = tick % 3  # churn the board each tick
+		var snapshot := game.get_snapshot()
+		if snapshot.has("grid"):
+			client = (snapshot.grid as Array).duplicate()
+		else:
+			for change: Array in snapshot.grid_changes:
+				client[int(change[0])] = int(change[1])
+	assert_eq(client, game.grid, "keyframe + deltas rebuild the server grid")
+
+
 ## M15 → 24.
 
 
