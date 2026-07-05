@@ -44,30 +44,37 @@ theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 16
 
-[node name="HudRow" type="HBoxContainer" parent="HudBar"]
+[node name="HudPanel" type="PanelContainer" parent="HudBar"]
+layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="HudRow" type="HBoxContainer" parent="HudBar/HudPanel"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="RoundLabel" type="Label" parent="HudBar/HudRow"]
+[node name="RoundLabel" type="Label" parent="HudBar/HudPanel/HudRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_type_variation = &"DimLabel"
+vertical_alignment = 1
 
-[node name="GameNameLabel" type="Label" parent="HudBar/HudRow"]
+[node name="GameNameLabel" type="Label" parent="HudBar/HudPanel/HudRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_type_variation = &"HeaderLabel"
 
-[node name="TimerLabel" type="Label" parent="HudBar/HudRow"]
+[node name="TimerLabel" type="Label" parent="HudBar/HudPanel/HudRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_type_variation = &"HeaderLabel"
+theme_override_colors/font_color = Color(0.96, 0.79, 0.2, 1)
+vertical_alignment = 1
 
-[node name="TotalsRow" type="HFlowContainer" parent="HudBar/HudRow"]
+[node name="TotalsRow" type="HFlowContainer" parent="HudBar/HudPanel/HudRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 10
-theme_override_constants/separation = 16
+theme_override_constants/separation = 8
 
 [node name="EmoteFeed" type="VBoxContainer" parent="."]
 unique_name_in_owner = true

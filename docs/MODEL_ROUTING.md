@@ -47,7 +47,7 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | **First M15 12-cap** (suggest Coin Scramble) | Sets the pattern for wiring `MinigameScaling`/`SpawnLayout` into a sim; do it once with a stronger model, then the rest is mechanical. |
 | **M16-02** screen-transition framework (M) | One shared mechanism wired through every app-shell screen change; interacts with reduced-motion. Build once, carefully. |
 | **M16-03** title screen & main menu (M) | The flagship surface — this PR *is* the visual bar the other surfaces copy. Do it right after M16-01, before the Sonnet fan-out. |
-| **M16-08** in-match HUD (M) | Legibility judgment under 24-player chaos, not just styling; every game's readability rides on it. |
+| ~~M16-08~~ in-match HUD (M) | ✅ done (#536) |
 | **M16-07** match chrome · **M16-09** results & celebration · **M16-11** finale chrome (M) | Multi-state presentation flows (intro→countdown→play→results) with motion; real assembly against the M16-01/03 bar. |
 
 ## Sonnet 5 — mechanical, pattern-following
@@ -96,11 +96,13 @@ All seven review findings are closed — the full audit's follow-ups are done.
   2026-07-05: M14-01 (#509), M14-05 (#507), and M14-06 (#505) are claimed;
   M14-02/03/04/08/09/10 are unclaimed.
 - **M16 sequencing**: M16-01 (Fable) gates everything; M16-03 (Opus) was the
-  exemplar surface. Merged 2026-07-05: M16-01/02/03/04/05/06/07/12 (M16-04/05
-  combined; M16-12 = the intro-card key-art request batch). Remaining:
-  M16-08/09/11 (Opus, chrome passes), M16-13 (Fable, audits everything
-  else last — gated until M16-08/09/11 land). Image needs go through
-  IMAGE_REQUESTS.md — never block on art.
+  exemplar surface. Merged 2026-07-05: M16-01/02/03/04/05/06/07/08/10/12
+  (M16-04/05 combined; M16-12 = the intro-card key-art request batch).
+  Remaining: M16-09 (Opus, results & celebration — `match_screen.gd`'s
+  results/standings subtree, left clean by M16-08), M16-11 (Opus, finale
+  chrome), M16-13 (Fable, audits everything else last — gated until
+  M16-09/11 land). Image needs go through IMAGE_REQUESTS.md — never
+  block on art.
 - **M15 is fully done** — every per-game cap task landed; the section above is
   historical. The live remaining pool is M14 (Genre Hop) + M16 (Beautiful
   UI/UX), both gated at the top (M14-01..10 mostly Fable/Opus; M16 gated on
