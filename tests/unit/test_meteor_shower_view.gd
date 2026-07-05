@@ -2,12 +2,13 @@ extends GutTest
 ## Meteor Shower client view (M10-01): renders replicated snapshots in the
 ## shared iso-arena without simulating anything locally.
 
+const VIEW_SCENE := preload("res://src/minigames/meteor_shower/meteor_shower_view.tscn")
+
 var view: MinigameView
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/meteor_shower/meteor_shower_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
 
@@ -133,3 +134,16 @@ func test_knockdown_bursts_at_the_rig() -> void:
 		{"players": {0: [0.0, 0.0]}, "zone": [0.0, 0.0, 8.0], "meteors": [], "fallen": [[1]]}
 	)
 	assert_eq(view.arena.get_child_count(), before + 1, "one burst at the downed rig")
+
+
+## M15: the view derives its floor/camera size from the lobby count with the
+## same formula the sim uses, so the rendered arena matches the scaled one.
+func test_arena_half_scales_with_lobby_size() -> void:
+	assert_almost_eq(view._arena_half(), MeteorShower.ARENA_HALF, 0.001, "2 players = base arena")
+	var big: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(big)
+	var names := {}
+	for i in 12:
+		names[i] = "P%d" % (i + 1)
+	big.setup(names, 0)
+	assert_gt(big._arena_half(), MeteorShower.ARENA_HALF, "12 players get a bigger arena")

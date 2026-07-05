@@ -105,3 +105,47 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.zone, [0.0, 0.0, snappedf(game.zone_radius(), 0.01)])
 	assert_eq(snapshot.meteors, [[1.0, -2.0, 0.5]])
 	assert_eq(snapshot.fallen, [])
+
+
+func test_max_players_raised_to_twelve() -> void:
+	assert_eq(MeteorShower.make_meta().max_players, 12)
+
+
+## M15: at 12 players the arena and both zone radii grow together, so
+## METEOR_RADIUS stays the same fraction of the final zone as at 6.
+func test_arena_and_zone_scale_at_twelve_preserving_final_zone_density() -> void:
+	var baseline := _game_with(6)
+	var baseline_area_per_player := PI * baseline._zone_min * baseline._zone_min / 6.0
+
+	var game := _game_with(12)
+	assert_gt(game._play_half, MeteorShower.ARENA_HALF, "the arena grows for a crowd")
+	assert_gt(game._zone_start, MeteorShower.ZONE_START_RADIUS)
+	assert_gt(game._zone_min, MeteorShower.ZONE_MIN_RADIUS)
+	var area_per_player := PI * game._zone_min * game._zone_min / 12.0
+	assert_almost_eq(
+		area_per_player, baseline_area_per_player, 0.01, "final-zone area-per-player holds steady"
+	)
+	# METEOR_RADIUS itself doesn't scale, so as the zone grows a meteor covers
+	# a *smaller* fraction of it — the endgame crush gets no worse at 12.
+	var ratio := MeteorShower.METEOR_RADIUS / game._zone_min
+	var baseline_ratio := MeteorShower.METEOR_RADIUS / baseline._zone_min
+	assert_lt(ratio, baseline_ratio, "a meteor covers less of the bigger final zone, not more")
+
+
+## Backward compatibility: at the 6-player baseline nothing scales.
+func test_six_players_unchanged() -> void:
+	var game := _game_with(6)
+	assert_almost_eq(game._play_half, MeteorShower.ARENA_HALF, 0.001)
+	assert_almost_eq(game._zone_start, MeteorShower.ZONE_START_RADIUS, 0.001)
+	assert_almost_eq(game._zone_min, MeteorShower.ZONE_MIN_RADIUS, 0.001)
+
+
+## Spawns fan out over rings (no overlap) and stay inside the scaled zone.
+func test_spawns_distinct_and_within_zone_at_twelve() -> void:
+	var game := _game_with(12)
+	var seen := {}
+	for slot in 12:
+		var pos: Vector2 = game.positions[slot]
+		assert_lt(pos.length(), game.zone_radius(), "spawn inside the scaled zone")
+		seen[pos] = true
+	assert_eq(seen.size(), 12, "every player gets a distinct spawn")

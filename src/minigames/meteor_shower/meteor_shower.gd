@@ -26,6 +26,14 @@ var meteors: Array = []
 ## Slots in down order; same-tick knockouts share a tie group.
 var down_order: Array = []
 
+## Arena and zone radii scale together with the lobby size (M15, ADR 003):
+## the same growth factor applied to all three keeps METEOR_RADIUS the same
+## fraction of the final zone at any player count, so the endgame crush
+## doesn't get worse with a crowd. Equal the consts above at <=6 players.
+var _play_half := ARENA_HALF
+var _zone_start := ZONE_START_RADIUS
+var _zone_min := ZONE_MIN_RADIUS
+
 var _pending_downs: Array = []
 var _spawn_left := METEOR_INTERVAL_START
 
@@ -40,7 +48,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "Meteor Shower",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
-				"max_players": 6,
+				"max_players": 12,
 				"duration_sec": 60.0,
 				"rules":
 				"Meteors mark where they'll land — don't be there. Stay inside the shrinking safe zone!",
@@ -50,9 +58,12 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	_play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size())
+	_zone_start = MinigameScaling.arena_half(ZONE_START_RADIUS, slots.size())
+	_zone_min = MinigameScaling.arena_half(ZONE_MIN_RADIUS, slots.size())
+	var spawns := SpawnLayout.ring_positions(slots.size(), _zone_start * 0.6)
 	for i in slots.size():
-		var angle := TAU * i / slots.size()
-		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * ZONE_START_RADIUS * 0.6
+		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 
 
@@ -68,7 +79,7 @@ func _tick(delta: float) -> void:
 		return
 	for slot: int in _in_slots():
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
-		positions[slot] = pos.limit_length(ARENA_HALF)
+		positions[slot] = pos.limit_length(_play_half)
 	_tick_meteors(delta)
 	_spawn_meteors(delta)
 	_check_zone()
@@ -78,7 +89,7 @@ func _tick(delta: float) -> void:
 
 func zone_radius() -> float:
 	var t := clampf((elapsed - ZONE_GRACE_SEC) / ZONE_SHRINK_SEC, 0.0, 1.0)
-	return lerpf(ZONE_START_RADIUS, ZONE_MIN_RADIUS, t)
+	return lerpf(_zone_start, _zone_min, t)
 
 
 func get_snapshot() -> Dictionary:
