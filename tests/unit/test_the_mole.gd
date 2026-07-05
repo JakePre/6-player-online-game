@@ -24,10 +24,31 @@ func test_meta_and_catalog() -> void:
 	var meta := TheMole.make_meta()
 	assert_eq(meta.id, &"the_mole")
 	assert_eq(meta.category, MinigameMeta.Category.SABOTAGE)
+	assert_eq(meta.max_players, 8)
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"the_mole") is TheMole)
 	MinigameCatalog.clear()
+
+
+## No-crowd fairness (M15 8-cap, owner override — see ADR 003 addendum): the
+## fixed fuel-cell economy stays close enough to the 6-player baseline at 8
+## that no scaling is needed. Exactly one mole regardless of headcount.
+func test_setup_handles_eight_players() -> void:
+	var player_slots: Array[int] = []
+	for i in 8:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	assert_eq(game.carrying.size(), 8)
+	var mole_count := 0
+	for slot in 8:
+		assert_false(game.carrying[slot])
+		if slot == game.mole:
+			mole_count += 1
+	assert_eq(mole_count, 1, "exactly one mole at any headcount")
+	for slot in 8:
+		var pos: Vector2 = game.positions[slot]
+		assert_lt(pos.length(), TheMole.ARENA_HALF, "spawn stays inside the arena")
 
 
 func test_role_reaches_only_the_mole() -> void:

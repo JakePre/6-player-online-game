@@ -17,9 +17,9 @@ and the full animation/FX pass. A coherent, feature-complete product.
 
 | Item | Issue/PR | Status | Model |
 |---|---|---|---|
-| M15: The Mole → 12 (‡ — needs M15-04 economy wiring) | — | ☐ open | Opus |
-| M15: Faulty Wiring → 12 (‡ — plain bump) | — | ☐ open | Sonnet |
-| M15: Fort Siege → 12 (‡ — plain bump) | #461 | ◐ in-flight | Sonnet |
+| M15: The Mole → 8 (‡ — owner override: capped at 8, not 12; plain bump) | #483 | ✅ merged | Sonnet |
+| M15: Faulty Wiring → 12 (‡ — plain bump) | #474 | ✅ merged | Sonnet |
+| M15: Fort Siege → 12 (‡ — plain bump) | #461 | ✅ merged | Sonnet |
 | M10-14: Pickpocket Plaza (last M10 game) | #359 | ◐ claimed, stalled | Opus |
 | M12-02: `play_sfx` adoption in every view | — | ☐ open | Sonnet |
 | M12-05: input parity audit (gamepad-only / kb-only) | — | ☐ open | Sonnet/Opus |
