@@ -23,41 +23,27 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 
 | Task | Why |
 |---|---|
-| **M12-01** balance pass, all 33 games at 2/4/6 | The riskiest remaining task: interpret nightly-run data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
-| **M14-00** side-view platformer framework (L) | Server-side platformer *feel* at 30 Hz (gravity, jump buffering/coyote, knockback) has no precedent in the codebase; its choices are inherited by three games (M14-01/-03/-09). Owner-approved design on #509. |
-| **M14-02** Turbo Lap (L) | Racing handling under 30 Hz server-authoritative snapshots — latency feel, drift, track replication have no precedent in this codebase. |
-| **M14-09** Tumble Run (L, after M14-00) | Obstacle gauntlet on the side-scroll framework; the platforming physics risk moves into M14-00, leaving hazard/tumble design — reassess as Opus once the framework lands. |
+| **M12-01** balance pass, all 35 games at 2/4/6 | The riskiest remaining task — and **the only open task in the plan**. ⛔ Blocked on data: the pre-#560 telemetry was tie-noise (idle bots, 0.4 s rounds); the fixed `balance-telemetry-{2,4,6}` artifacts (#560, nightly `balance` job) need a few nights to accumulate first. Then: interpret the data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
+| ~~**M14-00** side-view platformer framework (L)~~ | ✅ done — `SideScrollSim`/`SideScrollView` landed; M14-01/-03/-09 built on it. |
+| ~~**M14-02** Turbo Lap (L)~~ | ✅ done |
+| ~~**M14-09** Tumble Run (L)~~ | ✅ done |
 | ~~**M16-01** design system 2.0 (L)~~ | ✅ done (#506) — `PartyTheme` rebuilt, `docs/STYLE_GUIDE.md` written. Gates the rest of M16. |
-| **M16-13** consistency audit (S) | Small but judgment-dense: spotting "this reads wrong" across every surface with no checklist to follow is exactly what the tier is for. |
+| ~~**M16-13** consistency audit (S)~~ | ✅ done (#553/PR #556). Its biggest find was out-of-scope: the finale was unreachable (#554). |
+| ~~**#554** wire The Gauntlet finale into the match flow~~ | ✅ done (PR #558) — FINALE_SHOP/FINALE_PLAY states, shop UI, PROTOCOL_VERSION 8, playtest bots assert the finale runs. |
 
 ## Opus 4.8 — real engineering, clear precedent
 
-| Task | Why |
-|---|---|
-| **M10-16** Faulty Wiring (M) | Full minigame (sim + view + tests) against a 30-game template; sabotage role can lean on the private-snapshot hook (#254). |
-| **M10-13** The Mole · **M10-14** Pickpocket Plaza | Claimed/in-flight — listed for §9 rescue purposes. Same profile as M10-16 (hidden-role mechanics, moderate). |
-| **M14-01** Loadout Duel (M, after M14-00) | ◐ claimed (#509). Design fully approved; the build is assembly on the side-scroll framework (weapon daises, grab/fire/throw, elimination sub-rounds). |
-| **M14-03** Knock-Off (L, after M14-00) | Smash-like brawler on the side-scroll framework: percent knockback + off-stage KO on top of proven shove/KO mechanics — assembly more than invention. |
-| **M14-04** Shred Session · **M14-06** Blast Grid · **M14-08** Putt Panic · **M14-10** Nom Arena (M) | Genre-hop games on the mature minigame contract. Nom Arena has a hard owner constraint: 60 s cap, keep it QUICK. |
-| **M12-03** accessibility (M) | Wide-reaching (reduced-motion touches every FX site; colorblind palette touches identity; remapping needs new settings UI) but each piece is well-specified. |
-| **M12-05** input parity audit (S) | Small, but the audit half means actually judging playability per game; the Trap Corridor stick-cursor is a real little feature. |
-| **M15 †-caps**: Bullet Waltz, Laser Limbo, Target Range → 24 | Need `MinigameScaling` (F4) wired *into the sims* (arena density, gap scaling, target-band widen) + fairness verification — not just a number bump. |
-| **M15**: Color Clash → 24 | The one cap task with a gameplay change: N-team mode + larger grid so tile counts stay meaningful. |
-| **M15**: Gauntlet finale → 24 | Survival pacing, hazard density, and lives at 24 need verification beyond geometric spawn scaling. |
-| **First M15 12-cap** (suggest Coin Scramble) | Sets the pattern for wiring `MinigameScaling`/`SpawnLayout` into a sim; do it once with a stronger model, then the rest is mechanical. |
-| **M16-02** screen-transition framework (M) | One shared mechanism wired through every app-shell screen change; interacts with reduced-motion. Build once, carefully. |
-| **M16-03** title screen & main menu (M) | The flagship surface — this PR *is* the visual bar the other surfaces copy. Do it right after M16-01, before the Sonnet fan-out. |
-| ~~M16-08~~ in-match HUD (M) | ✅ done (#536) |
-| ~~M16-07~~ match chrome · ~~M16-09~~ results & celebration (M) | ✅ done (#525, #538) |
-| **M16-11** finale chrome (M) | Multi-state presentation flow (intro→countdown→play→results) with motion; real assembly against the M16-01/03 bar. |
+Everything in this tier is **done** — kept as a record, not a work queue.
+The M10/M14 roster, M12 feel-and-fairness pieces (except the data-blocked
+M12-01 above), every M15 cap, and all M16 surfaces (M16-02/03/07/08/09/11)
+shipped; the finale wiring follow-ups (#554/#560) closed the last gaps.
 
 ## Sonnet 5 — mechanical, pattern-following
 
-Everything below the M15/M12-02 rows is **done** — kept as a record, not a
-work queue. Live availability as of 2026-07-05: **none**. M14-05 (the one
-open Sonnet-tier new game) is claimed; the M16 Sonnet surfaces are blocked on
-M16-01/03/07 landing first (see Structural notes). Next agent: check here
-before re-deriving this from scratch.
+Everything below is **done** — kept as a record, not a work queue. Live
+availability as of 2026-07-05 (evening): **none at any tier** except the
+data-gated M12-01 (see Structural notes). Next agent: check here before
+re-deriving this from scratch.
 
 | Task | Status |
 |---|---|
@@ -92,18 +78,17 @@ All seven review findings are closed — the full audit's follow-ups are done.
 
 ## Structural notes
 
-- **M14 is open** (v0.6.0 shipped at the boundary 2026-07-05; the release hold
-  is lifted) — Genre Hop games are claimable under normal rules. As of
-  2026-07-05: M14-01 (#509), M14-05 (#507), and M14-06 (#505) are claimed;
-  M14-02/03/04/08/09/10 are unclaimed.
-- **M16 sequencing**: M16-01 (Fable) gates everything; M16-03 (Opus) was the
-  exemplar surface. Merged 2026-07-05: M16-01/02/03/04/05/06/07/08/09/10/12
-  (M16-04/05 combined; M16-12 = the intro-card key-art request batch).
-  Remaining: M16-11 (Opus, finale chrome — Gauntlet intro, elimination/
-  grudge banners, winner sequence), M16-13 (Fable, audits everything else
-  last — gated until M16-11 lands). Image needs go through
-  IMAGE_REQUESTS.md — never block on art.
-- **M15 is fully done** — every per-game cap task landed; the section above is
-  historical. The live remaining pool is M14 (Genre Hop) + M16 (Beautiful
-  UI/UX), both gated at the top (M14-01..10 mostly Fable/Opus; M16 gated on
-  M16-01).
+- **The plan board is complete except M12-01** (as of 2026-07-05 evening):
+  M14 Genre Hop, M15 caps, and all of M16 shipped; the M16-13 closing audit
+  merged as PR #556. The finale — built across M5/M8/M13/M16 but never
+  reachable — was wired into the live match flow by #554 (PR #558,
+  PROTOCOL_VERSION 8).
+- **M12-01 is the only open task and it is data-gated, not claim-gated.**
+  #560 (PR #561) fixed why: the old playtest telemetry was idle-bot tie-noise.
+  The nightly now runs a `balance` job (2/4/6 players, real durations, bots
+  sending random inputs) uploading `balance-telemetry-<n>.json`. Claim M12-01
+  once several nights of those artifacts exist; `workflow_dispatch` the
+  Nightly playtest to accumulate faster. Tuning-only PRs; respect the
+  PHASE2.md §7 intentional-design tiers (#174/#175 precedent).
+- Housekeeping: #557 removed 153 accidentally-committed `*.TMP` files and
+  gitignored the pattern (PR #559).
