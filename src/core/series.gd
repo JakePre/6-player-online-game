@@ -40,8 +40,10 @@ func drop_slot(slot: int) -> void:
 
 
 ## Records one finished match from match_ended standings rows
-## ({slot, name, score}, best first). Equal scores form a tie group and
-## share the higher points value.
+## ({slot, name, score}, best first). Rows carrying a `placement` (finale
+## matches, #554) group by it — coins no longer decide placement there, so
+## equal scores across different finale placements must not merge; legacy
+## rows without one keep the score-equality grouping.
 func record_match(standings: Array) -> void:
 	if not is_active():
 		return
@@ -49,11 +51,11 @@ func record_match(standings: Array) -> void:
 	var rank := 0
 	var i := 0
 	while i < standings.size():
-		# Collect the tie group: consecutive rows with the same match score.
+		# Collect the tie group: consecutive rows sharing a placement/score.
 		var group: Array = [standings[i]]
 		while i + group.size() < standings.size():
 			var next: Dictionary = standings[i + group.size()]
-			if int(next.score) != int(standings[i].score):
+			if _tie_key(next) != _tie_key(standings[i]):
 				break
 			group.append(next)
 		var value: int = POINTS[mini(rank, POINTS.size() - 1)]
@@ -63,6 +65,10 @@ func record_match(standings: Array) -> void:
 			coins[slot] = int(coins.get(slot, 0)) + int(row.score)
 		rank += group.size()
 		i += group.size()
+
+
+static func _tie_key(row: Dictionary) -> int:
+	return int(row.placement) if row.has("placement") else int(row.score)
 
 
 ## Series standings rows, best first: {slot, points, coins}. Sorted by

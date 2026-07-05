@@ -81,6 +81,10 @@ func confirm(slot: int) -> void:
 		_close()
 
 
+func is_confirmed(slot: int) -> bool:
+	return bool(_confirmed.get(slot, false))
+
+
 func all_confirmed() -> bool:
 	for slot: int in _confirmed:
 		if not _confirmed[slot]:

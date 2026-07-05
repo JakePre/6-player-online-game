@@ -12,7 +12,7 @@ enum JoinResult {
 	ALREADY_IN_ROOM,
 }
 
-const PROTOCOL_VERSION := 7
+const PROTOCOL_VERSION := 8
 const DEFAULT_PORT := 7777
 ## ADR 003 (M15-01): rooms hold up to 24 players. Per-game eligibility still
 ## comes from each MinigameMeta.max_players — the room cap only bounds the

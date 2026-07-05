@@ -371,3 +371,80 @@ func test_coin_fly_respects_reduced_motion() -> void:
 	assert_null(screen.get_node_or_null("CoinFly0"), "reduced motion skips the flight")
 	assert_null(screen.get_node_or_null("CoinFly1"))
 	ArenaFX.reduced_motion = saved
+
+
+# --- Finale flow (SPEC $6, #554) ----------------------------------------------
+
+
+func test_finale_shop_event_shows_shop_panel() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	NetManager.match_event_received.emit({"type": "finale_shop", "time": 30.0, "totals": {}})
+	var panel: PanelContainer = screen.get_node("%ShopPanel")
+	assert_true(panel.visible, "the buy-in shop appears")
+	assert_null(_mounted_view(), "no arena behind the shop")
+
+
+func test_finale_started_mounts_the_gauntlet_view() -> void:
+	NetManager.match_event_received.emit({"type": "finale_shop", "time": 30.0, "totals": {}})
+	NetManager.match_event_received.emit(
+		{"type": "finale_started", "minigame": Gauntlet.make_meta().to_dict()}
+	)
+	assert_false((screen.get_node("%ShopPanel") as PanelContainer).visible)
+	var view := _mounted_view()
+	assert_not_null(view, "the finale mounts outside the catalog path")
+	assert_eq(screen._game_name_label.text, "The Gauntlet")
+
+
+func test_finale_shop_snapshot_renders_for_rejoiners() -> void:
+	NetManager.my_slot = 0
+	(
+		NetManager
+		. snapshot_received
+		. emit(
+			{
+				"tick": 2,
+				"match":
+				{
+					"state": MatchController.State.FINALE_SHOP,
+					"round": 8,
+					"rounds": 8,
+					"time_left": 12.0,
+					"shop":
+					{
+						"players":
+						{
+							0: {"coins": 90, "items": {&"shield": 1}, "confirmed": false},
+							1: {"coins": 0, "items": {}, "confirmed": true},
+						}
+					},
+				},
+			}
+		)
+	)
+	var panel: ShopPanel = screen.get_node("%ShopPanel")
+	assert_true(panel.visible, "replicated shop state alone shows the panel")
+	assert_eq((panel.get_node("%ShopCoinsLabel") as Label).text, "Your coins: 90")
+	assert_eq((panel.get_node("%ShopConfirmedLabel") as Label).text, "1/2 locked in")
+	NetManager.my_slot = -1
+
+
+func test_finale_play_snapshot_mounts_gauntlet_for_rejoiners() -> void:
+	(
+		NetManager
+		. snapshot_received
+		. emit(
+			{
+				"tick": 3,
+				"match":
+				{
+					"state": MatchController.State.FINALE_PLAY,
+					"round": 8,
+					"rounds": 8,
+					"time_left": 90.0,
+					"minigame": "gauntlet",
+					"game": {"radius": 10.0, "players": {}, "hazards": []},
+				},
+			}
+		)
+	)
+	assert_not_null(_mounted_view(), "replicated FINALE_PLAY alone mounts the finale view")

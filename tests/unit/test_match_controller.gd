@@ -64,11 +64,47 @@ func _make_controller(room: Room, rounds: int) -> MatchController:
 				"leaderboard_sec": 0.1,
 				"podium_sec": 0.1,
 				"duration_override": 0.1,
+				# Playlist-mechanics tests end at the podium; the finale flow
+				# has its own suite below (#554).
+				"finale": false,
 			}
 		)
 	)
 	controller.event_emitted.connect(func(event: Dictionary) -> void: events.append(event))
 	return controller
+
+
+## A controller with the finale enabled (#554): playlist rounds, then
+## FINALE_SHOP -> FINALE_PLAY -> PODIUM, everything compressed.
+func _make_finale_controller(room: Room, rounds := 1) -> MatchController:
+	var playlist: Array = []
+	for _i in rounds:
+		playlist.append(&"slot_order")
+	var controller := (
+		MatchController
+		. new(
+			room,
+			{
+				"seed": 7,
+				"playlist": playlist,
+				"intro_sec": 0.1,
+				"results_sec": 0.1,
+				"leaderboard_sec": 0.1,
+				"podium_sec": 0.1,
+				"duration_override": 0.1,
+				"shop_sec": 0.5,
+			}
+		)
+	)
+	controller.event_emitted.connect(func(event: Dictionary) -> void: events.append(event))
+	return controller
+
+
+func _run_to_finale_shop(controller: MatchController) -> void:
+	controller.start()
+	_run_until(
+		controller, func() -> bool: return controller.state == MatchController.State.FINALE_SHOP
+	)
 
 
 func _run_until(controller: MatchController, predicate: Callable) -> void:
@@ -521,3 +557,119 @@ func test_countdown_step_sec_debug_override_compresses_the_gate() -> void:
 	assert_between(
 		float(controller.get_snapshot().time_left), 0.0, 0.05 * MatchController.COUNTDOWN_STEPS
 	)
+
+
+# --- Finale flow (SPEC $6, #554) ----------------------------------------------
+
+
+func test_playlist_exhausted_enters_finale_shop() -> void:
+	var room := _make_room(2)
+	var controller := _make_finale_controller(room)
+	_run_to_finale_shop(controller)
+	var types := _event_types()
+	assert_has(types, "finale_shop")
+	assert_does_not_have(types, "match_ended", "the finale must precede the podium")
+	var snapshot := controller.get_snapshot()
+	assert_true(snapshot.has("shop"), "shop state replicates")
+	assert_between(float(snapshot.time_left), 0.0, 0.5)
+
+
+func test_shop_purchases_flow_through_match_input() -> void:
+	# SlotOrderGame awards 30/20/15 per round: two rounds -> 60/40/30 coins.
+	var room := _make_room(3)
+	var controller := _make_finale_controller(room, 2)
+	_run_to_finale_shop(controller)
+	controller.handle_input(0, {"shop": {"action": "buy", "item": "shield"}})
+	controller.handle_input(0, {"shop": {"action": "buy", "item": "nonsense"}})
+	controller.handle_input(2, {"shop": {"action": "buy", "item": "shield"}})  # 30c < 40c
+	var players: Dictionary = controller.get_snapshot().shop.players
+	assert_eq(int(players[0].coins), 20, "shield costs 40 of the 60 earned")
+	assert_eq(int(players[0]["items"].get(&"shield", 0)), 1)
+	assert_eq(int(players[2].coins), 30, "an unaffordable buy is refused")
+	assert_true(players[2]["items"].is_empty())
+
+
+func test_all_confirmed_closes_shop_early_and_applies_loadouts() -> void:
+	# Four rounds of 30 first-place coins buy slot 0 the 100c extra life.
+	var room := _make_room(2)
+	var controller := _make_finale_controller(room, 4)
+	_run_to_finale_shop(controller)
+	controller.handle_input(0, {"shop": {"action": "buy", "item": "extra_life"}})
+	controller.handle_input(0, {"shop": {"action": "confirm"}})
+	controller.handle_input(1, {"shop": {"action": "confirm"}})
+	controller.tick(TICK)
+	assert_eq(controller.state, MatchController.State.FINALE_PLAY, "all confirmed -> early close")
+	assert_has(_event_types(), "finale_started")
+	var gauntlet := controller.game as Gauntlet
+	assert_not_null(gauntlet, "the finale runs The Gauntlet directly")
+	assert_eq(int(gauntlet.lives[0]), 2, "the bought extra life landed")
+	assert_eq(int(gauntlet.lives[1]), 1)
+	var snapshot := controller.get_snapshot()
+	assert_eq(String(snapshot.minigame), "gauntlet", "late arrivals can mount the finale view")
+	assert_true(snapshot.has("game"))
+
+
+func test_finale_placement_orders_match_ended_standings() -> void:
+	# One round awards 30/20/15 — distinct coins, so FinaleRanking's tiebreaks
+	# are deterministic when the compressed gauntlet times out with everyone
+	# alive and tied on lives.
+	var room := _make_room(3)
+	var controller := _make_finale_controller(room)
+	_run_to_finale_shop(controller)
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PODIUM)
+	var ended: Dictionary = events[-1]
+	assert_eq(String(ended.type), "match_ended")
+	var standings: Array = ended.standings
+	assert_eq(standings.size(), 3)
+	for row: Dictionary in standings:
+		assert_true(row.has("placement"), "finale standings carry explicit placements")
+	# Timeout with everyone alive on equal lives: leftover coins break the tie.
+	assert_eq(int(standings[0].slot), 0, "most leftover coins ranks first")
+	assert_eq(int(standings[1].slot), 1)
+	assert_eq(int(standings[2].slot), 2)
+	assert_eq(int(standings[0].placement), 1)
+	assert_eq(int(standings[1].placement), 2)
+	assert_eq(int(standings[2].placement), 3)
+
+
+func test_disconnected_member_ranks_below_finale_participants() -> void:
+	var room := _make_room(3)
+	room.members[2].score = 999
+	room.members[2].connected = false
+	var controller := _make_finale_controller(room)
+	_run_to_finale_shop(controller)
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PODIUM)
+	var standings: Array = events[-1].standings
+	assert_eq(standings.size(), 3, "absentees still appear in the standings")
+	assert_eq(int(standings[-1].slot), 2, "a no-show ranks below every participant")
+	assert_eq(int(standings[-1].placement), 3)
+
+
+func test_solo_room_skips_finale_to_podium() -> void:
+	var room := _make_room(1)
+	var controller := _make_finale_controller(room)
+	controller.start()
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PODIUM)
+	var types := _event_types()
+	assert_does_not_have(types, "finale_shop", "a solo debug session keeps the old flow")
+	assert_has(types, "match_ended")
+
+
+func test_shop_times_out_into_finale_play() -> void:
+	var room := _make_room(2)
+	var controller := _make_finale_controller(room)
+	_run_to_finale_shop(controller)
+	_run_until(
+		controller, func() -> bool: return controller.state == MatchController.State.FINALE_PLAY
+	)
+	assert_has(_event_types(), "finale_started", "an idle shop closes on its own clock")
+
+
+func test_finale_ignores_input_from_non_participants() -> void:
+	var room := _make_room(2)
+	var controller := _make_finale_controller(room)
+	_run_to_finale_shop(controller)
+	controller.handle_input(99, {"shop": {"action": "confirm"}})
+	var players: Dictionary = controller.get_snapshot().shop.players
+	assert_false(bool(players.get(99, {}).get("confirmed", false)))
+	assert_eq(players.size(), 2)

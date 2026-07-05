@@ -63,6 +63,7 @@ var _countdown_digit := 0
 @onready var _results_title: Label = %ResultsTitle
 @onready var _results_list: VBoxContainer = %ResultsList
 @onready var _standings_panel: StandingsPanel = %StandingsPanel
+@onready var _shop_panel: ShopPanel = %ShopPanel
 @onready var _emote_bar: HBoxContainer = %EmoteBar
 @onready var _emote_feed: VBoxContainer = %EmoteFeed
 @onready var _transition_wipe: ColorRect = %TransitionWipe
@@ -127,6 +128,20 @@ func _on_match_event(event: Dictionary) -> void:
 			AudioManager.play_sfx(&"leaderboard")
 			_unmount_view()
 			_show_standings("Leaderboard", event.totals)
+		"finale_shop":
+			# The buy-in phase (SPEC $6, #554): the wipe punctuates the shift
+			# into the endgame the same way it does each round.
+			AudioManager.play_music(&"finale")
+			AudioManager.play_sfx(&"leaderboard")
+			_play_transition_wipe()
+			_unmount_view()
+			_minigame_id = ""
+			_show_panel(_shop_panel)
+		"finale_started":
+			AudioManager.play_sfx(&"round_start")
+			_minigame_id = "gauntlet"
+			_mount_view(_minigame_id)
+			_show_panel(null)
 		"match_ended":
 			AudioManager.play_music(&"finale")
 			AudioManager.play_sfx(&"podium")
@@ -140,11 +155,27 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 	var match_state: Dictionary = snapshot.match
 	_timer_label.text = MatchFormat.clock(float(match_state.time_left))
 	var state := int(match_state.state)
-	if state not in [MatchController.State.COUNTDOWN, MatchController.State.PLAY]:
+	if state == MatchController.State.FINALE_SHOP:
+		# Rejoiners and event-racers land here from the snapshot alone (#554).
+		if not _shop_panel.visible:
+			_unmount_view()
+			_show_panel(_shop_panel)
+		_shop_panel.render(
+			match_state.get("shop", {}), NetManager.my_slot, float(match_state.time_left)
+		)
+		return
+	if (
+		state
+		not in [
+			MatchController.State.COUNTDOWN,
+			MatchController.State.PLAY,
+			MatchController.State.FINALE_PLAY,
+		]
+	):
 		return
 	# A rejoiner (or a client that raced the skip) may reach this state
 	# without the event; the replicated state is authoritative.
-	if _intro_card.visible:
+	if _intro_card.visible or _shop_panel.visible:
 		_show_panel(null)
 	if _minigame_view == null and match_state.has("minigame"):
 		_round_view_flags = match_state.get("mutator", {}).get("view_flags", [])
@@ -340,13 +371,14 @@ func _show_podium(standings: Array, series: Dictionary = {}) -> void:
 ## `keep_play_area` leaves the arena visible behind the panel (round results,
 ## so celebrations stay on screen — M6-02).
 func _show_panel(panel: PanelContainer, keep_play_area := false) -> void:
-	for candidate: PanelContainer in [_intro_card, _results_panel, _standings_panel]:
+	for candidate: PanelContainer in [_intro_card, _results_panel, _standings_panel, _shop_panel]:
 		candidate.visible = candidate == panel
 	_play_area.visible = panel == null or keep_play_area
 
 
 ## Mounts the minigame's view scene (MinigameCatalog convention path) into the
-## play area; games without a view yet keep the placeholder label.
+## play area; games without a view yet keep the placeholder label. The finale
+## is the one non-catalog mount: its view lives in src/finale/ (#554).
 func _mount_view(id: String) -> void:
 	_unmount_view()
 	if id.is_empty():
@@ -354,10 +386,16 @@ func _mount_view(id: String) -> void:
 	# The name stays on the HUD through the whole round (#181, for playtest
 	# notes); the catalog lookup covers rejoiners who never saw the intro,
 	# with the intro's own name as the fallback.
-	if MinigameCatalog.is_registered(StringName(id)):
+	if id == "gauntlet":
+		_minigame_name = "The Gauntlet"
+	elif MinigameCatalog.is_registered(StringName(id)):
 		_minigame_name = MinigameCatalog.meta_of(StringName(id)).display_name
 	_game_name_label.text = _minigame_name
-	var path := MinigameCatalog.view_scene_path(id)
+	var path := (
+		"res://src/finale/gauntlet_view.tscn"
+		if id == "gauntlet"
+		else MinigameCatalog.view_scene_path(id)
+	)
 	if not ResourceLoader.exists(path):
 		return
 	_minigame_view = (load(path) as PackedScene).instantiate()
