@@ -34,16 +34,18 @@ git fetch origin && git branch -r   # pushed branches without a PR yet
 
 A task is **taken** if any open issue, open PR, or remote branch references its ID. Then:
 
-1. Open an issue with the *Claim a plan task* template, titled with the task ID. In the **hotspot files** field, list every shared file (§4) you expect to touch — this is how other agents see collisions coming.
+1. **File the claim issue as your literal first action — before reading a single file.** The issue *is* the lock; the cost of a collision equals how long you run before detecting it, so the claim goes up before you invest any tokens in the work. Use the *Claim a plan task* template, titled with the task ID. In the **hotspot files** field, list every shared file (§4) you expect to touch — this is how other agents see collisions coming.
 2. Branch **from the fresh remote main**, never from a stale local main or another feature branch:
    ```sh
    git fetch origin && git checkout -b feat/<task-id>-<slug> origin/main
    ```
-3. If two claims race anyway, **the earliest-created issue wins**; the later claimant closes theirs with a comment and picks other work (precedent: #6 withdrew in favor of #4).
+3. If two claims race anyway, **the earliest-created issue wins** — and the same tiebreak applies to a racing branch or PR with no issue yet (lowest issue/PR number, else earliest push). The later claimant closes theirs with a comment and picks other work (precedent: #6 withdrew in favor of #4). A lost race costs one cheap withdrawal — that's the whole point of claiming before coding.
 
 Additional claim rules:
 
-- **Claim only what you are starting now.** Milestone-wide claims (like #4) lock a whole area for everyone else; prefer per-task claims unless the tasks are genuinely inseparable.
+- **Re-run the full three-way check (incl. `git branch -r`) right before bulk effort — not just at claim time.** For any task touching more than ~3 files or running more than ~15 minutes, the landscape moves under you (a PR merges roughly every ~5 min at fleet speed). Checking only at the start-of-work and at commit-time means you can pay for an entire multi-file sweep before spotting a duplicate that landed at minute 1. The M12-02 `play_sfx` sweep was lost exactly this way: 21 files implemented, then found already-merged at commit. One `git branch -r | grep <task>` before diving in would have caught it in 2 seconds. If a duplicate *has* landed, salvage only the genuinely additive delta (e.g. a new signal/test the merged work skipped) as a fresh claim; discard the rest.
+- **Cross-cutting sweeps are a single claim, filed up front, covering every path.** A "touch all N views/sims" task (an sfx sweep, an FX pass, a scaling sweep) is the highest-collision work there is — every agent independently reasons their way to the same obvious pick. Never "just start and others will see"; the claim must name the whole territory (all paths) the moment you begin, so the second agent sees it taken immediately rather than colliding halfway through.
+- **Claim only what you are starting now.** Milestone-wide claims (like #4) lock a whole area for everyone else; prefer per-task claims unless the tasks are genuinely inseparable. (Cross-cutting sweeps above are the deliberate exception — there the whole-territory claim *is* the per-task claim.)
 - **Stale claims:** an open claim with no branch pushed and no activity for 24 h may be queried with a comment; if another 24 h passes silently, it may be taken over (say so in the issue).
 - **Docs/infra work** without a plan task ID still gets a claim issue, titled `[DOCS]`/`[INFRA]`.
 
@@ -188,11 +190,12 @@ Claims aren't the only race — *filing* races too (#256–#261 vs #262–#267 w
 
 ## 8. Releases and tags
 
+- **A release requires an explicit owner prompt asking for one — every time.** No agent tags, pushes a release, or bumps the version number on its own initiative, and "standing approval" does **not** cover releases: each release is its own fresh ask. Finishing a milestone, clearing the RELEASE_CHECKLIST, or reaching a boundary does *not* authorize cutting a release — it just means one is *ready* if the owner asks. Task work never includes a version bump unless the task the owner named is itself the release. This exists to stop the version number climbing on its own: the fleet ships fast, and without this rule every "milestone done" moment becomes an unprompted tag.
 - **Immediately before tagging:** `git fetch --tags && gh release list --limit 3`. Someone may have released while you worked (the v0.4.1/v0.5.0 race). Pick the next number *after whatever is truly latest*.
 - Tag only from a **green** `main` tip you have just pulled. Never tag mid-red, never tag a stale local main.
 - One release at a time: if the release workflow is running, wait for it before pushing another tag.
 - A mis-numbered tag/release gets deleted (`gh release delete --cleanup-tag`), not left as history clutter.
-- Releases are owner-facing: cut them when the owner asks or has standing approval, and update the release-notes template if reality diverged from it.
+- Releases are owner-facing: cut them **only on an explicit owner request** (see the first bullet — standing approval never covers a release), and update the release-notes template if reality diverged from it.
 - **Active feature freeze (owner, 2026-07-05):** there is a **RELEASE HOLD at the M14 boundary** — see the banner in IMPLEMENTATION_PLAN.md §5 (M14) and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Finish pre-M14 work and hold; do not start any M14 "Genre Hop" game until the owner cuts the release and lifts the hold. This is a *release* freeze on M14 only, not on the pre-M14 work that reaches the boundary.
 
 ## 9. Running out of budget (hand-off protocol)
