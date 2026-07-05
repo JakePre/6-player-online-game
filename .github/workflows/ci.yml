@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Nightly + on-demand triggers for the heavy 12/24-player playtest below;
+  # PR/push runs skip it (see the job's `if:`) so the fast gates stay fast.
+  schedule:
+    - cron: "0 7 * * *" # 07:00 UTC daily, off-peak
+  workflow_dispatch:
 
 env:
   GODOT_VERSION: 4.4.1
@@ -62,6 +67,35 @@ jobs:
         run: ./godot-bin --headless --import || true
       - name: Run soak harness
         run: python3 tests/soak/run_soak.py --godot ./godot-bin --duration 15
+
+  playtest-large:
+    name: Nightly playtest (${{ matrix.players }} bots)
+    # The M15 caps (framework + ~15 per-game caps) were unit-tested at 2-4
+    # players; this runs a *full* match at 12 and 24 to verify they compose —
+    # draft eligibility, bandwidth, tick budget, fairness (#466). Heavy (up to
+    # 24 headless Godot processes), so nightly + on-demand only, never on PRs;
+    # the per-PR 6-bot soak above stays the fast gate.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        players: [12, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
+          chmod +x godot-bin
+      - name: Import resources
+        run: ./godot-bin --headless --import || true
+      - name: Run ${{ matrix.players }}-player playtest
+        # A full match to completion; also surfaces the server's snapshot_cost
+        # telemetry at this head count (the #463 scaling baseline).
+        run: python3 tests/soak/run_playtest.py --godot ./godot-bin --players ${{ matrix.players }}
 
   export:
     name: Export ${{ matrix.preset }}
