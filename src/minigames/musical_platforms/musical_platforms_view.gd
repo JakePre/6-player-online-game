@@ -7,7 +7,6 @@ extends MinigameView3D
 
 const PLATFORM_FREE_COLOR := Color(0.75, 0.75, 0.8, 0.55)
 const PLATFORM_DISC_HEIGHT := 0.06
-const PLATFORM_POOL := 5
 const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
 const MUSIC_TEXT := "DANCE!"
 const STOP_TEXT := "GRAB A PLATFORM!"
@@ -42,7 +41,12 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
-	for i in PLATFORM_POOL:
+	# Pool sized to the worst case for this lobby: "players - 1" platforms
+	# spawn on the very first STOP round, and it only shrinks from there — a
+	# fixed pool (previously 5, the <=6-player max) silently dropped
+	# platforms past that once the cap grew (M15, ADR 003; #457).
+	var pool_size := maxi(names.size() - 1, 1)
+	for i in pool_size:
 		var mesh := CylinderMesh.new()
 		mesh.top_radius = MusicalPlatforms.PLATFORM_RADIUS
 		mesh.bottom_radius = MusicalPlatforms.PLATFORM_RADIUS
