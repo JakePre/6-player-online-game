@@ -27,6 +27,8 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | **M14-01** Loadout Duel (L) | Owner-requested, genre-new loadout/weapon design from a one-line spec; needs the §10 proposal-comment flow before code. |
 | **M14-02** Turbo Lap (L) | Racing handling under 30 Hz server-authoritative snapshots — latency feel, drift, track replication have no precedent in this codebase. |
 | **M14-09** Tumble Run (L) | Physics-platformer obstacle gauntlet; server-side physics + tumble feel is new territory and judgment-heavy. |
+| **M16-01** design system 2.0 (L) | Pure taste + system thinking: typography, palette, motion standards. Every other M16 task inherits its choices — a weak foundation costs all 12 downstream surfaces. Writes STYLE_GUIDE.md. |
+| **M16-13** consistency audit (S) | Small but judgment-dense: spotting "this reads wrong" across every surface with no checklist to follow is exactly what the tier is for. |
 
 ## Opus 4.8 — real engineering, clear precedent
 
@@ -42,6 +44,10 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | **M15**: Color Clash → 24 | The one cap task with a gameplay change: N-team mode + larger grid so tile counts stay meaningful. |
 | **M15**: Gauntlet finale → 24 | Survival pacing, hazard density, and lives at 24 need verification beyond geometric spawn scaling. |
 | **First M15 12-cap** (suggest Coin Scramble) | Sets the pattern for wiring `MinigameScaling`/`SpawnLayout` into a sim; do it once with a stronger model, then the rest is mechanical. |
+| **M16-02** screen-transition framework (M) | One shared mechanism wired through every app-shell screen change; interacts with reduced-motion. Build once, carefully. |
+| **M16-03** title screen & main menu (M) | The flagship surface — this PR *is* the visual bar the other surfaces copy. Do it right after M16-01, before the Sonnet fan-out. |
+| **M16-08** in-match HUD (M) | Legibility judgment under 24-player chaos, not just styling; every game's readability rides on it. |
+| **M16-07** match chrome · **M16-09** results & celebration · **M16-11** finale chrome (M) | Multi-state presentation flows (intro→countdown→play→results) with motion; real assembly against the M16-01/03 bar. |
 
 ## Sonnet 5 — mechanical, pattern-following
 
@@ -52,6 +58,8 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | **M15 remaining 12-caps** (8, after the Opus exemplar): King of the Hill, Meteor Shower, Musical Platforms, Poison Feast, Relay Sprint, Snake Chain, Thin Ice, Treasure Divers | Copy the established scaling-wiring pattern per game. |
 | **M12-02** `play_sfx` adoption sweep (S) | Mechanical sweep — hook calls at pickups/hits/KOs across views, 30 existing examples to follow. |
 | **M14-05** Ro-Sham-Bo Royale (S) | Simplest new game left — round-based rock-paper-scissors on the mature contract. |
+| **M16-04** lobby · **M16-05** character select · **M16-06** settings+credits · **M16-10** error/edge chrome (S/M, after the M16-03 exemplar) | Applying an established design system + exemplar screen to further surfaces is pattern-following; the taste decisions are already made in STYLE_GUIDE.md. |
+| **M16-12** per-minigame key art (M) | Mechanical once M16-07's card slot exists: batch IMAGE_REQUESTS.md rows, wire delivered art per game, credit rows. |
 | **Epic #256** (M13 tracking issue) | All 31 boxes done — verify and close with a summary comment. |
 
 ## Project review findings (2026-07-05)
@@ -71,9 +79,12 @@ concrete follow-ups the review surfaced; classified here like any other task.
 
 ## Structural notes
 
-- **M14 is still gated**: it needs M10-13/14/16 and the three open M12 boxes
-  before any of its nine games are claimable, regardless of model. (M10-13/16
-  merged; M10-14 Pickpocket #359 is the last M10 blocker.)
+- **M14 is open** (v0.6.0 shipped at the boundary 2026-07-05; the release hold
+  is lifted) — all nine Genre Hop games are claimable under normal rules.
+- **M16 sequencing**: M16-01 (Fable) gates everything; M16-03 (Opus) is the
+  exemplar surface to do second; then the Sonnet surfaces fan out in parallel.
+  M16-13 audits last. Image needs go through IMAGE_REQUESTS.md — never block
+  on art.
 - Rough counts: **4 Fable-tier**, **~14 Opus-tier**, **~28 Sonnet-tier**. The
   long tail of M15 cap tasks is deliberately cheap because the framework work
   that made them cheap (M15-01..07) is already merged.

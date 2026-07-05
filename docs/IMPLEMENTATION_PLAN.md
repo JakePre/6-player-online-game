@@ -200,6 +200,28 @@ Approved — [ ] **M14-06** Blast Grid (M) · [ ] **M14-08** Putt Panic (M) · [
 Framework (unblocks everything; do first) — [x] **M15-01** room/net cap 6→24 + verify 30 Hz snapshot cost at 24 · [x] **M15-02** identity beyond 6 colours (expand palette + always-on nameplate numbers) · [x] **M15-03** placement-scoring formula for N≤24 + N-team award tables · [x] **M15-04** arena/economy scale-with-player-count helper · [x] **M15-05** spawn-layout helper (multi-ring/grid for dense counts) · [x] **M15-06** large-room lobby + results + coin-fly UI (≤24 rows) · [x] **M15-07** many-player view layouts (arc/multi-column lanes)
 Per-game caps — one task per game to raise `max_players` to its ADR 003 target (**24**: Beat Bounce, Bullseye Bowl, Color Clash, Count Quick, Hurdle Dash, Memory Match, Quick Draw, Simon Stomp, Tug of War, Bullet Waltz†, Laser Limbo†, Target Range† · **12**: Coin Scramble, King of the Hill, Meteor Shower, Musical Platforms, Poison Feast, Relay Sprint, Snake Chain, Thin Ice, Treasure Divers, Fort Siege‡, Faulty Wiring‡ · **8 by design**: Sumo Smash, Rumble Ring, Shock Tag, Hot Potato, Cart Push, Wall Builders, Bomb Courier, Heist Night, Trap Corridor, Fish Frenzy, Basket Brawl, The Mole‡). Finale (Gauntlet) → 24. Games capped at 6–8 need only M15-01..03; †-marked 24s depend on M15-04. ‡ = added post-ADR (see ADR 003 addendum) — Fort Siege/Faulty Wiring are plain bumps; The Mole was assessed at 12 needing M15-04 economy wiring, but the **owner overrode it to 8** (plain bump, no scaling needed). Claim per game from the ADR matrix.
 
+### M16 — Beautiful UI/UX (owner directive 2026-07-05: "this should affect literally everything — make it pretty")
+
+Every surface the player sees gets a real visual design pass. M6-04 made the UI *coherent* (one dark `PartyTheme`, flat panels, default font); M16 makes it *beautiful* — real typography, depth, motion, art. Presentation-only: no sim, protocol, or input-behavior changes, and reduced-motion (M12-03) must suppress every new animation this milestone adds. Respect the §7 presentation tiers (2D-tier games stay 2D).
+
+**Image generation — the owner is the render farm.** Agents do not generate or scrape images. If a task would genuinely benefit from generated art (logo, backgrounds, key art, icons), add a row to [docs/IMAGE_REQUESTS.md](IMAGE_REQUESTS.md) (prompt, size, purpose, destination path); the owner runs the generations in batches and returns the results, then the requesting task lands them (logged in `assets/CREDITS.md` as owner-generated). **Never block on an image**: every surface ships fully styled with what exists in-repo, and art slots in when it arrives — a pending request is a follow-up, not a dependency.
+
+**M16-01 gates everything else** (it rebuilds the theme all other tasks apply). After it lands, `src/ui/party_theme.gd` + `docs/STYLE_GUIDE.md` become additive-only hotspots (§4). One surface per PR; per-surface tasks are parallel.
+
+- [ ] **M16-01** (L) Design system 2.0: evolve `PartyTheme` into a real design language — licensed display + body fonts (OFL/CC0, credited) with a type scale, refined palette (keep the coin-gold identity; add per-context accents), spacing/radius scale, elevated panel styles (subtle gradients, shadows, glow accents), full button/input/slider/checkbox state styling, standard motion durations + easings — and write [docs/STYLE_GUIDE.md](STYLE_GUIDE.md) documenting every token with do/don't examples ⛓ none
+- [ ] **M16-02** (M) Screen-transition framework: one shared animated transition (fade/slide/wipe) for every app-shell screen change instead of hard cuts; respects reduced-motion ⛓ M16-01
+- [ ] **M16-03** (M) Title screen & main menu: logo lockup (image request), animated menu background (slow parallax/particle drift), menu layout + hover/press motion, app icon + boot splash (image requests) ⛓ M16-01
+- [ ] **M16-04** (M) Lobby & room flow: host/join screens, room-code display (big, friendly, copy-tap feedback), player-list rows with character portraits + ready states, mutator toggle styling, host controls ⛓ M16-01
+- [ ] **M16-05** (M) Character select: roster grid presentation, per-character portrait treatment, selection feedback + confirm flourish ⛓ M16-01
+- [ ] **M16-06** (S) Settings + credits screens: apply the system, group/label polish, credits scroll treatment ⛓ M16-01
+- [ ] **M16-07** (M) Match chrome: intro cards with a key-art slot (styled text fallback until art lands), countdown treatment, round interstitials, transition wipes between rounds ⛓ M16-01
+- [ ] **M16-08** (M) In-match HUD: timer, score strip, emote bar, coin-fly polish, toast positioning — legible at a glance from 24-player chaos ⛓ M16-01
+- [ ] **M16-09** (M) Results & celebration: results panel, leaderboard rows, podium scene dressing, series scoreboard, champion screen ⛓ M16-01
+- [ ] **M16-10** (S) Error/edge chrome: toasts, reconnect overlay, connecting/waiting states, version-mismatch + room-full screens — the unhappy paths deserve the same polish ⛓ M16-01
+- [ ] **M16-11** (M) Finale chrome: Gauntlet intro treatment, elimination/grudge banners, winner sequence ⛓ M16-01
+- [ ] **M16-12** (M) Per-minigame key art: batch image requests for intro-card art across the full roster (M14 games add theirs in their own PRs); every card ships with the M16-07 styled fallback first ⛓ M16-07
+- [ ] **M16-13** (S) Consistency audit: final sweep of every surface for unthemed controls, default-Godot gray, stray spacing/type inconsistencies; fix on sight ⛓ all of M16-02..12
+
 ## 6. Suggested build order / critical path
 
 ```

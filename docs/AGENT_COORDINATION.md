@@ -66,6 +66,8 @@ A task's PR may create/edit files only in the areas the plan's repo layout (IMPL
 | M8-13 lobby character-select wiring | `src/lobby/` |
 | M6 polish | declared per-PR in the claim issue (this milestone inherently crosses areas — extra care) |
 | M7 deploy/release | `server/deploy/`, `.github/workflows/` (coordinate — see §4) |
+| M16-01 design system | `src/ui/party_theme.gd` (rebuild), `docs/STYLE_GUIDE.md` (create), fonts under `assets/` (+ `CREDITS.md` rows) — after it merges both become §4 hotspots |
+| M16-02..13 per-surface beauty | the surface's existing owned paths (menu/settings → `src/client/`, lobby/select → `src/lobby/`, chrome/HUD/results → `src/match/`+`src/ui/`, finale → `src/finale/`) + additive-only reads of the theme; image needs go through `docs/IMAGE_REQUESTS.md` |
 
 **Before creating any new shared-sounding class** (palette, helpers, math utils, constants): search first — `grep -ri <concept> src/` — and check the open PRs' claims. The duplicate-`PlayerPalette` incident is what this line prevents. If the thing your task needs feels reusable, it probably belongs to an existing owned area (e.g. identity/colors → `src/characters/`, protocol constants → `NetConfig`).
 
@@ -81,6 +83,8 @@ A task's PR may create/edit files only in the areas the plan's repo layout (IMPL
 | `assets/CREDITS.md` | Append rows to the bottom of the table. Adjacent-append conflicts are trivial — resolve by keeping both rows. |
 | `export_presets.cfg`, `.github/workflows/ci.yml` | Do not edit under a feature task. Open/comment an `[INFRA]` issue and coordinate explicitly. |
 | `docs/SPEC.md` | Locked (§2 decisions). Deviations are flagged in PR descriptions, not edited in. |
+| `src/ui/party_theme.gd`, `docs/STYLE_GUIDE.md` (once M16-01 lands) | Additive only: new tokens/variations get added, existing ones never change meaning mid-milestone. A change that would restyle other surfaces goes through an issue on M16-01's claim, not a drive-by edit. |
+| `docs/IMAGE_REQUESTS.md` | Append rows only, never edit/reorder another task's rows (same rule as `CREDITS.md`). Status flips (`requested`→`generated`→`landed`) touch only your own row. |
 
 ## 5. Branch, PR, and serialized merge procedure
 
