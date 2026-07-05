@@ -18,6 +18,9 @@ var round_count := NetConfig.DEFAULT_ROUND_COUNT
 ## Host-curated mutator pool (M9-02, PHASE2.md $3): MutatorCatalog ids the
 ## per-round roll (M9-03) may draw from. Empty = mutators off.
 var mutator_pool: Array[StringName] = []
+## Host-curated exclusion set (#572): MinigameCatalog ids the playlist builder
+## must never draw from for this match. Empty = every registered game eligible.
+var excluded_game_ids: Array[StringName] = []
 ## Best-of-N series (M11-01); length 1 leaves it idle.
 var series := SeriesTracker.new()
 ## Milliseconds timestamp of the moment the last connected member dropped,
@@ -138,6 +141,27 @@ func set_mutator_pool(pool: Array) -> bool:
 	return true
 
 
+## Lobby-only, like the mutator pool; unknown and duplicate ids are dropped
+## rather than rejected so a stale client toggle set cannot wedge the set.
+## Unlike the mutator pool, an exclusion set can starve the playlist builder
+## entirely, so it is also rejected outright (returning false, leaving the
+## previous set untouched) if it would leave zero games eligible at the
+## room's current connected player count — MinigameCatalog.build_playlist's
+## assert(not eligible.is_empty()) must never be allowed to fire.
+func set_excluded_game_ids(ids: Array) -> bool:
+	if state != State.LOBBY:
+		return false
+	var cleaned: Array[StringName] = []
+	for id in ids:
+		var sid := StringName(String(id))
+		if MinigameCatalog.is_registered(sid) and sid not in cleaned:
+			cleaned.append(sid)
+	if MinigameCatalog.eligible_ids(connected_count(), cleaned).is_empty():
+		return false
+	excluded_game_ids = cleaned
+	return true
+
+
 ## Start gating (M2-02): a match needs at least 2 players and every connected
 ## member ready. The caller checks that the requester is the host.
 func can_start() -> bool:
@@ -196,6 +220,7 @@ func to_state_dict() -> Dictionary:
 		"host_slot": host_member.slot if host_member != null else -1,
 		"round_count": round_count,
 		"mutator_pool": mutator_pool.duplicate(),
+		"excluded_game_ids": excluded_game_ids.duplicate(),
 		"series": series.to_dict(),
 		"members": member_dicts,
 	}

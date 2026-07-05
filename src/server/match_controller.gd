@@ -90,7 +90,7 @@ func _init(match_room: Room, config: Dictionary) -> void:
 		playlist = config.playlist
 	else:
 		playlist = MinigameCatalog.build_playlist(
-			_rng, int(config.get("rounds", 12)), room.connected_count()
+			_rng, int(config.get("rounds", 12)), room.connected_count(), room.excluded_game_ids
 		)
 
 

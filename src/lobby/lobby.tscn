@@ -144,6 +144,25 @@ text = "Mutators"
 unique_name_in_owner = true
 layout_mode = 2
 
+[node name="GamesBox" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="GamesTitle" type="Label" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/GamesBox"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+text = "Games"
+
+[node name="GamesScroll" type="ScrollContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/GamesBox"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="GameToggles" type="VBoxContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column/SettingsCard/SettingsColumn/GamesBox/GamesScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="CharacterCard" type="PanelContainer" parent="Margin/Layout/Scroll/ScrollCenter/Column"]
 layout_mode = 2
 theme_type_variation = &"CardPanel"

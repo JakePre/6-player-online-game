@@ -24,6 +24,7 @@ var _last_state: Dictionary = {}
 @onready var _series_board: Label = %SeriesBoard
 @onready var _mutator_box: VBoxContainer = %MutatorBox
 @onready var _mutator_toggles: VBoxContainer = %MutatorToggles
+@onready var _game_toggles: VBoxContainer = %GameToggles
 @onready var _character_label: Label = %CharacterLabel
 @onready var _prev_character_button: Button = %PrevCharacterButton
 @onready var _next_character_button: Button = %NextCharacterButton
@@ -53,6 +54,7 @@ func _ready() -> void:
 			NetManager.request_set_series_length(_series_option.get_item_id(index))
 	)
 	_build_mutator_toggles()
+	_build_game_toggles()
 	_code_label.text = NetManager.my_room_code
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
 	_ready_button.grab_focus()
@@ -122,6 +124,39 @@ func _sync_mutator_toggles(state: Dictionary, editable: bool) -> void:
 		toggle.disabled = not editable
 
 
+## One checkbox per registered minigame (#572): unchecking a game adds it to
+## the host's exclusion set. Default (all checked) means nothing excluded,
+## matching how the mutator pool defaults to none-selected = mutators off.
+func _build_game_toggles() -> void:
+	MinigameCatalog.register_builtins()
+	for id: StringName in MinigameCatalog.registered_ids():
+		var toggle := CheckBox.new()
+		toggle.name = "Game_%s" % id
+		toggle.text = MinigameCatalog.meta_of(id).display_name
+		toggle.button_pressed = true
+		toggle.set_meta(&"game_id", id)
+		toggle.toggled.connect(func(_on: bool) -> void: _send_excluded_games())
+		_game_toggles.add_child(toggle)
+
+
+func _send_excluded_games() -> void:
+	var excluded: Array = []
+	for toggle: CheckBox in _game_toggles.get_children():
+		if not toggle.button_pressed:
+			excluded.append(String(toggle.get_meta(&"game_id")))
+	NetManager.request_set_excluded_games(excluded)
+
+
+## Server echo wins: reflect the broadcast exclusion set without re-sending it.
+func _sync_game_toggles(state: Dictionary, editable: bool) -> void:
+	var excluded: Array = []
+	for id in state.get("excluded_game_ids", []):
+		excluded.append(String(id))
+	for toggle: CheckBox in _game_toggles.get_children():
+		toggle.set_pressed_no_signal(String(toggle.get_meta(&"game_id")) not in excluded)
+		toggle.disabled = not editable
+
+
 ## Steps the local player's roster pick by `delta` (wraps around); the server
 ## is the source of truth and echoes the accepted pick back via room_updated.
 func _on_character_step(delta: int) -> void:
@@ -153,6 +188,7 @@ func _on_room_updated(state: Dictionary) -> void:
 	_series_option.disabled = not i_am_host or in_match
 	_update_series_board(series)
 	_sync_mutator_toggles(state, i_am_host and not in_match)
+	_sync_game_toggles(state, i_am_host and not in_match)
 	_character_label.text = CharacterRoster.display_name_for(_my_character_id())
 	_character_preview.show_character(
 		_my_character_id(), PlayerPalette.color_for_slot(NetManager.my_slot), _my_ready(state)

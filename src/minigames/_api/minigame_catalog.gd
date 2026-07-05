@@ -93,11 +93,15 @@ static func view_scene_path(id: StringName) -> String:
 	return "res://src/minigames/%s/%s_view.tscn" % [id, id]
 
 
-## Every registered game playable at `player_count` (SPEC $4 constraints).
+## Every registered game playable at `player_count` (SPEC $4 constraints),
+## minus any id in `excluded` (host-curated exclusion set, #572).
 ## The match-start gate checks this before a playlist is ever built (M15-01):
 ## with the room cap above the largest per-game cap, a head count no game
 ## supports must refuse to start rather than crash the picker.
-static func eligible_ids(player_count: int) -> Array:
+static func eligible_ids(player_count: int, excluded: Array = []) -> Array:
+	var excluded_names: Array[StringName] = []
+	for id in excluded:
+		excluded_names.append(StringName(String(id)))
 	var eligible: Array = []
 	for id: StringName in _entries:
 		var meta: MinigameMeta = _entries[id].meta
@@ -105,14 +109,18 @@ static func eligible_ids(player_count: int) -> Array:
 			continue
 		if meta.even_players and player_count % 2 != 0:
 			continue  # Uneven teams are never fun (#178).
+		if id in excluded_names:
+			continue
 		eligible.append(id)
 	return eligible
 
 
 ## Builds the match playlist. Repeats only happen when the eligible pool is
 ## smaller than the round count (pool resets when exhausted).
-static func build_playlist(rng: RandomNumberGenerator, rounds: int, player_count: int) -> Array:
-	var eligible := eligible_ids(player_count)
+static func build_playlist(
+	rng: RandomNumberGenerator, rounds: int, player_count: int, excluded: Array = []
+) -> Array:
+	var eligible := eligible_ids(player_count, excluded)
 	assert(not eligible.is_empty(), "no minigames eligible for %d players" % player_count)
 
 	var playlist: Array = []

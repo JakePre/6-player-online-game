@@ -159,6 +159,12 @@ func request_set_mutator_pool(pool: Array) -> void:
 	_rpc_set_mutator_pool.rpc_id(1, pool)
 
 
+## Host-only lobby setting (#572); ids are Strings over the wire. Sends the
+## full excluded set every toggle, mirroring request_set_mutator_pool.
+func request_set_excluded_games(ids: Array) -> void:
+	_rpc_set_excluded_games.rpc_id(1, ids)
+
+
 func send_ping() -> void:
 	_rpc_ping.rpc_id(1, Time.get_ticks_msec())
 
@@ -318,6 +324,18 @@ func _rpc_set_mutator_pool(pool: Array) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_excluded_games(ids: Array) -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null:
+		return
+	MinigameCatalog.register_builtins()
+	if room.set_excluded_game_ids(ids):
+		_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_start_match(config: Dictionary) -> void:
 	if not is_server:
 		return
@@ -336,7 +354,7 @@ func _rpc_start_match(config: Dictionary) -> void:
 			if not MinigameCatalog.is_registered(id):
 				_rpc_match_start_failed.rpc_id(peer_id, "unknown_minigame_%s" % id)
 				return
-	elif MinigameCatalog.eligible_ids(room.connected_count()).is_empty():
+	elif MinigameCatalog.eligible_ids(room.connected_count(), room.excluded_game_ids).is_empty():
 		# With the 24-player room cap (ADR 003 / M15-01) ahead of the per-game
 		# cap raises, a head count no game supports must refuse here — before
 		# ready flags are consumed — instead of crashing the playlist builder.

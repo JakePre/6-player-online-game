@@ -155,3 +155,48 @@ func test_even_players_games_skipped_at_odd_counts() -> void:
 	assert_false(&"pairs_only" in MinigameCatalog.build_playlist(rng, 8, 5), "no 3v2 drafts (#178)")
 	assert_true(&"pairs_only" in MinigameCatalog.build_playlist(rng, 8, 6))
 	MinigameCatalog.clear()
+
+
+## #572: the host exclusion set subtracts from eligibility; every existing
+## call site (both here and net_manager's pre-start gate) keeps working
+## unchanged since `excluded` defaults to empty.
+func test_eligible_ids_subtracts_excluded_set() -> void:
+	_register(&"duo", MinigameMeta.Category.FFA, 2)
+	_register(&"crowd", MinigameMeta.Category.SKILL, 2)
+	var ids: Array = MinigameCatalog.eligible_ids(2, ["duo"]).map(
+		func(id: StringName) -> String: return String(id)
+	)
+	assert_eq(ids, ["crowd"], "excluded id must be subtracted")
+
+
+func test_eligible_ids_unaffected_when_excluded_empty() -> void:
+	_register(&"duo", MinigameMeta.Category.FFA, 2)
+	_register(&"crowd", MinigameMeta.Category.SKILL, 2)
+	var without_param: Array = MinigameCatalog.eligible_ids(2).map(
+		func(id: StringName) -> String: return String(id)
+	)
+	var with_empty: Array = MinigameCatalog.eligible_ids(2, []).map(
+		func(id: StringName) -> String: return String(id)
+	)
+	without_param.sort()
+	with_empty.sort()
+	assert_eq(without_param, with_empty)
+
+
+func test_build_playlist_never_drafts_excluded_games() -> void:
+	_register(&"a", MinigameMeta.Category.FFA)
+	_register(&"b", MinigameMeta.Category.SKILL)
+	_register(&"c", MinigameMeta.Category.TEAM)
+	var playlist := MinigameCatalog.build_playlist(_seeded_rng(), 12, 4, [&"a", &"b"])
+	for id: StringName in playlist:
+		assert_eq(id, &"c", "excluded games must never be drafted")
+
+
+func test_build_playlist_unaffected_when_excluded_empty() -> void:
+	_register(&"a", MinigameMeta.Category.FFA)
+	_register(&"b", MinigameMeta.Category.SKILL)
+	_register(&"c", MinigameMeta.Category.TEAM)
+	assert_eq(
+		MinigameCatalog.build_playlist(_seeded_rng(), 8, 4),
+		MinigameCatalog.build_playlist(_seeded_rng(), 8, 4, [])
+	)
