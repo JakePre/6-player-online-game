@@ -41,3 +41,39 @@ jobs:
           name: playtest-telemetry-6
           path: playtest-telemetry-6*.json
           if-no-files-found: ignore
+
+  balance:
+    # #560 / M12-01 precursor: full-duration matches with bots actually
+    # sending inputs, at the balance pass's 2/4/6 target head counts. This is
+    # the telemetry M12-01 consumes — the compressed jobs above are smoke
+    # coverage whose all-tie placements carry no balance signal.
+    name: Balance telemetry (${{ matrix.players }} bots, real durations)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        players: [2, 4, 6]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
+          chmod +x godot-bin
+      - name: Import resources
+        run: ./godot-bin --headless --import || true
+      - name: Run balance playtest (${{ matrix.players }} players)
+        run: |
+          python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12 --balance \
+            --players ${{ matrix.players }} \
+            --telemetry-out balance-telemetry-${{ matrix.players }}.json
+      - name: Upload balance telemetry (#560)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-telemetry-${{ matrix.players }}
+          path: balance-telemetry-${{ matrix.players }}.json
+          if-no-files-found: ignore
