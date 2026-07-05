@@ -61,8 +61,9 @@ concrete follow-ups the review surfaced; classified here like any other task.
 
 | Task | Issue | Model | Why |
 |---|---|---|---|
-| Finale: wire grudge + real sabotage targeting (or cut from SPEC) | #462 | **Opus 4.8** | A real player-facing feature with a targeting-UX sub-decision; sim side already supports it. Invisible to CI, so high value. If cut instead, that's a Sonnet docs change. |
-| Measure content-heavy match snapshots at 24; assess AOI/delta | #463 | **Opus 4.8** | Measurement + decision. **Spinoff:** if delta compression is warranted, the net-layer delta protocol (cross-cutting, `PROTOCOL_VERSION` bump) is **Fable 5** — the replication risk area. |
+| ~~Finale: wire grudge + real sabotage targeting~~ ✅ done (#462, PR #476) | #462 | Opus 4.8 | Fixed view-only: sabotage → nearest living rival; eliminated players aim + strike their grudge. |
+| ~~Measure content-heavy match snapshots at 24~~ ✅ done (#463) | #463 | Opus 4.8 | Measured: Color Clash @24 ≈ 4.4 MB/s/room is the one outlier. A general Fable delta framework is **not** warranted; the proportionate fix is a targeted Color Clash grid delta (#479). |
+| Color Clash grid delta (keyframe + changed-tiles) | #479 | **Opus 4.8** | Per-game replication fix in the net-risk area, contained to the ColorClash sim+view. Keyframe self-heals dropped deltas (snapshots are unreliable-ordered). No protocol change. |
 | Decide + document caps for the 4 post-ADR games | #464 | **Owner → Sonnet/Opus** | Design-tier call (do hidden-role/contact games scale?) per §10, then bump (Sonnet) or rework (Opus). |
 | Add `--check-only` to the local dev gate | #465 | **Sonnet 5** | Mechanical docs + hook wiring; stops recurring CI-only parse failures. |
 | Nightly 12/24-player playtest variant | #466 | **Opus 4.8** | `ci.yml` is a §4 hotspot; interpreting a large-lobby run is real judgment. Pairs with #463. |

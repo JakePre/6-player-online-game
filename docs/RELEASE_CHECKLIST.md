@@ -29,20 +29,24 @@ reached** — that is the moment to tag.
 
 ## Quality decision — owner call before tagging
 
-- **#462 — finale grudge is unreachable + sabotage tokens are center-only.**
-  Two SPEC §6 pillars are non-functional in the shipped client (invisible to
-  CI). **Recommendation: fix before release** (a coin-purchased shop item that
-  can't be aimed and a dead mechanic are a poor first-release impression), or
-  make a deliberate call to ship with it and note it in the release. Model: Opus.
+- ✅ **#462 — finale grudge/sabotage — FIXED** (PR #476). Sabotage now aims at
+  the nearest living rival; eliminated players can aim + strike their grudge.
+  The one hard quality question mark on the finale is resolved.
 
 ## Recommended but not blocking
 
 - **M12-01 — balance pass** across all games at 2/4/6 (and now 12/24). Tuning
   only; the games are playable without it. Ship "good enough," iterate post-release.
-- **#463 / #466 — measure + verify 24-player match cost** and add a nightly
-  large-lobby playtest. The 24-player support is structurally done and
-  unit-tested but not load-verified; worth doing before *advertising* 24-player,
-  even if the tag ships first.
+- **#479 — Color Clash grid delta.** #463 measured the 24-player snapshot cost:
+  the one outlier is **Color Clash @24 ≈ 4.4 MB/s/room** (full 576-tile grid
+  every tick); everything else is ≤ ~1 MB/s. Fine on a dedicated server, a strain
+  for self-hosted 24-player rooms. A targeted grid-delta (#479, Opus) cuts it to
+  ~0.5 MB/s. **Should-fix, not a hard blocker** — owner call on pre- vs
+  post-release. A general net-layer delta protocol was assessed and is **not**
+  warranted (one outlier, not systemic).
+- **#466 — nightly 12/24-player playtest** for standing large-lobby regression
+  coverage. The harness exists (`run_playtest.py --players`); this wires it into
+  CI. Worth having before *advertising* 24-player.
 
 ## Release hygiene (at tag time — AGENT_COORDINATION §8)
 
