@@ -65,7 +65,8 @@ before re-deriving this from scratch.
 | ~~M15 remaining 12-caps~~ (8): King of the Hill, Meteor Shower, Musical Platforms, Poison Feast, Relay Sprint, Snake Chain, Thin Ice, Treasure Divers | ✅ done — all at `max_players: 12` |
 | ~~M12-02~~ `play_sfx` adoption sweep | ✅ done (#482) |
 | ~~M14-05~~ Ro-Sham-Bo Royale (S) | ✅ done (#507) |
-| **M16-04** lobby · **M16-05** character select · **M16-10** error/edge chrome (S/M) | ✅ M16-01/03 landed, unblocked and unclaimed |
+| **M16-10** error/edge chrome (S) | ✅ M16-01/03 landed, unblocked and unclaimed |
+| ~~M16-04 + M16-05~~ lobby + character select (M) | ✅ done together (#529) — the roster carousel lives inside lobby.tscn, not a separate screen |
 | ~~M16-06~~ settings+credits (S) | ✅ done (#524) |
 | **M16-12** per-minigame key art (M) | ⛔ blocked — needs M16-07's card slot |
 | ~~Epic #256~~ (M13 tracking issue) | ✅ closed |
@@ -94,14 +95,12 @@ All seven review findings are closed — the full audit's follow-ups are done.
   is lifted) — Genre Hop games are claimable under normal rules. As of
   2026-07-05: M14-01 (#509), M14-05 (#507), and M14-06 (#505) are claimed;
   M14-02/03/04/08/09/10 are unclaimed.
-- **M16 sequencing**: M16-01 (Fable) gates everything; M16-03 (Opus) is the
-  exemplar surface to do second; then the Sonnet surfaces fan out in parallel.
-  M16-13 audits last. Image needs go through IMAGE_REQUESTS.md — never block
-  on art. **M16-01 merged 2026-07-05** (`docs/STYLE_GUIDE.md` now exists,
-  `src/ui/party_theme.gd` is additive-only per §4). M16-03 is unclaimed —
-  per the sequencing note above, the Sonnet surfaces (M16-04/05/06/10) should
-  wait for it to land as the visual exemplar, even though their plan-file
-  dependency arrow only lists M16-01.
+- **M16 sequencing**: M16-01 (Fable) gates everything; M16-03 (Opus) was the
+  exemplar surface. Both merged 2026-07-05, along with M16-02, M16-06, and
+  M16-04/05 (combined). Remaining: M16-07/08/09/11 (Opus, chrome passes —
+  M16-07 also merged), M16-10 (Sonnet, unclaimed), M16-12 (blocked on
+  M16-07's card slot, now unblocked), M16-13 (Fable, audits everything else
+  last). Image needs go through IMAGE_REQUESTS.md — never block on art.
 - **M15 is fully done** — every per-game cap task landed; the section above is
   historical. The live remaining pool is M14 (Genre Hop) + M16 (Beautiful
   UI/UX), both gated at the top (M14-01..10 mostly Fable/Opus; M16 gated on
