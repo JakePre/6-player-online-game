@@ -93,7 +93,14 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 
 func _tick(delta: float) -> void:
-	for slot: int in _in_slots():
+	# Alive-set cache (cleanup #467): computed once, shared by the movement
+	# loop, _fire_pattern() (only _fire_aimed() reads it), and
+	# _resolve_hits_and_grazes() — none of these touch ko_order before this
+	# point in the tick, so they all see the same pre-elimination roster.
+	# _check_end() still calls _in_slots() fresh — it must see the roster
+	# *after* this tick's _pending_kos are flushed into ko_order above.
+	var alive := _in_slots()
+	for slot: int in alive:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.clamp(
 			Vector2(-_play_half, -_play_half), Vector2(_play_half, _play_half)
@@ -101,9 +108,9 @@ func _tick(delta: float) -> void:
 	_fire_accum += delta
 	if _fire_accum >= fire_interval():
 		_fire_accum = 0.0
-		_fire_pattern()
+		_fire_pattern(alive)
 	_move_bullets(delta)
-	_resolve_hits_and_grazes()
+	_resolve_hits_and_grazes(alive)
 	if not _pending_kos.is_empty():
 		ko_order.append(_pending_kos.duplicate())
 		_pending_kos.clear()
@@ -143,14 +150,14 @@ func _rank_players() -> Array:
 	return placements + out
 
 
-func _fire_pattern() -> void:
+func _fire_pattern(alive: Array) -> void:
 	match _pattern_index % 3:
 		0:
 			_fire_spiral()
 		1:
 			_fire_ring()
 		2:
-			_fire_aimed()
+			_fire_aimed(alive)
 	_pattern_index += 1
 
 
@@ -168,8 +175,7 @@ func _fire_ring() -> void:
 
 
 ## Aims at the current graze-coin leader — success paints a target on you.
-func _fire_aimed() -> void:
-	var survivors := _in_slots()
+func _fire_aimed(survivors: Array) -> void:
 	if survivors.is_empty():
 		return
 	var target: int = survivors[0]
@@ -194,8 +200,8 @@ func _move_bullets(delta: float) -> void:
 			bullets.remove_at(i)
 
 
-func _resolve_hits_and_grazes() -> void:
-	for slot: int in _in_slots():
+func _resolve_hits_and_grazes(alive: Array) -> void:
+	for slot: int in alive:
 		var pos: Vector2 = positions[slot]
 		var near: Array = []
 		for i in range(bullets.size() - 1, -1, -1):

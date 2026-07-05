@@ -69,14 +69,19 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	if finished:
 		return
-	for slot: int in _in_slots():
+	# Alive-set cache (cleanup #467): computed once, shared by the movement
+	# loop and _advance_phase()'s loser check, which both run before this
+	# tick's own downs are finalized. _check_end() still calls _in_slots()
+	# fresh — it must see the roster *after* this tick's eliminations land.
+	var alive := _in_slots()
+	for slot: int in alive:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.clamp(
 			Vector2(-HALF_EXTENT, -HALF_EXTENT), Vector2(HALF_EXTENT, HALF_EXTENT)
 		)
 	_phase_left -= delta
 	if _phase_left <= 0.0:
-		_advance_phase()
+		_advance_phase(alive)
 	_check_end()
 
 
@@ -111,14 +116,14 @@ func tile_of(pos: Vector2) -> int:
 	return row * GRID_SIZE + col
 
 
-func _advance_phase() -> void:
+func _advance_phase(alive: Array) -> void:
 	if phase == Phase.SHOW:
 		phase = Phase.DARK
 		_phase_left = DARK_SEC
 		return
 	# Dark window closed: everyone off the pattern goes down together.
 	var losers: Array = []
-	for slot: int in _in_slots():
+	for slot: int in alive:
 		if tile_of(positions[slot]) not in safe_tiles:
 			losers.append(slot)
 	if not losers.is_empty():
