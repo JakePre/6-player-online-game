@@ -29,17 +29,126 @@ var _last_radius := Gauntlet.START_RADIUS
 var _last_hazard_keys := {}  # quantized "x,y" -> Vector2 world pos (detonation FX)
 var _last_lives := {}  # slot -> lives (fall/KO burst)
 
+## Finale targeting (fixes the deferred "HUD targeting pass", #462). While
+## alive, a sabotage token drops on the nearest living rival; once eliminated,
+## the one grudge hazard aims via a cycle-selected target. The sim already
+## validates both (token count / grudge availability), so this is view-only.
+var _grudge_target := -1
+var _grudge_spent := false
+var _grudge_prompt: Label
+
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Alive: action_secondary spends a sabotage token on the nearest living rival.
+## Eliminated: aim the one grudge with move-left/right and strike with either
+## action button. Parity-clean — one stick axis to aim, one button to fire.
 func _unhandled_input(event: InputEvent) -> void:
-	# Sabotage tokens / grudge hazards aim at the arena center for now; the
-	# targeting UI belongs to the finale HUD pass.
-	if event.is_action_pressed(&"action_secondary"):
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"sabotage": [0.0, 0.0]})
+	if NetManager.multiplayer.multiplayer_peer == null:
+		return
+	if _local_lives() > 0:
+		if event.is_action_pressed(&"action_secondary"):
+			NetManager.send_match_input({"sabotage": _sabotage_target()})
+		return
+	if _grudge_spent:
+		return
+	if event.is_action_pressed(&"move_left"):
+		_cycle_grudge(-1)
+	elif event.is_action_pressed(&"move_right"):
+		_cycle_grudge(1)
+	elif event.is_action_pressed(&"action_secondary") or event.is_action_pressed(&"action_primary"):
+		_fire_grudge()
+
+
+## Nearest living rival's position for a sabotage drop; arena center as a
+## harmless fallback if somehow no rival is alive.
+func _sabotage_target() -> Array:
+	var slot := _nearest_living_rival()
+	if slot == -1:
+		return [0.0, 0.0]
+	var state: Array = players[slot]
+	return [state[0], state[1]]
+
+
+func _nearest_living_rival() -> int:
+	if not players.has(my_slot):
+		return _first_living_rival()
+	var mine: Array = players[my_slot]
+	var origin := Vector2(float(mine[0]), float(mine[1]))
+	var best := -1
+	var best_dist := INF
+	for slot: int in _living_rivals():
+		var state: Array = players[slot]
+		var dist := origin.distance_to(Vector2(float(state[0]), float(state[1])))
+		if dist < best_dist:
+			best_dist = dist
+			best = slot
+	return best
+
+
+## Living opponents (alive, not me), slot-sorted so grudge cycling is stable.
+func _living_rivals() -> Array:
+	var rivals: Array = []
+	for slot: int in players:
+		if slot == my_slot:
+			continue
+		if int((players[slot] as Array)[2]) > 0:
+			rivals.append(slot)
+	rivals.sort()
+	return rivals
+
+
+func _first_living_rival() -> int:
+	var rivals := _living_rivals()
+	return rivals[0] if not rivals.is_empty() else -1
+
+
+func _local_lives() -> int:
+	if not players.has(my_slot):
+		return 1  # pre-snapshot: assume alive, show no grudge prompt
+	return int((players[my_slot] as Array)[2])
+
+
+func _cycle_grudge(direction: int) -> void:
+	var rivals := _living_rivals()
+	if rivals.is_empty():
+		_grudge_target = -1
+	elif _grudge_target not in rivals:
+		_grudge_target = rivals[0]
+	else:
+		var i: int = rivals.find(_grudge_target)
+		_grudge_target = rivals[posmod(i + direction, rivals.size())]
+	_update_grudge_prompt()
+
+
+func _fire_grudge() -> void:
+	if _grudge_target not in _living_rivals():
+		_grudge_target = _first_living_rival()
+	if _grudge_target == -1:
+		return
+	var state: Array = players[_grudge_target]
+	NetManager.send_match_input({"grudge": [state[0], state[1]]})
+	_grudge_spent = true
+	_update_grudge_prompt()
+
+
+## Shows the grudge aim prompt only for the eliminated local player who still
+## has their one grudge; names the current target so aiming reads without a
+## separate reticle.
+func _update_grudge_prompt() -> void:
+	if _grudge_prompt == null:
+		return
+	var eliminated := _local_lives() == 0
+	var rivals := _living_rivals()
+	if not eliminated or _grudge_spent or rivals.is_empty():
+		_grudge_prompt.visible = false
+		return
+	if _grudge_target not in rivals:
+		_grudge_target = rivals[0]
+	_grudge_prompt.visible = true
+	_grudge_prompt.text = "GRUDGE → %s    ◀ ▶ aim · press to strike" % player_name(_grudge_target)
 
 
 func _arena_half() -> float:
@@ -65,6 +174,17 @@ func _setup_3d() -> void:
 	_platform.position = Vector3(0.0, PLATFORM_THICKNESS / 2.0, 0.0)
 	arena.add_child(_platform)
 
+	_grudge_prompt = Label.new()
+	_grudge_prompt.name = "GrudgePrompt"
+	_grudge_prompt.add_theme_font_size_override(&"font_size", 30)
+	_grudge_prompt.add_theme_color_override(&"font_color", HAZARD_FX_COLOR)
+	_grudge_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_grudge_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_grudge_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_grudge_prompt.position.y = -70.0
+	_grudge_prompt.visible = false
+	add_child(_grudge_prompt)
+
 
 func _render_3d(game: Dictionary) -> void:
 	radius = float(game.get("radius", Gauntlet.START_RADIUS))
@@ -78,6 +198,7 @@ func _render_3d(game: Dictionary) -> void:
 	_last_radius = radius
 	_update_players()
 	_update_hazards()
+	_update_grudge_prompt()
 
 
 func _update_players() -> void:

@@ -2,14 +2,26 @@ extends GutTest
 ## Finale Gauntlet client view (M8-12): renders replicated snapshots in the
 ## shared iso-arena without simulating anything locally.
 
+const VIEW_SCENE: PackedScene = preload("res://src/finale/gauntlet_view.tscn")
+
 var view: MinigameView
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/finale/gauntlet_view.tscn")
-	view = scene.instantiate()
+	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+## A view with `count` players, local slot 0 — for the finale targeting tests.
+func _make_view(count: int) -> MinigameView:
+	var names := {}
+	for slot in count:
+		names[slot] = "P%d" % (slot + 1)
+	var v: MinigameView = VIEW_SCENE.instantiate()
+	add_child_autofree(v)
+	v.setup(names, 0)
+	return v
 
 
 func test_setup_builds_iso_arena_with_rigs_and_platform() -> void:
@@ -111,3 +123,98 @@ func test_losing_a_life_bursts() -> void:
 		{"radius": Gauntlet.START_RADIUS, "players": {0: [0.0, 0.0, 1, 0.0]}, "hazards": []}
 	)
 	assert_gt(_particle_count(), before, "a lost life bursts at the player")
+
+
+## #462: a sabotage token drops on the nearest *living* rival, not arena center.
+func test_sabotage_targets_nearest_living_rival() -> void:
+	var v := _make_view(4)
+	# Local slot 0 at origin; rival 3 is nearest but dead, rival 2 next, rival 1 far.
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players":
+				{
+					0: [0.0, 0.0, 3, 0.0],
+					1: [8.0, 0.0, 3, 0.0],
+					2: [3.0, 0.0, 2, 0.0],
+					3: [1.0, 0.0, 0, 0.0],
+				},
+				"hazards": [],
+			}
+		)
+	)
+	var target: Array = v._sabotage_target()
+	assert_almost_eq(float(target[0]), 3.0, 0.001, "aims at the nearest *living* rival (slot 2)")
+	assert_almost_eq(float(target[1]), 0.0, 0.001)
+
+
+func test_sabotage_falls_back_to_center_with_no_living_rival() -> void:
+	var v := _make_view(2)
+	v.render(
+		{"radius": 10.0, "players": {0: [0.0, 0.0, 3, 0.0], 1: [2.0, 0.0, 0, 0.0]}, "hazards": []}
+	)
+	assert_eq(v._sabotage_target(), [0.0, 0.0], "no living rival -> harmless center drop")
+
+
+## #462: the grudge prompt appears only for the eliminated local player who
+## still holds their one grudge, and names the current target.
+func test_grudge_prompt_only_for_eliminated_local_player() -> void:
+	var v := _make_view(3)
+	var prompt: Label = v.get_node("GrudgePrompt")
+	# Local slot 0 alive -> no prompt.
+	v.render(
+		{"radius": 10.0, "players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
+	)
+	assert_false(prompt.visible, "alive players get no grudge prompt")
+	# Local slot 0 eliminated with a living rival -> prompt shown, names a rival.
+	v.render(
+		{"radius": 10.0, "players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
+	)
+	assert_true(prompt.visible, "an eliminated player can grudge")
+	assert_string_contains(prompt.text, "GRUDGE")
+
+
+func test_grudge_cycles_between_living_rivals() -> void:
+	var v := _make_view(4)
+	(
+		v
+		. render(
+			{
+				"radius": 10.0,
+				"players":
+				{
+					0: [0.0, 0.0, 0, 0.0],  # local, eliminated
+					1: [1.0, 0.0, 2, 0.0],
+					2: [2.0, 0.0, 2, 0.0],
+					3: [3.0, 0.0, 0, 0.0],  # dead, not a valid target
+				},
+				"hazards": [],
+			}
+		)
+	)
+	v._cycle_grudge(1)
+	var first: int = v._grudge_target
+	assert_true(first in [1, 2], "targets a living rival")
+	v._cycle_grudge(1)
+	assert_ne(v._grudge_target, first, "cycling moves to the other living rival")
+	assert_true(v._grudge_target in [1, 2])
+	assert_ne(v._grudge_target, 3, "the dead slot is never a target")
+
+
+func test_grudge_fires_once_then_prompt_hides() -> void:
+	var v := _make_view(2)
+	var prompt: Label = v.get_node("GrudgePrompt")
+	v.render(
+		{"radius": 10.0, "players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
+	)
+	assert_true(prompt.visible)
+	v._fire_grudge()
+	assert_true(v._grudge_spent, "the one grudge is spent")
+	assert_false(prompt.visible, "prompt clears after striking")
+	# A re-render must not revive the spent grudge.
+	v.render(
+		{"radius": 10.0, "players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
+	)
+	assert_false(prompt.visible, "grudge stays spent")
