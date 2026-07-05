@@ -29,6 +29,7 @@ func test_meta() -> void:
 	assert_eq(meta.id, &"trap_corridor")
 	assert_eq(meta.category, MinigameMeta.Category.SABOTAGE)
 	assert_eq(meta.min_players, 3)
+	assert_eq(meta.max_players, 8, "M15: 8 by design, not scaled further")
 
 
 func test_registered_in_catalog() -> void:
@@ -36,6 +37,35 @@ func test_registered_in_catalog() -> void:
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"trap_corridor") is TrapCorridor)
 	MinigameCatalog.clear()
+
+
+## M15: the start line spreads runners by headcount, not the fixed 5-lane
+## TILE_WIDTH — that formula alone spills outside the corridor past 5 players
+## (a pre-existing gap this exposed, worse at the new 8-player cap).
+func test_start_line_stays_within_the_corridor_at_eight() -> void:
+	var player_slots: Array[int] = []
+	for slot in 8:
+		player_slots.append(slot)
+	var game := _game(player_slots)
+	for slot: int in player_slots:
+		var pos: Vector2 = game.positions[slot]
+		assert_between(
+			pos.y,
+			-TrapCorridor.CORRIDOR_HALF_WIDTH,
+			TrapCorridor.CORRIDOR_HALF_WIDTH,
+			"every start position stays inside the corridor width"
+		)
+
+
+func test_start_line_positions_are_distinct_at_eight() -> void:
+	var player_slots: Array[int] = []
+	for slot in 8:
+		player_slots.append(slot)
+	var game := _game(player_slots)
+	var seen := {}
+	for slot: int in player_slots:
+		seen[game.positions[slot]] = true
+	assert_eq(seen.size(), 8, "every player gets a distinct start position")
 
 
 func test_starts_in_trap_phase_with_first_slot_trapping() -> void:
