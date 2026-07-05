@@ -35,27 +35,36 @@ size_flags_vertical = 3
 [node name="Column" type="VBoxContainer" parent="Margin/Scroll/Center"]
 custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 
 [node name="Title" type="Label" parent="Margin/Scroll/Center/Column"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
+theme_type_variation = &"TitleLabel"
 text = "Settings"
 horizontal_alignment = 1
 
-[node name="AudioHeader" type="Label" parent="Margin/Scroll/Center/Column"]
+[node name="AudioCard" type="PanelContainer" parent="Margin/Scroll/Center/Column"]
 layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="AudioColumn" type="VBoxContainer" parent="Margin/Scroll/Center/Column/AudioCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AudioHeader" type="Label" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
 text = "Audio"
 
-[node name="MasterRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column"]
+[node name="MasterRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn"]
 layout_mode = 2
 
-[node name="MasterLabel" type="Label" parent="Margin/Scroll/Center/Column/MasterRow"]
+[node name="MasterLabel" type="Label" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn/MasterRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Master"
 
-[node name="MasterSlider" type="HSlider" parent="Margin/Scroll/Center/Column/MasterRow"]
+[node name="MasterSlider" type="HSlider" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn/MasterRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -63,15 +72,15 @@ size_flags_vertical = 4
 max_value = 100.0
 value = 100.0
 
-[node name="MusicRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column"]
+[node name="MusicRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn"]
 layout_mode = 2
 
-[node name="MusicLabel" type="Label" parent="Margin/Scroll/Center/Column/MusicRow"]
+[node name="MusicLabel" type="Label" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn/MusicRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Music"
 
-[node name="MusicSlider" type="HSlider" parent="Margin/Scroll/Center/Column/MusicRow"]
+[node name="MusicSlider" type="HSlider" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn/MusicRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -79,15 +88,15 @@ size_flags_vertical = 4
 max_value = 100.0
 value = 100.0
 
-[node name="SfxRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column"]
+[node name="SfxRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn"]
 layout_mode = 2
 
-[node name="SfxLabel" type="Label" parent="Margin/Scroll/Center/Column/SfxRow"]
+[node name="SfxLabel" type="Label" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn/SfxRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "SFX"
 
-[node name="SfxSlider" type="HSlider" parent="Margin/Scroll/Center/Column/SfxRow"]
+[node name="SfxSlider" type="HSlider" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn/SfxRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -95,15 +104,15 @@ size_flags_vertical = 4
 max_value = 100.0
 value = 100.0
 
-[node name="NameplateRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column"]
+[node name="NameplateRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn"]
 layout_mode = 2
 
-[node name="NameplateLabel" type="Label" parent="Margin/Scroll/Center/Column/NameplateRow"]
+[node name="NameplateLabel" type="Label" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn/NameplateRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Name size"
 
-[node name="NameplateSlider" type="HSlider" parent="Margin/Scroll/Center/Column/NameplateRow"]
+[node name="NameplateSlider" type="HSlider" parent="Margin/Scroll/Center/Column/AudioCard/AudioColumn/NameplateRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -112,70 +121,106 @@ min_value = 50.0
 max_value = 200.0
 value = 100.0
 
-[node name="DisplayHeader" type="Label" parent="Margin/Scroll/Center/Column"]
+[node name="DisplayCard" type="PanelContainer" parent="Margin/Scroll/Center/Column"]
 layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="DisplayColumn" type="VBoxContainer" parent="Margin/Scroll/Center/Column/DisplayCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DisplayHeader" type="Label" parent="Margin/Scroll/Center/Column/DisplayCard/DisplayColumn"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
 text = "Display"
 
-[node name="FullscreenToggle" type="CheckButton" parent="Margin/Scroll/Center/Column"]
+[node name="FullscreenToggle" type="CheckButton" parent="Margin/Scroll/Center/Column/DisplayCard/DisplayColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Fullscreen"
 
-[node name="AccessibilityHeader" type="Label" parent="Margin/Scroll/Center/Column"]
+[node name="AccessibilityCard" type="PanelContainer" parent="Margin/Scroll/Center/Column"]
 layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="AccessibilityColumn" type="VBoxContainer" parent="Margin/Scroll/Center/Column/AccessibilityCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AccessibilityHeader" type="Label" parent="Margin/Scroll/Center/Column/AccessibilityCard/AccessibilityColumn"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
 text = "Accessibility"
 
-[node name="ColorblindToggle" type="CheckButton" parent="Margin/Scroll/Center/Column"]
+[node name="ColorblindToggle" type="CheckButton" parent="Margin/Scroll/Center/Column/AccessibilityCard/AccessibilityColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Colorblind-friendly colors"
 
-[node name="ReducedMotionToggle" type="CheckButton" parent="Margin/Scroll/Center/Column"]
+[node name="ReducedMotionToggle" type="CheckButton" parent="Margin/Scroll/Center/Column/AccessibilityCard/AccessibilityColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Reduced motion (no shake / particles)"
 
-[node name="ControlsHeader" type="Label" parent="Margin/Scroll/Center/Column"]
+[node name="ControlsCard" type="PanelContainer" parent="Margin/Scroll/Center/Column"]
 layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="ControlsColumn" type="VBoxContainer" parent="Margin/Scroll/Center/Column/ControlsCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ControlsHeader" type="Label" parent="Margin/Scroll/Center/Column/ControlsCard/ControlsColumn"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
 text = "Controls (keyboard)"
 
-[node name="ControlsHint" type="Label" parent="Margin/Scroll/Center/Column"]
+[node name="ControlsHint" type="Label" parent="Margin/Scroll/Center/Column/ControlsCard/ControlsColumn"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_type_variation = &"SmallLabel"
 text = "Click a key, then press the new key. Gamepad bindings are unchanged."
 
-[node name="KeybindsList" type="VBoxContainer" parent="Margin/Scroll/Center/Column"]
+[node name="KeybindsList" type="VBoxContainer" parent="Margin/Scroll/Center/Column/ControlsCard/ControlsColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="NetworkHeader" type="Label" parent="Margin/Scroll/Center/Column"]
+[node name="NetworkCard" type="PanelContainer" parent="Margin/Scroll/Center/Column"]
 layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="NetworkColumn" type="VBoxContainer" parent="Margin/Scroll/Center/Column/NetworkCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NetworkHeader" type="Label" parent="Margin/Scroll/Center/Column/NetworkCard/NetworkColumn"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
 text = "Network (self-hosters)"
 
-[node name="AddressRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column"]
+[node name="AddressRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column/NetworkCard/NetworkColumn"]
 layout_mode = 2
 
-[node name="AddressLabel" type="Label" parent="Margin/Scroll/Center/Column/AddressRow"]
+[node name="AddressLabel" type="Label" parent="Margin/Scroll/Center/Column/NetworkCard/NetworkColumn/AddressRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Server address"
 
-[node name="AddressEdit" type="LineEdit" parent="Margin/Scroll/Center/Column/AddressRow"]
+[node name="AddressEdit" type="LineEdit" parent="Margin/Scroll/Center/Column/NetworkCard/NetworkColumn/AddressRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "default server"
 
-[node name="PortRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column"]
+[node name="PortRow" type="HBoxContainer" parent="Margin/Scroll/Center/Column/NetworkCard/NetworkColumn"]
 layout_mode = 2
 
-[node name="PortLabel" type="Label" parent="Margin/Scroll/Center/Column/PortRow"]
+[node name="PortLabel" type="Label" parent="Margin/Scroll/Center/Column/NetworkCard/NetworkColumn/PortRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "Port"
 
-[node name="PortEdit" type="LineEdit" parent="Margin/Scroll/Center/Column/PortRow"]
+[node name="PortEdit" type="LineEdit" parent="Margin/Scroll/Center/Column/NetworkCard/NetworkColumn/PortRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
