@@ -128,3 +128,50 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.platforms.size(), 2)
 	assert_eq((snapshot.platforms[0] as Array).size(), 3, "[x, y, claimed_by]")
 	assert_eq(snapshot.fallen, [])
+
+
+func test_max_players_raised_to_twelve() -> void:
+	assert_eq(MusicalPlatforms.make_meta().max_players, 12)
+
+
+## M15: a fixed-size ring cannot fit 11 well-spaced platforms, so the ring
+## (and the arena) grow with the lobby to the same per-player-area formula.
+func test_arena_and_platform_ring_scale_at_twelve() -> void:
+	var game := _game_with(12)
+	assert_gt(game._play_half, MusicalPlatforms.ARENA_HALF, "the arena grows for a crowd")
+	assert_gt(
+		game._platform_max_dist, MusicalPlatforms.PLATFORM_MAX_DIST, "the platform ring grows too"
+	)
+
+
+## The scaled ring must still reliably fit all 11 platforms a full 12-player
+## lobby needs, correctly spaced — the actual regression the ADR flags.
+func test_stop_spawns_eleven_well_spaced_platforms_at_twelve() -> void:
+	var game := _game_with(12)
+	_force_stop(game)
+	assert_eq(game.platforms.size(), 11, "one platform fewer than 12 players")
+	for a in game.platforms.size():
+		for b in game.platforms.size():
+			if a != b:
+				var gap: float = (game.platforms[a].pos as Vector2).distance_to(
+					game.platforms[b].pos
+				)
+				assert_gte(gap, MusicalPlatforms.PLATFORM_SPACING, "platforms keep their spacing")
+
+
+## Backward compatibility: at the 6-player baseline nothing scales.
+func test_six_players_unchanged() -> void:
+	var game := _game_with(6)
+	assert_almost_eq(game._play_half, MusicalPlatforms.ARENA_HALF, 0.001)
+	assert_almost_eq(game._platform_max_dist, MusicalPlatforms.PLATFORM_MAX_DIST, 0.001)
+
+
+## Spawns fan out over rings (no overlap) and stay inside the scaled arena.
+func test_player_spawns_distinct_and_within_arena_at_twelve() -> void:
+	var game := _game_with(12)
+	var seen := {}
+	for slot in 12:
+		var pos: Vector2 = game.positions[slot]
+		assert_lte(pos.length(), game._play_half, "spawn inside the scaled arena")
+		seen[pos] = true
+	assert_eq(seen.size(), 12, "every player gets a distinct spawn")
