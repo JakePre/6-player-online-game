@@ -64,7 +64,7 @@ static func make_meta() -> MinigameMeta:
 				"name": "The Mole",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 4,
-				"max_players": 6,
+				"max_players": 8,
 				"duration_sec": 80.0,
 				"rules":
 				(
