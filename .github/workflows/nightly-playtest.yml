@@ -27,6 +27,17 @@ jobs:
       - name: Import resources
         run: ./godot-bin --headless --import || true
       - name: Run playtest harness
-        run: python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12
+        run: |
+          python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12 \
+            --telemetry-out playtest-telemetry-6.json
       - name: Run mutator playtest harness (M9-06)
-        run: python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12 --mutators
+        run: |
+          python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12 --mutators \
+            --telemetry-out playtest-telemetry-6-mutators.json
+      - name: Upload balance telemetry (#548)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest-telemetry-6
+          path: playtest-telemetry-6*.json
+          if-no-files-found: ignore

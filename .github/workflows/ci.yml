@@ -95,7 +95,16 @@ jobs:
       - name: Run ${{ matrix.players }}-player playtest
         # A full match to completion; also surfaces the server's snapshot_cost
         # telemetry at this head count (the #463 scaling baseline).
-        run: python3 tests/soak/run_playtest.py --godot ./godot-bin --players ${{ matrix.players }}
+        run: |
+          python3 tests/soak/run_playtest.py --godot ./godot-bin --players ${{ matrix.players }} \
+            --telemetry-out playtest-telemetry-${{ matrix.players }}.json
+      - name: Upload balance telemetry (#548)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest-telemetry-${{ matrix.players }}
+          path: playtest-telemetry-${{ matrix.players }}.json
+          if-no-files-found: ignore
 
   export:
     name: Export ${{ matrix.preset }}

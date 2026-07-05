@@ -11,16 +11,24 @@ drafts games eligible at that head count, so a 12-bot run exercises the scaled
 
 Usage:
     python tests/soak/run_playtest.py --godot path/to/godot [--rounds 12] [--players 12]
+    python tests/soak/run_playtest.py --godot path/to/godot --telemetry-out out.json
+
+--telemetry-out (#548) writes the creator bot's per-round balance telemetry
+(game_id, player_count, placements, awards, duration_ms) as a JSON array, for
+the M12-01 balance pass to consume once a few nights of runs accumulate.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
 import threading
 import time
+
+TELEMETRY_PREFIX = "PLAYTEST_TELEMETRY "
 
 PORT = 54546
 DEFAULT_BOT_COUNT = 6
@@ -56,6 +64,25 @@ def wait_for_line(proc: subprocess.Popen, prefix: str, timeout: float, sink: lis
     return result[0]
 
 
+def write_telemetry(creator_log: list[str], out_path: str) -> None:
+    """Pulls the creator's PLAYTEST_TELEMETRY line (#548) out of its log and
+    writes the JSON array to `out_path`. Silently skips if the line never
+    appeared (e.g. an older client build without the instrumentation)."""
+    line = next((l for l in creator_log if l.startswith(TELEMETRY_PREFIX)), None)
+    if line is None:
+        print("no PLAYTEST_TELEMETRY line seen; skipping telemetry write")
+        return
+    payload = line[len(TELEMETRY_PREFIX) :]
+    try:
+        rounds = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        print(f"could not parse PLAYTEST_TELEMETRY line: {exc}")
+        return
+    with open(out_path, "w") as f:
+        json.dump(rounds, f)
+    print(f"wrote {len(rounds)} round(s) of telemetry to {out_path}")
+
+
 def drain(proc: subprocess.Popen, sink: list[str]) -> None:
     def reader() -> None:
         assert proc.stdout is not None
@@ -81,6 +108,12 @@ def main() -> int:
         default=DEFAULT_BOT_COUNT,
         help="total bots in the match (default 6 = the CI/nightly config; raise to verify "
         "the ADR 003 caps in a full match at 12/24)",
+    )
+    parser.add_argument(
+        "--telemetry-out",
+        default=None,
+        help="write the creator bot's per-round balance telemetry (#548) as a JSON array "
+        "to this path; skipped if the harness fails or no telemetry line is seen",
     )
     args = parser.parse_args()
     if args.players < 2:
@@ -154,6 +187,9 @@ def main() -> int:
         for line in server_log:
             if "snapshot_cost" in line:
                 print(line)
+
+        if args.telemetry_out and not failed:
+            write_telemetry(bots[0][2], args.telemetry_out)
 
         if failed:
             print("PLAYTEST FAIL")
