@@ -54,10 +54,25 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | **M14-05** Ro-Sham-Bo Royale (S) | Simplest new game left — round-based rock-paper-scissors on the mature contract. |
 | **Epic #256** (M13 tracking issue) | All 31 boxes done — verify and close with a summary comment. |
 
+## Project review findings (2026-07-05)
+
+From the full audit in [PROJECT_REVIEW.md](PROJECT_REVIEW.md). These are the
+concrete follow-ups the review surfaced; classified here like any other task.
+
+| Task | Issue | Model | Why |
+|---|---|---|---|
+| Finale: wire grudge + real sabotage targeting (or cut from SPEC) | #462 | **Opus 4.8** | A real player-facing feature with a targeting-UX sub-decision; sim side already supports it. Invisible to CI, so high value. If cut instead, that's a Sonnet docs change. |
+| Measure content-heavy match snapshots at 24; assess AOI/delta | #463 | **Opus 4.8** | Measurement + decision. **Spinoff:** if delta compression is warranted, the net-layer delta protocol (cross-cutting, `PROTOCOL_VERSION` bump) is **Fable 5** — the replication risk area. |
+| Decide + document caps for the 4 post-ADR games | #464 | **Owner → Sonnet/Opus** | Design-tier call (do hidden-role/contact games scale?) per §10, then bump (Sonnet) or rework (Opus). |
+| Add `--check-only` to the local dev gate | #465 | **Sonnet 5** | Mechanical docs + hook wiring; stops recurring CI-only parse failures. |
+| Nightly 12/24-player playtest variant | #466 | **Opus 4.8** | `ci.yml` is a §4 hotspot; interpreting a large-lobby run is real judgment. Pairs with #463. |
+| Cache per-tick alive set (drop repeated `slots.filter`) | #467 | **Sonnet 5** | Mechanical batch cleanup across ~8 sims; low priority. |
+
 ## Structural notes
 
 - **M14 is still gated**: it needs M10-13/14/16 and the three open M12 boxes
-  before any of its nine games are claimable, regardless of model.
+  before any of its nine games are claimable, regardless of model. (M10-13/16
+  merged; M10-14 Pickpocket #359 is the last M10 blocker.)
 - Rough counts: **4 Fable-tier**, **~14 Opus-tier**, **~28 Sonnet-tier**. The
   long tail of M15 cap tasks is deliberately cheap because the framework work
   that made them cheap (M15-01..07) is already merged.
