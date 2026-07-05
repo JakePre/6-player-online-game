@@ -61,6 +61,7 @@ static func register_builtins() -> void:
 	register(RoShamBo.make_meta(), RoShamBo)
 	register(TurboLap.make_meta(), TurboLap)
 	register(LoadoutDuel.make_meta(), LoadoutDuel)
+	register(PuttPanic.make_meta(), PuttPanic)
 
 
 static func meta_of(id: StringName) -> MinigameMeta:

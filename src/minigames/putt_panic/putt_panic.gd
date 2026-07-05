@@ -1,0 +1,231 @@
+class_name PuttPanic
+extends MinigameBase
+## Putt Panic (M14-08, PHASE2.md §8): a mini-golf homage — everyone putts on
+## one shared green toward a single cup, simultaneously, fewest strokes wins.
+## Aim + charge + release; the ball rolls with friction, bounces off the walls,
+## static blocks and a sliding bar, and drops if it reaches the cup slowly
+## enough. A 30 s shot clock auto-putts idlers. Server-side simulation only —
+## the client renders get_snapshot().
+
+const ARENA_HALF := 9.0
+const BALL_RADIUS := 0.3
+const CUP_POS := Vector2(0.0, 6.5)
+const CUP_RADIUS := 0.55
+const MAX_POWER := 14.0
+## Speed lost per second (rolling friction), and the speed below which the
+## ball is considered at rest and ready for the next putt.
+const FRICTION := 7.0
+const STOP_SPEED := 0.4
+## A ball only drops if it reaches the cup no faster than this (else it rolls
+## over the lip); wall/obstacle bounces keep this much of their speed.
+const SINK_MAX_SPEED := 7.0
+const RESTITUTION := 0.7
+const SHOT_CLOCK_SEC := 30.0
+const AUTO_PUTT_POWER := 0.35
+
+## Static blocks flanking the approach: {pos, half}.
+const BLOCKS: Array[Dictionary] = [
+	{"pos": Vector2(-3.5, 1.0), "half": Vector2(1.0, 0.6)},
+	{"pos": Vector2(3.5, 1.0), "half": Vector2(1.0, 0.6)},
+]
+## Sliding bar guarding the cup: oscillates in x.
+const BAR_HALF := Vector2(1.6, 0.5)
+const BAR_Y := 3.6
+const BAR_RANGE := 4.0
+const BAR_SPEED := 1.1
+
+var positions := {}
+var velocities := {}
+var aims := {}
+var strokes := {}
+var sunk := {}
+var rest_time := {}
+## Sliding bar centre this tick (replicated so the view need not recompute).
+var bar_x := 0.0
+
+
+static func make_meta() -> MinigameMeta:
+	return (
+		MinigameMeta
+		. create(
+			{
+				"id": &"putt_panic",
+				"name": "Putt Panic",
+				"category": MinigameMeta.Category.SKILL,
+				"min_players": 2,
+				"max_players": 8,
+				"duration_sec": 90.0,
+				"rules":
+				"Aim, charge, and putt into the cup — fewest strokes wins. Mind the moving bar!",
+				"controls": "Aim — WASD / stick / mouse · Charge + putt — hold & release SPACE / Ⓐ",
+			}
+		)
+	)
+
+
+func _setup() -> void:
+	for i in slots.size():
+		var slot: int = slots[i]
+		var spread := (i - (slots.size() - 1) / 2.0) * 1.6
+		positions[slot] = Vector2(spread, -7.0)
+		velocities[slot] = Vector2.ZERO
+		aims[slot] = (CUP_POS - positions[slot]).normalized()
+		strokes[slot] = 0
+		sunk[slot] = false
+		rest_time[slot] = 0.0
+
+
+func _handle_input(slot: int, data: Dictionary) -> void:
+	if bool(sunk[slot]):
+		return
+	var aim := Vector2(float(data.get("ax", 0.0)), float(data.get("ay", 0.0)))
+	if aim.length() > 0.1:
+		aims[slot] = aim.normalized()
+	if data.get("putt", false) and _at_rest(slot):
+		_putt(slot, clampf(float(data.get("power", 0.0)), 0.0, 1.0))
+
+
+func _tick(delta: float) -> void:
+	bar_x = BAR_RANGE * sin(elapsed * BAR_SPEED)
+	for slot: int in slots:
+		if bool(sunk[slot]):
+			continue
+		if _at_rest(slot):
+			rest_time[slot] = float(rest_time[slot]) + delta
+			if float(rest_time[slot]) >= SHOT_CLOCK_SEC:
+				_putt(slot, AUTO_PUTT_POWER)
+			continue
+		_roll(slot, delta)
+	_check_end()
+
+
+func get_snapshot() -> Dictionary:
+	var players := {}
+	for slot: int in slots:
+		var pos: Vector2 = positions[slot]
+		var aim: Vector2 = aims[slot]
+		players[slot] = [
+			snappedf(pos.x, 0.01),
+			snappedf(pos.y, 0.01),
+			int(strokes[slot]),
+			1 if bool(sunk[slot]) else 0,
+			snappedf(aim.x, 0.01),
+			snappedf(aim.y, 0.01),
+			1 if _at_rest(slot) else 0,
+		]
+	return {
+		"players": players,
+		"cup": [CUP_POS.x, CUP_POS.y],
+		"bar": [snappedf(bar_x, 0.01), BAR_Y],
+		"shot_clock": SHOT_CLOCK_SEC,
+	}
+
+
+## Sunk players rank by strokes (fewer first, ties grouped); everyone who
+## didn't hole out ranks after, nearest-the-cup first.
+func _rank_players() -> Array:
+	var by_strokes := {}
+	var unsunk: Array = []
+	for slot: int in slots:
+		if bool(sunk[slot]):
+			var s: int = strokes[slot]
+			if not by_strokes.has(s):
+				by_strokes[s] = []
+			by_strokes[s].append(slot)
+		else:
+			unsunk.append(slot)
+	var stroke_values := by_strokes.keys()
+	stroke_values.sort()
+	var placements: Array = []
+	for value: int in stroke_values:
+		placements.append(by_strokes[value])
+	unsunk.sort_custom(
+		func(a: int, b: int) -> bool:
+			return positions[a].distance_to(CUP_POS) < positions[b].distance_to(CUP_POS)
+	)
+	for slot: int in unsunk:
+		placements.append([slot])
+	return placements
+
+
+func _at_rest(slot: int) -> bool:
+	return (velocities[slot] as Vector2).length() <= STOP_SPEED
+
+
+func _putt(slot: int, power: float) -> void:
+	velocities[slot] = (aims[slot] as Vector2) * MAX_POWER * power
+	strokes[slot] = int(strokes[slot]) + 1
+	rest_time[slot] = 0.0
+
+
+func _roll(slot: int, delta: float) -> void:
+	var pos: Vector2 = positions[slot] + (velocities[slot] as Vector2) * delta
+	var vel: Vector2 = velocities[slot]
+	# Outer walls.
+	var limit := ARENA_HALF - BALL_RADIUS
+	if absf(pos.x) > limit:
+		pos.x = clampf(pos.x, -limit, limit)
+		vel.x = -vel.x * RESTITUTION
+	if absf(pos.y) > limit:
+		pos.y = clampf(pos.y, -limit, limit)
+		vel.y = -vel.y * RESTITUTION
+	positions[slot] = pos
+	velocities[slot] = vel
+	# Obstacles.
+	for block: Dictionary in BLOCKS:
+		_bounce_box(slot, block.pos, block.half)
+	_bounce_box(slot, Vector2(bar_x, BAR_Y), BAR_HALF)
+	# Friction.
+	var speed := (velocities[slot] as Vector2).length()
+	speed = maxf(0.0, speed - FRICTION * delta)
+	if speed <= STOP_SPEED:
+		velocities[slot] = Vector2.ZERO
+	else:
+		velocities[slot] = (velocities[slot] as Vector2).normalized() * speed
+	# Sink check.
+	if (
+		(positions[slot] as Vector2).distance_to(CUP_POS) <= CUP_RADIUS
+		and (velocities[slot] as Vector2).length() <= SINK_MAX_SPEED
+	):
+		sunk[slot] = true
+		positions[slot] = CUP_POS
+		velocities[slot] = Vector2.ZERO
+
+
+## Circle-vs-AABB: if the ball overlaps the block, push it to the surface and
+## reflect the incoming velocity component.
+func _bounce_box(slot: int, center: Vector2, half: Vector2) -> void:
+	var pos: Vector2 = positions[slot]
+	var closest := Vector2(
+		clampf(pos.x, center.x - half.x, center.x + half.x),
+		clampf(pos.y, center.y - half.y, center.y + half.y)
+	)
+	var to_ball := pos - closest
+	var dist := to_ball.length()
+	if dist >= BALL_RADIUS:
+		return
+	var normal: Vector2
+	if dist > 0.0001:
+		normal = to_ball / dist
+	else:
+		# Centre inside the box: eject along the axis of least penetration.
+		var px := half.x - absf(pos.x - center.x)
+		var py := half.y - absf(pos.y - center.y)
+		normal = (
+			Vector2(signf(pos.x - center.x), 0.0)
+			if px < py
+			else Vector2(0.0, signf(pos.y - center.y))
+		)
+	positions[slot] = closest + normal * BALL_RADIUS
+	var vel: Vector2 = velocities[slot]
+	if vel.dot(normal) < 0.0:
+		velocities[slot] = (vel - 2.0 * vel.dot(normal) * normal) * RESTITUTION
+
+
+func _check_end() -> void:
+	if finished:
+		return
+	for slot: int in slots:
+		if not bool(sunk[slot]):
+			return
+	finish(_rank_players())
