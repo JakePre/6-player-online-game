@@ -77,12 +77,18 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	if finished:
 		return
-	for slot: int in _in_slots():
+	# Alive-set cache (cleanup #467): computed once, shared by the movement
+	# loop, _tick_meteors(), and _check_zone(), which all run before this
+	# tick's own downs are finalized. _check_end() still calls _in_slots()
+	# fresh — it must see the roster *after* _flush_downs() applies this
+	# tick's eliminations.
+	var alive := _in_slots()
+	for slot: int in alive:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.limit_length(_play_half)
-	_tick_meteors(delta)
+	_tick_meteors(delta, alive)
 	_spawn_meteors(delta)
-	_check_zone()
+	_check_zone(alive)
 	_flush_downs()
 	_check_end()
 
@@ -120,14 +126,14 @@ func _rank_players() -> Array:
 	return placements + _out_placements()
 
 
-func _tick_meteors(delta: float) -> void:
+func _tick_meteors(delta: float, alive: Array) -> void:
 	var remaining: Array = []
 	for meteor: Dictionary in meteors:
 		meteor.left -= delta
 		if meteor.left > 0.0:
 			remaining.append(meteor)
 			continue
-		for slot: int in _in_slots():
+		for slot: int in alive:
 			if positions[slot].distance_to(meteor.pos) <= METEOR_RADIUS + PLAYER_RADIUS:
 				_pending_downs.append(slot)
 	meteors = remaining
@@ -144,9 +150,9 @@ func _spawn_meteors(delta: float) -> void:
 	meteors.append({"pos": Vector2(cos(angle), sin(angle)) * dist, "left": METEOR_TELEGRAPH_SEC})
 
 
-func _check_zone() -> void:
+func _check_zone(alive: Array) -> void:
 	var radius := zone_radius()
-	for slot: int in _in_slots():
+	for slot: int in alive:
 		if positions[slot].length() > radius + PLAYER_RADIUS:
 			_pending_downs.append(slot)
 

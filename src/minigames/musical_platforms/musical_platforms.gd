@@ -82,14 +82,21 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	if finished:
 		return
-	for slot: int in _in_slots():
+	# Alive-set cache (cleanup #467): computed once, shared by the movement
+	# loop, _resolve_claims(), and _advance_phase() (incl. its _spawn_platforms()
+	# call) — none of these touch down_order before this point in the tick, so
+	# they all see the same pre-elimination roster. _check_end() still calls
+	# _in_slots() fresh — it must see the roster *after* _advance_phase() adds
+	# this tick's own down_order entries.
+	var alive := _in_slots()
+	for slot: int in alive:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.limit_length(_play_half)
 	if phase == Phase.STOP:
-		_resolve_claims()
+		_resolve_claims(alive)
 	_phase_left -= delta
 	if _phase_left <= 0.0 or (phase == Phase.STOP and _all_platforms_claimed()):
-		_advance_phase()
+		_advance_phase(alive)
 	_check_end()
 
 
@@ -121,11 +128,11 @@ func _rank_players() -> Array:
 
 ## First unclaimed platform a player touches is theirs, exclusively; a player
 ## who already holds one cannot take a second.
-func _resolve_claims() -> void:
+func _resolve_claims(alive: Array) -> void:
 	for platform: Dictionary in platforms:
 		if platform.claimed_by != -1:
 			continue
-		for slot: int in _in_slots():
+		for slot: int in alive:
 			if _claim_of(slot) != null:
 				continue
 			if positions[slot].distance_to(platform.pos) <= PLATFORM_RADIUS + PLAYER_RADIUS:
@@ -133,15 +140,15 @@ func _resolve_claims() -> void:
 				break
 
 
-func _advance_phase() -> void:
+func _advance_phase(alive: Array) -> void:
 	if phase == Phase.MUSIC:
 		phase = Phase.STOP
 		_phase_left = STOP_SEC
-		_spawn_platforms()
+		_spawn_platforms(alive)
 		return
 	# STOP resolved: everyone without a platform goes down together.
 	var losers: Array = []
-	for slot: int in _in_slots():
+	for slot: int in alive:
 		if _claim_of(slot) == null:
 			losers.append(slot)
 	if not losers.is_empty():
@@ -151,9 +158,9 @@ func _advance_phase() -> void:
 	_phase_left = rng.randf_range(MUSIC_MIN_SEC, MUSIC_MAX_SEC)
 
 
-func _spawn_platforms() -> void:
+func _spawn_platforms(alive: Array) -> void:
 	platforms = []
-	var wanted := maxi(_in_slots().size() - 1, 1)
+	var wanted := maxi(alive.size() - 1, 1)
 	var guard := 0
 	var guard_limit := PLACEMENT_ATTEMPTS_PER_PLATFORM * wanted
 	while platforms.size() < wanted and guard < guard_limit:

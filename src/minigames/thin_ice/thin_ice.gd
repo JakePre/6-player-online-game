@@ -85,15 +85,22 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 
 func _tick(delta: float) -> void:
-	for slot: int in _in_slots():
+	# Alive-set cache (cleanup #467): computed once, shared by the movement
+	# loop, _resolve_tile_entries(), _tick_standing(), and _check_falls() —
+	# none of these touch fall_order before this point in the tick, so they
+	# all see the same pre-elimination roster. _check_end() still calls
+	# _in_slots() fresh — it must see the roster *after* _flush_falls()
+	# applies this tick's eliminations.
+	var alive := _in_slots()
+	for slot: int in alive:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.clamp(
 			Vector2(-_half_extent, -_half_extent), Vector2(_half_extent, _half_extent)
 		)
-	_resolve_tile_entries()
-	_tick_standing(delta)
+	_resolve_tile_entries(alive)
+	_tick_standing(delta, alive)
 	_tick_collapses(delta)
-	_check_falls()
+	_check_falls(alive)
 	_flush_falls()
 	_check_end()
 
@@ -123,8 +130,8 @@ func _rank_players() -> Array:
 	return placements + _out_placements()
 
 
-func _resolve_tile_entries() -> void:
-	for slot: int in _in_slots():
+func _resolve_tile_entries(alive: Array) -> void:
+	for slot: int in alive:
 		var tile: Vector2i = _tile_of(positions[slot])
 		if tile != last_tile[slot]:
 			last_tile[slot] = tile
@@ -133,8 +140,8 @@ func _resolve_tile_entries() -> void:
 
 
 ## Standing still cracks the ice under you too (#167).
-func _tick_standing(delta: float) -> void:
-	for slot: int in _in_slots():
+func _tick_standing(delta: float, alive: Array) -> void:
+	for slot: int in alive:
 		_stand_time[slot] = float(_stand_time.get(slot, 0.0)) + delta
 		if _stand_time[slot] >= STAND_DAMAGE_SEC:
 			_stand_time[slot] = 0.0
@@ -159,8 +166,8 @@ func _tick_collapses(delta: float) -> void:
 			tiles[idx] = TileState.GONE
 
 
-func _check_falls() -> void:
-	for slot: int in _in_slots():
+func _check_falls(alive: Array) -> void:
+	for slot: int in alive:
 		var idx := _tile_index(last_tile[slot])
 		if tiles[idx] == TileState.GONE:
 			_pending_falls.append(slot)

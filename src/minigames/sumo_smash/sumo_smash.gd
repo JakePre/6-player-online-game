@@ -71,14 +71,19 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 
 func _tick(delta: float) -> void:
-	for slot: int in _in_slots():
+	# Alive-set cache (cleanup #467): computed once, shared by every helper
+	# below that runs before this tick's own ring-outs are finalized.
+	# _check_end() still calls _in_slots() fresh — it must see the roster
+	# *after* _flush_ringouts() applies this tick's eliminations.
+	var alive := _in_slots()
+	for slot: int in alive:
 		cooldown_left[slot] = maxf(float(cooldown_left[slot]) - delta, 0.0)
 		dash_left[slot] = maxf(float(dash_left[slot]) - delta, 0.0)
 		var knock: Vector2 = knocks[slot]
 		positions[slot] += (move_dirs[slot] * MOVE_SPEED + knock) * delta
 		knocks[slot] = knock.move_toward(Vector2.ZERO, KNOCK_DECAY * delta)
-	_resolve_shoves()
-	_check_ringouts()
+	_resolve_shoves(alive)
+	_check_ringouts(alive)
 	_flush_ringouts()
 	_check_end()
 
@@ -107,8 +112,7 @@ func _rank_players() -> Array:
 	return placements + _out_placements()
 
 
-func _resolve_shoves() -> void:
-	var active := _in_slots()
+func _resolve_shoves(active: Array) -> void:
 	for i in active.size():
 		for j in range(i + 1, active.size()):
 			var a: int = active[i]
@@ -125,8 +129,8 @@ func _shove_strength(shover: int) -> float:
 	return SHOVE_SPEED * (DASH_SHOVE_MULT if float(dash_left[shover]) > 0.0 else 1.0)
 
 
-func _check_ringouts() -> void:
-	for slot: int in _in_slots():
+func _check_ringouts(alive: Array) -> void:
+	for slot: int in alive:
 		if positions[slot].length() > PLATFORM_RADIUS:
 			_pending_outs.append(slot)
 

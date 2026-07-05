@@ -101,14 +101,19 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	if finished:
 		return
-	for slot: int in _in_slots():
+	# Alive-set cache (cleanup #467): computed once, shared by the movement
+	# loop and _sweep_walls(), which both run before this tick's own downs
+	# are finalized. _check_end() still calls _in_slots() fresh — it must
+	# see the roster *after* _flush_downs() applies this tick's eliminations.
+	var alive := _in_slots()
+	for slot: int in alive:
 		airborne[slot] = maxf(airborne[slot] - delta, 0.0)
 		invuln[slot] = maxf(invuln[slot] - delta, 0.0)
 		_jump_cooldown[slot] = maxf(_jump_cooldown[slot] - delta, 0.0)
 		var speed := DUCK_SPEED if ducking[slot] else MOVE_SPEED
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
 		positions[slot] = pos.limit_length(_play_half)
-	_sweep_walls(delta)
+	_sweep_walls(delta, alive)
 	_spawn_walls(delta)
 	_flush_downs()
 	_check_end()
@@ -150,12 +155,12 @@ func _rank_players() -> Array:
 
 ## A wall hits when it crosses a player's x this tick in the wrong stance:
 ## LOW needs airtime, HIGH needs ducking, GAP needs standing in the opening.
-func _sweep_walls(delta: float) -> void:
+func _sweep_walls(delta: float, alive: Array) -> void:
 	var remaining: Array = []
 	for wall: Dictionary in walls:
 		var before: float = wall.x
 		wall.x += wall.dir * wall.speed * delta
-		for slot: int in _in_slots():
+		for slot: int in alive:
 			if invuln[slot] > 0.0:
 				continue
 			var px: float = positions[slot].x
