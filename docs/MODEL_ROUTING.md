@@ -24,10 +24,10 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 | Task | Why |
 |---|---|
 | **M12-01** balance pass, all 33 games at 2/4/6 | The riskiest remaining task: interpret nightly-run data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
-| **M14-01** Loadout Duel (L) | Owner-requested, genre-new loadout/weapon design from a one-line spec; needs the §10 proposal-comment flow before code. |
+| **M14-01** Loadout Duel (L) | Owner-requested, genre-new loadout/weapon design from a one-line spec; needs the §10 proposal-comment flow before code. ◐ claimed (#509). |
 | **M14-02** Turbo Lap (L) | Racing handling under 30 Hz server-authoritative snapshots — latency feel, drift, track replication have no precedent in this codebase. |
 | **M14-09** Tumble Run (L) | Physics-platformer obstacle gauntlet; server-side physics + tumble feel is new territory and judgment-heavy. |
-| **M16-01** design system 2.0 (L) | Pure taste + system thinking: typography, palette, motion standards. Every other M16 task inherits its choices — a weak foundation costs all 12 downstream surfaces. Writes STYLE_GUIDE.md. |
+| ~~**M16-01** design system 2.0 (L)~~ | ✅ done (#506) — `PartyTheme` rebuilt, `docs/STYLE_GUIDE.md` written. Gates the rest of M16. |
 | **M16-13** consistency audit (S) | Small but judgment-dense: spotting "this reads wrong" across every surface with no checklist to follow is exactly what the tier is for. |
 
 ## Opus 4.8 — real engineering, clear precedent
@@ -51,40 +51,56 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 
 ## Sonnet 5 — mechanical, pattern-following
 
-| Task | Why |
+Everything below the M15/M12-02 rows is **done** — kept as a record, not a
+work queue. Live availability as of 2026-07-05: **none**. M14-05 (the one
+open Sonnet-tier new game) is claimed; the M16 Sonnet surfaces are blocked on
+M16-01/03/07 landing first (see Structural notes). Next agent: check here
+before re-deriving this from scratch.
+
+| Task | Status |
 |---|---|
-| **M15 8-caps** (10): Sumo Smash, Rumble Ring, Shock Tag, Hot Potato, Cart Push, Wall Builders, Bomb Courier, Heist Night, Trap Corridor, Fish Frenzy | Per ADR 003 these need only M15-01..03 (all landed): raise `max_players` 6→8, verify spawns. |
-| **M15 simple 24-caps** (8): Beat Bounce, Bullseye Bowl, Count Quick, Hurdle Dash, Memory Match, Quick Draw, Simon Stomp, Tug of War | M15-07 layouts + M15-02 identity already carry the rendering; bump + 12/24-player test passes. |
-| **M15 remaining 12-caps** (8, after the Opus exemplar): King of the Hill, Meteor Shower, Musical Platforms, Poison Feast, Relay Sprint, Snake Chain, Thin Ice, Treasure Divers | Copy the established scaling-wiring pattern per game. |
-| **M12-02** `play_sfx` adoption sweep (S) | Mechanical sweep — hook calls at pickups/hits/KOs across views, 30 existing examples to follow. |
-| **M14-05** Ro-Sham-Bo Royale (S) | Simplest new game left — round-based rock-paper-scissors on the mature contract. |
-| **M16-04** lobby · **M16-05** character select · **M16-06** settings+credits · **M16-10** error/edge chrome (S/M, after the M16-03 exemplar) | Applying an established design system + exemplar screen to further surfaces is pattern-following; the taste decisions are already made in STYLE_GUIDE.md. |
-| **M16-12** per-minigame key art (M) | Mechanical once M16-07's card slot exists: batch IMAGE_REQUESTS.md rows, wire delivered art per game, credit rows. |
-| **Epic #256** (M13 tracking issue) | All 31 boxes done — verify and close with a summary comment. |
+| ~~M15 8-caps~~ (10): Sumo Smash, Rumble Ring, Shock Tag, Hot Potato, Cart Push, Wall Builders, Bomb Courier, Heist Night, Trap Corridor, Fish Frenzy | ✅ done — all at `max_players: 8` |
+| ~~M15 simple 24-caps~~ (8): Beat Bounce, Bullseye Bowl, Count Quick, Hurdle Dash, Memory Match, Quick Draw, Simon Stomp, Tug of War | ✅ done — all at `max_players: 24` |
+| ~~M15 remaining 12-caps~~ (8): King of the Hill, Meteor Shower, Musical Platforms, Poison Feast, Relay Sprint, Snake Chain, Thin Ice, Treasure Divers | ✅ done — all at `max_players: 12` |
+| ~~M12-02~~ `play_sfx` adoption sweep | ✅ done (#482) |
+| **M14-05** Ro-Sham-Bo Royale (S) | ◐ **claimed** (#507) — do not duplicate |
+| **M16-04** lobby · **M16-05** character select · **M16-06** settings+credits · **M16-10** error/edge chrome (S/M) | ⛔ blocked — needs M16-01 (design system); M16-04/05/06/10 also want the M16-03 exemplar first |
+| **M16-12** per-minigame key art (M) | ⛔ blocked — needs M16-07's card slot |
+| ~~Epic #256~~ (M13 tracking issue) | ✅ closed |
+| ~~#467~~ cache per-tick alive set | ✅ closed |
 
 ## Project review findings (2026-07-05)
 
 From the full audit in [PROJECT_REVIEW.md](PROJECT_REVIEW.md). These are the
 concrete follow-ups the review surfaced; classified here like any other task.
 
-| Task | Issue | Model | Why |
+All seven review findings are closed — the full audit's follow-ups are done.
+
+| Task | Issue | Model | Status |
 |---|---|---|---|
-| ~~Finale: wire grudge + real sabotage targeting~~ ✅ done (#462, PR #476) | #462 | Opus 4.8 | Fixed view-only: sabotage → nearest living rival; eliminated players aim + strike their grudge. |
-| ~~Measure content-heavy match snapshots at 24~~ ✅ done (#463) | #463 | Opus 4.8 | Measured: Color Clash @24 ≈ 4.4 MB/s/room is the one outlier. A general Fable delta framework is **not** warranted; the proportionate fix is a targeted Color Clash grid delta (#479). |
-| Color Clash grid delta (keyframe + changed-tiles) | #479 | **Opus 4.8** | Per-game replication fix in the net-risk area, contained to the ColorClash sim+view. Keyframe self-heals dropped deltas (snapshots are unreliable-ordered). No protocol change. |
-| Decide + document caps for the 4 post-ADR games | #464 | **Owner → Sonnet/Opus** | Design-tier call (do hidden-role/contact games scale?) per §10, then bump (Sonnet) or rework (Opus). |
-| Add `--check-only` to the local dev gate | #465 | **Sonnet 5** | Mechanical docs + hook wiring; stops recurring CI-only parse failures. |
-| Nightly 12/24-player playtest variant | #466 | **Opus 4.8** | `ci.yml` is a §4 hotspot; interpreting a large-lobby run is real judgment. Pairs with #463. |
-| Cache per-tick alive set (drop repeated `slots.filter`) | #467 | **Sonnet 5** | Mechanical batch cleanup across ~8 sims; low priority. |
+| ~~Finale: wire grudge + real sabotage targeting~~ | #462 | Opus 4.8 | ✅ done (PR #476) |
+| ~~Measure content-heavy match snapshots at 24~~ | #463 | Opus 4.8 | ✅ done |
+| ~~Color Clash grid delta (keyframe + changed-tiles)~~ | #479 | Opus 4.8 | ✅ done |
+| ~~Decide + document caps for the 4 post-ADR games~~ | #464 | Owner → Sonnet/Opus | ✅ done |
+| ~~Add `--check-only` to the local dev gate~~ | #465 | Sonnet 5 | ✅ done |
+| ~~Nightly 12/24-player playtest variant~~ | #466 | Opus 4.8 | ✅ done |
+| ~~Cache per-tick alive set~~ | #467 | Sonnet 5 | ✅ done |
 
 ## Structural notes
 
 - **M14 is open** (v0.6.0 shipped at the boundary 2026-07-05; the release hold
-  is lifted) — all nine Genre Hop games are claimable under normal rules.
+  is lifted) — Genre Hop games are claimable under normal rules. As of
+  2026-07-05: M14-01 (#509), M14-05 (#507), and M14-06 (#505) are claimed;
+  M14-02/03/04/08/09/10 are unclaimed.
 - **M16 sequencing**: M16-01 (Fable) gates everything; M16-03 (Opus) is the
   exemplar surface to do second; then the Sonnet surfaces fan out in parallel.
   M16-13 audits last. Image needs go through IMAGE_REQUESTS.md — never block
-  on art.
-- Rough counts: **4 Fable-tier**, **~14 Opus-tier**, **~28 Sonnet-tier**. The
-  long tail of M15 cap tasks is deliberately cheap because the framework work
-  that made them cheap (M15-01..07) is already merged.
+  on art. **M16-01 merged 2026-07-05** (`docs/STYLE_GUIDE.md` now exists,
+  `src/ui/party_theme.gd` is additive-only per §4). M16-03 is unclaimed —
+  per the sequencing note above, the Sonnet surfaces (M16-04/05/06/10) should
+  wait for it to land as the visual exemplar, even though their plan-file
+  dependency arrow only lists M16-01.
+- **M15 is fully done** — every per-game cap task landed; the section above is
+  historical. The live remaining pool is M14 (Genre Hop) + M16 (Beautiful
+  UI/UX), both gated at the top (M14-01..10 mostly Fable/Opus; M16 gated on
+  M16-01).
