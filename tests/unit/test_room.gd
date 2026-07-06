@@ -51,6 +51,14 @@ func test_state_dict_never_leaks_session_tokens() -> void:
 		assert_false(member.has("peer_id"))
 
 
+## #581: the chosen colour replicates in the member dict, defaulting to -1.
+func test_member_dict_carries_the_chosen_color_index() -> void:
+	var room := _room_with(2)
+	assert_eq(room.members[0].to_dict().color_index, -1, "no pick defaults to -1")
+	room.members[1].color_index = 5
+	assert_eq(room.members[1].to_dict().color_index, 5, "a pick replicates")
+
+
 func _ready_all(room: Room) -> void:
 	for member in room.members:
 		member.ready = true

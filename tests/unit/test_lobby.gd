@@ -169,3 +169,33 @@ func test_add_bot_disables_at_the_cap() -> void:
 		full.append({"is_bot": i > 0})
 	lobby._refresh_bot_controls({"members": full}, true, false)
 	assert_true(lobby._add_bot_button.disabled, "no room for another bot")
+
+
+## #581: the color-swatch picker row.
+func test_builds_one_color_swatch_per_palette_color() -> void:
+	assert_eq(
+		lobby._color_swatches.size(), PlayerPalette.COLORS.size(), "a swatch per palette color"
+	)
+
+
+func test_sync_dims_colors_taken_by_other_members() -> void:
+	var saved_slot := NetManager.my_slot
+	NetManager.my_slot = 0
+	# Slot 1 picked index 5; slot 0 (me) has no pick, so I effectively show 0.
+	lobby._sync_color_swatches(
+		{"members": [{"slot": 0, "color_index": -1}, {"slot": 1, "color_index": 5}]}, true
+	)
+	assert_lt(lobby._color_swatches[5].modulate.a, 1.0, "a colour taken by another dims")
+	assert_false(bool(lobby._color_swatches[5].get_meta(&"pickable")), "and can't be picked")
+	assert_eq(lobby._color_swatches[0].modulate.a, 1.0, "my own colour stays available")
+	assert_true(bool(lobby._color_swatches[1].get_meta(&"pickable")), "a free colour is pickable")
+	NetManager.my_slot = saved_slot
+
+
+func test_sync_freezes_the_row_in_match() -> void:
+	var saved_slot := NetManager.my_slot
+	NetManager.my_slot = 0
+	lobby._sync_color_swatches({"members": [{"slot": 0, "color_index": -1}]}, false)
+	for swatch: ColorRect in lobby._color_swatches:
+		assert_false(bool(swatch.get_meta(&"pickable")), "nothing is pickable in-match")
+	NetManager.my_slot = saved_slot
