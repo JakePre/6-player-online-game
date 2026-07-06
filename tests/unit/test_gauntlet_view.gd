@@ -388,3 +388,55 @@ func test_reduced_motion_still_shows_the_intro() -> void:
 	assert_true(_intro_card(v).visible, "reduced motion still reveals the intro (no animation)")
 	assert_almost_eq(_intro_card(v).modulate.a, 1.0, 0.001, "shown at full opacity, no fade")
 	ArenaFX.reduced_motion = prior
+
+
+# --- Shrink telegraph (#583) ---------------------------------------------------
+
+
+func _telegraph(v: MinigameView) -> MeshInstance3D:
+	return v.arena.get_node("ShrinkTelegraph")
+
+
+func test_telegraph_hidden_outside_the_warn_window() -> void:
+	var v := _make_view(2)
+	v.render(
+		{"radius": 10.0, "shrink_in": Gauntlet.SHRINK_WARN_SEC + 1.0, "players": {}, "hazards": []}
+	)
+	assert_false(_telegraph(v).visible, "not yet inside the warn window")
+
+
+func test_telegraph_shows_the_doomed_band_inside_the_warn_window() -> void:
+	var v := _make_view(2)
+	v.render({"radius": 10.0, "shrink_in": 1.0, "players": {}, "hazards": []})
+	var telegraph := _telegraph(v)
+	assert_true(telegraph.visible, "inside the warn window")
+	var mesh: TorusMesh = telegraph.mesh
+	var expected_next := Gauntlet.start_radius_for(2) - Gauntlet.shrink_per_stage_for(2)
+	assert_almost_eq(mesh.outer_radius, 10.0, 0.01, "outer edge is the current radius")
+	assert_almost_eq(mesh.inner_radius, maxf(expected_next, Gauntlet.MIN_RADIUS), 0.01)
+
+
+func test_telegraph_reddens_as_the_countdown_closes_in() -> void:
+	var v := _make_view(2)
+	v.render({"radius": 10.0, "shrink_in": Gauntlet.SHRINK_WARN_SEC, "players": {}, "hazards": []})
+	var far_alpha: float = v._shrink_base_alpha
+	v.render({"radius": 10.0, "shrink_in": 0.1, "players": {}, "hazards": []})
+	var near_alpha: float = v._shrink_base_alpha
+	assert_gt(near_alpha, far_alpha, "closer to the shrink reads more urgent")
+
+
+func test_telegraph_stays_hidden_once_the_platform_bottoms_out() -> void:
+	var v := _make_view(2)
+	v.render({"radius": Gauntlet.MIN_RADIUS, "shrink_in": 0.1, "players": {}, "hazards": []})
+	assert_false(_telegraph(v).visible, "nothing left to shrink, nothing to telegraph")
+
+
+func test_reduced_motion_sets_a_steady_alpha_without_pulsing() -> void:
+	var prior: bool = ArenaFX.reduced_motion
+	ArenaFX.reduced_motion = true
+	var v := _make_view(2)
+	v.render({"radius": 10.0, "shrink_in": 0.1, "players": {}, "hazards": []})
+	var telegraph := _telegraph(v)
+	var mat: StandardMaterial3D = telegraph.mesh.material
+	assert_almost_eq(mat.albedo_color.a, v._shrink_base_alpha, 0.001, "steady tint, no pulse math")
+	ArenaFX.reduced_motion = prior
