@@ -14,6 +14,10 @@ const START_RADIUS := 10.0
 const MIN_RADIUS := 2.5
 const SHRINK_STAGE_SEC := 15.0
 const SHRINK_PER_STAGE := 1.5
+## How far out the client telegraphs the doomed ring before a shrink actually
+## lands (#583 — "the ring has to indicate the area being deleted before it
+## gets deleted").
+const SHRINK_WARN_SEC := 3.0
 
 const MOVE_SPEED := 6.0
 const SPEED_BOOST_MULT := 1.3
@@ -161,7 +165,14 @@ func get_snapshot() -> Dictionary:
 				]
 			)
 		)
-	return {"radius": snappedf(radius, 0.01), "players": players, "hazards": hazard_list}
+	return {
+		"radius": snappedf(radius, 0.01),
+		# Seconds until the next shrink stage lands — the client derives the
+		# ring telegraph from this rather than the sim exposing new state.
+		"shrink_in": snappedf(SHRINK_STAGE_SEC - _stage_accum, 0.01),
+		"players": players,
+		"hazards": hazard_list,
+	}
 
 
 ## Timeout fallback: survivors (grouped by lives left, more first), then the

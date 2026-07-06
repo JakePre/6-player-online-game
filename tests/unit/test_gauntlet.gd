@@ -220,6 +220,27 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.players[0].size(), 4)
 	assert_eq(snapshot.hazards.size(), 1)
 	assert_eq(snapshot.hazards[0].size(), 4)
+	assert_has(snapshot, "shrink_in")
+
+
+## #583: the client telegraphs the doomed ring off shrink_in, which must count
+## down through a full stage and wrap back up the instant a shrink lands.
+func test_shrink_in_counts_down_and_wraps_after_a_stage() -> void:
+	var game := _gauntlet()
+	game.positions[0] = Vector2(-1.0, 0.0)
+	game.positions[1] = Vector2(1.0, 0.0)
+	assert_almost_eq(game.get_snapshot().shrink_in, Gauntlet.SHRINK_STAGE_SEC, 0.001)
+	_quiet_tick(game, 5.0)
+	assert_almost_eq(game.get_snapshot().shrink_in, Gauntlet.SHRINK_STAGE_SEC - 5.0, 0.05)
+	# One more tick past the stage boundary so the wrap has definitely landed;
+	# that overshoot is itself 0.1s into the fresh stage.
+	_quiet_tick(game, Gauntlet.SHRINK_STAGE_SEC - 5.0 + 0.1)
+	assert_almost_eq(
+		float(game.get_snapshot().shrink_in),
+		Gauntlet.SHRINK_STAGE_SEC - 0.1,
+		0.1,
+		"a landed shrink resets the countdown to a fresh stage"
+	)
 
 
 func test_overlapping_players_push_apart() -> void:
