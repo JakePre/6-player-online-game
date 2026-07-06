@@ -131,3 +131,41 @@ func test_character_preview_flourish_is_skipped_under_reduced_motion() -> void:
 	ArenaFX.reduced_motion = true
 	preview.show_character(ids[1 % ids.size()], Color.WHITE)
 	assert_eq(preview._rig.scale, Vector3.ONE, "no pop under reduced motion")
+
+
+# --- Practice-bot host controls (#577) ---
+
+
+func test_bot_controls_are_built_beside_the_start_button() -> void:
+	assert_not_null(lobby._add_bot_button, "add-bot button exists")
+	assert_not_null(lobby._remove_bot_button, "remove-bot button exists")
+	assert_string_contains(lobby._add_bot_button.text, "Bot")
+	assert_eq(
+		lobby._add_bot_button.get_parent(),
+		lobby._start_button.get_parent(),
+		"lives in the host control cluster"
+	)
+
+
+func test_bot_controls_are_host_only_and_lobby_only() -> void:
+	lobby._refresh_bot_controls({"members": []}, false, false)
+	assert_false(lobby._add_bot_button.visible, "non-host never sees them")
+	lobby._refresh_bot_controls({"members": []}, true, true)
+	assert_false(lobby._add_bot_button.visible, "hidden once in a match")
+	lobby._refresh_bot_controls({"members": []}, true, false)
+	assert_true(lobby._add_bot_button.visible, "host sees them in the lobby")
+
+
+func test_remove_bot_enables_only_when_a_bot_is_present() -> void:
+	lobby._refresh_bot_controls({"members": [{"is_bot": false}]}, true, false)
+	assert_true(lobby._remove_bot_button.disabled, "nothing to remove")
+	lobby._refresh_bot_controls({"members": [{"is_bot": false}, {"is_bot": true}]}, true, false)
+	assert_false(lobby._remove_bot_button.disabled, "a bot can be removed")
+
+
+func test_add_bot_disables_at_the_cap() -> void:
+	var full: Array = []
+	for i in NetConfig.MAX_PLAYERS_PER_ROOM:
+		full.append({"is_bot": i > 0})
+	lobby._refresh_bot_controls({"members": full}, true, false)
+	assert_true(lobby._add_bot_button.disabled, "no room for another bot")
