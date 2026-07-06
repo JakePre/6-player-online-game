@@ -240,6 +240,19 @@ after M12-05. Recommended model tiers are designated per task in
 - [ ] **M17-05** (S, Sonnet) Regression guards: GUT tests asserting every input-map action keeps ≥1 joypad and ≥1 keyboard event, every registered game's `controls` hint names a pad binding, and the remap UI round-trips pad bindings ⛓ M17-03
 - [ ] **M17-06** (M, Fable) Closing verification sweep: gamepad-only end-to-end pass — menu → lobby → all 35 games → finale → podium — on at least Xbox- and PS-layout pads plus one generic/DB-mapped pad; findings fixed on sight or filed; README gains a supported-controllers note ⛓ M17-01..05
 
+### M18 — Cohesion & foundations (owner directives 2026-07-06: "one cohesive game with a solid foundation" · settings 2.0 · choices survive updates · reset-to-defaults · default server celestrum.com)
+
+The structural asks from the 2026-07-06 owner batch. The same batch's
+per-game playtest notes are standalone issues (#577–#592), claimable
+individually — M18 is the framework work. Model tiers designated here and in
+[MODEL_ROUTING.md](MODEL_ROUTING.md).
+
+- [ ] **M18-01** (L, Opus) Settings 2.0: rebuild the settings screen into sectioned pages (Gameplay / Video / Audio / Controls / Network) on the M16 design system; add a `schema_version` to SettingsStore with forward migrations so user choices are **guaranteed** to survive updates and key renames (today's per-key DEFAULTS fallback silently drops renamed keys); per-section and global **Reset to defaults**; the server-address default becomes **`celestrum.com`** (Advanced/dev override to localhost stays one field away); every change applies live ⛓ none
+- [ ] **M18-02** (M, Opus) Fix disconnected-player ghosts (#601 — diagnosis in the issue): pool rigs hidden, reveal on first `update_rig`, survey the 42 `rig_for_slot` views + verify the 2D tier, regression tests ⛓ none
+- [ ] **M18-03** (M, Opus) In-match pause/options overlay: Esc / pad Start opens resume · settings subset (audio, reduced-motion, nameplates) · leave-match-with-confirm, on the M16-02 transition + M17-04 focus conventions; never pauses the server sim (matches are live) ⛓ none
+- [ ] **M18-04** (S, Sonnet) Settings migration + reset regression tests: GUT coverage that an old-schema config file round-trips through migration keeping every surviving choice, unknown keys drop, reset restores DEFAULTS incl. `celestrum.com` ⛓ M18-01
+- [ ] **M18-05** (M, Fable) Cohesion closing audit — the "feels like one game" sweep across seams the per-surface passes can't see: every intro-card controls hint matches the actual bindings per device (kb vs pad, ties into M17), SFX vocabulary used consistently (#591's wrong-jingle class), motion/tempo token adoption at screen boundaries, first-run experience (name prompt → celestrum.com default → controller detected toast) ⛓ M18-01..03, benefits from M17 landing first
+
 ## 6. Suggested build order / critical path
 
 ```

@@ -25,6 +25,8 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 |---|---|
 | **M12-01** balance pass, all 35 games at 2/4/6 | The riskiest remaining task. ⛔ Blocked on data: the pre-#560 telemetry was tie-noise (idle bots, 0.4 s rounds); the fixed `balance-telemetry-{2,4,6}` artifacts (#560, nightly `balance` job) need a few nights to accumulate first. Then: interpret the data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
 | **M17-06** closing controller verification sweep (M) | Milestone-closing audit with no checklist: gamepad-only end-to-end across every surface and game on multiple pad layouts, judging "does this feel playable," fixing or routing what it finds. Same tier logic as M16-13. ⛓ M17-01..05. |
+| **M18-05** cohesion closing audit (M) | The "feels like one game" sweep across seams no per-surface task sees — controls-hint truthfulness per device, SFX vocabulary (#591's wrong-jingle class), motion tempo at boundaries, first-run flow. ⛓ M18-01..03. |
+| **#584** Gauntlet weapons / push-mechanic rework | Owner explicitly requested a design call — proposal on the issue per §10 first; the build after approval is likely Opus. |
 | ~~**M14-00** side-view platformer framework (L)~~ | ✅ done — `SideScrollSim`/`SideScrollView` landed; M14-01/-03/-09 built on it. |
 | ~~**M14-02** Turbo Lap (L)~~ | ✅ done |
 | ~~**M14-09** Tumble Run (L)~~ | ✅ done |
@@ -42,7 +44,12 @@ Live (M17, owner directive 2026-07-05 — full controller support):
 | **M17-02** post-M12-05 gamepad parity audit (M) | Re-run the M12-05 playbook over the 9 M14 games + finale shop/targeting. Clear precedent (#490), per-game judgment. |
 | **M17-03** controller rebinding in the remap UI (M) | Extends the M12-03 settings pattern from key capture to pad button/axis capture + persistence. |
 | **M17-04** menu/chrome controller navigation (M) | Focus chains + `ui_cancel` back across every screen; mechanical per screen but interaction design at the edges (dropdowns, shop, emote bar). |
+| **M18-01** settings 2.0 (L) | Sectioned settings screen + schema-versioned SettingsStore with migrations, reset-to-defaults, celestrum.com server default. The foundation piece of the 2026-07-06 owner batch. |
+| **M18-02** disconnected-player ghost fix (M) | #601 — diagnosis done in the issue; core fix is small, the 42-view verification sweep is the work. |
+| **M18-03** in-match pause/options overlay (M) | New surface on established M16/M17 conventions; server sim never pauses. |
+| **#577** practice mode: lobby bots (owner HIGH) | Real feature: host adds headless-bot members to a live room — the playtest-bot input pump (#560) is most of the brain; the work is room/lobby plumbing. |
 | **#565** release self-heal vs branch protection (S) | Pick + implement one of the three listed mechanisms (PR-based sync is the likely winner). |
+| **#577–#592 playtest wave** | Individually claimable; mostly Opus/Sonnet-sized — classify per issue when claiming. #584 is the exception (Fable, design-first). |
 
 Everything else in this tier is **done** — the M10/M14 roster, M12
 feel-and-fairness pieces (except data-blocked M12-01), every M15 cap, and all
