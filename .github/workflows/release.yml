@@ -115,18 +115,28 @@ jobs:
     # releases). This best-effort job keeps main's source const honest by
     # committing the tag version back after a successful release. It never
     # fails the run: a drifted source is cosmetic, not a shipped bug.
+    #
+    # #565: branch protection (§12) now rejects a direct push to main, so the
+    # direct push is a fast-path attempt only — on rejection this falls back
+    # to pushing a side branch and opening a PR instead, which respects
+    # protection. It tries to auto-merge that PR (works if the repo has
+    # auto-merge enabled); if not, it leaves a clear warning with the PR link
+    # for a human/agent to merge manually. Still never fails the run.
     name: Sync source AppVersion to the released tag
     runs-on: ubuntu-latest
     needs: release
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
       - name: Commit the tag version back to main if it drifted
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           V="${GITHUB_REF_NAME#v}"
@@ -137,20 +147,40 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for attempt in 1 2 3; do
-            sed -i "s/^const VERSION := \".*\"/const VERSION := \"$V\"/" src/client/app_version.gd
-            git add src/client/app_version.gd
-            git commit -m "chore: sync AppVersion source const to $GITHUB_REF_NAME [skip ci]"
-            if git push origin HEAD:main; then
-              echo "Synced source const to $V."
-              exit 0
-            fi
-            echo "Push race on attempt $attempt — rebasing onto main and retrying."
-            git reset --soft HEAD~1
-            git restore --staged src/client/app_version.gd || true
-            git checkout -- src/client/app_version.gd
-            git fetch origin main
-            git rebase origin/main || { git rebase --abort || true; }
-          done
-          echo "::warning::Could not sync AppVersion source const after retries (non-fatal; builds are stamped regardless)."
+          sed -i "s/^const VERSION := \".*\"/const VERSION := \"$V\"/" src/client/app_version.gd
+          git add src/client/app_version.gd
+          git commit -m "chore: sync AppVersion source const to $GITHUB_REF_NAME [skip ci]"
+          if git push origin HEAD:main; then
+            echo "Synced source const to $V (direct push)."
+            exit 0
+          fi
+          echo "Direct push rejected (branch protection) — opening a PR instead (#565)."
+          branch="chore/sync-version-$V"
+          if ! git push --force origin "HEAD:refs/heads/$branch"; then
+            echo "::warning::Could not push the sync branch $branch (non-fatal; builds are stamped regardless)."
+            exit 0
+          fi
+          pr_url="$(gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$branch" \
+            --title "chore: sync AppVersion source const to $GITHUB_REF_NAME" \
+            --body "Automated post-release sync (#565): keeps main's committed \`AppVersion.VERSION\` honest after $GITHUB_REF_NAME. Builds already stamp correctly from the tag regardless (#166) — this is source drift only." \
+            2>/dev/null)" || {
+            echo "::warning::Could not open the sync PR for $branch (it may already exist) — check the branch manually (non-fatal)."
+            exit 0
+          }
+          echo "Opened $pr_url"
+          # A PR opened by the workflow's own GITHUB_TOKEN does not trigger
+          # further `pull_request`-event workflow runs (a GitHub Actions
+          # restriction), so required status checks would otherwise never
+          # start and permanently block the merge. workflow_dispatch is
+          # exempt from that restriction, so explicitly kick CI on the branch.
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$branch" || \
+            echo "::warning::Could not auto-trigger CI on $branch — trigger ci.yml manually before merging."
+          if gh pr merge "$pr_url" --merge --auto 2>/dev/null; then
+            echo "Auto-merge queued for $pr_url."
+          else
+            echo "::warning::Opened $pr_url but could not auto-merge (auto-merge may be disabled) — merge it manually to finish the sync."
+          fi
           exit 0
