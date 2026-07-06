@@ -56,12 +56,16 @@ func _render_3d(game: Dictionary) -> void:
 
 
 ## Kill the base's daylight rig so the arena reads as a dark room; the node
-## and player lamps become the only real light sources.
+## and player lamps become the only real light sources. Opts back into a
+## solid background color (#590 made the base transparent so the drifting
+## backdrop shows through by default) — a pitch-black room is the mechanic
+## here, not a grey backdrop to replace.
 func _darken() -> void:
 	(arena.get_node("KeyLight") as DirectionalLight3D).light_energy = 0.12
 	(arena.get_node("FillLight") as DirectionalLight3D).light_energy = 0.05
 	var world_env := arena.get_node("Environment") as WorldEnvironment
 	var environment := world_env.environment
+	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color(0.01, 0.01, 0.02)
 	environment.ambient_light_color = Color(0.06, 0.07, 0.1)
 	environment.ambient_light_energy = 0.4

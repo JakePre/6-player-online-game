@@ -135,3 +135,12 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.nodes.size(), 0)
 	assert_not_null(view.arena.get_node("Node0"))
+
+
+## #590: the base arena background is transparent by default (so the
+## drifting backdrop shows through), but a pitch-black room is the mechanic
+## here — _darken() must opt back into a solid background color.
+func test_darken_forces_a_solid_background() -> void:
+	var world_env := view.arena.get_node("Environment") as WorldEnvironment
+	assert_eq(world_env.environment.background_mode, Environment.BG_COLOR)
+	assert_almost_eq(world_env.environment.background_color.v, 0.02, 0.01, "a near-black room")
