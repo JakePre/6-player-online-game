@@ -28,6 +28,20 @@ func test_setup_builds_a_lane_target_and_ball_per_player() -> void:
 	assert_false(view.arena.get_node("Ball0").visible, "no flight yet")
 
 
+## #588: adjacent targets otherwise blend into one board at iso distance —
+## odd lanes swap to an alternate ring palette for separation.
+func test_adjacent_lanes_alternate_ring_palettes() -> void:
+	var outer0: MeshInstance3D = view.arena.get_node("Target0/Ring0")
+	var outer1: MeshInstance3D = view.arena.get_node("Target1/Ring0")
+	var mat0: StandardMaterial3D = outer0.mesh.material
+	var mat1: StandardMaterial3D = outer1.mesh.material
+	assert_eq(mat0.albedo_color, view.RING_COLORS[2], "even lane keeps the base outer ring color")
+	assert_eq(
+		mat1.albedo_color, view.RING_COLORS_ALT[2], "odd lane swaps to the alt outer ring color"
+	)
+	assert_ne(mat0.albedo_color, mat1.albedo_color, "adjacent lanes read as distinct boards")
+
+
 func test_target_slides_and_ball_rolls_with_the_snapshot() -> void:
 	view.render({"players": {0: [0, 8, 0.5, 1.5], 1: [0, 8, -1.0, -0.5]}})
 	var target: Node3D = view.arena.get_node("Target0")

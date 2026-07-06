@@ -8,6 +8,13 @@ extends MinigameView3D
 
 const SURFACE_HEIGHT := 1.2
 const WATER_COLOR := Color(0.2, 0.45, 0.8, 0.35)
+## Pool dressing (#588): a blue-tinted floor overlay plus a deck border around
+## the swim area, so the arena reads as a pool instead of the generic shared
+## floor tile.
+const POOL_FLOOR_COLOR := Color(0.1, 0.32, 0.5, 0.55)
+const DECK_COLOR := Color(0.72, 0.66, 0.55)
+const DECK_WIDTH := 0.8
+const DECK_HEIGHT := 0.15
 const COIN_COLOR := Color(0.96, 0.79, 0.2)
 const COIN_RADIUS := 0.3
 const COIN_HEIGHT := 0.12
@@ -79,6 +86,9 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
+	_build_pool_floor()
+	_build_deck_border()
+
 	var water_mesh := PlaneMesh.new()
 	water_mesh.size = Vector2.ONE * _arena_half() * 2.0
 	var water_material := StandardMaterial3D.new()
@@ -130,6 +140,59 @@ func _build_air_bar() -> Label3D:
 	bar.visible = false
 	arena.add_child(bar)
 	return bar
+
+
+## A blue-tinted overlay on the swim area's floor (#588) — the shared arena
+## floor is a generic grey tile; this reads the seabed as underwater.
+func _build_pool_floor() -> void:
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2.ONE * _arena_half() * 2.0
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = POOL_FLOOR_COLOR
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.material = material
+	var tint := MeshInstance3D.new()
+	tint.name = "PoolFloorTint"
+	tint.mesh = mesh
+	tint.position.y = 0.02
+	arena.add_child(tint)
+
+
+## Four planks framing the swim area like pool coping, so the water reads as
+## a contained pool rather than an open, edgeless floor (#588).
+func _build_deck_border() -> void:
+	var half := _arena_half()
+	var span := (half + DECK_WIDTH) * 2.0
+	var material := StandardMaterial3D.new()
+	material.albedo_color = DECK_COLOR
+	var sides := [
+		{
+			"size": Vector3(span, DECK_HEIGHT, DECK_WIDTH),
+			"pos": Vector3(0.0, 0.0, half + DECK_WIDTH / 2.0)
+		},
+		{
+			"size": Vector3(span, DECK_HEIGHT, DECK_WIDTH),
+			"pos": Vector3(0.0, 0.0, -half - DECK_WIDTH / 2.0)
+		},
+		{
+			"size": Vector3(DECK_WIDTH, DECK_HEIGHT, half * 2.0),
+			"pos": Vector3(half + DECK_WIDTH / 2.0, 0.0, 0.0)
+		},
+		{
+			"size": Vector3(DECK_WIDTH, DECK_HEIGHT, half * 2.0),
+			"pos": Vector3(-half - DECK_WIDTH / 2.0, 0.0, 0.0)
+		},
+	]
+	for i in sides.size():
+		var mesh := BoxMesh.new()
+		mesh.size = sides[i].size
+		mesh.material = material
+		var plank := MeshInstance3D.new()
+		plank.name = "Deck%d" % i
+		plank.mesh = mesh
+		plank.position = sides[i].pos
+		arena.add_child(plank)
 
 
 func _render_3d(game: Dictionary) -> void:
