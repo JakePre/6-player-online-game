@@ -225,6 +225,12 @@ func make_banner(banner_name: StringName, font_size := 24) -> Label:
 	label.position.y -= 120.0
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# #576: a bottom-center anchor with the label's zero-size starting rect
+	# defaults to growing right+down as text arrives, so long banners (role
+	# text, vote prompts) ran off the right edge and under the emote band.
+	# Grow outward from center and upward from the bottom anchor instead.
+	label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_banner_layer.add_child(label)
 	return label
 
