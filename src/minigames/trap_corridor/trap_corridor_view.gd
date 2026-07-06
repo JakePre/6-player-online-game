@@ -199,16 +199,23 @@ func _draw() -> void:
 		var color := player_color(slot)
 		draw_circle(pos, TrapCorridor.PLAYER_RADIUS * px_per_unit, color)
 		draw_string(font, pos + Vector2(-24.0, -10.0), player_name(slot), 1, 48, font_size, color)
-	var banner := (
-		"%s is setting traps (%0.1fs)..." % [player_name(trapper), phase_left]
-		if phase == TrapCorridor.Phase.TRAPPING
-		else "RUN! (%0.1fs)" % phase_left
+	draw_string(
+		font, Vector2(rect.position.x, rect.position.y - 12.0), _banner_text(), 0, -1, font_size
 	)
-	if my_slot == trapper and phase == TrapCorridor.Phase.TRAPPING:
-		banner = (
-			"Move cursor + Space/Ⓐ to arm (or click) — %d left (%0.1fs)" % [traps_left, phase_left]
+
+
+## #582: who is placing traps, unambiguous for both audiences — the trapper
+## gets an explicit "YOU" confirmation instead of only control hints, so a
+## first-time trapper isn't left guessing whether the instructions are theirs.
+func _banner_text() -> String:
+	if phase != TrapCorridor.Phase.TRAPPING:
+		return "RUN! (%0.1fs)" % phase_left
+	if my_slot == trapper:
+		return (
+			"YOU are setting traps — move cursor + Space/Ⓐ to arm (or click) — %d left (%0.1fs)"
+			% [traps_left, phase_left]
 		)
-	draw_string(font, Vector2(rect.position.x, rect.position.y - 12.0), banner, 0, -1, font_size)
+	return "%s is setting traps (%0.1fs)..." % [player_name(trapper), phase_left]
 
 
 func _corridor_rect() -> Rect2:
