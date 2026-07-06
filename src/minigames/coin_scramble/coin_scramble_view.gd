@@ -79,11 +79,20 @@ func _update_players() -> void:
 		update_rig(slot, Vector2(state[0], state[1]))
 		rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
 		# Pickup sparkle (M13-02): the count ticking up flashes the collector.
+		# Bump scatter (#587): a bumped player's count drops (SPEC: the sim
+		# scatters 20% of their haul) — burst the coins outward from them for
+		# clarity + spectacle, distinct from the calm pickup sparkle.
 		var count := int(state[2])
-		if _counts_seen.has(slot) and count > int(_counts_seen[slot]):
-			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
-			if slot == my_slot:
-				play_sfx(&"coin")
+		if _counts_seen.has(slot):
+			var before := int(_counts_seen[slot])
+			if count > before:
+				fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+				if slot == my_slot:
+					play_sfx(&"coin")
+			elif count < before:
+				fx_burst(Vector2(state[0], state[1]), player_color(slot))
+				if slot == my_slot:
+					play_sfx(&"error")
 		_counts_seen[slot] = count
 
 

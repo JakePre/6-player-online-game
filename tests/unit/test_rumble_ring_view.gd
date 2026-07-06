@@ -101,6 +101,24 @@ func test_blocked_event_sparks() -> void:
 	assert_gt(_burst_count(), 0, "a blocked hit sparks off the guard")
 
 
+## #587: swing SFX was gated to the local player only, so every opponent's
+## sword swing was silent — it now matches hit/ko/blocked/smash and always
+## plays. my_slot is 0 (per before_each); the swinger here is slot 1, Bob,
+## an opponent — the exact case the old gate silenced.
+func test_swing_event_plays_sfx_for_every_player_not_just_local() -> void:
+	watch_signals(view)
+	(
+		view
+		. render(
+			{
+				"players": {1: [0.0, 0.0, 3, 0, 0, 0.0, 1.0, 0.0]},
+				"events": [{"type": "swing", "slot": 1}],
+			}
+		)
+	)
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"click"])
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)

@@ -132,6 +132,30 @@ func test_zone_relocation_bursts_and_dusts() -> void:
 	assert_eq(view.arena.get_child_count(), before + 2, "burst at the old spot, dust at the new")
 
 
+## #587: firing a held Shove Blast plays the shove animation on the rig — the
+## held item clearing (while it was SHOVE) is the use-moment.
+func test_shove_use_plays_the_interact_animation() -> void:
+	(
+		view
+		. render(
+			{
+				"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]},
+				"zone": [],
+				"held": {0: KingOfTheHill.Item.SHOVE},
+			}
+		)
+	)
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]}, "zone": [], "held": {}})
+	assert_eq(view.rig_for_slot(0).current_action(), &"interact")
+
+
+## An Anchor use (not Shove) does not trigger the shove animation.
+func test_anchor_use_does_not_play_the_shove_animation() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0]}, "zone": [], "held": {0: KingOfTheHill.Item.ANCHOR}})
+	view.render({"players": {0: [0.0, 0.0, 0]}, "zone": [], "held": {}})
+	assert_ne(view.rig_for_slot(0).current_action(), &"interact")
+
+
 func test_zone_throbs_across_snapshots() -> void:
 	view.render({"players": {}, "zone": [0.0, 0.0, 3.0]})
 	var glow_a: float = view._zone_material.emission_energy_multiplier
