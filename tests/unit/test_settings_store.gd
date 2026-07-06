@@ -54,6 +54,7 @@ func test_save_load_round_trip() -> void:
 		"show_names": true,
 		"diagnostics_log": true,
 		"keybinds": {"move_up": KEY_UP},
+		"padbinds": {"action_primary": {"button": JOY_BUTTON_B}},
 	}
 	SettingsStore.save_settings(settings)
 	assert_eq(SettingsStore.load_settings(), settings)
@@ -144,6 +145,87 @@ func test_apply_keybinds_rebinds_keyboard_keeps_gamepad() -> void:
 		func(e: InputEvent) -> bool: return e is InputEventKey
 	)
 	assert_eq((restored[0] as InputEventKey).physical_keycode, KEY_W)
+
+
+# --- Gamepad rebinding (M17-03) ---
+
+
+func test_sanitize_padbinds_keeps_valid_drops_junk() -> void:
+	var clean := (
+		SettingsStore
+		. sanitize(
+			{
+				"padbinds":
+				{
+					"action_primary": {"button": JOY_BUTTON_B},
+					"move_up": {"axis": JOY_AXIS_RIGHT_Y, "dir": -1},
+					"not_an_action": {"button": 3},
+					"action_secondary": {"button": -1},  # negative index dropped
+					"emote": {"axis": 0, "dir": 5},  # bad direction dropped
+				}
+			}
+		)
+	)
+	assert_eq(
+		clean.padbinds,
+		{
+			"action_primary": {"button": JOY_BUTTON_B},
+			"move_up": {"axis": JOY_AXIS_RIGHT_Y, "dir": -1},
+		},
+		"unknown action and malformed bindings dropped"
+	)
+	assert_eq(SettingsStore.sanitize({"padbinds": "garbage"}).padbinds, {}, "non-dict is ignored")
+
+
+func test_effective_padbinds_layers_overrides_on_defaults() -> void:
+	var binds := SettingsStore.effective_padbinds(
+		{"padbinds": {"action_primary": {"button": JOY_BUTTON_B}}}
+	)
+	assert_eq(binds.action_primary, {"button": JOY_BUTTON_B}, "override wins")
+	assert_eq(binds.emote, {"button": JOY_BUTTON_Y}, "unbound actions keep the factory pad binding")
+	assert_eq(binds.size(), SettingsStore.REBINDABLE_PAD_ACTIONS.size(), "every action resolves")
+
+
+func test_apply_padbinds_rebinds_gamepad_keeps_keyboard() -> void:
+	SettingsStore.apply({"padbinds": {"action_primary": {"button": JOY_BUTTON_Y}}}, null)
+	var events := InputMap.action_get_events("action_primary")
+	var buttons := events.filter(func(e: InputEvent) -> bool: return e is InputEventJoypadButton)
+	var keys := events.filter(func(e: InputEvent) -> bool: return e is InputEventKey)
+	assert_eq(buttons.size(), 1, "exactly one pad button, not stacked")
+	assert_eq((buttons[0] as InputEventJoypadButton).button_index, JOY_BUTTON_Y)
+	assert_gt(keys.size(), 0, "the keyboard binding is left in place")
+	# Restore factory so later tests see a clean InputMap.
+	SettingsStore.apply(SettingsStore.DEFAULTS, null)
+	var restored := InputMap.action_get_events("action_primary").filter(
+		func(e: InputEvent) -> bool: return e is InputEventJoypadButton
+	)
+	assert_eq((restored[0] as InputEventJoypadButton).button_index, JOY_BUTTON_A)
+
+
+func test_apply_padbinds_rebinds_a_movement_axis() -> void:
+	SettingsStore.apply({"padbinds": {"move_up": {"axis": JOY_AXIS_RIGHT_Y, "dir": -1}}}, null)
+	var motions := InputMap.action_get_events("move_up").filter(
+		func(e: InputEvent) -> bool: return e is InputEventJoypadMotion
+	)
+	assert_eq(motions.size(), 1, "exactly one axis binding")
+	assert_eq((motions[0] as InputEventJoypadMotion).axis, JOY_AXIS_RIGHT_Y)
+	assert_lt(
+		(motions[0] as InputEventJoypadMotion).axis_value, 0.0, "negative direction preserved"
+	)
+	SettingsStore.apply(SettingsStore.DEFAULTS, null)
+
+
+func test_pad_binding_equals_distinguishes_button_from_axis() -> void:
+	assert_true(SettingsStore.pad_binding_equals({"button": 0}, {"button": 0}))
+	assert_false(SettingsStore.pad_binding_equals({"button": 0}, {"button": 1}))
+	assert_false(
+		SettingsStore.pad_binding_equals({"button": 0}, {"axis": 0, "dir": 1}), "button != axis"
+	)
+	assert_true(SettingsStore.pad_binding_equals({"axis": 1, "dir": -1}, {"axis": 1, "dir": -1}))
+	assert_false(
+		SettingsStore.pad_binding_equals({"axis": 1, "dir": -1}, {"axis": 1, "dir": 1}),
+		"same axis, opposite direction differs"
+	)
 
 
 # --- Schema versioning, migration, reset (M18-01) ---

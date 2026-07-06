@@ -26,21 +26,28 @@ func after_each() -> void:
 
 func test_builds_one_rebind_row_per_action() -> void:
 	var list: VBoxContainer = menu.get_node("%KeybindsList")
+	# A column-header row (M17-03) sits above the per-action rows.
 	assert_eq(
 		list.get_child_count(),
-		SettingsStore.REBINDABLE_ACTIONS.size(),
-		"a row for every rebindable action"
+		SettingsStore.REBINDABLE_ACTIONS.size() + 1,
+		"a header row plus one row per rebindable action"
 	)
 	assert_eq(menu._bind_buttons.size(), SettingsStore.REBINDABLE_ACTIONS.size())
+	assert_eq(menu._pad_buttons.size(), SettingsStore.REBINDABLE_PAD_ACTIONS.size())
 	assert_eq(
 		(menu._bind_buttons["move_up"] as Button).text,
 		OS.get_keycode_string(KEY_W),
 		"rows show the factory key"
 	)
+	assert_eq(
+		(menu._pad_buttons["action_primary"] as Button).text,
+		"Button A",
+		"pad column shows the factory gamepad binding"
+	)
 
 
 func test_capturing_a_key_rebinds_and_persists() -> void:
-	menu._begin_capture("move_up")
+	menu._begin_capture("move_up", false)
 	assert_eq((menu._bind_buttons["move_up"] as Button).text, "Press a key…")
 	var press := InputEventKey.new()
 	press.pressed = true
@@ -58,7 +65,7 @@ func test_capturing_a_key_rebinds_and_persists() -> void:
 
 
 func test_escape_cancels_capture_without_rebinding() -> void:
-	menu._begin_capture("emote")
+	menu._begin_capture("emote", false)
 	var esc := InputEventKey.new()
 	esc.pressed = true
 	esc.keycode = KEY_ESCAPE
@@ -66,6 +73,53 @@ func test_escape_cancels_capture_without_rebinding() -> void:
 	menu._input(esc)
 	assert_eq(int(menu._keybinds["emote"]), KEY_T, "emote keeps its factory key")
 	assert_eq((menu._bind_buttons["emote"] as Button).text, OS.get_keycode_string(KEY_T))
+
+
+## M17-03: capturing a pad button rebinds and persists as an override, and
+## reaches the live InputMap.
+func test_capturing_a_pad_button_rebinds_and_persists() -> void:
+	menu._begin_capture("action_primary", true)
+	assert_eq((menu._pad_buttons["action_primary"] as Button).text, "Press a button…")
+	var press := InputEventJoypadButton.new()
+	press.pressed = true
+	press.button_index = JOY_BUTTON_Y
+	menu._input(press)
+	assert_eq(menu._padbinds["action_primary"], {"button": JOY_BUTTON_Y}, "the capture rebound it")
+	assert_eq((menu._pad_buttons["action_primary"] as Button).text, "Button Y")
+	var saved: Dictionary = SettingsStore.load_settings().padbinds
+	assert_eq(saved, {"action_primary": {"button": JOY_BUTTON_Y}}, "only the rebound action stored")
+	var buttons := InputMap.action_get_events("action_primary").filter(
+		func(e: InputEvent) -> bool: return e is InputEventJoypadButton
+	)
+	assert_eq((buttons[0] as InputEventJoypadButton).button_index, JOY_BUTTON_Y)
+
+
+## A deliberate stick push binds the action to that axis + direction; the
+## spring-back to center and dead-zone noise are ignored.
+func test_capturing_a_pad_axis_binds_direction_and_ignores_noise() -> void:
+	menu._begin_capture("move_left", true)
+	var noise := InputEventJoypadMotion.new()
+	noise.axis = JOY_AXIS_RIGHT_X
+	noise.axis_value = 0.1
+	menu._input(noise)
+	assert_eq(menu._capturing, "move_left", "dead-zone noise does not bind")
+	var push := InputEventJoypadMotion.new()
+	push.axis = JOY_AXIS_RIGHT_X
+	push.axis_value = -1.0
+	menu._input(push)
+	assert_eq(menu._padbinds["move_left"], {"axis": JOY_AXIS_RIGHT_X, "dir": -1})
+	assert_eq(menu._capturing, "", "capture resolved")
+
+
+## Pad B cancels a pad capture without rebinding, mirroring Escape for keys.
+func test_pad_b_cancels_capture_without_rebinding() -> void:
+	menu._begin_capture("emote", true)
+	var b := InputEventJoypadButton.new()
+	b.pressed = true
+	b.button_index = JOY_BUTTON_B
+	menu._input(b)
+	assert_eq(menu._padbinds["emote"], {"button": JOY_BUTTON_Y}, "emote keeps its factory pad bind")
+	assert_eq(menu._capturing, "", "capture cancelled")
 
 
 func test_toggles_drive_accessibility_statics() -> void:
@@ -154,7 +208,7 @@ func test_ui_cancel_navigates_back_to_main_menu() -> void:
 
 
 func test_ui_cancel_mid_capture_cancels_capture_not_screen() -> void:
-	menu._begin_capture("emote")
+	menu._begin_capture("emote", false)
 	watch_signals(menu)
 	var back := InputEventAction.new()
 	back.action = &"ui_cancel"

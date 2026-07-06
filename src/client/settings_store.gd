@@ -28,7 +28,7 @@ const SECTIONS := {
 	"Gameplay": ["player_name", "nameplate_scale", "show_names"],
 	"Video": ["fullscreen", "colorblind", "reduced_motion"],
 	"Audio": ["master_volume", "music_volume", "sfx_volume"],
-	"Controls": ["keybinds"],
+	"Controls": ["keybinds", "padbinds"],
 	"Network": ["server_address", "server_port"],
 	"Diagnostics": ["diagnostics_log"],
 }
@@ -52,6 +52,21 @@ const REBINDABLE_ACTIONS := {
 	"action_primary": KEY_SPACE,
 	"action_secondary": KEY_E,
 	"emote": KEY_T,
+}
+
+## Factory gamepad binding per action (M17-03), matching project.godot's
+## [input]. A binding is either a face/D-pad button `{"button": index}` or a
+## stick axis direction `{"axis": axis, "dir": +1|-1}`. Rebinding one leaves
+## the action's keyboard binding untouched, mirroring how the keyboard rebind
+## leaves the pad binding alone.
+const REBINDABLE_PAD_ACTIONS := {
+	"move_up": {"axis": JOY_AXIS_LEFT_Y, "dir": -1},
+	"move_down": {"axis": JOY_AXIS_LEFT_Y, "dir": 1},
+	"move_left": {"axis": JOY_AXIS_LEFT_X, "dir": -1},
+	"move_right": {"axis": JOY_AXIS_LEFT_X, "dir": 1},
+	"action_primary": {"button": JOY_BUTTON_A},
+	"action_secondary": {"button": JOY_BUTTON_X},
+	"emote": {"button": JOY_BUTTON_Y},
 }
 
 const DEFAULTS := {
@@ -79,6 +94,10 @@ const DEFAULTS := {
 	## Keyboard rebind overrides: action -> physical keycode. Empty means all
 	## factory bindings; only changed actions are stored.
 	"keybinds": {},
+	## Gamepad rebind overrides (M17-03): action -> {"button": i} or
+	## {"axis": a, "dir": ±1}. Empty means all factory pad bindings; only
+	## changed actions are stored.
+	"padbinds": {},
 	## Opt-in client diagnostics log (M18-07, docs/DIAGNOSTICS.md). Off by
 	## default; when on, apply() starts DiagnosticsLog mirroring the session to
 	## user://logs/client-*.log so a tester can attach it to a bug report.
@@ -169,6 +188,7 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 	if raw.has("diagnostics_log"):
 		clean.diagnostics_log = bool(raw.diagnostics_log)
 	clean.keybinds = _sanitize_keybinds(raw.get("keybinds", {}))
+	clean.padbinds = _sanitize_padbinds(raw.get("padbinds", {}))
 	return clean
 
 
@@ -198,6 +218,73 @@ static func effective_keybinds(settings: Dictionary) -> Dictionary:
 	return binds
 
 
+## Keeps only overrides for known actions with a well-formed binding (a button
+## index >= 0, or an axis >= 0 with dir ±1); everything else is dropped so a
+## stale or hand-edited file can never bind an action to garbage (M17-03).
+static func _sanitize_padbinds(raw: Variant) -> Dictionary:
+	var clean := {}
+	if raw is Dictionary:
+		for action: String in REBINDABLE_PAD_ACTIONS:
+			if not raw.has(action):
+				continue
+			var norm := _normalize_pad_binding(raw[action])
+			if not norm.is_empty():
+				clean[action] = norm
+	return clean
+
+
+## Coerces a stored pad binding to its canonical {"button": i} / {"axis": a,
+## "dir": ±1} shape, or {} if it is not a valid binding.
+static func _normalize_pad_binding(binding: Variant) -> Dictionary:
+	if not (binding is Dictionary):
+		return {}
+	if binding.has("button"):
+		var index := int(binding.button)
+		return {"button": index} if index >= 0 else {}
+	if binding.has("axis"):
+		var axis := int(binding.axis)
+		var dir := int(binding.get("dir", 0))
+		return {"axis": axis, "dir": dir} if axis >= 0 and (dir == 1 or dir == -1) else {}
+	return {}
+
+
+## True when two pad bindings name the same button or axis+direction. Explicit
+## field compare rather than Dictionary == so a button/axis mismatch is never
+## a false positive.
+static func pad_binding_equals(a: Dictionary, b: Dictionary) -> bool:
+	if a.has("button") or b.has("button"):
+		return int(a.get("button", -1)) == int(b.get("button", -2))
+	return (
+		int(a.get("axis", -1)) == int(b.get("axis", -2))
+		and int(a.get("dir", 0)) == int(b.get("dir", 99))
+	)
+
+
+## The full action -> pad binding map in force: factory pad bindings with the
+## sanitized overrides on top. Pure, for apply() and the settings UI.
+static func effective_padbinds(settings: Dictionary) -> Dictionary:
+	var binds := {}
+	for action: String in REBINDABLE_PAD_ACTIONS:
+		binds[action] = (REBINDABLE_PAD_ACTIONS[action] as Dictionary).duplicate()
+	var overrides := _sanitize_padbinds(settings.get("padbinds", {}))
+	for action: String in overrides:
+		binds[action] = overrides[action]
+	return binds
+
+
+## The live InputEvent for a pad binding, for InputMap application and previews.
+static func pad_event_from(binding: Dictionary) -> InputEvent:
+	if binding.has("button"):
+		var button := InputEventJoypadButton.new()
+		button.button_index = int(binding.button)
+		button.pressed = true
+		return button
+	var motion := InputEventJoypadMotion.new()
+	motion.axis = int(binding.get("axis", 0))
+	motion.axis_value = float(int(binding.get("dir", 0)))
+	return motion
+
+
 ## Applies audio volumes, window mode, accessibility flags, and key rebinds.
 ## `window` is the tree's root window (pass null to skip window changes, e.g.
 ## from tests).
@@ -221,6 +308,7 @@ static func apply(settings: Dictionary, window: Window) -> void:
 	ArenaFX.reduced_motion = clean.reduced_motion
 	MinigameView.show_names = clean.show_names
 	apply_keybinds(clean)
+	apply_padbinds(clean)
 	# Diagnostics log (M18-07): starts/stops live so the toggle takes effect
 	# immediately, same as every other setting here.
 	if clean.diagnostics_log:
@@ -244,3 +332,17 @@ static func apply_keybinds(settings: Dictionary) -> void:
 		var rebind := InputEventKey.new()
 		rebind.physical_keycode = int(binds[action])
 		InputMap.action_add_event(action, rebind)
+
+
+## Rewrites each action's gamepad binding in the live InputMap to the effective
+## pad binding, leaving that action's keyboard binding in place (M17-03). Safe
+## to call repeatedly (replaces, never stacks).
+static func apply_padbinds(settings: Dictionary) -> void:
+	var binds := effective_padbinds(settings)
+	for action: String in binds:
+		if not InputMap.has_action(action):
+			continue
+		for event in InputMap.action_get_events(action):
+			if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+				InputMap.action_erase_event(action, event)
+		InputMap.action_add_event(action, pad_event_from(binds[action]))

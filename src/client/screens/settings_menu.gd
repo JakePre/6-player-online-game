@@ -23,12 +23,36 @@ const ACTION_LABELS := {
 	"emote": "Emote",
 }
 
+## Stick past this magnitude counts as a deliberate axis bind, filtering pad
+## dead-zone noise and the spring-back to center (M17-03).
+const PAD_CAPTURE_THRESHOLD := 0.6
+
+## Friendly names for the common face/D-pad buttons; anything else prints its
+## index. Xbox-style letters (the DB maps every pad onto this layout).
+const PAD_BUTTON_NAMES := {
+	JOY_BUTTON_A: "Button A",
+	JOY_BUTTON_B: "Button B",
+	JOY_BUTTON_X: "Button X",
+	JOY_BUTTON_Y: "Button Y",
+	JOY_BUTTON_LEFT_SHOULDER: "L Bumper",
+	JOY_BUTTON_RIGHT_SHOULDER: "R Bumper",
+	JOY_BUTTON_DPAD_UP: "D-Pad Up",
+	JOY_BUTTON_DPAD_DOWN: "D-Pad Down",
+	JOY_BUTTON_DPAD_LEFT: "D-Pad Left",
+	JOY_BUTTON_DPAD_RIGHT: "D-Pad Right",
+}
+
 ## Live keyboard override map (action -> physical keycode), seeded from the
 ## effective binds and written back on every rebind.
 var _keybinds := {}
-## The action whose button is waiting for a key press, or "" when idle.
+## Live gamepad override map (action -> pad binding dict), same lifecycle (M17-03).
+var _padbinds := {}
+## The action whose binding is waiting for input, or "" when idle.
 var _capturing := ""
+## True while the armed row is capturing a gamepad binding, not a keyboard one.
+var _capturing_pad := false
 var _bind_buttons := {}
+var _pad_buttons := {}
 ## Section name -> its page card, in SettingsStore.SECTIONS order.
 var _cards := {}
 ## Guards live-apply while a seed/reset rewrites every control at once.
@@ -183,22 +207,49 @@ func _seed(settings: Dictionary) -> void:
 	_keybinds = SettingsStore.effective_keybinds(settings)
 	for action: String in _bind_buttons:
 		(_bind_buttons[action] as Button).text = _key_name(int(_keybinds[action]))
+	_padbinds = SettingsStore.effective_padbinds(settings)
+	for action: String in _pad_buttons:
+		(_pad_buttons[action] as Button).text = _pad_name(_padbinds[action])
 	_seeding = false
 
 
 func _build_keybind_rows() -> void:
+	_keybinds_list.add_child(_column_header())
 	for action: String in ACTION_LABELS:
 		var row := HBoxContainer.new()
+		row.add_theme_constant_override(&"separation", 8)
 		var label := Label.new()
 		label.custom_minimum_size = Vector2(160, 0)
 		label.text = ACTION_LABELS[action]
 		row.add_child(label)
-		var button := Button.new()
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.pressed.connect(_begin_capture.bind(action))
-		row.add_child(button)
-		_bind_buttons[action] = button
+		var key_button := Button.new()
+		key_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		key_button.pressed.connect(_begin_capture.bind(action, false))
+		row.add_child(key_button)
+		_bind_buttons[action] = key_button
+		var pad_button := Button.new()
+		pad_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pad_button.pressed.connect(_begin_capture.bind(action, true))
+		row.add_child(pad_button)
+		_pad_buttons[action] = pad_button
 		_keybinds_list.add_child(row)
+
+
+## Keyboard / Gamepad column headers over the two capture buttons.
+func _column_header() -> HBoxContainer:
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override(&"separation", 8)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(160, 0)
+	header.add_child(spacer)
+	for title: String in ["Keyboard", "Gamepad"]:
+		var label := Label.new()
+		label.theme_type_variation = PartyTheme.DIM_VARIATION
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.text = title
+		header.add_child(label)
+	return header
 
 
 func _wire_reset(button: Button, section: String) -> void:
@@ -223,17 +274,38 @@ func _on_reset_all() -> void:
 	SettingsStore.save_settings(settings)
 
 
-func _begin_capture(action: String) -> void:
-	# Only one capture at a time; re-arming a different row cancels the first.
-	if not _capturing.is_empty() and _bind_buttons.has(_capturing):
-		_bind_buttons[_capturing].text = _key_name(int(_keybinds[_capturing]))
+func _begin_capture(action: String, pad: bool) -> void:
+	# Only one capture at a time; re-arming any row restores the previous one.
+	_restore_captured_label()
 	_capturing = action
-	_bind_buttons[action].text = "Press a key…"
+	_capturing_pad = pad
+	if pad:
+		_pad_buttons[action].text = "Press a button…"
+	else:
+		_bind_buttons[action].text = "Press a key…"
+
+
+## Repaints the currently-armed button back to its bound value (used when a
+## capture is cancelled or superseded).
+func _restore_captured_label() -> void:
+	if _capturing.is_empty():
+		return
+	if _capturing_pad and _pad_buttons.has(_capturing):
+		_pad_buttons[_capturing].text = _pad_name(_padbinds[_capturing])
+	elif _bind_buttons.has(_capturing):
+		_bind_buttons[_capturing].text = _key_name(int(_keybinds[_capturing]))
 
 
 func _input(event: InputEvent) -> void:
 	if _capturing.is_empty():
 		return
+	if _capturing_pad:
+		_capture_pad(event)
+	else:
+		_capture_key(event)
+
+
+func _capture_key(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
@@ -248,9 +320,54 @@ func _input(event: InputEvent) -> void:
 	_apply_and_save()
 
 
+## A pad button press or a deliberate stick push rebinds; the pad's B button
+## cancels (mirroring Escape for keys). Key events and weak/settling axis
+## motion are ignored so they cannot leak into the pad column.
+func _capture_pad(event: InputEvent) -> void:
+	var action := _capturing
+	var binding := {}
+	if event is InputEventJoypadButton and event.pressed:
+		if event.button_index == JOY_BUTTON_B:
+			# B cancels without rebinding (mirrors Escape for keys).
+			get_viewport().set_input_as_handled()
+			_capturing = ""
+			_pad_buttons[action].text = _pad_name(_padbinds[action])
+			return
+		binding = {"button": int(event.button_index)}
+	elif event is InputEventJoypadMotion and absf(event.axis_value) >= PAD_CAPTURE_THRESHOLD:
+		binding = {"axis": int(event.axis), "dir": 1 if event.axis_value > 0.0 else -1}
+	else:
+		return
+	get_viewport().set_input_as_handled()
+	_capturing = ""
+	_padbinds[action] = binding
+	_pad_buttons[action].text = _pad_name(binding)
+	_apply_and_save()
+
+
 func _key_name(keycode: int) -> String:
 	var name := OS.get_keycode_string(keycode)
 	return name if not name.is_empty() else "Key %d" % keycode
+
+
+## Readable label for a pad binding — "Button A", "L-Stick Up", or a fallback.
+func _pad_name(binding: Dictionary) -> String:
+	if binding.has("button"):
+		var index := int(binding.button)
+		return PAD_BUTTON_NAMES.get(index, "Button %d" % index)
+	var axis := int(binding.get("axis", -1))
+	var up := int(binding.get("dir", 0)) < 0
+	match axis:
+		JOY_AXIS_LEFT_X:
+			return "L-Stick Left" if up else "L-Stick Right"
+		JOY_AXIS_LEFT_Y:
+			return "L-Stick Up" if up else "L-Stick Down"
+		JOY_AXIS_RIGHT_X:
+			return "R-Stick Left" if up else "R-Stick Right"
+		JOY_AXIS_RIGHT_Y:
+			return "R-Stick Up" if up else "R-Stick Down"
+		_:
+			return "Axis %d %s" % [axis, "-" if up else "+"]
 
 
 ## This screen's controls as a settings overlay on top of what's stored, so a
@@ -268,6 +385,7 @@ func _collect() -> Dictionary:
 	settings.colorblind = _colorblind_toggle.button_pressed
 	settings.reduced_motion = _reduced_motion_toggle.button_pressed
 	settings.keybinds = _stored_overrides()
+	settings.padbinds = _stored_pad_overrides()
 	settings.server_address = _address_edit.text
 	settings.server_port = int(_port_edit.text) if _port_edit.text.is_valid_int() else 0
 	settings.diagnostics_log = _diagnostics_toggle.button_pressed
@@ -293,17 +411,26 @@ func _stored_overrides() -> Dictionary:
 	return overrides
 
 
+## Same overrides-only rule for pad bindings (M17-03).
+func _stored_pad_overrides() -> Dictionary:
+	var overrides := {}
+	for action: String in SettingsStore.REBINDABLE_PAD_ACTIONS:
+		var factory: Dictionary = SettingsStore.REBINDABLE_PAD_ACTIONS[action]
+		var current: Dictionary = _padbinds.get(action, factory)
+		if not SettingsStore.pad_binding_equals(current, factory):
+			overrides[action] = current
+	return overrides
+
+
 ## Pad/keyboard back (M17-04): B / Esc returns to the menu from anywhere on
 ## this screen, matching the Back button.
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"ui_cancel"):
 		return
 	get_viewport().set_input_as_handled()
-	# Mid-capture, back means "cancel the capture", not "leave the screen" —
-	# pad B has no InputEventKey, so _input()'s Escape path never sees it.
+	# Mid-capture, back means "cancel the capture", not "leave the screen".
 	if not _capturing.is_empty():
-		var action := _capturing
+		_restore_captured_label()
 		_capturing = ""
-		_bind_buttons[action].text = _key_name(int(_keybinds[action]))
 		return
 	navigate.emit(&"main_menu")
