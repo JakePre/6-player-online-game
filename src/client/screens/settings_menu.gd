@@ -228,3 +228,19 @@ func _stored_overrides() -> Dictionary:
 		if code != int(SettingsStore.REBINDABLE_ACTIONS[action]):
 			overrides[action] = code
 	return overrides
+
+
+## Pad/keyboard back (M17-04): B / Esc returns to the menu from anywhere on
+## this screen, matching the Back button.
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed(&"ui_cancel"):
+		return
+	get_viewport().set_input_as_handled()
+	# Mid-capture, back means "cancel the capture", not "leave the screen" —
+	# pad B has no InputEventKey, so _input()'s Escape path never sees it.
+	if not _capturing.is_empty():
+		var action := _capturing
+		_capturing = ""
+		_bind_buttons[action].text = _key_name(int(_keybinds[action]))
+		return
+	navigate.emit(&"main_menu")

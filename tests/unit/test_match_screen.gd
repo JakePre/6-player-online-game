@@ -539,3 +539,26 @@ func test_finale_play_snapshot_mounts_gauntlet_for_rejoiners() -> void:
 		)
 	)
 	assert_not_null(_mounted_view(), "replicated FINALE_PLAY alone mounts the finale view")
+
+
+# --- Pad navigation (M17-04) ----------------------------------------------------
+
+
+## The intro card takes focus (so pad A can skip-vote), and entering play
+## releases all GUI focus so nothing eats Space/pad-A meant for the game.
+func test_intro_focuses_skip_and_play_releases_focus() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	assert_eq(
+		screen.get_viewport().gui_get_focus_owner(),
+		screen.get_node("%SkipButton"),
+		"pad players can skip-vote"
+	)
+	NetManager.match_event_received.emit({"type": "round_started", "round": 1})
+	assert_null(screen.get_viewport().gui_get_focus_owner(), "no focused control during play")
+
+
+func test_finale_shop_takes_initial_focus() -> void:
+	NetManager.match_event_received.emit({"type": "finale_shop", "time": 30.0, "totals": {}})
+	var owner := screen.get_viewport().gui_get_focus_owner()
+	assert_not_null(owner, "the shop grabs focus for pad users")
+	assert_true(owner is Button)

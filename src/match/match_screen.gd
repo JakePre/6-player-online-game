@@ -414,6 +414,15 @@ func _show_panel(panel: PanelContainer, keep_play_area := false) -> void:
 	for candidate: PanelContainer in [_intro_card, _results_panel, _standings_panel, _shop_panel]:
 		candidate.visible = candidate == panel
 	_play_area.visible = panel == null or keep_play_area
+	# Pad navigation (M17-04): interactive panels take focus so a controller
+	# can act immediately; entering play releases it so no lingering focused
+	# control eats Space/pad-A (ui_accept) meant for action_primary.
+	if panel == _intro_card:
+		_skip_button.grab_focus()
+	elif panel == _shop_panel:
+		_shop_panel.grab_initial_focus()
+	elif panel == null:
+		get_viewport().gui_release_focus()
 
 
 ## Mounts the minigame's view scene (MinigameCatalog convention path) into the

@@ -38,6 +38,18 @@ func _ready() -> void:
 	_confirm_button.pressed.connect(_send.bind({"action": "confirm"}))
 
 
+## Pad navigation (M17-04): the match screen calls this when the shop phase
+## opens so a controller lands on the first Buy button immediately.
+func grab_initial_focus() -> void:
+	for entry: Dictionary in ITEM_COPY:
+		var row: Dictionary = _rows.get(entry.id, {})
+		var buy: Button = row.get("buy")
+		if buy != null and not buy.disabled:
+			buy.grab_focus()
+			return
+	%ShopConfirmButton.grab_focus()
+
+
 ## Renders the authoritative shop snapshot: {"players": {slot: {coins, items,
 ## confirmed}}}. `time_left` comes from the match snapshot's clock.
 func render(shop: Dictionary, my_slot: int, time_left: float) -> void:

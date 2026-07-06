@@ -51,6 +51,8 @@ func begin(session: Dictionary) -> void:
 	visible = true
 	set_process(true)
 	_start_attempt()
+	# Pad navigation (M17-04): land on Retry so a controller can act.
+	_retry_button.grab_focus()
 
 
 func _start_attempt() -> void:

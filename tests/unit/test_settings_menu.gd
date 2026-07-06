@@ -133,3 +133,27 @@ func test_reset_all_restores_factory_defaults_including_celestrum() -> void:
 	assert_eq(String(saved.server_address), "celestrum.com", "the default server comes back")
 	assert_eq(float(saved.master_volume), float(SettingsStore.DEFAULTS.master_volume))
 	assert_eq((menu.get_node("%AddressEdit") as LineEdit).text, "celestrum.com")
+
+
+# --- Pad navigation (M17-04) ----------------------------------------------------
+
+
+func test_ui_cancel_navigates_back_to_main_menu() -> void:
+	watch_signals(menu)
+	var back := InputEventAction.new()
+	back.action = &"ui_cancel"
+	back.pressed = true
+	menu._unhandled_input(back)
+	assert_signal_emitted_with_parameters(menu, "navigate", [&"main_menu"])
+
+
+func test_ui_cancel_mid_capture_cancels_capture_not_screen() -> void:
+	menu._begin_capture("emote")
+	watch_signals(menu)
+	var back := InputEventAction.new()
+	back.action = &"ui_cancel"
+	back.pressed = true
+	menu._unhandled_input(back)
+	assert_signal_not_emitted(menu, "navigate", "back cancels the capture, not the screen")
+	assert_eq(menu._capturing, "", "capture armed no more")
+	assert_eq((menu._bind_buttons["emote"] as Button).text, OS.get_keycode_string(KEY_T))

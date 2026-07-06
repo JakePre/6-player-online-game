@@ -61,3 +61,11 @@ func _fade_in(label: Label) -> void:
 	tween.set_trans(PartyTheme.TRANS_DEFAULT).set_ease(PartyTheme.EASE_DEFAULT)
 	tween.tween_interval(index * ROW_STAGGER_SEC)
 	tween.tween_property(label, "modulate:a", 1.0, PartyTheme.DUR_MED)
+
+
+## Pad/keyboard back (M17-04): B / Esc returns to the menu from anywhere on
+## this screen, matching the Back button.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"ui_cancel"):
+		get_viewport().set_input_as_handled()
+		navigate.emit(&"main_menu")
