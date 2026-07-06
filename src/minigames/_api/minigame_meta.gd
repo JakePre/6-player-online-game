@@ -22,7 +22,17 @@ var even_players := false
 var rules_text := ""
 ## One-line control hint for the intro card (M6-04), e.g.
 ## "Move — WASD / left stick". Keyboard first, then the gamepad equivalent.
+## This static prose is the always-available fallback and what travels over the
+## wire (to_dict); the client shows it whenever `control_hints` is empty.
 var controls_text := ""
+## Optional structured control hints (#608): an ordered segment list the intro
+## card renders *device-aware* — literal strings stay verbatim, while a
+## `{"action": &"..."}` segment shows the glyph for the input the player is
+## actually holding ("Space" vs "Ⓐ" vs "✕"), swapping live on device change.
+## Client-derived from the local catalog, so it is NOT serialized (no protocol
+## change); an empty list means "use controls_text". Only button actions render
+## a glyph — movement/axis hints stay literal (a #608 follow-up).
+var control_hints: Array = []
 
 
 static func create(values: Dictionary) -> MinigameMeta:
@@ -36,6 +46,7 @@ static func create(values: Dictionary) -> MinigameMeta:
 	meta.even_players = values.get("even_players", false)
 	meta.rules_text = values.get("rules", "")
 	meta.controls_text = values.get("controls", "")
+	meta.control_hints = values.get("control_hints", [])
 	return meta
 
 

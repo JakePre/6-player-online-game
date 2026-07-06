@@ -36,6 +36,9 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"quick_draw",
 				"controls": "Press SPACE / pad A the instant it flashes DRAW!",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Press ", {"action": &"action_primary"}, " the instant it flashes DRAW!"],
 				"name": "Quick Draw",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

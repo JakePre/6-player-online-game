@@ -74,6 +74,14 @@ static func make_meta() -> MinigameMeta:
 					"Steer/Gas/Brake — A/D/W/S / left stick · Drift — Space / pad A"
 					+ " · Item — E / pad X"
 				),
+				# Device-aware buttons (#608); steering stays literal (axis hint).
+				"control_hints":
+				[
+					"Steer/Gas/Brake — A/D/W/S / left stick · Drift — ",
+					{"action": &"action_primary"},
+					" · Item — ",
+					{"action": &"action_secondary"},
+				],
 				"name": "Turbo Lap",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
