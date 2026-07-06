@@ -12,15 +12,14 @@ enum PendingRequest { NONE, HOST, JOIN, REJOIN }
 ## The public game server (owner-hosted). Local dev overrides via the
 ## Advanced fold-out or Settings > Network (see scripts/dev-client.sh).
 const DEFAULT_ADDRESS := "celestrum.com"
-## How long to wait for the probe to connect + answer a ping before calling
-## the configured server unreachable (#607).
-const PROBE_TIMEOUT_SEC := 4.0
 
 var _pending := PendingRequest.NONE
-## Pre-connection reachability check for the configured server (#607).
+## Pre-connection reachability status for the configured server (#607).
 var _probe := ServerProbe.new()
-var _probing := false
-var _probe_timer: Timer
+## In-flight probe transport (#676): its own throwaway peer, never
+## `multiplayer.multiplayer_peer`, so it cannot fight the debug launcher or a
+## real Host/Join for the shared transport. Null when no probe is running.
+var _probe_transport: ServerReachabilityProbe
 var _pending_code := ""
 var _pending_token := ""
 ## Self-update flow (#144): filled by the checker, consumed by the button.
@@ -82,11 +81,6 @@ func _ready() -> void:
 		_port_edit.text = str(override_port)
 	_setup_update_flow()
 	_apply_button_motion()
-	NetManager.pong_received.connect(_on_pong_received)
-	_probe_timer = Timer.new()
-	_probe_timer.one_shot = true
-	_probe_timer.timeout.connect(_on_probe_timeout)
-	add_child(_probe_timer)
 	_retry_button.pressed.connect(_start_probe)
 	ButtonMotion.attach(_retry_button)
 	_refresh_server_chip()
@@ -195,10 +189,9 @@ func _on_rejoin_pressed() -> void:
 
 ## Connects first if needed; the pending request fires on connected_to_server.
 func _begin(request: PendingRequest) -> void:
-	# The probe and a real request share NetManager's single peer, so a
-	# committed action always wins: free the probe's connection first (#607).
-	if _probing:
-		_cancel_probe()
+	# The probe rides its own peer (#676) so it can't fight this connect; it is
+	# cancelled anyway so a late result doesn't repaint the chip mid-flow.
+	_cancel_probe()
 	_pending = request
 	_set_busy(true)
 	if _is_connected():
@@ -224,19 +217,11 @@ func _dispatch_pending() -> void:
 
 
 func _on_connected_to_server() -> void:
-	if _probing:
-		# Reachable at the transport level; measure RTT before calling it up.
-		NetManager.send_ping()
-		return
 	if _pending != PendingRequest.NONE:
 		_dispatch_pending()
 
 
 func _on_connection_failed() -> void:
-	if _probing:
-		_probe.mark_unreachable()
-		_end_probe()
-		return
 	_pending = PendingRequest.NONE
 	_set_busy(false)
 	_show_error("Could not reach the server.")
@@ -300,56 +285,46 @@ func _is_connected() -> bool:
 	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
-# --- Server reachability probe (#607) ----------------------------------------
+# --- Server reachability probe (#607, transport isolated per #676) -----------
 
 
-## Opens a throwaway connection to the configured server, pings once for RTT,
-## then disconnects — the chip reports reachable/unreachable before the player
-## commits to Host/Join. No-op while a real request is pending or the
-## transport is already busy, so the probe never fights the connect flow.
+## Opens a throwaway connection to the configured server on the probe's OWN
+## peer (never `multiplayer.multiplayer_peer`) — the chip reports
+## reachable/unreachable before the player commits to Host/Join, and physically
+## cannot disturb whoever owns the shared transport (the #676 regression: the
+## first design stole and then closed the debug launcher's boot connection).
 func _start_probe() -> void:
-	if _probing or _pending != PendingRequest.NONE or _is_connected():
+	if _probe_transport != null or _pending != PendingRequest.NONE or _is_connected():
 		return
 	_probe.mark_checking()
 	_refresh_server_chip()
-	var err := NetManager.connect_to_server(_address_edit.text, int(_port_edit.text))
-	if err != OK:
+	_probe_transport = ServerReachabilityProbe.new()
+	add_child(_probe_transport)
+	_probe_transport.finished.connect(_on_probe_finished)
+	_probe_transport.start(_address_edit.text, int(_port_edit.text))
+
+
+func _on_probe_finished(reachable: bool, rtt_ms: int) -> void:
+	if reachable:
+		_probe.mark_online(rtt_ms)
+	else:
 		_probe.mark_unreachable()
-		_refresh_server_chip()
-		return
-	_probing = true
-	_probe_timer.start(PROBE_TIMEOUT_SEC)
-
-
-func _on_pong_received(rtt_ms: int) -> void:
-	if not _probing:
-		return
-	_probe.mark_online(rtt_ms)
-	_end_probe()
-
-
-func _on_probe_timeout() -> void:
-	if not _probing:
-		return
-	_probe.mark_unreachable()
-	_end_probe()
-
-
-## Closes the probe connection (freeing the transport for a real request) and
-## refreshes the chip to whatever status the probe settled on.
-func _end_probe() -> void:
-	_probing = false
-	_probe_timer.stop()
-	NetManager.disconnect_from_server()
+	_clear_probe_transport()
 	_refresh_server_chip()
 
 
 ## Aborts an in-flight probe without changing the last status — used when a
-## real Host/Join takes the transport (#607).
+## real Host/Join begins, so a late result doesn't repaint the chip (#607).
 func _cancel_probe() -> void:
-	_probing = false
-	_probe_timer.stop()
-	NetManager.disconnect_from_server()
+	_clear_probe_transport()
+
+
+func _clear_probe_transport() -> void:
+	if _probe_transport == null:
+		return
+	_probe_transport.cancel()
+	_probe_transport.queue_free()
+	_probe_transport = null
 
 
 func _refresh_server_chip() -> void:
