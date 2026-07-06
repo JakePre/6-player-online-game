@@ -69,7 +69,11 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"turbo_lap",
-				"controls": "Steer — A/D · Gas/Brake — W/S · Drift — Space · Item — E",
+				"controls":
+				(
+					"Steer/Gas/Brake — A/D/W/S / left stick · Drift — Space / pad A"
+					+ " · Item — E / pad X"
+				),
 				"name": "Turbo Lap",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
