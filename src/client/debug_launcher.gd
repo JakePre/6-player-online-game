@@ -30,13 +30,15 @@ func _ready() -> void:
 	configure(OS.get_cmdline_user_args())
 
 	MinigameCatalog.register_builtins()
-	if not MinigameCatalog.is_registered(minigame_id):
+	# `gauntlet` is deliberately never in the catalog — the finale is entered
+	# directly (#685), so it passes this gate by name.
+	if minigame_id != &"gauntlet" and not MinigameCatalog.is_registered(minigame_id):
 		var known: Array[String] = []
 		for id: StringName in MinigameCatalog.registered_ids():
 			known.append(String(id))
 		push_warning(
 			(
-				"[debug-launcher] unknown minigame id '%s'; registered ids: %s"
+				"[debug-launcher] unknown minigame id '%s' (or 'gauntlet'); registered ids: %s"
 				% [minigame_id, ", ".join(known)]
 			)
 		)
@@ -76,9 +78,18 @@ func configure(args: PackedStringArray) -> void:
 
 
 ## The force-start payload (server honours it only under --debug-rpcs). Pure,
-## so tests can assert the duration override without a live server.
+## so tests can assert the shapes without a live server. `gauntlet` is the
+## finale, not a catalog game (#685): it skips the playlist entirely and opens
+## on the buy-in shop (compressed, with the seeded debug purse) so a debug or
+## render session shows shop -> finale in one tight clip.
 func start_config() -> Dictionary:
-	var config := {"playlist": [minigame_id], "rounds": 1, "debug_force_start": true}
+	var config := {"debug_force_start": true}
+	if minigame_id == &"gauntlet":
+		config["finale_only"] = true
+		config["shop_sec"] = 8.0
+	else:
+		config["playlist"] = [minigame_id]
+		config["rounds"] = 1
 	if duration_sec > 0.0:
 		config["duration_override"] = duration_sec
 	return config
@@ -112,7 +123,9 @@ func _start() -> void:
 
 
 func _on_match_event(event: Dictionary) -> void:
-	if String(event.get("type", "")) == "round_started":
+	# finale_started is the gauntlet path's start gate (#685); the line stays
+	# identical either way — the render harness greps for it.
+	if String(event.get("type", "")) in ["round_started", "finale_started"]:
 		print("[debug-launcher] round started: %s" % minigame_id)
 		queue_free()
 
