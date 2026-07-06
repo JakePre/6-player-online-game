@@ -134,6 +134,10 @@ func _render_3d(game: Dictionary) -> void:
 			ball.rotation.x = -flight_t * BullseyeBowl.LANE_LENGTH / BALL_RADIUS
 		var rig := rig_for_slot(slot)
 		if rig != null:
+			# Stationary rigs are placed in _setup_3d, not via update_rig, so
+			# reveal them here for the connected slots the snapshot carries —
+			# a disconnected member never appears, leaving no ghost (#601).
+			reveal_rig(slot)
 			rig.display_name = (
 				"%s  %d pts  (%d balls)" % [player_name(slot), int(state[0]), int(state[1])]
 			)
