@@ -59,17 +59,22 @@ func _physics_process(delta: float) -> void:
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed(&"action_primary"):
 		NetManager.send_match_input({"fire": true})
-		_fire_tracer()
+		_fire_shot()
 
 
-func _unhandled_input(event: InputEvent) -> void:
+## Mouse aim/fire is handled in _input, not _unhandled_input (#579): the view
+## roots (and the match screen's PlayArea) are default MOUSE_FILTER_STOP Controls
+## that swallow mouse motion as GUI input before it ever reaches unhandled input,
+## so aiming with the mouse did nothing. _input runs before GUI picking, so the
+## events always arrive. Non-mouse events fall through untouched.
+func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		_aim_at_mouse()
 	var click := event as InputEventMouseButton
 	if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
 		_aim_at_mouse()
 		NetManager.send_match_input({"ax": _aim.x, "ay": _aim.y, "fire": true})
-		_fire_tracer()
+		_fire_shot()
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -100,17 +105,23 @@ func _line_up_rigs() -> void:
 		rig.rotation.y = PI  # face the target band
 
 
-## Projects the mouse ray onto the arena floor plane (y = 0). The container
-## stretches 1:1 over this Control, so local mouse coords are viewport coords.
+## Aims at the current mouse position. The SubViewportContainer stretches the
+## arena viewport 1:1 over this full-rect Control, so the Control-local mouse
+## position is also the arena viewport's.
 func _aim_at_mouse() -> void:
+	_aim = _screen_to_floor(get_local_mouse_position())
+
+
+## Projects a viewport point through the iso camera onto the arena floor plane
+## (y = 0), clamped to the gallery. Pure of mouse state so it is unit-testable.
+func _screen_to_floor(point: Vector2) -> Vector2:
 	var camera := arena.get_node("IsoCameraRig/Camera3D") as Camera3D
-	var mouse := get_local_mouse_position()
-	var origin := camera.project_ray_origin(mouse)
-	var direction := camera.project_ray_normal(mouse)
+	var origin := camera.project_ray_origin(point)
+	var direction := camera.project_ray_normal(point)
 	if absf(direction.y) < 0.0001:
-		return
+		return _aim
 	var hit := origin - direction * (origin.y / direction.y)
-	_aim = Vector2(hit.x, hit.z).clamp(Vector2(-_half, -_half), Vector2(_half, _half))
+	return Vector2(hit.x, hit.z).clamp(Vector2(-_half, -_half), Vector2(_half, _half))
 
 
 func _update_targets(target_list: Array) -> void:
@@ -256,10 +267,14 @@ func _update_aim_beam(slot: int, ring: MeshInstance3D) -> void:
 ## A bright player-colored streak from the shooter to where they just fired,
 ## a fraction of a second long (M13-17). Fire-and-forget: it fades and frees
 ## itself, so this stays a one-file view change.
-func _fire_tracer() -> void:
+## Fire feedback so it's obvious a shot went off (#579): a sharp cue, a muzzle
+## flash at the shooter, and the tracer streak to the aim point.
+func _fire_shot() -> void:
 	var rig := rig_for_slot(my_slot)
 	if rig == null:
 		return
+	play_sfx(&"click")
+	fx_burst(Vector2(rig.position.x, rig.position.z), player_color(my_slot), 0.9)
 	var from := rig.position + Vector3(0.0, 0.9, 0.0)
 	var to := to_arena(_aim, CROSSHAIR_HEIGHT)
 	var length := from.distance_to(to)
