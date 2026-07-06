@@ -12,7 +12,7 @@ Multiple agents (and humans) build this game concurrently and merge their own PR
 - **Lost work:** two sessions ran out of budget with uncommitted work sitting in a working tree; it survived only because another agent went looking (#236, #145).
 - **Tag race:** two agents cut releases minutes apart, producing a `v0.4.1` numbered *behind* the already-published `v0.5.0`; the bogus tag and release had to be deleted.
 
-The rules below make each of those a checked step instead of a surprise. **Guarantee level:** following this procedure makes *textual* merge conflicts impossible for disjoint tasks and makes overlapping work visible before code is written. It cannot prevent two green PRs from disagreeing *semantically* — the serialized merge procedure (§5) plus CI on every merge is the net for that.
+The rules below make each of those a checked step instead of a surprise. **Guarantee level:** following this procedure makes *textual* merge conflicts impossible for disjoint tasks and makes overlapping work visible before code is written. It cannot prevent two green PRs from disagreeing *semantically* — the merge queue (§5) plus CI on every merge is the net for that.
 
 ---
 
@@ -20,7 +20,7 @@ The rules below make each of those a checked step instead of a surprise. **Guara
 
 1. **Claim before you code.** One task = one claim issue = one branch = one PR. If the claim check (§2) shows the task is taken, pick another task.
 2. **Touch only what you own.** Each task owns a path set (§3). Shared "hotspot" files have specific edit rules (§4). Anything outside both requires a comment on your claim issue *before* you edit it.
-3. **Merge serially, never stale.** A PR merges only when its branch already contains the current `origin/main` tip (§5). After any merge lands, every other open PR rebases before it can merge.
+3. **Queue your merges.** Agents do not merge manually. Run `gh pr merge --auto --merge` to enqueue your PR. GitHub's merge queue will test it against `main` and merge it serially, preventing rebase races.
 
 ## 2. Claiming a task
 
@@ -120,7 +120,7 @@ Co-Authored-By: <your agent identity>
 
 **5. Push is your save button.** Push after every commit, not at the end. An unpushed branch dies with your session (two dead agents' work had to be forensically reconstructed). If your budget is running low, pushing takes priority over finishing — see §9.
 
-**6. PR against `main`, then babysit it.** `gh pr create` with the claim issue linked (`Closes #N`). Branch protection requires the three checks green **on the current head** — after a force-push the old run is void, wait for the new one. Merge with a merge commit, delete the branch (stacked-PR exception below), and **watch the post-merge run on `main` finish before starting anything else**.
+**6. PR against `main`, then enqueue it.** `gh pr create` with the claim issue linked (`Closes #N`). Branch protection requires the three checks green **on the current head** — after a force-push the old run is void, wait for the new one. Then run `gh pr merge --auto --merge` to add it to the merge queue. You do not need to babysit it; GitHub will rebase, test, and merge it sequentially.
 
 **7. Tags are shared state — treat them like a merge.** Immediately before tagging: `git fetch --tags --force && gh release list`. Tag only a green `main`, one release in flight at a time. A mis-tag gets deleted (`gh release delete <tag> --cleanup-tag`) and re-cut correctly, announced on the issue (this is how the v0.4.1/v0.5.0 race was unwound).
 
@@ -155,19 +155,20 @@ and unnecessary). **Known false positive:** a file that references a project aut
 That specific error is safe to ignore; anything else is a real parse error worth fixing before
 you push.
 
-### Merging
+### Merging (via Merge Queue)
 
 1. CI green **on the current head of the PR** — after any force-push the old run is void; wait for the new one. An earlier green run on a stale base does not count, ever.
-2. The up-to-date check above passes **at merge time**, re-run in the same breath as the merge command. This is the serialization: after anyone merges, every other open PR goes stale and must rebase + re-verify before it may merge. **Merging a stale or unchecked PR is how `main` went red on 2026-07-03 (#243/#247) — there are no exceptions.**
-3. Merge with a **merge commit** (repo convention), then delete the branch — **unless a stacked PR is based on it** (see below).
-4. Watch the post-merge CI run on `main` **before starting your next task**. If it goes red, fixing it immediately outranks all task work (plan rule: `main` is always green). Fix forward or revert your merge; either way, announce on your claim issue. Never end a session with your merge's CI still running.
+2. **Enqueue, don't merge.** Instead of manually rebasing to bypass staleness, add your PR to the merge queue: `gh pr merge --auto --merge`.
+3. GitHub will automatically group, update (rebase/merge), test, and land the PRs in the queue sequentially.
+4. If your PR fails in the queue (e.g. semantic conflict with a PR that just landed), GitHub will dequeue it. You must then pull the latest `main`, rebase locally, fix the conflict, and re-enqueue.
+5. **Delete your branch** after it successfully lands (GitHub can do this automatically), unless a stacked PR depends on it.
 
-### Merge etiquette (anti-starvation)
+### Merge queue etiquette (anti-starvation)
 
-The serialization rule means every merge staleness-bombs every other open PR. When multiple agents are landing work:
+Because GitHub handles serialization, the old "yield to the oldest PR" and "rebase-cycle starvation" problems are solved by the queue.
 
-- **Yield to the oldest green PR.** Before merging, run `gh pr list` — if another PR is green and has been waiting longer than yours, let it merge first and rebase yours after. A PR that has been rebase-cycled 3+ times has absolute priority; everyone else pauses merging until it lands.
-- **Batch your own small PRs.** If you are about to land several S-sized changes in a row, prefer one PR with several commits over a merge every three minutes.
+- **Queue and move on:** Once your PR is queued (`Auto-merge enabled`), you can start your next task. You no longer need to babysit the PR unless GitHub alerts you that it was dequeued due to a CI failure.
+- **Batch your own small PRs.** If you are about to land several S-sized changes in a row, prefer one PR with several commits over queuing three separate PRs.
 - **Never reopen a PR that was closed as superseded or duplicate.** The closure comment says where the fix went; if you disagree, argue on the *issue* — reopening and merging (#152) silently overrides work that already landed.
 
 ### Stacked PRs (discouraged)
@@ -229,5 +230,5 @@ Sessions die mid-task. Twice now, half-finished work survived only because someo
 
 These make §5's discipline machine-enforced instead of voluntary — recommended for @JakePre (requires admin):
 
-- Branch protection on `main`: require status checks to pass **and require branches to be up to date before merging** (this is exactly §5 step 2, enforced by GitHub).
-- Optionally enable auto-merge so agents can queue green PRs instead of racing.
+- **Enable Merge Queue**: In repo settings, under branch protection for `main`, check "Require merge queue". This is required for agents to use `gh pr merge --auto --merge` without manually rebasing.
+- Branch protection on `main`: require status checks to pass. (The merge queue will handle testing branches before they land, making strict manual rebasing unnecessary).
