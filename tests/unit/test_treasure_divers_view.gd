@@ -39,6 +39,17 @@ func test_arena_half_scales_with_lobby_size() -> void:
 	assert_gt(big._arena_half(), TreasureDivers.ARENA_HALF, "12 players get a bigger floor")
 
 
+## #588: the arena reads as a pool — a tinted floor overlay plus a deck border
+## framing the swim area — instead of the generic shared floor tile.
+func test_pool_floor_and_deck_border_dress_the_arena() -> void:
+	var tint: MeshInstance3D = view.arena.get_node("PoolFloorTint")
+	assert_not_null(tint)
+	var material: StandardMaterial3D = tint.mesh.material
+	assert_eq(material.albedo_color, view.POOL_FLOOR_COLOR)
+	for i in 4:
+		assert_not_null(view.arena.get_node("Deck%d" % i), "plank %d frames the pool" % i)
+
+
 func test_surfaced_rigs_swim_high_and_divers_sink() -> void:
 	assert_not_null(view.arena.get_node("WaterSurface"))
 	view.render(

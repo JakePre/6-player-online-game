@@ -29,11 +29,19 @@ const PAD_OFFSETS: Array[Vector2] = [
 const PAD_SIZE := 2.4
 const PAD_GAP := 0.6
 const DIM := 0.28
-const LIT := 1.4
+## Brighter flash (#588 — the original 1.4 read too subtly against the dim pad).
+const LIT := 2.4
 ## How long a flashed pad stays lit within its SHOW_PER_PAD_SEC window.
 const FLASH_HOLD := 0.42
+## A lit pad hops for this long — a visible pop, not just a color change (#588).
+const FLASH_BOUNCE_HEIGHT := 0.24
+const FLASH_BOUNCE_SEC := 0.24
 ## Pad labels (#261): direction arrow + key + color name, always readable.
 const PAD_LABELS: Array[String] = ["▲ W — Red", "▶ D — Amber", "▼ S — Green", "◀ A — Blue"]
+## Distinct per-pad flash SFX (#588): a recognizable four-note identity instead
+## of one shared "tick" for every pad, reusing the existing UI SFX set (no new
+## audio assets).
+const PAD_SFX: Array[StringName] = [&"tick", &"click", &"coin", &"confirm"]
 ## Your own stomp echoes on the pad this long (local feedback).
 const PRESS_FLASH_SEC := 0.15
 ## Stomp-ripple FX (M13-16): a self-freeing ground ring that expands and fades.
@@ -54,6 +62,7 @@ var _round_cleared := {}
 var _round_failed := {}
 
 var _pad_materials: Array[StandardMaterial3D] = []
+var _pad_nodes: Array[MeshInstance3D] = []
 var _phase_label: Label
 var _round_label: Label
 ## Locally clocked SHOW timer: snapshots arrive at 30 Hz but the flash should
@@ -62,6 +71,8 @@ var _show_timer := 0.0
 var _pressed_pad := -1
 var _pressed_until := 0.0
 var _last_lit := -1
+## When the current flash lit, so the bounce can decay smoothly (M13 pattern).
+var _lit_at := -10.0
 var _was_cleared := false
 var _was_failed := false
 
@@ -141,6 +152,7 @@ func _build_pads() -> void:
 		node.mesh = mesh
 		node.position = to_arena(_pad_position(pad), 0.1)
 		arena.add_child(node)
+		_pad_nodes.append(node)
 		# Direction + key + color on every pad, through-wall readable (#261).
 		var tag := Label3D.new()
 		tag.name = "PadLabel%d" % pad
@@ -178,23 +190,27 @@ func _update_labels() -> void:
 	_round_label.text = "Round %d / %d  ·  Length %d" % [_round + 1, _rounds_total, _length]
 
 
-## During SHOW, light the pad whose flash window we're inside; the framework
-## replays the sequence at SHOW_PER_PAD_SEC per step and we hold each lit for
-## FLASH_HOLD. Outside SHOW every pad sits dimmed.
+## During SHOW, light the pad whose flash window we're inside — after a lead-in
+## beat so the very first flash doesn't land before eyes settle on the pads
+## (#588). The framework replays the sequence at SHOW_PER_PAD_SEC per step and
+## we hold each lit for FLASH_HOLD. Outside SHOW every pad sits dimmed.
 func _update_pads() -> void:
 	var lit_pad := -1
-	if _phase == SimonStomp.Phase.SHOW and not _sequence.is_empty():
+	var flash_time := _show_timer - SimonStomp.SHOW_LEAD_IN_SEC
+	if _phase == SimonStomp.Phase.SHOW and not _sequence.is_empty() and flash_time >= 0.0:
 		var step := SimonStomp.SHOW_PER_PAD_SEC
-		var idx := int(_show_timer / step)
-		if idx < _sequence.size() and fmod(_show_timer, step) <= FLASH_HOLD:
+		var idx := int(flash_time / step)
+		if idx < _sequence.size() and fmod(flash_time, step) <= FLASH_HOLD:
 			lit_pad = int(_sequence[idx])
-	# A soft tick every time the SHOW flash advances — the readable metronome.
+	var now := Time.get_ticks_msec() / 1000.0
+	# A distinct note per pad every time the SHOW flash advances — the readable
+	# four-note metronome (#588).
 	if lit_pad != _last_lit and lit_pad != -1:
-		play_sfx(&"tick")
+		play_sfx(PAD_SFX[lit_pad])
 		# Each beat ripples the lit pad, so the pattern reads as motion (M13-16).
 		_stomp_ripple(lit_pad, PAD_COLORS[lit_pad], BEAT_RIPPLE_STRENGTH)
+		_lit_at = now
 	_last_lit = lit_pad
-	var now := Time.get_ticks_msec() / 1000.0
 	for pad in _pad_materials.size():
 		var base := PAD_COLORS[pad]
 		var energy := LIT if pad == lit_pad else DIM
@@ -203,6 +219,16 @@ func _update_pads() -> void:
 		_pad_materials[pad].albedo_color = base
 		_pad_materials[pad].emission = base
 		_pad_materials[pad].emission_energy_multiplier = energy
+		_pad_nodes[pad].position.y = 0.1 + (_flash_bounce(now) if pad == lit_pad else 0.0)
+
+
+## The lit pad's beat-synced hop (#588, M13-18 pattern): a small arc that decays
+## over FLASH_BOUNCE_SEC after it lights, zero once it settles.
+func _flash_bounce(now: float) -> float:
+	var since := now - _lit_at
+	if since < 0.0 or since >= FLASH_BOUNCE_SEC:
+		return 0.0
+	return FLASH_BOUNCE_HEIGHT * sin(PI * since / FLASH_BOUNCE_SEC)
 
 
 ## Alive players idle; a player who cleared this round cheers, a busted one

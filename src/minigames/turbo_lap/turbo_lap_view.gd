@@ -211,7 +211,7 @@ func _label_kart(slot: int, rig: CharacterRig, item: int, finished: bool) -> voi
 	var place := standings.find(slot)
 	var prefix := "🏁 " if finished else ("P%d " % (place + 1) if place >= 0 else "")
 	var icon: String = ITEM_ICONS.get(item, "")
-	rig.display_name = "%s%s %s" % [prefix, names.get(slot, ""), icon]
+	rig.display_name = "%s%s %s" % [prefix, player_name(slot), icon]
 
 
 func _render_pool(pool: Array[MeshInstance3D], items: Array, height: float) -> void:

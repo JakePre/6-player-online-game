@@ -8,6 +8,30 @@ extends RefCounted
 const PATH := "user://settings.cfg"
 const SECTION := "settings"
 
+## Persisted schema version (M18-01). Bump when a key is renamed/restructured
+## and add a MIGRATIONS entry, so a user's stored choice is carried across the
+## rename instead of the per-key DEFAULTS fallback silently dropping it. Files
+## written before versioning have no SCHEMA_KEY and read as version 0.
+const SCHEMA_VERSION := 1
+const SCHEMA_KEY := "schema_version"
+
+## Ordered forward migrations, one per version step. Each renames stored keys
+## (old -> new) when loading a file at `from` up to `to`. Empty today — the
+## machinery is what M18-01 delivers; the first real rename adds an entry and
+## every existing user keeps their value. Exercised by _migrate()'s tests.
+const MIGRATIONS: Array[Dictionary] = []
+
+## Which settings page each key belongs to (M18-01 sectioned UI + per-section
+## reset). Partitions DEFAULTS exactly — a new key must be assigned a section
+## (guarded by a test) so it can never be orphaned from the UI.
+const SECTIONS := {
+	"Gameplay": ["player_name", "nameplate_scale", "show_names"],
+	"Video": ["fullscreen", "colorblind", "reduced_motion"],
+	"Audio": ["master_volume", "music_volume", "sfx_volume"],
+	"Controls": ["keybinds"],
+	"Network": ["server_address", "server_port"],
+}
+
 ## Volume keys map to the audio buses in default_bus_layout.tres.
 const VOLUME_BUSES := {
 	"master_volume": &"Master",
@@ -35,7 +59,10 @@ const DEFAULTS := {
 	"music_volume": 1.0,
 	"sfx_volume": 1.0,
 	"fullscreen": false,
-	"server_address": "",
+	## The public default server (M18-01). Empty is still honored (main_menu
+	## treats it as "use the default host"); self-hosters override to their
+	## address or localhost, one field away in the Network page.
+	"server_address": "celestrum.com",
 	## Remembered between sessions so you don't retype it (#142).
 	"player_name": "",
 	## Nameplate text scale multiplier (0.5–2.0), applied by CharacterRig.
@@ -44,6 +71,10 @@ const DEFAULTS := {
 	## Accessibility (M12-03).
 	"colorblind": false,
 	"reduced_motion": false,
+	## Owner directive: nameplates off by default, toggleable (#580). The
+	## slot/number badge (PlayerPalette.label_for_slot) stays visible either
+	## way — only the player's chosen name is gated.
+	"show_names": false,
 	## Keyboard rebind overrides: action -> physical keycode. Empty means all
 	## factory bindings; only changed actions are stored.
 	"keybinds": {},
@@ -54,10 +85,13 @@ static func load_settings() -> Dictionary:
 	var config := ConfigFile.new()
 	if config.load(PATH) != OK:
 		return DEFAULTS.duplicate()
+	# Read *every* stored key (not just today's DEFAULTS), so migrations can
+	# see and carry forward a value stored under a since-renamed key.
 	var raw := {}
-	for key: String in DEFAULTS:
-		raw[key] = config.get_value(SECTION, key, DEFAULTS[key])
-	return sanitize(raw)
+	for key: String in config.get_section_keys(SECTION):
+		raw[key] = config.get_value(SECTION, key)
+	var from_version := int(raw.get(SCHEMA_KEY, 0))
+	return sanitize(migrate(raw, from_version))
 
 
 static func save_settings(settings: Dictionary) -> void:
@@ -65,7 +99,41 @@ static func save_settings(settings: Dictionary) -> void:
 	var config := ConfigFile.new()
 	for key: String in clean:
 		config.set_value(SECTION, key, clean[key])
+	config.set_value(SECTION, SCHEMA_KEY, SCHEMA_VERSION)
 	config.save(PATH)
+
+
+## Applies the ordered forward migrations from `from_version` up to the current
+## schema, renaming stored keys so a choice survives a key rename. Pure — takes
+## the migration list as a param so it is directly testable. Unknown keys are
+## left in place for sanitize() to drop.
+static func migrate(
+	raw: Dictionary, from_version: int, migrations: Array[Dictionary] = MIGRATIONS
+) -> Dictionary:
+	var out := raw.duplicate(true)
+	for step: Dictionary in migrations:
+		if int(step.get("from", -1)) < from_version:
+			continue
+		for old_key: String in step.get("rename", {}):
+			var new_key: String = step.rename[old_key]
+			if out.has(old_key) and not out.has(new_key):
+				out[new_key] = out[old_key]
+				out.erase(old_key)
+	return out
+
+
+## The full factory defaults — the target of a global "Reset to defaults".
+static func defaults() -> Dictionary:
+	return DEFAULTS.duplicate(true)
+
+
+## Returns `settings` with only the given section's keys restored to their
+## defaults (per-section reset, M18-01). Unknown section name is a no-op copy.
+static func reset_section(settings: Dictionary, section: String) -> Dictionary:
+	var out := sanitize(settings)
+	for key: String in SECTIONS.get(section, []):
+		out[key] = DEFAULTS[key].duplicate() if DEFAULTS[key] is Dictionary else DEFAULTS[key]
+	return out
 
 
 ## Clamps and type-coerces every field; unknown keys are dropped and missing
@@ -91,6 +159,8 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 		clean.colorblind = bool(raw.colorblind)
 	if raw.has("reduced_motion"):
 		clean.reduced_motion = bool(raw.reduced_motion)
+	if raw.has("show_names"):
+		clean.show_names = bool(raw.show_names)
 	clean.keybinds = _sanitize_keybinds(raw.get("keybinds", {}))
 	return clean
 
@@ -142,6 +212,7 @@ static func apply(settings: Dictionary, window: Window) -> void:
 	# consume them, set once here so every view and the palette see the change.
 	PlayerPalette.use_colorblind = clean.colorblind
 	ArenaFX.reduced_motion = clean.reduced_motion
+	MinigameView.show_names = clean.show_names
 	apply_keybinds(clean)
 
 

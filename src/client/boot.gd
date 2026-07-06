@@ -29,6 +29,8 @@ func _ready() -> void:
 	elif args.has("--playtest"):
 		_spawn(PLAYTEST_BOT_SCRIPT, "PlaytestBot")
 	else:
+		# Widest possible pad coverage before any input is read (M17-01).
+		ControllerDb.install()
 		var shell: Node = (load(APP_SHELL_SCENE) as PackedScene).instantiate()
 		shell.name = "AppShell"
 		add_child(shell)

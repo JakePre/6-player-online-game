@@ -3,13 +3,20 @@ extends GutTest
 ## simulating anything locally; remembers only its own trap placements.
 
 var view: MinigameView
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	var scene: PackedScene = load("res://src/minigames/trap_corridor/trap_corridor_view.tscn")
 	view = scene.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_view_scene_lives_at_catalog_path() -> void:
@@ -160,3 +167,25 @@ func test_only_the_trapper_drives_the_cursor() -> void:
 	_press(&"action_primary")
 	assert_eq(view._cursor_col, col_before, "a non-trapper cannot move the cursor")
 	assert_eq(view.my_traps, [], "a non-trapper arms nothing")
+
+
+# --- #582: announce who is placing traps -------------------------------------
+
+
+func test_trapper_banner_confirms_you_are_setting_traps() -> void:
+	_trapping_as_local(0, 3)  # local slot 0 is the trapper
+	assert_string_contains(view._banner_text(), "YOU are setting traps")
+
+
+func test_non_trapper_banner_names_the_trapper() -> void:
+	_trapping_as_local(1, 3)  # local slot 0 is NOT the trapper
+	var text: String = view._banner_text()
+	assert_string_contains(text, "Bob")
+	assert_string_contains(text, "is setting traps")
+	assert_false("YOU" in text, "only the trapper sees the YOU framing")
+
+
+func test_running_phase_banner_is_unrelated_to_the_trapper() -> void:
+	view.phase = TrapCorridor.Phase.RUNNING
+	view.phase_left = 4.2
+	assert_eq(view._banner_text(), "RUN! (4.2s)")

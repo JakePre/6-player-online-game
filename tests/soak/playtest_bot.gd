@@ -58,13 +58,6 @@ const BALANCE_CONFIG := {
 ## Random-intent pump cadence while a round is live (#560).
 const INPUT_INTERVAL_SEC := 0.25
 ## Chance each pump also presses one action key on top of the movement stick.
-const ACTION_CHANCE := 0.3
-## One-shot action keys the roster's sims read off the wire (surveyed across
-## src/minigames/*): booleans pressed at random. Numeric intents (vote, lane,
-## pad, aim) are rolled separately in _random_intent().
-const ACTION_KEYS: Array[String] = [
-	"jump", "act", "fire", "dash", "use", "swing", "throw", "smash", "shove", "pull", "putt", "roll"
-]
 const LEADERBOARD_EVERY := 5
 ## Seed for the --mutators variant (M9-06): the per-round roll is seed-driven,
 ## so this keeps the ">=1 mutated round" pass criterion deterministic.
@@ -82,7 +75,9 @@ var _phase_timeout_sec := PHASE_TIMEOUT_SEC
 var _join_code := ""
 var _expected_members := 0
 var _input_accum := 0.0
-var _input_rng := RandomNumberGenerator.new()
+## Shared random-intent generator (#577 extracted BotInputDriver); seeded per
+## seat in _on_joined so intents stay deterministic per bot.
+var _input_driver: BotInputDriver = null
 
 var _phase := Phase.CONNECTING
 var _phase_started_ms := 0
@@ -123,7 +118,7 @@ func _ready() -> void:
 		NetManager._arg_value(args, "--phase-timeout", str(PHASE_TIMEOUT_SEC))
 	)
 	# Deterministic per seat, distinct across seats.
-	_input_rng.seed = hash(_bot_name)
+	_input_driver = BotInputDriver.new(hash(_bot_name))
 
 	NetManager.connected_to_server.connect(_on_connected)
 	NetManager.connection_failed.connect(func() -> void: _fail("connection_failed"))
@@ -155,30 +150,7 @@ func _process(delta: float) -> void:
 			_input_accum = 0.0
 			# The server drops intents outside PLAY/FINALE_PLAY, so pumping
 			# through intros/results is harmless.
-			NetManager.send_match_input(_random_intent())
-
-
-## A plausible random gameplay intent (#560): a movement stick plus sometimes
-## one action key. Sims validate everything off the wire, so keys a game
-## doesn't read simply no-op — one generator covers the whole roster.
-func _random_intent() -> Dictionary:
-	var intent := {
-		"mx": _input_rng.randf_range(-1.0, 1.0),
-		"my": _input_rng.randf_range(-1.0, 1.0),
-	}
-	if _input_rng.randf() < ACTION_CHANCE:
-		match _input_rng.randi_range(0, 3):
-			0:
-				intent[ACTION_KEYS[_input_rng.randi_range(0, ACTION_KEYS.size() - 1)]] = true
-			1:
-				intent["ax"] = _input_rng.randf_range(-1.0, 1.0)
-				intent["ay"] = _input_rng.randf_range(-1.0, 1.0)
-			2:
-				intent["vote"] = _input_rng.randi_range(0, 5)
-			3:
-				intent["lane"] = _input_rng.randi_range(0, 3)
-				intent["pad"] = _input_rng.randi_range(0, 8)
-	return intent
+			NetManager.send_match_input(_input_driver.next_intent())
 
 
 func _on_connected() -> void:

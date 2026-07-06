@@ -14,6 +14,11 @@ const ITEM_COLORS: Array[Color] = [Color(0.95, 0.4, 0.25), Color(0.3, 0.75, 0.95
 const ITEM_NAMES: Array[String] = ["SHOVE", "ANCHOR"]
 ## Unit-radius disc; the node's X/Z scale is the zone radius from the snapshot.
 const ZONE_DISC_HEIGHT := 0.04
+## How long a fired shove's rig animation is protected from update_rig()'s
+## walk/idle overwrite (#587) — the same _reaction_hold idiom rumble_ring
+## uses for hit/ko, ported here since KotH detects item-use by diffing
+## `held` rather than a dedicated event.
+const SHOVE_HOLD_SEC := 0.6
 
 ## Latest replicated state, straight from KingOfTheHill.get_snapshot().
 var players := {}
@@ -34,6 +39,8 @@ var _item_nodes: Array[MeshInstance3D] = []
 var _held_label: Label
 ## Last-seen held map, for pickup-moment detection (#260).
 var _last_held := {}
+## slot -> Time.get_ticks_msec() expiry while the shove animation owns the rig.
+var _shove_hold := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -129,11 +136,23 @@ func _update_items() -> void:
 		_item_nodes.append(node)
 
 
-## Pickup flash + sound so grabbing reads (#260).
+## Pickup flash + sound so grabbing reads (#260), plus a shove animation on
+## the rig the instant a held Shove Blast fires (#587): the item clearing
+## from `held` while it was SHOVE is the use-moment (no dedicated "used"
+## event in the snapshot).
 func _update_held_feedback() -> void:
 	for slot: int in held:
 		if not _last_held.has(slot) and slot == my_slot:
 			play_sfx(&"coin")
+	for slot: int in _last_held:
+		if held.has(slot):
+			continue
+		if int(_last_held[slot]) != KingOfTheHill.Item.SHOVE:
+			continue
+		var rig := rig_for_slot(slot)
+		if rig != null:
+			rig.play(&"interact")
+			_shove_hold[slot] = Time.get_ticks_msec() + int(SHOVE_HOLD_SEC * 1000.0)
 	_last_held = held.duplicate()
 
 
@@ -155,7 +174,12 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		if Time.get_ticks_msec() < int(_shove_hold.get(slot, 0)):
+			# The shove animation owns the rig for a moment (#587): move it,
+			# don't re-animate it — mirrors rumble_ring's hit/ko reaction hold.
+			rig.position = to_arena(Vector2(state[0], state[1]))
+		else:
+			update_rig(slot, Vector2(state[0], state[1]))
 		rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
 		# Scoring sparkles (M13-03): points ticking up while holding the hill
 		# shed a sparkle in the scorer's color. Seeded via _points_seen.

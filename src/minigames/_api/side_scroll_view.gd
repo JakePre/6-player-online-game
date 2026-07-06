@@ -154,7 +154,9 @@ func _make_rig(slot: int) -> Control:
 	rig.add_child(eye)
 	var plate := Label.new()
 	plate.name = "Plate"
-	plate.text = str(names.get(slot, ""))
+	# Number badge always shows; the name joins it only when show_names is on
+	# (#580), same as the 3D CharacterRig nameplate.
+	plate.text = player_name(slot)
 	plate.theme_type_variation = PartyTheme.SMALL_VARIATION
 	plate.add_theme_color_override(&"font_color", color)
 	plate.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

@@ -169,8 +169,10 @@ func _play_event(event: Dictionary) -> void:
 		"swing":
 			rig.play(&"interact")
 			_spawn_swing_arc(slot)
-			if slot == my_slot:
-				play_sfx(&"click")
+			# #587: this was gated to the local player only — every opponent's
+			# swing was silent. hit/ko/blocked/smash all play unconditionally;
+			# swing matches that convention now.
+			play_sfx(&"click")
 		"smash":
 			play_sfx(&"confirm")
 			_smash_shockwave(slot)

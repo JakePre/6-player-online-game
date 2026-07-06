@@ -15,6 +15,9 @@ const COPY_FEEDBACK_SEC := 1.5
 ## Last broadcast room state, kept around so the character carousel buttons
 ## know the current pick without waiting for a round trip.
 var _last_state: Dictionary = {}
+## Host-only practice-bot controls (#577), built in _ready so no .tscn churn.
+var _add_bot_button: Button
+var _remove_bot_button: Button
 
 @onready var _code_label: Label = %CodeLabel
 @onready var _copy_button: Button = %CopyButton
@@ -38,6 +41,7 @@ var _last_state: Dictionary = {}
 
 func _ready() -> void:
 	NetManager.room_updated.connect(_on_room_updated)
+	_build_bot_controls()
 	_ready_button.toggled.connect(func(on: bool) -> void: NetManager.request_set_ready(on))
 	_start_button.pressed.connect(func() -> void: NetManager.request_start_match())
 	_leave_button.pressed.connect(func() -> void: NetManager.request_leave_room())
@@ -71,6 +75,24 @@ func _ready() -> void:
 	# existed, so seed from the mirror instead of waiting for the next one.
 	if NetManager.my_room_state.has("members"):
 		_on_room_updated(NetManager.my_room_state)
+
+
+## Add/Remove-bot buttons for solo testing (#577): siblings of the start
+## button, host-only, wired to the new request pair.
+func _build_bot_controls() -> void:
+	_add_bot_button = Button.new()
+	_add_bot_button.text = "+ Add Bot"
+	_add_bot_button.pressed.connect(func() -> void: NetManager.request_add_bot())
+	_remove_bot_button = Button.new()
+	_remove_bot_button.text = "− Remove Bot"
+	_remove_bot_button.pressed.connect(func() -> void: NetManager.request_remove_bot())
+	var parent := _start_button.get_parent()
+	parent.add_child(_add_bot_button)
+	parent.add_child(_remove_bot_button)
+	parent.move_child(_add_bot_button, _start_button.get_index())
+	parent.move_child(_remove_bot_button, _start_button.get_index())
+	ButtonMotion.attach(_add_bot_button)
+	ButtonMotion.attach(_remove_bot_button)
 
 
 ## Room-code display's "copy-tap feedback" (M16-04): copies to the system
@@ -200,7 +222,23 @@ func _on_room_updated(state: Dictionary) -> void:
 	_ready_button.disabled = in_match
 	_start_button.visible = i_am_host
 	_start_button.disabled = in_match or not _can_start(state)
+	_refresh_bot_controls(state, i_am_host, in_match)
 	_status_label.text = _status_text(state, i_am_host, in_match)
+
+
+## Host sees the bot controls in the lobby; add disables at the cap, remove
+## disables with no bots present (#577).
+func _refresh_bot_controls(state: Dictionary, i_am_host: bool, in_match: bool) -> void:
+	var members: Array = state.get("members", [])
+	var bot_count := 0
+	for member: Dictionary in members:
+		if member.get("is_bot", false):
+			bot_count += 1
+	var show := i_am_host and not in_match
+	_add_bot_button.visible = show
+	_remove_bot_button.visible = show
+	_add_bot_button.disabled = members.size() >= NetConfig.MAX_PLAYERS_PER_ROOM
+	_remove_bot_button.disabled = bot_count == 0
 
 
 ## Running series scoreboard between matches (M11-02).

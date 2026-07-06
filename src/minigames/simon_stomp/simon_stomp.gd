@@ -18,6 +18,10 @@ enum Phase {
 const PAD_COUNT := 4
 const START_LENGTH := 2
 const MAX_ROUNDS := 8
+## A beat of anticipation before the first pad flashes each round — without it
+## the very first flash lands the instant SHOW starts, before eyes settle on
+## the pads, and players miss it (#588).
+const SHOW_LEAD_IN_SEC := 0.6
 ## Per-pad reveal time; the whole SHOW phase scales with sequence length.
 const SHOW_PER_PAD_SEC := 0.6
 const INPUT_TIMEOUT_SEC := 8.0
@@ -131,7 +135,7 @@ func _rank_players() -> Array:
 
 
 func _show_duration() -> float:
-	return sequence.size() * SHOW_PER_PAD_SEC
+	return SHOW_LEAD_IN_SEC + sequence.size() * SHOW_PER_PAD_SEC
 
 
 ## True once every still-alive player has either cleared or failed this round,

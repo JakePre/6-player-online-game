@@ -6,13 +6,20 @@ extends GutTest
 const VIEW_SCENE := preload("res://src/minigames/knock_off/knock_off_view.tscn")
 
 var view: SideScrollView
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.size = Vector2(960.0, 540.0)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func _fighter(x: float, y: float, facing: int, alive: int, percent: int, attack: int) -> Array:

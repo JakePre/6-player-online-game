@@ -3,13 +3,20 @@ extends GutTest
 ## shared iso-arena without simulating anything locally.
 
 var view: MinigameView3D
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	var scene: PackedScene = load("res://src/minigames/sumo_smash/sumo_smash_view.tscn")
 	view = scene.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_view_scene_lives_at_catalog_path() -> void:
@@ -72,13 +79,14 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.out, [])
 
 
-## M13-06: dashes trail dust, big displacements burst (a shove landed),
-## ring-outs splash + shake — all seeded for rejoiners.
-func test_dash_trails_dust() -> void:
+## M13-06 (colored streak per #587): dashes trail a player-colored burst so
+## the speed reads, big displacements burst too (a shove landed), ring-outs
+## splash + shake — all seeded for rejoiners.
+func test_dash_trails_a_colored_burst() -> void:
 	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
 	var before: int = view.arena.get_child_count()
 	view.render({"radius": 8.0, "players": {0: [0.3, 0.0, 0.0, 1]}, "out": []})
-	assert_eq(view.arena.get_child_count(), before + 1, "dash puffs")
+	assert_eq(view.arena.get_child_count(), before + 1, "dash bursts")
 
 
 func test_shove_displacement_bursts() -> void:

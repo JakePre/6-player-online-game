@@ -69,3 +69,11 @@ func test_toggles_drive_accessibility_statics() -> void:
 	var motion: CheckButton = menu.get_node("%ReducedMotionToggle")
 	motion.button_pressed = true
 	assert_true(ArenaFX.reduced_motion, "reduced-motion toggle reaches ArenaFX")
+
+
+## #580: nameplates off by default; the toggle flips the shared view flag.
+func test_show_names_toggle_off_by_default_and_reaches_minigame_view() -> void:
+	var toggle: CheckButton = menu.get_node("%ShowNamesToggle")
+	assert_false(toggle.button_pressed, "nameplates are off out of the box")
+	toggle.button_pressed = true
+	assert_true(MinigameView.show_names, "the toggle reaches every view")

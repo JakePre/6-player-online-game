@@ -10,6 +10,12 @@ const LANE_COLOR := Color(0.16, 0.14, 0.2, 0.88)
 const RING_COLORS: Array[Color] = [
 	Color(0.95, 0.2, 0.12), Color(0.98, 0.72, 0.15), Color(0.94, 0.94, 0.9)
 ]
+## Alternate scheme on odd lanes (#588): adjacent targets otherwise read as one
+## continuous board at iso distance — swapping the palette every other lane
+## gives each its own silhouette.
+const RING_COLORS_ALT: Array[Color] = [
+	Color(0.15, 0.35, 0.95), Color(0.2, 0.82, 0.82), Color(0.86, 0.9, 0.97)
+]
 const BALL_RADIUS := 0.3
 const DISC_HEIGHT := 0.04
 
@@ -41,14 +47,14 @@ func _setup_3d() -> void:
 	for i in slot_list.size():
 		var slot: int = slot_list[i]
 		var center_x := (i - (slot_list.size() - 1) / 2.0) * BullseyeBowl.LANE_SPACING
-		_build_lane(slot, center_x)
+		_build_lane(slot, center_x, i % 2 == 1)
 		var rig := rig_for_slot(slot)
 		if rig != null:
 			rig.position = Vector3(center_x, 0.0, BullseyeBowl.LANE_LENGTH / 2.0)
 			rig.rotation.y = PI  # face down the lane
 
 
-func _build_lane(slot: int, center_x: float) -> void:
+func _build_lane(slot: int, center_x: float, alt_palette: bool) -> void:
 	var lane_mesh := PlaneMesh.new()
 	lane_mesh.size = Vector2(BullseyeBowl.LANE_SPACING * 0.8, BullseyeBowl.LANE_LENGTH)
 	var lane_material := StandardMaterial3D.new()
@@ -66,6 +72,7 @@ func _build_lane(slot: int, center_x: float) -> void:
 	var radii: Array[float] = [
 		BullseyeBowl.RING_OUTER, BullseyeBowl.RING_MID, BullseyeBowl.RING_BULLSEYE
 	]
+	var palette := RING_COLORS_ALT if alt_palette else RING_COLORS
 	for r in radii.size():
 		var ring := MeshInstance3D.new()
 		ring.name = "Ring%d" % r
@@ -77,7 +84,7 @@ func _build_lane(slot: int, center_x: float) -> void:
 		# (the #236 reopen).
 		mesh.height = DISC_HEIGHT + r * 0.1
 		var material := StandardMaterial3D.new()
-		material.albedo_color = RING_COLORS[radii.size() - 1 - r]
+		material.albedo_color = palette[radii.size() - 1 - r]
 		material.emission_enabled = true
 		material.emission = material.albedo_color
 		material.emission_energy_multiplier = 0.25
@@ -127,6 +134,10 @@ func _render_3d(game: Dictionary) -> void:
 			ball.rotation.x = -flight_t * BullseyeBowl.LANE_LENGTH / BALL_RADIUS
 		var rig := rig_for_slot(slot)
 		if rig != null:
+			# Stationary rigs are placed in _setup_3d, not via update_rig, so
+			# reveal them here for the connected slots the snapshot carries —
+			# a disconnected member never appears, leaving no ghost (#601).
+			reveal_rig(slot)
 			rig.display_name = (
 				"%s  %d pts  (%d balls)" % [player_name(slot), int(state[0]), int(state[1])]
 			)

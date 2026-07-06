@@ -45,10 +45,13 @@ func is_full() -> bool:
 
 
 ## Lobby controls belong to the oldest still-connected member (SPEC $9).
+## Bots are never eligible — the host is always a real peer (#577).
 func host() -> RoomMember:
 	var best: RoomMember = null
 	for member in members:
-		if member.connected and (best == null or member.join_order < best.join_order):
+		if member.is_bot or not member.connected:
+			continue
+		if best == null or member.join_order < best.join_order:
 			best = member
 	return best
 
@@ -64,6 +67,46 @@ func add_member(peer_id: int, display_name: String, token: String) -> RoomMember
 	members.append(member)
 	empty_since_ms = -1
 	return member
+
+
+## Server-owned practice bot (#577): a real slot with no peer, auto-ready so
+## it never blocks can_start(), named for its slot. Returns null if the room
+## is full or not in the lobby. Host-gated at the net layer, not here.
+func add_bot() -> RoomMember:
+	if is_full() or state != State.LOBBY:
+		return null
+	var member := RoomMember.new()
+	member.slot = _lowest_free_slot()
+	member.peer_id = 0
+	member.is_bot = true
+	member.ready = true
+	member.display_name = "Bot %d" % (member.slot + 1)
+	member.join_order = _join_counter
+	_join_counter += 1
+	members.append(member)
+	empty_since_ms = -1
+	return member
+
+
+## Removes the most-recently-added bot (the natural "remove a bot" action).
+## Returns the removed member, or null if there are no bots. Lobby-only.
+func remove_last_bot() -> RoomMember:
+	if state != State.LOBBY:
+		return null
+	for i in range(members.size() - 1, -1, -1):
+		if members[i].is_bot:
+			var member := members[i]
+			members.remove_at(i)
+			return member
+	return null
+
+
+func bot_count() -> int:
+	var count := 0
+	for member in members:
+		if member.is_bot:
+			count += 1
+	return count
 
 
 func find_by_peer(peer_id: int) -> RoomMember:

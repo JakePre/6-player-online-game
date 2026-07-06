@@ -5,12 +5,19 @@ extends GutTest
 const VIEW_SCENE: PackedScene = preload("res://src/minigames/quick_draw/quick_draw_view.tscn")
 
 var view: MinigameView
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_setup_lines_up_rigs_with_lamp_and_labels() -> void:

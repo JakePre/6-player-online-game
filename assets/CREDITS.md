@@ -43,3 +43,9 @@ packs.
 | Tool | Path | License |
 |---|---|---|
 | GUT (Godot Unit Test) 9.4.0 (last release supporting Godot 4.4; 9.5+ needs 4.5) | `addons/gut/` | MIT — https://github.com/bitwes/Gut |
+
+## Data files
+
+| Data | Path | License |
+|---|---|---|
+| SDL_GameControllerDB community controller mappings (M17-01) | `assets/input/gamecontrollerdb.txt` | zlib — https://github.com/mdqinc/SDL_GameControllerDB |

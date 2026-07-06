@@ -3,6 +3,7 @@ extends GutTest
 ## shared iso-arena without simulating anything locally.
 
 var view: MinigameView
+var _saved_show_names := false
 
 
 func _instantiate_view() -> MinigameView:
@@ -13,8 +14,14 @@ func _instantiate_view() -> MinigameView:
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	view = _instantiate_view()
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_setup_stores_identity_context() -> void:
@@ -123,6 +130,30 @@ func test_zone_relocation_bursts_and_dusts() -> void:
 	var before: int = view.arena.get_child_count()
 	view.render({"players": {}, "zone": [5.0, 5.0, 3.0]})
 	assert_eq(view.arena.get_child_count(), before + 2, "burst at the old spot, dust at the new")
+
+
+## #587: firing a held Shove Blast plays the shove animation on the rig — the
+## held item clearing (while it was SHOVE) is the use-moment.
+func test_shove_use_plays_the_interact_animation() -> void:
+	(
+		view
+		. render(
+			{
+				"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]},
+				"zone": [],
+				"held": {0: KingOfTheHill.Item.SHOVE},
+			}
+		)
+	)
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]}, "zone": [], "held": {}})
+	assert_eq(view.rig_for_slot(0).current_action(), &"interact")
+
+
+## An Anchor use (not Shove) does not trigger the shove animation.
+func test_anchor_use_does_not_play_the_shove_animation() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0]}, "zone": [], "held": {0: KingOfTheHill.Item.ANCHOR}})
+	view.render({"players": {0: [0.0, 0.0, 0]}, "zone": [], "held": {}})
+	assert_ne(view.rig_for_slot(0).current_action(), &"interact")
 
 
 func test_zone_throbs_across_snapshots() -> void:

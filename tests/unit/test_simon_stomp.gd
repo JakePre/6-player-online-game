@@ -14,9 +14,11 @@ func _make_game(player_count: int) -> SimonStomp:
 	return game
 
 
-## Ticks from SHOW into INPUT (SHOW lasts length * SHOW_PER_PAD_SEC).
+## Ticks from SHOW into INPUT (SHOW lasts a lead-in beat plus length * SHOW_PER_PAD_SEC).
 func _enter_input(game: SimonStomp) -> void:
-	game.tick(game.sequence.size() * SimonStomp.SHOW_PER_PAD_SEC + 0.05)
+	game.tick(
+		SimonStomp.SHOW_LEAD_IN_SEC + game.sequence.size() * SimonStomp.SHOW_PER_PAD_SEC + 0.05
+	)
 	assert_eq(game.phase, SimonStomp.Phase.INPUT)
 
 
@@ -38,6 +40,16 @@ func test_setup_starts_in_show_with_starting_length() -> void:
 func test_show_advances_to_input() -> void:
 	var game := _make_game(2)
 	_enter_input(game)
+
+
+## #588: a lead-in beat holds SHOW before the first pad flash, so tapping the
+## sequence's would-be duration alone must not yet reach INPUT.
+func test_show_lead_in_delays_the_first_flash() -> void:
+	var game := _make_game(2)
+	game.tick(game.sequence.size() * SimonStomp.SHOW_PER_PAD_SEC - 0.05)
+	assert_eq(game.phase, SimonStomp.Phase.SHOW, "still watching — the lead-in hasn't elapsed yet")
+	game.tick(SimonStomp.SHOW_LEAD_IN_SEC + 0.1)
+	assert_eq(game.phase, SimonStomp.Phase.INPUT)
 
 
 func test_input_ignored_during_show() -> void:

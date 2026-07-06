@@ -2,7 +2,7 @@ extends MinigameView3D
 ## Finale Gauntlet client view (M8-12): renders the shrinking platform,
 ## telegraphed hazard discs, and players in the shared 2.5D iso-arena
 ## (M8-01). New build — the Gauntlet sim (M5-02) had server logic only.
-## Renders Gauntlet.get_snapshot() untouched: {radius, players:
+## Renders Gauntlet.get_snapshot() untouched: {radius, shrink_in, players:
 ## {slot: [x, y, lives, respawn_left]}, hazards: [[x, y, r, warn_left]]}.
 
 const PLATFORM_COLOR := Color(0.45, 0.43, 0.4)
@@ -15,6 +15,15 @@ const HAZARD_ARMED_COLOR := Color(0.7, 0.1, 0.05, 0.7)
 const HAZARD_FX_COLOR := Color(0.95, 0.35, 0.2)
 const CRUMBLE_PUFFS := 6
 const FX_LIFT := PLATFORM_THICKNESS + 0.1
+
+## Shrink telegraph (#583): the band the next shrink stage is about to shed
+## lights up for Gauntlet.SHRINK_WARN_SEC before it actually shrinks, reddening
+## as the countdown closes in. Steady under reduced motion; a slow pulse
+## otherwise (M13 telegraph convention).
+const SHRINK_TELEGRAPH_COLOR := Color(0.9, 0.2, 0.15)
+const SHRINK_TELEGRAPH_MIN_ALPHA := 0.35
+const SHRINK_TELEGRAPH_MAX_ALPHA := 0.85
+const SHRINK_TELEGRAPH_PULSE_SEC := 0.6
 
 ## Finale chrome (M16-11): themed intro treatment, elimination/grudge callout
 ## banners, and a champion sequence — presentation-only, built on the M16-01
@@ -37,6 +46,13 @@ var _hazard_nodes: Array[MeshInstance3D] = []
 var _last_radius := Gauntlet.START_RADIUS
 var _last_hazard_keys := {}  # quantized "x,y" -> Vector2 world pos (detonation FX)
 var _last_lives := {}  # slot -> lives (fall/KO burst)
+
+## Shrink telegraph (#583).
+var _shrink_in := Gauntlet.SHRINK_STAGE_SEC
+var _shrink_telegraph: MeshInstance3D
+var _shrink_telegraph_mesh: TorusMesh
+var _shrink_telegraph_mat: StandardMaterial3D
+var _shrink_base_alpha := 0.0
 
 ## Finale targeting (fixes the deferred "HUD targeting pass", #462). While
 ## alive, a sabotage token drops on the nearest living rival; once eliminated,
@@ -61,6 +77,16 @@ var _winner_shown := false
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
+
+
+## Pulses the shrink telegraph between snapshots so the warning reads as alive,
+## not a static tint — suppressed under reduced motion (a steady tint instead).
+func _process(_delta: float) -> void:
+	if _shrink_telegraph == null or not _shrink_telegraph.visible or ArenaFX.reduced_motion:
+		return
+	var phase := TAU * (Time.get_ticks_msec() / 1000.0) / SHRINK_TELEGRAPH_PULSE_SEC
+	var pulse := 0.75 + 0.25 * sin(phase)
+	_shrink_telegraph_mat.albedo_color.a = _shrink_base_alpha * pulse
 
 
 ## Alive: action_secondary spends a sabotage token on the nearest living rival.
@@ -196,6 +222,24 @@ func _setup_3d() -> void:
 	_platform.position = Vector3(0.0, PLATFORM_THICKNESS / 2.0, 0.0)
 	arena.add_child(_platform)
 
+	_shrink_telegraph_mesh = TorusMesh.new()
+	_shrink_telegraph_mesh.inner_radius = maxf(radius - 0.1, 0.05)
+	_shrink_telegraph_mesh.outer_radius = radius
+	_shrink_telegraph_mat = StandardMaterial3D.new()
+	_shrink_telegraph_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_shrink_telegraph_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_shrink_telegraph_mat.albedo_color = SHRINK_TELEGRAPH_COLOR
+	_shrink_telegraph_mat.emission_enabled = true
+	_shrink_telegraph_mat.emission = SHRINK_TELEGRAPH_COLOR
+	_shrink_telegraph_mesh.material = _shrink_telegraph_mat
+	_shrink_telegraph = MeshInstance3D.new()
+	_shrink_telegraph.name = "ShrinkTelegraph"
+	_shrink_telegraph.mesh = _shrink_telegraph_mesh
+	_shrink_telegraph.rotation.x = PI / 2.0  # lay flat on the platform
+	_shrink_telegraph.position = Vector3(0.0, PLATFORM_THICKNESS + 0.03, 0.0)
+	_shrink_telegraph.visible = false
+	arena.add_child(_shrink_telegraph)
+
 	_grudge_prompt = Label.new()
 	_grudge_prompt.name = "GrudgePrompt"
 	_grudge_prompt.theme_type_variation = PartyTheme.HEADER_VARIATION
@@ -216,6 +260,7 @@ func _setup_3d() -> void:
 
 func _render_3d(game: Dictionary) -> void:
 	radius = float(game.get("radius", Gauntlet.START_RADIUS))
+	_shrink_in = float(game.get("shrink_in", Gauntlet.SHRINK_STAGE_SEC))
 	players = game.get("players", {})
 	hazards = game.get("hazards", [])
 	# The Gauntlet intro treatment flashes once, the instant the finale starts
@@ -231,6 +276,7 @@ func _render_3d(game: Dictionary) -> void:
 	_last_radius = radius
 	_update_players()
 	_update_hazards()
+	_update_shrink_telegraph()
 	_update_grudge_prompt()
 	_check_winner()
 
@@ -305,6 +351,28 @@ func _update_hazards() -> void:
 		if not current_keys.has(key):
 			fx_burst(_last_hazard_keys[key], HAZARD_FX_COLOR, FX_LIFT)
 	_last_hazard_keys = current_keys
+
+
+## #583: lights the doomed band — the ring from the post-shrink radius out to
+## the current one — for the last Gauntlet.SHRINK_WARN_SEC before it lands,
+## reddening as the countdown closes in. Hidden once the platform bottoms out
+## at MIN_RADIUS (nothing left to telegraph).
+func _update_shrink_telegraph() -> void:
+	if _shrink_telegraph == null:
+		return
+	var doomed := radius > Gauntlet.MIN_RADIUS + 0.01 and _shrink_in <= Gauntlet.SHRINK_WARN_SEC
+	_shrink_telegraph.visible = doomed
+	if not doomed:
+		return
+	var next_radius := maxf(
+		radius - Gauntlet.shrink_per_stage_for(names.size()), Gauntlet.MIN_RADIUS
+	)
+	_shrink_telegraph_mesh.inner_radius = next_radius
+	_shrink_telegraph_mesh.outer_radius = radius
+	var urgency := 1.0 - clampf(_shrink_in / Gauntlet.SHRINK_WARN_SEC, 0.0, 1.0)
+	_shrink_base_alpha = lerpf(SHRINK_TELEGRAPH_MIN_ALPHA, SHRINK_TELEGRAPH_MAX_ALPHA, urgency)
+	if ArenaFX.reduced_motion:
+		_shrink_telegraph_mat.albedo_color.a = _shrink_base_alpha
 
 
 # --- Finale chrome (M16-11) ---------------------------------------------------

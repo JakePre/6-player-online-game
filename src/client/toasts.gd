@@ -1,3 +1,4 @@
+class_name Toasts
 extends Control
 ## Transient notification toasts (M6-03): short-lived messages stacked in the
 ## bottom-right corner for errors that need to surface on any screen (join
@@ -9,9 +10,11 @@ const DEFAULT_DURATION_SEC := 4.0
 @onready var _stack: VBoxContainer = %Stack
 
 
-## Every toast today is a refusal/disconnect notice (M16-10: the DANGER accent
-## reads correctly across every call site — see the callers in app_shell.gd).
-func show_toast(text: String, duration_sec: float = DEFAULT_DURATION_SEC) -> void:
+## Refusal/disconnect notices default to DANGER (M16-10); neutral or good
+## news (controller hot-plug, M17-01) passes its own semantic accent.
+func show_toast(
+	text: String, duration_sec: float = DEFAULT_DURATION_SEC, accent: Color = PartyTheme.DANGER
+) -> void:
 	var toast := PanelContainer.new()
 	toast.theme_type_variation = &"CardPanel"
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -19,7 +22,7 @@ func show_toast(text: String, duration_sec: float = DEFAULT_DURATION_SEC) -> voi
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.custom_minimum_size = Vector2(280, 0)
-	label.add_theme_color_override(&"font_color", PartyTheme.DANGER)
+	label.add_theme_color_override(&"font_color", accent)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	toast.add_child(label)
 	_stack.add_child(toast)

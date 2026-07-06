@@ -5,12 +5,19 @@ extends GutTest
 const VIEW_SCENE := preload("res://src/minigames/coin_scramble/coin_scramble_view.tscn")
 
 var view: MinigameView
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_setup_stores_identity_context() -> void:
@@ -55,6 +62,15 @@ func test_pickup_sparkles_once_seeded() -> void:
 	var before: int = view.arena.get_child_count()
 	view.render({"players": {0: [0.0, 0.0, 3]}, "coins": []})
 	assert_eq(view.arena.get_child_count(), before + 1, "count up = one sparkle")
+
+
+## #587: a bumped player's count drops (the sim scatters 20% of their haul) —
+## that reads as a burst, distinct from the pickup sparkle.
+func test_bump_scatter_bursts_when_count_drops() -> void:
+	view.render({"players": {0: [0.0, 0.0, 5]}, "coins": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [0.0, 0.0, 4]}, "coins": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "count down = one burst")
 
 
 func test_fresh_coins_dust_in_after_seeding() -> void:
