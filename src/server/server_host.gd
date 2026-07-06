@@ -16,6 +16,16 @@ func _ready() -> void:
 		return
 	# Machine-readable startup line; the soak harness waits for it.
 	print("SERVER READY port=%d protocol=%d" % [port, NetConfig.PROTOCOL_VERSION])
+	# Diagnostics trail (M18-06): always on; --debug-log raises to the firehose.
+	var level: int = (
+		DiagnosticsLog.Level.DEBUG if "--debug-log" in args else DiagnosticsLog.Level.INFO
+	)
+	DiagnosticsLog.configure("server", level)
+	DiagnosticsLog.event(
+		&"app",
+		&"boot",
+		{"version": AppVersion.VERSION, "protocol": NetConfig.PROTOCOL_VERSION, "port": port}
+	)
 	var updater := ServerUpdater.new()
 	updater.name = "ServerUpdater"  # the dashboard looks this child up (#172)
 	add_child(updater)

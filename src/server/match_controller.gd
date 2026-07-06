@@ -285,6 +285,19 @@ func _enter_countdown() -> void:
 func _enter_play() -> void:
 	state = State.PLAY
 	event_emitted.emit({"type": "round_started", "round": round_index + 1})
+	(
+		DiagnosticsLog
+		. event(
+			&"match",
+			&"round_start",
+			{
+				"room": room.code,
+				"round": round_index + 1,
+				"game": String(game.meta.id),
+				"slots": _round_slots,
+			}
+		)
+	)
 
 
 func _enter_results() -> void:
@@ -311,6 +324,21 @@ func _enter_results() -> void:
 		var adjusted := current_mutator.apply_end_transfer(_totals(), results.placements)
 		for member in room.members:
 			member.score = int(adjusted.get(member.slot, member.score))
+	(
+		DiagnosticsLog
+		. event(
+			&"match",
+			&"round_end",
+			{
+				"room": room.code,
+				"round": round_index + 1,
+				"game": String(game.meta.id),
+				"placements": results.placements,
+				"awards": awards,
+				"totals": _totals(),
+			}
+		)
+	)
 	(
 		event_emitted
 		. emit(
@@ -448,6 +476,9 @@ func _absentee_rows(next_placement: int) -> Array:
 func _finish_match() -> void:
 	state = State.DONE
 	room.state = Room.State.LOBBY
+	DiagnosticsLog.event(
+		&"match", &"match_end", {"room": room.code, "totals": _totals(), "rounds": round_index + 1}
+	)
 
 
 func _connected_slots() -> Array[int]:
