@@ -143,3 +143,83 @@ func test_apply_keybinds_rebinds_keyboard_keeps_gamepad() -> void:
 		func(e: InputEvent) -> bool: return e is InputEventKey
 	)
 	assert_eq((restored[0] as InputEventKey).physical_keycode, KEY_W)
+
+
+# --- Schema versioning, migration, reset (M18-01) ---
+
+
+func test_celestrum_is_the_default_server_address() -> void:
+	assert_eq(SettingsStore.DEFAULTS.server_address, "celestrum.com")
+	assert_eq(SettingsStore.load_settings().server_address, "celestrum.com", "fresh install")
+
+
+func test_save_stamps_the_current_schema_version() -> void:
+	SettingsStore.save_settings({"master_volume": 0.5})
+	var config := ConfigFile.new()
+	config.load(SettingsStore.PATH)
+	assert_eq(
+		int(config.get_value(SettingsStore.SECTION, SettingsStore.SCHEMA_KEY, -1)),
+		SettingsStore.SCHEMA_VERSION
+	)
+
+
+func test_legacy_unversioned_file_loads_and_keeps_choices() -> void:
+	# A file written before versioning: no schema_version key, real values.
+	var config := ConfigFile.new()
+	config.set_value(SettingsStore.SECTION, "master_volume", 0.4)
+	config.set_value(SettingsStore.SECTION, "player_name", "Jake")
+	config.save(SettingsStore.PATH)
+	var settings := SettingsStore.load_settings()
+	assert_almost_eq(float(settings.master_volume), 0.4, 0.001, "the choice survives")
+	assert_eq(settings.player_name, "Jake")
+
+
+func test_migrate_carries_a_renamed_key_forward() -> void:
+	# The mechanism the empty production MIGRATIONS list is built for: a value
+	# stored under an old key name lands on the new key instead of being lost.
+	var steps: Array[Dictionary] = [{"from": 0, "rename": {"old_name": "player_name"}}]
+	var migrated := SettingsStore.migrate({"old_name": "Ada"}, 0, steps)
+	assert_eq(migrated.get("player_name"), "Ada", "renamed forward")
+	assert_false(migrated.has("old_name"), "the old key is gone")
+
+
+func test_migrate_respects_an_already_present_new_key() -> void:
+	var steps: Array[Dictionary] = [{"from": 0, "rename": {"old_name": "player_name"}}]
+	var migrated := SettingsStore.migrate({"old_name": "Ada", "player_name": "Bo"}, 0, steps)
+	assert_eq(migrated.get("player_name"), "Bo", "an existing new value is not clobbered")
+
+
+func test_migrate_skips_steps_below_the_stored_version() -> void:
+	var steps: Array[Dictionary] = [{"from": 0, "rename": {"old_name": "player_name"}}]
+	# Stored version 1 is already past the from:0 step, so no rename applies.
+	var migrated := SettingsStore.migrate({"old_name": "Ada"}, 1, steps)
+	assert_true(migrated.has("old_name"), "already-migrated file is left alone")
+
+
+func test_defaults_returns_a_fresh_independent_copy() -> void:
+	var a := SettingsStore.defaults()
+	a.keybinds["move_up"] = 999
+	assert_false(SettingsStore.DEFAULTS.keybinds.has("move_up"), "deep copy, no shared state")
+
+
+func test_reset_section_restores_only_that_section() -> void:
+	var custom := SettingsStore.sanitize(
+		{"master_volume": 0.9, "player_name": "Jake", "fullscreen": true}
+	)
+	var reset := SettingsStore.reset_section(custom, "Audio")
+	assert_almost_eq(float(reset.master_volume), SettingsStore.DEFAULTS.master_volume, 0.001)
+	assert_eq(reset.player_name, "Jake", "other sections untouched")
+	assert_true(reset.fullscreen, "other sections untouched")
+
+
+func test_sections_partition_defaults_exactly() -> void:
+	# Every setting belongs to exactly one page — a new key with no section
+	# would be invisible in the UI, so this guards the mapping.
+	var covered := {}
+	for section: String in SettingsStore.SECTIONS:
+		for key: String in SettingsStore.SECTIONS[section]:
+			assert_true(key in SettingsStore.DEFAULTS, "%s is a real setting" % key)
+			assert_false(covered.has(key), "%s is in exactly one section" % key)
+			covered[key] = true
+	for key: String in SettingsStore.DEFAULTS:
+		assert_true(covered.has(key), "%s is assigned a section" % key)
