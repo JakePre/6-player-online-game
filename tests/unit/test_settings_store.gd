@@ -52,6 +52,7 @@ func test_save_load_round_trip() -> void:
 		"colorblind": true,
 		"reduced_motion": true,
 		"show_names": true,
+		"diagnostics_log": true,
 		"keybinds": {"move_up": KEY_UP},
 	}
 	SettingsStore.save_settings(settings)
@@ -223,3 +224,37 @@ func test_sections_partition_defaults_exactly() -> void:
 			covered[key] = true
 	for key: String in SettingsStore.DEFAULTS:
 		assert_true(covered.has(key), "%s is assigned a section" % key)
+
+
+# --- Client diagnostics log opt-in (M18-07, #632) -----------------------------
+
+
+func after_all() -> void:
+	# Belt-and-suspenders: a test enabling diagnostics_log calls apply(), which
+	# starts DiagnosticsLog for real — make sure nothing is left running/behind
+	# for the tests that follow in the same GUT run.
+	DiagnosticsLog._close()
+	var dir := DirAccess.open(DiagnosticsLog.LOG_DIR)
+	if dir != null:
+		for name in dir.get_files():
+			dir.remove(name)
+
+
+func test_diagnostics_log_is_off_by_default() -> void:
+	assert_false(SettingsStore.DEFAULTS.diagnostics_log)
+	assert_false(bool(SettingsStore.load_settings().diagnostics_log))
+
+
+func test_sanitize_coerces_diagnostics_log_to_a_bool() -> void:
+	assert_true(SettingsStore.sanitize({"diagnostics_log": 1}).diagnostics_log)
+	assert_false(SettingsStore.sanitize({}).diagnostics_log)
+
+
+func test_apply_starts_and_stops_the_diagnostics_log_live() -> void:
+	var settings := SettingsStore.defaults()
+	settings.diagnostics_log = true
+	SettingsStore.apply(settings, null)
+	assert_true(DiagnosticsLog.is_active(), "the toggle starts logging immediately")
+	settings.diagnostics_log = false
+	SettingsStore.apply(settings, null)
+	assert_false(DiagnosticsLog.is_active(), "and stops it immediately")

@@ -454,10 +454,12 @@ func _mount_view(id: String) -> void:
 	_minigame_view.shake_requested.connect(_on_shake_requested)
 	_play_area.add_child(_minigame_view)
 	_play_placeholder.visible = false
+	DiagnosticsLog.event(&"match", &"view_mount", {"game": id})
 
 
 func _unmount_view() -> void:
 	if _minigame_view != null:
+		DiagnosticsLog.event(&"match", &"view_unmount", {"game": _minigame_id})
 		_minigame_view.queue_free()
 		_minigame_view = null
 	_game_name_label.text = ""

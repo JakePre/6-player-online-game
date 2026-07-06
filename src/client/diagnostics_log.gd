@@ -52,6 +52,12 @@ func is_active() -> bool:
 	return _file != null
 
 
+## Public counterpart to configure(): flushes and closes the file. For the
+## client's opt-in log (M18-07), turned off live when the setting flips off.
+func stop() -> void:
+	_close()
+
+
 func current_path() -> String:
 	return _file.get_path() if _file != null else ""
 

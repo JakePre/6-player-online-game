@@ -14,8 +14,14 @@ func before_each() -> void:
 
 func after_each() -> void:
 	# The menu's _ready applies settings globally; restore factory state.
+	# DEFAULTS.diagnostics_log is false, so this also stops any log a test
+	# started; wipe the file(s) it left behind so runs don't accumulate them.
 	SettingsStore.apply(SettingsStore.DEFAULTS, null)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SettingsStore.PATH))
+	var log_dir := DirAccess.open(DiagnosticsLog.LOG_DIR)
+	if log_dir != null:
+		for name in log_dir.get_files():
+			log_dir.remove(name)
 
 
 func test_builds_one_rebind_row_per_action() -> void:
@@ -157,3 +163,35 @@ func test_ui_cancel_mid_capture_cancels_capture_not_screen() -> void:
 	assert_signal_not_emitted(menu, "navigate", "back cancels the capture, not the screen")
 	assert_eq(menu._capturing, "", "capture armed no more")
 	assert_eq((menu._bind_buttons["emote"] as Button).text, OS.get_keycode_string(KEY_T))
+
+
+# --- Diagnostics page (M18-07, #632) ------------------------------------------
+
+
+func test_diagnostics_card_is_registered_as_its_own_section() -> void:
+	assert_true(menu._cards.has("Diagnostics"), "a page exists for the store section")
+	assert_false(
+		(menu._cards["Diagnostics"] as PanelContainer).visible, "not the page shown by default"
+	)
+	assert_false(menu._diagnostics_toggle.button_pressed, "off by default")
+
+
+func test_diagnostics_section_button_switches_to_the_page() -> void:
+	menu._show_section("Diagnostics")
+	assert_true((menu._cards["Diagnostics"] as PanelContainer).visible)
+	assert_false((menu.get_node("%GameplayCard") as PanelContainer).visible)
+
+
+func test_diagnostics_toggle_starts_the_log_live_and_persists() -> void:
+	menu._diagnostics_toggle.button_pressed = true  # emits toggled -> _apply_and_save
+	assert_true(DiagnosticsLog.is_active(), "the toggle starts logging immediately")
+	assert_true(bool(SettingsStore.load_settings().diagnostics_log), "and persists the choice")
+
+
+func test_reset_diagnostics_section_turns_logging_back_off() -> void:
+	menu._diagnostics_toggle.button_pressed = true
+	assert_true(DiagnosticsLog.is_active())
+	menu._on_reset_section("Diagnostics")
+	assert_false(menu._diagnostics_toggle.button_pressed, "the UI re-seeds off")
+	assert_false(DiagnosticsLog.is_active(), "and logging actually stops")
+	assert_false(bool(SettingsStore.load_settings().diagnostics_log))

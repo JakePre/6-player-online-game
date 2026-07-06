@@ -69,6 +69,15 @@ func test_configure_writes_a_leveled_jsonl_file() -> void:
 	assert_eq(lines[1].room, "ABCDEF")
 
 
+func test_stop_is_the_public_opt_out_path() -> void:
+	# The client's opt-in log (M18-07) turns off live via this public wrapper
+	# rather than the underscore-prefixed internal _close().
+	DiagnosticsLog.configure("test", DiagnosticsLog.Level.INFO, "fixed")
+	assert_true(DiagnosticsLog.is_active())
+	DiagnosticsLog.stop()
+	assert_false(DiagnosticsLog.is_active())
+
+
 func test_level_gate_drops_below_threshold() -> void:
 	DiagnosticsLog.configure("test", DiagnosticsLog.Level.WARN, "fixed")
 	DiagnosticsLog.event(&"x", &"info_line")  # INFO < WARN, dropped
