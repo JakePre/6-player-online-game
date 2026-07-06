@@ -72,7 +72,8 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"loadout_duel",
-				"controls": "Move — A/D · Jump — W/Space · Fire — J · Throw — K",
+				"controls":
+				"Move — A/D / stick · Jump — W / stick up · Fire — SPACE / pad A · Throw — E / pad X",
 				"name": "Loadout Duel",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

@@ -49,3 +49,4 @@ packs.
 | Data | Path | License |
 |---|---|---|
 | SDL_GameControllerDB community controller mappings (M17-01) | `assets/input/gamecontrollerdb.txt` | zlib — https://github.com/mdqinc/SDL_GameControllerDB |
+| Kenney Music Jingles — round_start replaced with `jingles_NES12` (#591: the original, `jingles_NES00`, is a 1.8 s descending/decaying phrase that reads as "game over"; NES12 is a 0.9 s ascending stinger from the same 8-bit family as the win/lose cues). Sources fingerprinted: start=NES00→NES12, win=NES01, lose=NES03, leaderboard=PIZZI00, podium=STEEL00. | `assets/audio/kenney_music_jingles/round_start.ogg` | Kenney | CC0 1.0 | https://kenney.nl/assets/music-jingles |

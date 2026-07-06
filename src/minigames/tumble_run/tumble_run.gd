@@ -60,7 +60,7 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"tumble_run",
-				"controls": "Move — A/D · Jump — W/Space",
+				"controls": "Move — A/D / stick · Jump — W / stick up",
 				"name": "Tumble Run",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
