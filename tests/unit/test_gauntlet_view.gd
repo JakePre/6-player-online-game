@@ -440,3 +440,58 @@ func test_reduced_motion_sets_a_steady_alpha_without_pulsing() -> void:
 	var mat: StandardMaterial3D = telegraph.mesh.material
 	assert_almost_eq(mat.albedo_color.a, v._shrink_base_alpha, 0.001, "steady tint, no pulse math")
 	ArenaFX.reduced_motion = prior
+
+
+# --- Weapon pickups (#584) ------------------------------------------------------
+
+
+## 7-element player state: [x, y, lives, respawn, swings, swing_seq, hit_seq].
+func _armed_state(x: float, y: float, swings: int, swing_seq: int, hit_seq: int) -> Array:
+	return [x, y, 1, 0.0, swings, swing_seq, hit_seq]
+
+
+func test_floor_axes_render_and_a_grab_flashes() -> void:
+	view.render({"radius": 10.0, "players": {}, "hazards": [], "weapons": [[2.0, 3.0]]})
+	assert_eq(view._weapon_nodes.size(), 1, "one spinning axe per replicated pickup")
+	var before: int = view.arena.get_child_count()
+	view.render({"radius": 10.0, "players": {}, "hazards": [], "weapons": []})
+	assert_eq(view._weapon_nodes.size(), 0)
+	assert_gt(view.arena.get_child_count(), before - 1, "a burst marks the grab spot")
+
+
+func test_arming_shows_the_axe_and_the_nameplate_counts_swings() -> void:
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 3, 0, 0)}, "hazards": []})
+	var rig: CharacterRig = view.rig_for_slot(0)
+	assert_true(rig.has_held_weapon(), "the carrier holds the axe model")
+	assert_string_contains(rig.display_name, "⚔⚔⚔", "one glyph per swing left")
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 0, 3, 0)}, "hazards": []})
+	assert_false(rig.has_held_weapon(), "a spent axe leaves the hand")
+	assert_false(rig.display_name.contains("⚔"))
+
+
+func test_swing_seq_plays_the_attack_once_and_holds_it() -> void:
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 3, 0, 0)}, "hazards": []})
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 2, 1, 0)}, "hazards": []})
+	var rig: CharacterRig = view.rig_for_slot(0)
+	assert_eq(rig.current_action(), &"attack")
+	# The reaction hold keeps update_rig's walk/idle from stomping the swing.
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.2, 0.0, 2, 1, 0)}, "hazards": []})
+	assert_eq(rig.current_action(), &"attack", "same seq replays nothing and holds")
+
+
+func test_hit_seq_staggers_the_victim() -> void:
+	view.render({"radius": 10.0, "players": {1: _armed_state(1.0, 0.0, 0, 0, 0)}, "hazards": []})
+	view.render({"radius": 10.0, "players": {1: _armed_state(2.0, 0.0, 0, 0, 1)}, "hazards": []})
+	assert_eq(view.rig_for_slot(1).current_action(), &"hit")
+
+
+func test_mid_match_join_seeds_counters_without_replaying() -> void:
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 2, 7, 4)}, "hazards": []})
+	var rig: CharacterRig = view.rig_for_slot(0)
+	assert_true(rig.current_action() in [&"idle", &"walk"], "history is seeded, not replayed")
+
+
+func test_pre_weapon_snapshot_shape_is_tolerated() -> void:
+	view.render({"radius": 10.0, "players": {0: [1.0, 1.0, 1, 0.0]}, "hazards": []})
+	assert_false(view.rig_for_slot(0).has_held_weapon())
+	pass_test("4-element player arrays render without weapon state")

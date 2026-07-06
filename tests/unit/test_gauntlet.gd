@@ -217,10 +217,12 @@ func test_snapshot_shape() -> void:
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.radius, Gauntlet.START_RADIUS)
 	assert_eq(snapshot.players.size(), 2)
-	assert_eq(snapshot.players[0].size(), 4)
+	# #584 extended the per-player array with [swings_left, swing_seq, hit_seq].
+	assert_eq(snapshot.players[0].size(), 7)
 	assert_eq(snapshot.hazards.size(), 1)
 	assert_eq(snapshot.hazards[0].size(), 4)
 	assert_has(snapshot, "shrink_in")
+	assert_has(snapshot, "weapons")
 
 
 ## #583: the client telegraphs the doomed ring off shrink_in, which must count
@@ -331,3 +333,136 @@ func test_full_twentyfour_player_finale_resolves() -> void:
 		for slot: int in group:
 			seen[slot] = true
 	assert_eq(seen.size(), 24, "every player is ranked exactly once")
+
+
+# --- Weapon pickups (#584) ------------------------------------------------------
+
+
+func test_axes_spawn_on_cadence_up_to_the_cap() -> void:
+	var game := _gauntlet()
+	# Park both players away from the spawn band so nothing gets auto-grabbed.
+	game.positions[0] = Vector2(0.0, Gauntlet.START_RADIUS * 0.95)
+	game.positions[1] = Vector2(0.0, -Gauntlet.START_RADIUS * 0.95)
+	assert_eq(game.weapons.size(), 0)
+	_quiet_tick(game, Gauntlet.WEAPON_SPAWN_INTERVAL + 0.2)
+	assert_eq(game.weapons.size(), 1, "one axe per spawn interval")
+	assert_lte(
+		(game.weapons[0] as Vector2).length(),
+		Gauntlet.START_RADIUS * Gauntlet.WEAPON_SPAWN_BAND + 0.001,
+		"spawns land inside the safe band, never on the doomed rim"
+	)
+	_quiet_tick(game, Gauntlet.WEAPON_SPAWN_INTERVAL * 5)
+	assert_eq(game.weapons.size(), 1, "two alive players cap the floor at one axe")
+
+
+func test_walkover_grabs_the_axe_but_never_stacks() -> void:
+	var game := _gauntlet()
+	game.positions[0] = Vector2(2.0, 0.0)
+	game.positions[1] = Vector2(-5.0, 0.0)
+	game.weapons.append(Vector2(2.0, 0.0))
+	game.weapons.append(Vector2(2.3, 0.0))
+	game._hazard_accum = -INF
+	game.tick(TICK)
+	assert_eq(int(game.armed.get(0, 0)), Gauntlet.WEAPON_SWINGS, "walkover arms the player")
+	assert_eq(game.weapons.size(), 1, "an armed player cannot grab a second axe")
+
+
+func test_swing_spends_charges_and_the_axe_breaks_on_the_last() -> void:
+	var game := _gauntlet()
+	game.positions[1] = Vector2(-5.0, 0.0)
+	game.armed[0] = 2
+	game.handle_input(0, {"swing": true})
+	assert_eq(int(game.armed[0]), 1)
+	assert_eq(int(game.swing_seq[0]), 1, "each swing bumps the replicated counter")
+	game.handle_input(0, {"swing": true})
+	assert_eq(int(game.armed[0]), 1, "a press inside the cooldown spends nothing")
+	assert_eq(int(game.swing_seq[0]), 1)
+	game._swing_cooldowns.clear()
+	game.handle_input(0, {"swing": true})
+	assert_eq(int(game.armed.get(0, -1)), -1, "the axe breaks on its last swing")
+	assert_eq(int(game.swing_seq[0]), 2)
+	game._swing_cooldowns.clear()
+	game.handle_input(0, {"swing": true})
+	assert_eq(int(game.swing_seq[0]), 2, "no axe, no swing")
+
+
+func test_unarmed_swing_is_ignored() -> void:
+	var game := _gauntlet()
+	game.handle_input(0, {"swing": true})
+	assert_eq(int(game.swing_seq[0]), 0)
+
+
+func test_swing_launches_victims_in_reach_off_the_rim() -> void:
+	var game := _gauntlet([0, 1, 2])
+	# Victim 1 in reach near the rim; victim 2 well out of reach.
+	game.positions[0] = Vector2(Gauntlet.START_RADIUS - 2.5, 0.0)
+	game.positions[1] = Vector2(Gauntlet.START_RADIUS - 1.2, 0.0)
+	game.positions[2] = Vector2(-5.0, 0.0)
+	game.armed[0] = Gauntlet.WEAPON_SWINGS
+	game.handle_input(0, {"swing": true})
+	assert_eq(int(game.hit_seq[1]), 1, "the victim's hit counter bumps for the view")
+	assert_eq(int(game.hit_seq[2]), 0, "out of reach is untouched")
+	_quiet_tick(game, 1.0)
+	assert_eq(game.lives[1], 0, "launched over the rim — the fall check KOs them")
+	assert_eq(game.lives[2], 1)
+
+
+func test_swing_launch_from_center_is_never_lethal() -> void:
+	var game := _gauntlet()
+	game.positions[0] = Vector2.ZERO
+	game.positions[1] = Vector2(1.0, 0.0)
+	game.armed[0] = Gauntlet.WEAPON_SWINGS
+	game.handle_input(0, {"swing": true})
+	_quiet_tick(game, 2.0)
+	assert_eq(game.lives[1], 1, "a center hit flings but cannot ring out")
+	assert_gt(game.positions[1].x, 2.0, "the launch carried them away")
+
+
+func test_shield_absorbs_a_swing_and_breaks() -> void:
+	var game := _gauntlet()
+	game.apply_loadouts({1: {"items": {&"shield": 1}, "coins_left": 0}})
+	game.positions[0] = Vector2.ZERO
+	game.positions[1] = Vector2(1.0, 0.0)
+	game.armed[0] = Gauntlet.WEAPON_SWINGS
+	game.handle_input(0, {"swing": true})
+	assert_false(game.shields[1], "the shield broke")
+	assert_eq(int(game.hit_seq[1]), 0, "no stagger — the hit was absorbed")
+	_quiet_tick(game, 1.0)
+	assert_almost_eq(game.positions[1].x, 1.0, 0.1, "no knockback either")
+
+
+func test_armed_victims_drop_their_axe_where_they_stand() -> void:
+	var game := _gauntlet()
+	game.positions[0] = Vector2.ZERO
+	game.positions[1] = Vector2(1.0, 0.0)
+	game.armed[0] = Gauntlet.WEAPON_SWINGS
+	game.armed[1] = 2
+	game.handle_input(0, {"swing": true})
+	assert_false(game.armed.has(1), "the hit disarmed them")
+	assert_eq(game.weapons.size(), 1, "their axe dropped on the spot")
+	assert_almost_eq((game.weapons[0] as Vector2).x, 1.0, 0.001)
+
+
+func test_ko_takes_the_axe_with_them() -> void:
+	var game := _gauntlet([0, 1, 2])
+	game.armed[0] = Gauntlet.WEAPON_SWINGS
+	game.positions[0] = Vector2(game.radius + 1.0, 0.0)
+	game._hazard_accum = -INF
+	game.tick(TICK)
+	assert_eq(game.lives[0], 0)
+	assert_false(game.armed.has(0), "a KO disarms")
+	assert_eq(game.weapons.size(), 0, "no drop from a rim fall")
+
+
+func test_snapshot_carries_weapon_state() -> void:
+	var game := _gauntlet()
+	game.positions[0] = Vector2.ZERO
+	game.positions[1] = Vector2(1.0, 0.0)
+	game.weapons.append(Vector2(3.0, -2.0))
+	game.armed[0] = 2
+	game.handle_input(0, {"swing": true})
+	var snapshot := game.get_snapshot()
+	assert_eq(snapshot.weapons, [[3.0, -2.0]])
+	assert_eq(int(snapshot.players[0][4]), 1, "swings left on the held axe")
+	assert_eq(int(snapshot.players[0][5]), 1, "attacker swing_seq")
+	assert_eq(int(snapshot.players[1][6]), 1, "victim hit_seq")

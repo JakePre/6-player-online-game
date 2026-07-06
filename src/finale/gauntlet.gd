@@ -26,6 +26,26 @@ const PUSH_DISTANCE := 0.35
 
 const RESPAWN_SEC := 3.0
 
+## Weapon pickups (#584, owner decision 2026-07-06): battle axes drop on the
+## platform; walk over one to grab it, action_primary swings it. A swing is a
+## radial hit (it matches the client's spin animation, so no facing state) that
+## launches everyone in reach away from the attacker — the launch itself never
+## KOs, the rim does, via the existing falls check.
+const WEAPON_SPAWN_INTERVAL := 6.0
+const WEAPON_PICKUP_RADIUS := 0.8
+## Swings per axe; it breaks on the last one.
+const WEAPON_SWINGS := 3
+const SWING_RANGE := 1.9
+const SWING_COOLDOWN := 0.9
+## Impulse magnitude and its exponential decay rate: total launch distance is
+## KNOCKBACK / IMPULSE_DECAY = 3u — lethal near the rim, never from center
+## (the platform starts at 10u+).
+const SWING_KNOCKBACK := 18.0
+const IMPULSE_DECAY := 6.0
+## Fraction of the live radius weapons may spawn within, so a fresh axe never
+## sits on a rim about to be shed.
+const WEAPON_SPAWN_BAND := 0.8
+
 const HAZARD_WARN_SEC := 1.5
 const HAZARD_START_INTERVAL := 6.0
 const HAZARD_MIN_INTERVAL := 2.0
@@ -49,11 +69,23 @@ var hazards: Array[Dictionary] = []
 ## Slots in the order they were fully eliminated; simultaneous KOs share an
 ## inner array (a tie group).
 var elimination_order: Array = []
+## Floor axes waiting to be grabbed (#584).
+var weapons: Array[Vector2] = []
+## slot -> swings left on the held axe; absent = unarmed.
+var armed := {}
+## Monotonic per-slot counters so the view animates each swing / each hit taken
+## exactly once, however snapshots are sampled.
+var swing_seq := {}
+var hit_seq := {}
 
 var _respawn_left := {}
 var _hazard_accum := 0.0
+var _weapon_accum := 0.0
 var _stage_accum := 0.0
 var _pending_elims: Array = []
+## slot -> decaying knockback velocity from axe hits.
+var _impulses := {}
+var _swing_cooldowns := {}
 
 
 static func make_meta() -> MinigameMeta:
@@ -62,14 +94,18 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"gauntlet",
-				"controls": "Move — WASD / left stick · Sabotage — E / pad X",
+				"controls":
+				"Move — WASD / left stick · Swing axe — Space / pad A · Sabotage — E / pad X",
 				"name": "The Gauntlet",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
 				"max_players": 24,
 				"duration_sec": 180.0,
 				"rules":
-				"Last one standing wins the match! The platform shrinks and hazards rain down.",
+				(
+					"Last one standing wins the match! Grab an axe and swing rivals off"
+					+ " the shrinking platform — hazards rain down either way."
+				),
 			}
 		)
 	)
@@ -102,6 +138,8 @@ func _setup() -> void:
 		speed_boosts[slots[i]] = false
 		sabotage_tokens[slots[i]] = 0
 		grudges_left[slots[i]] = 0
+		swing_seq[slots[i]] = 0
+		hit_seq[slots[i]] = 0
 
 
 ## `shop_loadouts` is FinaleShop.loadouts(): {slot: {"items": {...}, ...}}.
@@ -126,6 +164,9 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 	if data.has("sabotage"):
 		_handle_sabotage(slot, data.sabotage)
 		return
+	if data.has("swing"):
+		_handle_swing(slot)
+		return
 	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
 	move_dirs[slot] = dir.limit_length(1.0)
 
@@ -134,7 +175,9 @@ func _tick(delta: float) -> void:
 	_tick_shrink(delta)
 	_tick_respawns(delta)
 	_move_players(delta)
+	_apply_impulses(delta)
 	_resolve_pushes()
+	_tick_weapons(delta)
 	_tick_hazards(delta)
 	_check_falls()
 	_flush_eliminations()
@@ -150,6 +193,11 @@ func get_snapshot() -> Dictionary:
 			snappedf(pos.y, 0.01),
 			int(lives[slot]),
 			snappedf(_respawn_left.get(slot, 0.0), 0.01),
+			# #584 weapon state: swings left on the held axe (0 = unarmed) and
+			# the monotonic swing/hit counters the view animates from.
+			int(armed.get(slot, 0)),
+			int(swing_seq[slot]),
+			int(hit_seq[slot]),
 		]
 	var hazard_list: Array = []
 	for hazard in hazards:
@@ -165,6 +213,9 @@ func get_snapshot() -> Dictionary:
 				]
 			)
 		)
+	var weapon_list: Array = []
+	for pos in weapons:
+		weapon_list.append([snappedf(pos.x, 0.01), snappedf(pos.y, 0.01)])
 	return {
 		"radius": snappedf(radius, 0.01),
 		# Seconds until the next shrink stage lands — the client derives the
@@ -172,6 +223,7 @@ func get_snapshot() -> Dictionary:
 		"shrink_in": snappedf(SHRINK_STAGE_SEC - _stage_accum, 0.01),
 		"players": players,
 		"hazards": hazard_list,
+		"weapons": weapon_list,
 	}
 
 
@@ -217,6 +269,74 @@ func _move_players(delta: float) -> void:
 	for slot: int in _active_slots():
 		var speed := MOVE_SPEED * (SPEED_BOOST_MULT if speed_boosts[slot] else 1.0)
 		positions[slot] += move_dirs[slot] * speed * delta
+
+
+## Axe-hit knockback rides a decaying velocity so a launch is a fling, not a
+## teleport — and the rim KO comes from the existing falls check, untouched.
+func _apply_impulses(delta: float) -> void:
+	for slot: int in _impulses.keys():
+		if not _is_alive(slot) or _respawn_left.has(slot):
+			_impulses.erase(slot)
+			continue
+		positions[slot] += _impulses[slot] * delta
+		_impulses[slot] *= exp(-IMPULSE_DECAY * delta)
+		if (_impulses[slot] as Vector2).length() < 0.1:
+			_impulses.erase(slot)
+
+
+## Spawns floor axes on a cadence (capped by head count) and arms whoever walks
+## over one — automatic, no button, and never while already armed.
+func _tick_weapons(delta: float) -> void:
+	for slot: int in _swing_cooldowns.keys():
+		_swing_cooldowns[slot] -= delta
+		if _swing_cooldowns[slot] <= 0.0:
+			_swing_cooldowns.erase(slot)
+	_weapon_accum += delta
+	if _weapon_accum >= WEAPON_SPAWN_INTERVAL and weapons.size() < _weapon_cap():
+		_weapon_accum = 0.0
+		var pos := Vector2(rng.randf_range(-radius, radius), rng.randf_range(-radius, radius))
+		weapons.append(pos.limit_length(radius * WEAPON_SPAWN_BAND))
+	for i in range(weapons.size() - 1, -1, -1):
+		for slot: int in _active_slots():
+			if armed.has(slot):
+				continue
+			if positions[slot].distance_to(weapons[i]) <= WEAPON_PICKUP_RADIUS:
+				armed[slot] = WEAPON_SWINGS
+				weapons.remove_at(i)
+				break
+
+
+## Concurrent floor-axe cap: one per six alive players, at least one.
+func _weapon_cap() -> int:
+	return 1 + _alive_slots().size() / 6
+
+
+## A swing is a radial strike: everyone in reach is flung away from the
+## attacker. Shields absorb it (and break); armed victims drop their axe on the
+## spot — attacking axe-carriers is how you disarm them.
+func _handle_swing(slot: int) -> void:
+	if not armed.has(slot) or _swing_cooldowns.has(slot):
+		return
+	_swing_cooldowns[slot] = SWING_COOLDOWN
+	armed[slot] = int(armed[slot]) - 1
+	if int(armed[slot]) <= 0:
+		armed.erase(slot)  # the axe breaks on its last swing
+	swing_seq[slot] = int(swing_seq[slot]) + 1
+	for victim: int in _active_slots():
+		if victim == slot:
+			continue
+		var apart: Vector2 = positions[victim] - positions[slot]
+		if apart.length() > SWING_RANGE:
+			continue
+		if shields[victim]:
+			shields[victim] = false
+			continue
+		var axis := apart.normalized() if apart.length() > 0.001 else Vector2.RIGHT
+		_impulses[victim] = _impulses.get(victim, Vector2.ZERO) + axis * SWING_KNOCKBACK
+		hit_seq[victim] = int(hit_seq[victim]) + 1
+		if armed.has(victim):
+			armed.erase(victim)
+			weapons.append(positions[victim])
 
 
 func _resolve_pushes() -> void:
@@ -268,6 +388,9 @@ func _check_end() -> void:
 
 
 func _knock_out(slot: int) -> void:
+	# A KO (or shield save) always ends the launch and drops the axe with them.
+	_impulses.erase(slot)
+	armed.erase(slot)
 	if shields[slot]:
 		# The bought shield absorbs one KO on the spot: no life lost, pulled
 		# back to safety instead of respawning.
