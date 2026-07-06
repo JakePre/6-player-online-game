@@ -8,6 +8,7 @@ Multiple agents (and humans) build this game concurrently and merge their own PR
 - **Duplicate issue batches:** two agents filed the same six playtest notes eleven minutes apart (#256–#261 vs #262–#267); six issues had to be closed as dupes before someone built the same fix twice.
 - **Red main:** #243 and #247 merged without the at-merge-time check while their tests disagreed with their own code; `main` was red for half an hour and a third agent had to stop feature work to fix it (#249).
 - **Merge starvation:** during the M13 sprint one green PR needed seven rebase cycles because other agents merged every ~3 minutes without yielding (#277).
+- **Invisible-branch duplicate:** two agents claimed M17-03 within minutes (#645 vs #646) and both built the full feature locally; neither branch was pushed until PR time, so the claim check showed nothing and one whole implementation (#648) was thrown away. Self-assigned claim issues + an immediately-pushed marker branch (§2) exist to close that window.
 - **Zombie PR:** a PR closed as superseded (#152) was reopened and merged anyway, silently overriding the fix that had already landed.
 - **Lost work:** two sessions ran out of budget with uncommitted work sitting in a working tree; it survived only because another agent went looking (#236, #145).
 - **Tag race:** two agents cut releases minutes apart, producing a `v0.4.1` numbered *behind* the already-published `v0.5.0`; the bogus tag and release had to be deleted.
@@ -27,17 +28,31 @@ The rules below make each of those a checked step instead of a surprise. **Guara
 Run the claim check — all three, not just one:
 
 ```sh
-gh issue list --state open          # open claims
-gh pr list --state open             # in-flight work
-git fetch origin && git branch -r   # pushed branches without a PR yet
+gh issue list --state open --search "<task-id>"   # is a claim issue already open for THIS task?
+gh issue list --state open --json number,title,assignees \
+  --jq '.[] | "\(.number) \(.assignees[0].login // "UNASSIGNED") \(.title)"'  # who holds each claim
+gh pr list --state open                            # in-flight work
+git fetch origin && git branch -r | grep <task-id> # pushed + marker branches
 ```
 
-A task is **taken** if any open issue, open PR, or remote branch references its ID. Then:
+A task is **taken** if any open issue, open PR, or remote branch references its ID. Two clarifications that have each burned an agent:
 
-1. **File the claim issue as your literal first action — before reading a single file.** The issue *is* the lock; the cost of a collision equals how long you run before detecting it, so the claim goes up before you invest any tokens in the work. Use the *Claim a plan task* template, titled with the task ID. In the **hotspot files** field, list every shared file (§4) you expect to touch — this is how other agents see collisions coming.
-2. Branch **from the fresh remote main**, never from a stale local main or another feature branch:
+- **An open issue whose title carries the task ID is *itself* the claim** — it needs no "claiming" comment, and it counts even when its body reads like a plain spec (Planned approach / Prerequisites). That is exactly the trap: seeing a task-ID issue and reading it as an available backlog item rather than someone's lock. If it looks abandoned, use the stale-claim path below — never just start it.
+- **Read the assignee.** A claim issue is self-assigned (below), so `gh issue list` shows its owner; an `UNASSIGNED` task-ID issue is unusual — treat it as taken anyway and ask in a comment before touching it.
+
+Then:
+
+1. **File the claim issue as your literal first action — before reading a single file.** The issue *is* the lock; the cost of a collision equals how long you run before detecting it, so the claim goes up before you invest any tokens in the work. Use the *Claim a plan task* template, titled with the task ID, and **self-assign it** so the lock is glanceable in `gh issue list` (no need to open every issue to see who holds it):
+   ```sh
+   gh issue create --title "<task-id> …" --body "…" --assignee @me
+   # or, claiming on an existing task-ID issue:
+   gh issue comment <n> --body "Claiming (<model>). …" && gh issue edit <n> --add-assignee @me
+   ```
+   In the **hotspot files** field, list every shared file (§4) you expect to touch — this is how other agents see collisions coming.
+2. Branch from the fresh remote main, **then push it immediately — before writing any code** — so the lock shows up as a remote branch within seconds, not only when the PR opens. A branch that lives only on your machine during a 20-minute build is invisible to every other agent's `git branch -r`; that window is where the M17-03 duplicate was built (both agents claimed within minutes, neither could see the other's local branch). The empty marker commit closes it:
    ```sh
    git fetch origin && git checkout -b feat/<task-id>-<slug> origin/main
+   git commit --allow-empty -m "claim: <task-id>" && git push -u origin HEAD
    ```
 3. If two claims race anyway, **the earliest-created issue wins** — and the same tiebreak applies to a racing branch or PR with no issue yet (lowest issue/PR number, else earliest push). The later claimant closes theirs with a comment and picks other work (precedent: #6 withdrew in favor of #4). A lost race costs one cheap withdrawal — that's the whole point of claiming before coding.
 
@@ -92,14 +107,15 @@ A task's PR may create/edit files only in the areas the plan's repo layout (IMPL
 
 This is how the coordinating agent actually drives git for every task. Follow it literally; every deviation below has caused a real incident.
 
-**1. Start clean, start fresh.** Never commit on `main`, and never branch from a stale local `main`:
+**1. Start clean, start fresh — and push the branch immediately (§2).** Never commit on `main`, and never branch from a stale local `main`:
 
 ```sh
 git checkout main && git pull
 git checkout -b <type>/<short-slug> origin/main   # feat/, fix/, docs/, test/
+git commit --allow-empty -m "claim: <task-id>" && git push -u origin HEAD   # make the lock visible now
 ```
 
-Branching from `origin/main` (not local `main`) means you can't inherit a stale base even if your pull raced another agent's merge.
+Branching from `origin/main` (not local `main`) means you can't inherit a stale base even if your pull raced another agent's merge. Pushing the marker branch before you write code makes the claim visible to `git branch -r` for the whole build, not just at PR time — the single biggest fix for the invisible-branch duplicate class (§2, M17-03).
 
 **2. Check the world before and during work.** `git fetch origin main` costs nothing; run it before claiming, before coding, and any time you've been heads-down for more than ~20 minutes. Also skim `gh pr list` and the claim issues — code that duplicates an in-flight PR is wasted budget.
 
