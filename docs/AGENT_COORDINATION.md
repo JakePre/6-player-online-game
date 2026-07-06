@@ -12,7 +12,7 @@ Multiple agents (and humans) build this game concurrently and merge their own PR
 - **Lost work:** two sessions ran out of budget with uncommitted work sitting in a working tree; it survived only because another agent went looking (#236, #145).
 - **Tag race:** two agents cut releases minutes apart, producing a `v0.4.1` numbered *behind* the already-published `v0.5.0`; the bogus tag and release had to be deleted.
 
-The rules below make each of those a checked step instead of a surprise. **Guarantee level:** following this procedure makes *textual* merge conflicts impossible for disjoint tasks and makes overlapping work visible before code is written. It cannot prevent two green PRs from disagreeing *semantically* — the merge queue (§5) plus CI on every merge is the net for that.
+The rules below make each of those a checked step instead of a surprise. **Guarantee level:** following this procedure makes *textual* merge conflicts impossible for disjoint tasks and makes overlapping work visible before code is written. It cannot prevent two green PRs from disagreeing *semantically* — the targeted rebase for shared-file PRs (§5) plus CI on every merge is the net for that.
 
 ---
 
@@ -20,7 +20,7 @@ The rules below make each of those a checked step instead of a surprise. **Guara
 
 1. **Claim before you code.** One task = one claim issue = one branch = one PR. If the claim check (§2) shows the task is taken, pick another task.
 2. **Touch only what you own.** Each task owns a path set (§3). Shared "hotspot" files have specific edit rules (§4). Anything outside both requires a comment on your claim issue *before* you edit it.
-3. **Queue your merges.** Agents do not merge manually. Run `gh pr merge --auto --merge` to enqueue your PR. GitHub's merge queue will test it against `main` and merge it serially, preventing rebase races.
+3. **Merge when green; rebase only when it matters.** `main` no longer requires branches to be up to date (owner decision, 2026-07-06), so a PR with green checks lands via `gh pr merge --auto --merge` the moment CI passes — no rebase treadmill for disjoint work. The one exception: if your PR changed a *shared framework file* (a §4 hotspot, or behavior under `src/minigames/_api/`, `src/net/`, `src/ui/party_theme.gd`, `src/client/settings_store.gd`), rebase onto `origin/main` and re-run the gate before merging, so a semantic clash with a PR that landed under you is caught before merge, not after. CI-on-`main` is the backstop (§7).
 
 ## 2. Claiming a task
 
@@ -120,7 +120,7 @@ Co-Authored-By: <your agent identity>
 
 **5. Push is your save button.** Push after every commit, not at the end. An unpushed branch dies with your session (two dead agents' work had to be forensically reconstructed). If your budget is running low, pushing takes priority over finishing — see §9.
 
-**6. PR against `main`, then enqueue it.** `gh pr create` with the claim issue linked (`Closes #N`). Branch protection requires the three checks green **on the current head** — after a force-push the old run is void, wait for the new one. Then run `gh pr merge --auto --merge` to add it to the merge queue. You do not need to babysit it; GitHub will rebase, test, and merge it sequentially.
+**6. PR against `main`, then merge when green.** `gh pr create` with the claim issue linked (`Closes #N`). Branch protection requires the three checks green **on the current head** — after a force-push the old run is void, wait for the new one. Then `gh pr merge --auto --merge --delete-branch`: with the up-to-date requirement off, a PR lands the instant its checks pass, so you rarely rebase. **Watch the post-merge CI run on `main`** — if your change and one that landed under you clash semantically, `main` goes red and fixing it is top priority (§7).
 
 **7. Tags are shared state — treat them like a merge.** Immediately before tagging: `git fetch --tags --force && gh release list`. Tag only a green `main`, one release in flight at a time. A mis-tag gets deleted (`gh release delete <tag> --cleanup-tag`) and re-cut correctly, announced on the issue (this is how the v0.4.1/v0.5.0 race was unwound).
 
@@ -128,12 +128,14 @@ Co-Authored-By: <your agent identity>
 
 ### Before opening a PR (and again before merging)
 
+Always run the full local gate below before you push — that is non-negotiable regardless of freshness. The rebase itself is now **conditional**: `main` does not require your branch to be current, so you only need to rebase-before-merge when your PR changed a *shared framework file* (§4 hotspots, or behavior under `src/minigames/_api/`, `src/net/`, `src/ui/party_theme.gd`, `src/client/settings_store.gd`) — that is where two independently-green PRs can break `main` together. Disjoint per-game/per-surface work can merge stale.
+
 ```sh
 git fetch origin main
-git merge-base --is-ancestor origin/main HEAD && echo up-to-date || echo REBASE-NEEDED
+git merge-base --is-ancestor origin/main HEAD && echo up-to-date || echo BEHIND-MAIN
 ```
 
-If `REBASE-NEEDED`: `git rebase origin/main`, re-run the local gate, force-push your feature branch:
+If `BEHIND-MAIN` **and** you touched a shared file: `git rebase origin/main`, re-run the local gate, force-push your feature branch:
 
 ```sh
 gdformat --check src tests && gdlint src tests
@@ -155,20 +157,22 @@ and unnecessary). **Known false positive:** a file that references a project aut
 That specific error is safe to ignore; anything else is a real parse error worth fixing before
 you push.
 
-### Merging (via Merge Queue)
+### Merging
+
+`main` does not require branches to be up to date (owner decision, 2026-07-06), so serialization is **optimistic, not enforced**: PRs merge when green, and the post-merge CI run on `main` is the net that catches any bad combination. GitHub's merge queue is not used — it is organization-only and this repo is user-owned.
 
 1. CI green **on the current head of the PR** — after any force-push the old run is void; wait for the new one. An earlier green run on a stale base does not count, ever.
-2. **Enqueue, don't merge.** Instead of manually rebasing to bypass staleness, add your PR to the merge queue: `gh pr merge --auto --merge`.
-3. GitHub will automatically group, update (rebase/merge), test, and land the PRs in the queue sequentially.
-4. If your PR fails in the queue (e.g. semantic conflict with a PR that just landed), GitHub will dequeue it. You must then pull the latest `main`, rebase locally, fix the conflict, and re-enqueue.
-5. **Delete your branch** after it successfully lands (GitHub can do this automatically), unless a stacked PR depends on it.
+2. `gh pr merge --auto --merge --delete-branch`. With the up-to-date requirement off, this lands the PR the instant its checks pass (or immediately, if they already are). No manual rebase for disjoint work.
+3. **Rebase-before-merge is a targeted step, not a default.** Do it when your PR changed a *shared framework file* (`src/minigames/_api/`, `src/net/`, `src/ui/party_theme.gd`, `src/client/settings_store.gd`, or another §4 hotspot's behavior) — that is where two independently-green PRs can break `main` together. Rebase onto `origin/main`, re-run the full local gate, force-push, wait for green, then merge. Disjoint per-game/per-surface work skips this.
+4. **Watch the post-merge run on `main`.** If it goes red — a semantic clash the individual PRs couldn't see — fixing it outranks all task work (§7): fix forward or revert your merge. Never leave a session with your merge's `main` run unwatched.
+5. **Textual conflicts still block the merge.** Git refuses a conflicting merge regardless; the later PR owns the rebase + resolution (below).
 
-### Merge queue etiquette (anti-starvation)
+### Merge etiquette
 
-Because GitHub handles serialization, the old "yield to the oldest PR" and "rebase-cycle starvation" problems are solved by the queue.
+With the up-to-date requirement off, the old "yield to the oldest PR" and rebase-cycle starvation problems are gone — a merge no longer staleness-bombs every other open PR.
 
-- **Queue and move on:** Once your PR is queued (`Auto-merge enabled`), you can start your next task. You no longer need to babysit the PR unless GitHub alerts you that it was dequeued due to a CI failure.
-- **Batch your own small PRs.** If you are about to land several S-sized changes in a row, prefer one PR with several commits over queuing three separate PRs.
+- **Merge and move on** — but glance at the post-merge `main` run (step 4) before you call it done; that is the only babysitting left.
+- **Batch your own small PRs.** Prefer one PR with several commits over three separate ones landing minutes apart.
 - **Never reopen a PR that was closed as superseded or duplicate.** The closure comment says where the fix went; if you disagree, argue on the *issue* — reopening and merging (#152) silently overrides work that already landed.
 
 ### Stacked PRs (discouraged)
@@ -228,7 +232,8 @@ Sessions die mid-task. Twice now, half-finished work survived only because someo
 
 ## 12. Recommended repo settings (owner action)
 
-These make §5's discipline machine-enforced instead of voluntary — recommended for @JakePre (requires admin):
+Current state (owner-configured 2026-07-06):
 
-- **Enable Merge Queue**: In repo settings, under branch protection for `main`, check "Require merge queue". This is required for agents to use `gh pr merge --auto --merge` without manually rebasing.
-- Branch protection on `main`: require status checks to pass. (The merge queue will handle testing branches before they land, making strict manual rebasing unnecessary).
+- **Up-to-date requirement is OFF** on `main`: PRs merge when their checks are green without being forced current with `main`, which kills the rebase treadmill. GitHub's **merge queue is not used** — it is organization-only and this repo is user-owned, so the setting does not exist here. The trade is a small semantic-clash risk between two independently-green PRs, caught by CI-on-`main` (§7) and the targeted rebase for shared-file PRs (§5).
+- Branch protection on `main` (keep as-is): the three required status checks (GDScript lint, Unit tests (GUT), Multiplayer soak), a PR required before merging, no force-push, no deletion, admin enforcement on. "Allow auto-merge" stays on so `--auto` lands green PRs without babysitting.
+- If optimistic merging ever gets noisy (repeated red `main` from semantic clashes), the one-toggle rollback is to re-check "Require branches to be up to date before merging" — back to serialized-but-churny.
