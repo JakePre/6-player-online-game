@@ -69,10 +69,12 @@ var _lag_queue: Array[Dictionary] = []
 var _snapshot_accum := 0.0
 var _server_tick := 0
 var _expiry_accum := 0.0
-## Practice-bot input cadence (#577): drivers keyed "code:slot", pumped every
-## BOT_INPUT_INTERVAL_SEC like a human client's send_match_input.
+## Practice-bot input cadence (#577): brains keyed "code:slot" (M19, #684),
+## pumped every BOT_INPUT_INTERVAL_SEC like a human client's send_match_input.
+## Each entry is {"id": StringName, "brain": BotBrain}; the brain is rebuilt
+## whenever the round's minigame changes.
 var _bot_input_accum := 0.0
-var _bot_drivers := {}
+var _bot_brains := {}
 
 
 func _ready() -> void:
@@ -652,9 +654,10 @@ func _tick_matches(delta: float) -> void:
 
 
 ## Feed each practice bot (#577) a random intent on the input cadence, exactly
-## as a human client would RPC one. The controller drops intents outside
-## PLAY/FINALE_PLAY, so pumping through intros/results is harmless. Drivers are
-## seeded per (room, slot) for distinct-but-deterministic behavior.
+## as a human client would RPC one. Goal-seeking brains (M19, #684) receive
+## exactly what that player's client would see — the room's match snapshot
+## plus their own private snapshot (#254) — and never touch the sim directly.
+## Games without a dedicated brain fall back to the pre-M19 random driver.
 func _drive_bots(delta: float) -> void:
 	_bot_input_accum += delta
 	if _bot_input_accum < BOT_INPUT_INTERVAL_SEC:
@@ -664,15 +667,38 @@ func _drive_bots(delta: float) -> void:
 		var controller: MatchController = match_controllers[code]
 		if controller.room == null:
 			continue
+		# Only these states accept gameplay/shop input; skipping the rest also
+		# keeps brain lifecycles simple (one brain per round).
+		if (
+			controller.state
+			not in [
+				MatchController.State.PLAY,
+				MatchController.State.FINALE_PLAY,
+				MatchController.State.FINALE_SHOP,
+			]
+		):
+			continue
+		# One shared room snapshot per pump; per-bot privates below (#254).
+		var match_state := controller.get_snapshot()
+		# The finale shop carries no minigame id; it belongs to the gauntlet
+		# brain, which handles both phases.
+		var active_id := StringName(String(match_state.get("minigame", "gauntlet")))
 		for member: RoomMember in controller.room.members:
 			if not member.is_bot:
 				continue
 			var key := "%s:%d" % [code, member.slot]
-			var driver: BotInputDriver = _bot_drivers.get(key)
-			if driver == null:
-				driver = BotInputDriver.new(hash(key))
-				_bot_drivers[key] = driver
-			controller.handle_input(member.slot, driver.next_intent())
+			var entry: Dictionary = _bot_brains.get(key, {})
+			if entry.is_empty() or entry.id != active_id:
+				entry = {
+					"id": active_id,
+					"brain": BotBrains.brain_for(active_id, member.slot, hash(key)),
+				}
+				_bot_brains[key] = entry
+			var intent: Dictionary = (entry.brain as BotBrain).think(
+				match_state, controller.private_snapshot_for(member.slot)
+			)
+			if not intent.is_empty():
+				controller.handle_input(member.slot, intent)
 
 
 func _broadcast_snapshots() -> void:

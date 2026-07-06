@@ -255,6 +255,22 @@ individually — M18 is the framework work. Model tiers designated here and in
 - [x] **M18-06** (M, Opus) Server diagnostics log (owner directive 2026-07-06): a shared `DiagnosticsLog` helper (JSONL, level-gated, buffered writes, per-process file with size/retention rotation, a crash hook that writes uncaught script errors) + always-on server wiring at every lifecycle/net/match/timing/error point per [DIAGNOSTICS.md](DIAGNOSTICS.md)'s catalog. `--debug-log` raises to the DEBUG firehose (per-tick timing, snapshot sizes, input rates). Never costs tick time. Turns vague "it crashed everyone" reports into a timestamped trail ⛓ none
 - [x] **M18-07** (M, Sonnet/Opus) Client diagnostics log, opt-in: a `diagnostics_log` setting (Settings 2.0, default off) that mirrors the client-side session — connect/disconnect/join/leave/version-mismatch, view mounts, device changes, perf spikes, script errors (shared crash hook) — to `user://logs/client-*.log` in the same format; a Diagnostics settings page with the toggle + **Open log folder** / **Copy log path** so a tester can attach it to a bug report (pairs with #609). No-op overhead when off ⛓ M18-06 (shares the helper). Follow-up (incremental, like M18-06's DEBUG firehose): per-snapshot cadence/gap tracking and interpolation-teleport events aren't wired yet
 
+### M19 — Goal-seeking bot AI (owner directive 2026-07-06: bots that play and understand every game — abilities, goals)
+
+Bots (practice mode #577, playtest/nightly #560) upgrade from random input
+to per-game goal-seeking brains. Architecture (M19-01): `BotBrain` base +
+`BotBrains` registry (`src/core/bots/`), fed by the server's bot pump with
+exactly what a human client sees — the match snapshot + own private snapshot
+(#254) — never raw sim access, so bots can't cheat or mutate state. Games
+without a brain fall back to the old random driver, so per-game tasks are
+independently claimable with zero risk to uncovered games (the M4/M8/M13
+fan-out pattern; roster issue #685). Each brain: read the game's snapshot
+contract, chase the actual win condition, use its abilities; GUT-test pure
+`think()` calls on crafted snapshots (see `tests/unit/test_bot_brains.gd`).
+
+- [x] **M19-01** (L, Fable) Brain framework + registry + pump wiring + seven archetype brains: coin_scramble (collector), king_of_the_hill (zone-holder + item use), thin_ice (surface avoider), meteor_shower (telegraph dodger), hurdle_dash (racer), tug_of_war (masher), gauntlet (finale shop priorities + survival) ⛓ none
+- [ ] **M19-02..** per-game brains for the remaining roster — one game = one claim = one PR, enumerated in #685 (S each, Sonnet/Opus by game complexity; hidden-role games are Opus) ⛓ M19-01
+
 ## 6. Suggested build order / critical path
 
 ```
