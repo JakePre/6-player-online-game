@@ -36,6 +36,7 @@ var _updater: Updater
 @onready var _port_edit: LineEdit = %PortEdit
 @onready var _status_label: Label = %StatusLabel
 @onready var _update_button: Button = %UpdateButton
+@onready var _server_status: ServerStatusChip = %ServerStatus
 
 
 func _ready() -> void:
@@ -72,6 +73,10 @@ func _ready() -> void:
 	if override_port > 0:
 		_port_edit.text = str(override_port)
 	_setup_update_flow()
+	# Probe the server the player would actually reach (the resolved default,
+	# after session/settings/advanced overrides) so the chip reports on the same
+	# target Host/Join will use (#607).
+	_server_status.configure(_address_edit.text, int(_port_edit.text))
 	_apply_button_motion()
 	_host_button.grab_focus()
 

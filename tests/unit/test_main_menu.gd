@@ -23,6 +23,7 @@ const REQUIRED_NODES: Array[String] = [
 	"PortEdit",
 	"StatusLabel",
 	"UpdateButton",
+	"ServerStatus",
 ]
 
 

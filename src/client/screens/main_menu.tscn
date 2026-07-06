@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://src/client/screens/main_menu.gd" id="1"]
 [ext_resource type="Script" path="res://src/ui/menu_backdrop.gd" id="2"]
+[ext_resource type="Script" path="res://src/client/screens/server_status_chip.gd" id="3"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -84,6 +85,11 @@ horizontal_alignment = 1
 [node name="HeroGap" type="Control" parent="Center/Card/Pad/Column"]
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
+
+[node name="ServerStatus" type="PanelContainer" parent="Center/Card/Pad/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("3")
 
 [node name="NameRow" type="HBoxContainer" parent="Center/Card/Pad/Column"]
 layout_mode = 2
