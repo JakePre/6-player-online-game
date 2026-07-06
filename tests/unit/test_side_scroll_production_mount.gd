@@ -33,6 +33,15 @@ func test_base_builds_layers_when_setup_stage_precedes_ready() -> void:
 	)
 	add_child_autofree(view)
 	assert_eq(view._platform_nodes.size(), 1, "stage built with lazily-ensured layers")
+	# The discriminating check (credit #597): on the broken code _make_platform()
+	# still returns a Panel and it still gets appended — just never parented,
+	# because add_child ran on a null layer. Count alone passes on the bug; a
+	# real *parented* node under the layer is what proves the fix.
+	var panel: Node = view._platform_nodes[0]
+	assert_true(is_instance_valid(panel), "the platform is a real node")
+	assert_not_null(
+		panel.get_parent(), "and it is actually parented (not orphaned by a null layer)"
+	)
 
 
 func test_each_game_view_survives_setup_before_ready() -> void:
@@ -45,6 +54,13 @@ func test_each_game_view_survives_setup_before_ready() -> void:
 		add_child_autofree(view)
 		view.size = Vector2(800.0, 600.0)
 		assert_gt(view._platform_nodes.size(), 0, "%s built its stage before _ready" % id)
+		# Parented, not just present (credit #597): the null-layer bug leaves
+		# these orphaned, so the count passes on the broken build but the parent
+		# check does not.
+		var panel: Node = view._platform_nodes[0]
+		assert_not_null(panel.get_parent(), "%s parented its platforms to a real layer" % id)
 		# A render on the now-mounted view must not crash either.
 		view.render({"players": {0: entry.sample}})
-		assert_not_null(view.rig_for_slot(0), "%s rendered a rig after production mount" % id)
+		var rig: Node = view.rig_for_slot(0)
+		assert_not_null(rig, "%s rendered a rig after production mount" % id)
+		assert_not_null(rig.get_parent(), "%s parented the rig to the rig layer" % id)
