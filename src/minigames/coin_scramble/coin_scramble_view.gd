@@ -42,6 +42,11 @@ func _process(_delta: float) -> void:
 		node.position.y = COIN_HOVER + sin(now * 2.0 + i) * COIN_BOB
 
 
+## Warm gold floor to match the coin-grab theme (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.94, 0.78)
+
+
 func _arena_half() -> float:
 	# Sim and view derive the same play size from the lobby count via the shared
 	# base const, so the rendered floor/camera match the scaled arena (M15).

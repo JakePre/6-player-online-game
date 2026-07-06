@@ -31,6 +31,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			NetManager.send_match_input({"dash": true})
 
 
+## Warm tatami-tan floor for the sumo ring (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.91, 0.76)
+
+
 func _arena_half() -> float:
 	return SumoSmash.PLATFORM_RADIUS + 2.0
 

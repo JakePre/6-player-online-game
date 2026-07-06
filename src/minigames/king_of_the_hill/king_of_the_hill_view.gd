@@ -47,6 +47,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Cool mossy-green hilltop floor (#589).
+func _floor_tint() -> Color:
+	return Color(0.85, 0.96, 0.85)
+
+
 func _arena_half() -> float:
 	# Grow the framed floor with the lobby to match the sim's scaled play area
 	# (M15, ADR 003 F4); at <=6 players this is the tuned KingOfTheHill.ARENA_HALF.

@@ -266,6 +266,15 @@ func _arena_half() -> float:
 	return 10.0
 
 
+## Per-game floor tint (#589), multiplied over the native Kenney tile color so
+## each arena can have its own hue instead of every game reusing the identical
+## grey platform. Default white = the neutral shared look; override with a
+## gentle tint (keep it near white so the tile texture still reads) to give a
+## game character. A one-liner per game — no scene work.
+func _floor_tint() -> Color:
+	return Color.WHITE
+
+
 func _setup_3d() -> void:
 	pass
 
@@ -348,7 +357,11 @@ func _build_camera() -> void:
 func _build_floor() -> void:
 	var tile := FLOOR_TILE_SCENE.instantiate()
 	var tile_meshes := tile.find_children("*", "MeshInstance3D", true, false)
-	var mesh: Mesh = (tile_meshes[0] as MeshInstance3D).mesh if not tile_meshes.is_empty() else null
+	var mesh_instance := tile_meshes[0] as MeshInstance3D if not tile_meshes.is_empty() else null
+	var mesh: Mesh = mesh_instance.mesh if mesh_instance != null else null
+	var base_material: Material = (
+		mesh_instance.get_active_material(0) if mesh_instance != null else null
+	)
 	tile.free()
 	if mesh == null:
 		return
@@ -372,7 +385,19 @@ func _build_floor() -> void:
 	var floor_node := MultiMeshInstance3D.new()
 	floor_node.name = "Floor"
 	floor_node.multimesh = multimesh
+	floor_node.material_override = _floor_material(base_material)
 	arena.add_child(floor_node)
+
+
+## The floor's material, tinted per game (#589). Duplicates the native Kenney
+## tile material so its texture/look is preserved, then multiplies in
+## _floor_tint() — white by default, so an un-overridden game is unchanged.
+func _floor_material(base: Material) -> Material:
+	var mat: StandardMaterial3D = (
+		base.duplicate() if base is StandardMaterial3D else StandardMaterial3D.new()
+	)
+	mat.albedo_color = mat.albedo_color * _floor_tint()
+	return mat
 
 
 func _build_character_rigs() -> void:

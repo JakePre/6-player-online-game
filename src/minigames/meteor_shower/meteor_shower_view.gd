@@ -40,6 +40,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Warm ember/ash floor under the falling meteors (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.84, 0.74)
+
+
 func _arena_half() -> float:
 	# Sim and view derive the same play size from the lobby count via the
 	# shared base const, so the rendered floor/camera match the scaled arena.
