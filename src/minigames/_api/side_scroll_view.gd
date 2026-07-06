@@ -33,6 +33,18 @@ var _drift := 0.0
 
 
 func _ready() -> void:
+	_ensure_layers()
+
+
+## Layer construction is lazy + idempotent: the production mount order
+## (match_screen._mount_view) calls setup() → _setup() → setup_stage() BEFORE
+## add_child fires _ready(), so building only in _ready() left _platform_layer
+## null at setup_stage() time and crashed every side-scroll game at round start
+## (#575). Mirrors MinigameView3D, which builds its scene tree from _setup().
+## Safe to add_child a layer before this node is itself in the tree.
+func _ensure_layers() -> void:
+	if _platform_layer != null:
+		return
 	set_process_internal(true)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_backdrop = _layer()
@@ -45,6 +57,7 @@ func _ready() -> void:
 ## Stage geometry, in the sim's y-up world units. Call from _setup() with
 ## the exact rects the server sim uses so what players see is the truth.
 func setup_stage(solids: Array[Rect2], one_way: Array[Rect2], world_bounds: Rect2) -> void:
+	_ensure_layers()
 	_stage_solids = solids
 	_stage_one_way = one_way
 	_world = world_bounds
@@ -60,6 +73,7 @@ func setup_stage(solids: Array[Rect2], one_way: Array[Rect2], world_bounds: Rect
 ## Feed SideScrollSim.snapshot_players() output; missing slots keep their
 ## last pose, unknown slots get rigs on first sight.
 func render_side_scroll(players: Dictionary) -> void:
+	_ensure_layers()
 	for slot: int in players:
 		var sample: Array = players[slot]
 		if sample.size() < 4:
