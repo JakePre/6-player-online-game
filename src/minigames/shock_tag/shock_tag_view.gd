@@ -23,6 +23,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Cool electric-blue floor for the shock arena (#589).
+func _floor_tint() -> Color:
+	return Color(0.82, 0.9, 1.0)
+
+
 func _arena_half() -> float:
 	return ShockTag.ARENA_HALF
 
