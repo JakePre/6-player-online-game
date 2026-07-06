@@ -1,0 +1,92 @@
+# Render bot games for human audit (#626): when a PR touches a minigame, record
+# a short mp4 of that game being played by practice bots and attach it as an
+# artifact — review the change by *watching* it instead of rallying playtesters.
+# Also runnable on demand for any game via workflow_dispatch.
+#
+# NOT a required check: a render hiccup must never block a green PR. The video
+# is honest wall-time capture (xvfb + ffmpeg x11grab, Mesa software GL) — see
+# tests/soak/render_game.py for the mechanism and the local (movie-mode) path.
+name: Render games
+
+on:
+  workflow_dispatch:
+    inputs:
+      game:
+        description: "Minigame id (e.g. coin_scramble)"
+        required: true
+      bots:
+        description: "Practice bots playing"
+        default: "5"
+      duration:
+        description: "Round duration override (seconds)"
+        default: "30"
+  pull_request:
+    paths:
+      - "src/minigames/**"
+
+env:
+  GODOT_VERSION: 4.4.1
+
+jobs:
+  matrix:
+    name: Changed games
+    runs-on: ubuntu-latest
+    outputs:
+      games: ${{ steps.detect.outputs.games }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect changed minigames
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            games=$(printf '%s' "${{ inputs.game }}" | jq -R . | jq -sc .)
+          else
+            # src/minigames/<id>/... -> <id>; _api and friends are framework, not games.
+            games=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- 'src/minigames/**' \
+              | awk -F/ 'NF >= 3 { print $3 }' | grep -v '^_' | sort -u | jq -R . | jq -sc .)
+          fi
+          echo "games=$games" >> "$GITHUB_OUTPUT"
+          echo "rendering: $games"
+
+  render:
+    name: Render ${{ matrix.game }}
+    needs: matrix
+    if: needs.matrix.outputs.games != '[]' && needs.matrix.outputs.games != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.matrix.outputs.games) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
+          chmod +x godot-bin
+      - name: Install xvfb
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+      - name: Import resources
+        run: ./godot-bin --headless --import || true
+      - name: Render ${{ matrix.game }}
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            python3 tests/soak/render_game.py --godot ./godot-bin \
+              --game "${{ matrix.game }}" \
+              --bots "${{ inputs.bots || '5' }}" \
+              --duration "${{ inputs.duration || '30' }}" \
+              --software-gl --out renders
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-${{ matrix.game }}
+          path: renders/*.mp4
+          retention-days: 30
+      - name: Link in summary
+        run: |
+          echo "### 🎬 ${{ matrix.game }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Video uploaded as artifact \`render-${{ matrix.game }}\` (Actions run page → Artifacts)." >> "$GITHUB_STEP_SUMMARY"

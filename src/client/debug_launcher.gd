@@ -10,20 +10,24 @@ extends Node
 ## screens take it from there exactly as for a real player.
 ##
 ## User args: --debug-minigame=<id> [--address=127.0.0.1] [--port=7777]
-##            [--name=Dev]
+##            [--name=Dev] [--debug-bots=N] [--debug-duration=S]
+##
+## --debug-bots=N (#626): request N server-owned practice bots (#577) before
+## force-starting, so the round is actually played instead of an empty arena —
+## the render-bot-games pipeline records exactly this. --debug-duration=S
+## overrides the round duration (seconds) so a render is a tight clip.
 
 var minigame_id: StringName = &""
+var bot_count := 0
+var duration_sec := 0.0
 var _address := "127.0.0.1"
 var _port := NetConfig.DEFAULT_PORT
 var _player_name := "Dev"
+var _bots_requested := false
 
 
 func _ready() -> void:
-	var args := OS.get_cmdline_user_args()
-	minigame_id = StringName(NetManager._arg_value(args, "--debug-minigame", ""))
-	_address = NetManager._arg_value(args, "--address", _address)
-	_port = int(NetManager._arg_value(args, "--port", str(_port)))
-	_player_name = NetManager._arg_value(args, "--name", _player_name)
+	configure(OS.get_cmdline_user_args())
 
 	MinigameCatalog.register_builtins()
 	if not MinigameCatalog.is_registered(minigame_id):
@@ -57,14 +61,54 @@ func _ready() -> void:
 		_abort("connect_to_server call failed")
 
 
+## Arg parsing, split from _ready so tests can drive it without a network.
+func configure(args: PackedStringArray) -> void:
+	minigame_id = StringName(NetManager._arg_value(args, "--debug-minigame", ""))
+	_address = NetManager._arg_value(args, "--address", _address)
+	_port = int(NetManager._arg_value(args, "--port", str(_port)))
+	_player_name = NetManager._arg_value(args, "--name", _player_name)
+	# One slot is this client; a request past the cap would silently stall the
+	# member-count wait in _on_room_updated, so clamp instead.
+	bot_count = clampi(
+		int(NetManager._arg_value(args, "--debug-bots", "0")), 0, NetConfig.MAX_PLAYERS_PER_ROOM - 1
+	)
+	duration_sec = maxf(0.0, float(NetManager._arg_value(args, "--debug-duration", "0")))
+
+
+## The force-start payload (server honours it only under --debug-rpcs). Pure,
+## so tests can assert the duration override without a live server.
+func start_config() -> Dictionary:
+	var config := {"playlist": [minigame_id], "rounds": 1, "debug_force_start": true}
+	if duration_sec > 0.0:
+		config["duration_override"] = duration_sec
+	return config
+
+
 func _on_connected() -> void:
 	NetManager.request_create_room(_player_name)
 
 
 func _on_joined_room(_code: String, _slot: int, _token: String) -> void:
-	NetManager.request_start_match(
-		{"playlist": [minigame_id], "rounds": 1, "debug_force_start": true}
-	)
+	if bot_count <= 0:
+		_start()
+		return
+	# Bots join asynchronously: each add triggers a room_updated broadcast, so
+	# start once the roster shows everyone (#626).
+	NetManager.room_updated.connect(_on_room_updated)
+	_bots_requested = true
+	for _i in bot_count:
+		NetManager.request_add_bot()
+
+
+func _on_room_updated(state: Dictionary) -> void:
+	var members: Array = state.get("members", [])
+	if _bots_requested and members.size() >= 1 + bot_count:
+		_bots_requested = false
+		_start()
+
+
+func _start() -> void:
+	NetManager.request_start_match(start_config())
 
 
 func _on_match_event(event: Dictionary) -> void:
