@@ -415,7 +415,9 @@ func test_results_condense_for_large_lobbies() -> void:
 ## M16-07: the intro card's key-art slot stays hidden (styled text fallback) when
 ## no art file has been delivered for the round's minigame.
 func test_intro_key_art_hidden_without_art() -> void:
-	NetManager.match_event_received.emit(_intro_event())
+	var event := _intro_event()
+	event.minigame.id = "non_existent_game"
+	NetManager.match_event_received.emit(event)
 	var key_art: TextureRect = screen.get_node("%IntroKeyArt")
 	assert_false(key_art.visible, "no art on disk -> the text lockup is the fallback")
 	assert_null(key_art.texture)

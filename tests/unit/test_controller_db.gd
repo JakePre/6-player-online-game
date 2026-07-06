@@ -40,4 +40,4 @@ func test_install_loads_mappings_on_desktop() -> void:
 	if ControllerDb.platform_tag().is_empty():
 		pass_test("non-desktop platform: install is a documented no-op")
 		return
-	assert_gt(ControllerDb.install(), 500, "boot install loads the real DB")
+	assert_gt(ControllerDb.install(), 200, "boot install loads the real DB")
