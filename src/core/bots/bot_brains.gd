@@ -16,6 +16,10 @@ const BRAINS := {
 	&"hurdle_dash": preload("res://src/core/bots/brains/hurdle_dash_brain.gd"),
 	&"tug_of_war": preload("res://src/core/bots/brains/tug_of_war_brain.gd"),
 	&"gauntlet": preload("res://src/core/bots/brains/gauntlet_brain.gd"),
+	# Hidden-role / rotating-role batch (M19-02, #686).
+	&"the_mole": preload("res://src/core/bots/brains/the_mole_brain.gd"),
+	&"faulty_wiring": preload("res://src/core/bots/brains/faulty_wiring_brain.gd"),
+	&"trap_corridor": preload("res://src/core/bots/brains/trap_corridor_brain.gd"),
 }
 
 
