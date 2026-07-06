@@ -30,6 +30,9 @@ signal match_started(room: Room)
 const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
 ## Server-side floor between quick emotes from one player (anti-spam).
 const EMOTE_COOLDOWN_MS := 1000
+## How often the server pumps a practice bot's intent (#577), matching the
+## human client input cadence.
+const BOT_INPUT_INTERVAL_SEC := 0.25
 
 var is_server := false
 var room_manager: RoomManager
@@ -62,6 +65,10 @@ var _lag_queue: Array[Dictionary] = []
 var _snapshot_accum := 0.0
 var _server_tick := 0
 var _expiry_accum := 0.0
+## Practice-bot input cadence (#577): drivers keyed "code:slot", pumped every
+## BOT_INPUT_INTERVAL_SEC like a human client's send_match_input.
+var _bot_input_accum := 0.0
+var _bot_drivers := {}
 
 
 func _ready() -> void:
@@ -140,6 +147,15 @@ func request_set_ready(ready: bool) -> void:
 ## Host-only: remove another lobby member from the room (#141).
 func request_kick(slot: int) -> void:
 	_rpc_kick.rpc_id(1, slot)
+
+
+## Host-only: add / remove a server-owned practice bot (#577).
+func request_add_bot() -> void:
+	_rpc_add_bot.rpc_id(1)
+
+
+func request_remove_bot() -> void:
+	_rpc_remove_bot.rpc_id(1)
 
 
 func request_set_character(character_id: StringName) -> void:
@@ -474,6 +490,28 @@ func _rpc_kicked() -> void:
 	left_room.emit()
 
 
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_add_bot() -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null or room.state != Room.State.LOBBY:
+		return
+	if room.add_bot() != null:
+		_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_remove_bot() -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null or room.state != Room.State.LOBBY:
+		return
+	if room.remove_last_bot() != null:
+		_broadcast_room_state(room)
+
+
 @rpc("authority", "call_remote", "reliable")
 func _rpc_room_state(state: Dictionary) -> void:
 	my_room_state = state
@@ -529,6 +567,7 @@ func _run_server_ticks(delta: float) -> void:
 
 
 func _tick_matches(delta: float) -> void:
+	_drive_bots(delta)
 	for code: String in match_controllers.keys():
 		if not room_manager.rooms.has(code):
 			# Room emptied or expired out from under the match.
@@ -539,6 +578,30 @@ func _tick_matches(delta: float) -> void:
 		if controller.is_done():
 			match_controllers.erase(code)
 			_broadcast_room_state(controller.room)
+
+
+## Feed each practice bot (#577) a random intent on the input cadence, exactly
+## as a human client would RPC one. The controller drops intents outside
+## PLAY/FINALE_PLAY, so pumping through intros/results is harmless. Drivers are
+## seeded per (room, slot) for distinct-but-deterministic behavior.
+func _drive_bots(delta: float) -> void:
+	_bot_input_accum += delta
+	if _bot_input_accum < BOT_INPUT_INTERVAL_SEC:
+		return
+	_bot_input_accum = 0.0
+	for code: String in match_controllers:
+		var controller: MatchController = match_controllers[code]
+		if controller.room == null:
+			continue
+		for member: RoomMember in controller.room.members:
+			if not member.is_bot:
+				continue
+			var key := "%s:%d" % [code, member.slot]
+			var driver: BotInputDriver = _bot_drivers.get(key)
+			if driver == null:
+				driver = BotInputDriver.new(hash(key))
+				_bot_drivers[key] = driver
+			controller.handle_input(member.slot, driver.next_intent())
 
 
 func _broadcast_snapshots() -> void:

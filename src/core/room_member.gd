@@ -10,6 +10,10 @@ var session_token := ""
 var score := 0
 var connected := true
 var join_order := 0
+## Server-owned practice bot (#577), not backed by a real peer. Auto-ready,
+## counts for caps/scoreboards like any member, and the server synthesizes
+## its match inputs. Never eligible to be host.
+var is_bot := false
 ## Lobby ready-up flag (M2-02). Only meaningful while the room is in LOBBY;
 ## cleared when a match starts.
 var ready := false
@@ -26,4 +30,5 @@ func to_dict() -> Dictionary:
 		"connected": connected,
 		"ready": ready,
 		"character_id": character_id,
+		"is_bot": is_bot,
 	}

@@ -255,3 +255,74 @@ func test_find_by_slot() -> void:
 	room.add_member(200, "Bob", "t2")
 	assert_eq(room.find_by_slot(alice.slot), alice)
 	assert_null(room.find_by_slot(99), "unknown slot")
+
+
+# --- Practice bots (#577) ---
+
+
+func test_add_bot_takes_a_real_slot_and_auto_readies() -> void:
+	var room := _room_with(1)
+	var bot := room.add_bot()
+	assert_not_null(bot)
+	assert_true(bot.is_bot)
+	assert_true(bot.ready, "bots never block can_start")
+	assert_true(bot.connected)
+	assert_eq(bot.peer_id, 0, "no backing peer")
+	assert_eq(bot.slot, 1, "lowest free slot")
+	assert_string_contains(bot.display_name, "Bot")
+	assert_eq(room.bot_count(), 1)
+
+
+func test_bots_count_toward_full_and_can_start() -> void:
+	var room := _room_with(1)  # one human host
+	assert_false(room.can_start(), "a lone unready human cannot start")
+	room.members[0].ready = true
+	room.add_bot()
+	assert_true(room.can_start(), "host + a ready bot reaches MIN_PLAYERS")
+
+
+func test_bot_is_never_host() -> void:
+	var room := Room.new()
+	room.code = "TESTAA"
+	var human := room.add_member(100, "Alice", "t1")
+	var bot := room.add_bot()
+	assert_eq(room.host(), human)
+	# Even if the only real member disconnects, a bot does not inherit host.
+	human.connected = false
+	assert_null(room.host(), "no human left → no host, never the bot")
+	assert_false(bot.is_bot == false)
+
+
+func test_remove_last_bot_removes_the_newest_bot_only() -> void:
+	var room := _room_with(1)
+	var bot_a := room.add_bot()
+	var bot_b := room.add_bot()
+	var removed := room.remove_last_bot()
+	assert_eq(removed, bot_b, "the newest bot goes first")
+	assert_eq(room.bot_count(), 1)
+	assert_true(room.members.has(bot_a), "the older bot stays")
+	assert_true(room.members.has(room.members[0]), "the human stays")
+
+
+func test_remove_last_bot_is_null_when_no_bots() -> void:
+	var room := _room_with(2)
+	assert_null(room.remove_last_bot())
+
+
+func test_add_bot_refused_when_full_or_mid_match() -> void:
+	var room := _room_with(1)
+	room.state = Room.State.IN_MATCH
+	assert_null(room.add_bot(), "no adding bots mid-match")
+	room.state = Room.State.LOBBY
+	while not room.is_full():
+		room.add_bot()
+	assert_null(room.add_bot(), "no adding past the cap")
+	assert_eq(room.members.size(), NetConfig.MAX_PLAYERS_PER_ROOM)
+
+
+func test_bot_flag_replicates_in_state_dict() -> void:
+	var room := _room_with(1)
+	room.add_bot()
+	var dicts: Array = room.to_state_dict().members
+	assert_true(dicts[0].is_bot == false, "the human is not a bot")
+	assert_true(dicts[1].is_bot, "the bot flag rides the snapshot")
