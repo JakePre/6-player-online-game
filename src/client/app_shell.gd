@@ -43,6 +43,11 @@ func _ready() -> void:
 	NetManager.server_disconnected.connect(_on_server_disconnected)
 	_reconnect_overlay.closed.connect(_on_reconnect_closed)
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
+	# Pads plugged in before launch never fire joy_connection_changed
+	# (M18-05 first-run audit): acknowledge them once the shell is up, so a
+	# player who sat down with a controller knows the game sees it.
+	for device in Input.get_connected_joypads():
+		_on_joy_connection_changed.call_deferred(device, true)
 	goto_screen(&"main_menu")
 
 

@@ -48,7 +48,8 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"knock_off",
-				"controls": "Move — A/D · Jump — W/Space · Jab — J · Smash — K",
+				"controls":
+				"Move — A/D / stick · Jump — W / stick up · Jab — SPACE / pad A · Smash — E / pad X",
 				"name": "Knock-Off",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
