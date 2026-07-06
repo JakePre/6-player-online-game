@@ -50,3 +50,27 @@ func test_clear_pop_is_edge_triggered() -> void:
 	var after_first := _ripple_count()
 	view.render({"phase": SimonStomp.Phase.INPUT, "round": 0, "round_cleared": {0: true}})
 	assert_eq(_ripple_count(), after_first, "a held cleared flag does not re-pop")
+
+
+## #588: a lead-in beat holds every pad dim before the first flash, so players'
+## eyes have landed on the board before the sequence starts.
+func test_lead_in_keeps_every_pad_dim_before_the_first_flash() -> void:
+	view.render({"phase": SimonStomp.Phase.SHOW, "round": 0, "sequence": [1, 2]})
+	view._show_timer = SimonStomp.SHOW_LEAD_IN_SEC - 0.05
+	view._update_pads()
+	for pad in 4:
+		assert_almost_eq(
+			view._pad_materials[pad].emission_energy_multiplier,
+			view.DIM,
+			0.001,
+			"pad %d stays dim during the lead-in" % pad
+		)
+
+
+## #588: each flashed pad plays its own distinct note instead of one shared tick.
+func test_each_flashed_pad_plays_its_own_distinct_sfx() -> void:
+	view.render({"phase": SimonStomp.Phase.SHOW, "round": 0, "sequence": [2, 0]})
+	watch_signals(view)
+	view._show_timer = SimonStomp.SHOW_LEAD_IN_SEC + 0.01
+	view._update_pads()
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [view.PAD_SFX[2]])
