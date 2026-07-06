@@ -44,6 +44,12 @@ var _viewport: SubViewport
 var _camera_rig: IsoCameraRig
 var _rigs := {}  # slot (int) -> CharacterRig
 var _rig_last_pos := {}  # slot (int) -> Vector2, for walk/idle + facing
+# Slots whose rig has been revealed at least once (#601). Rigs are pooled
+# hidden and shown on first update_rig()/reveal_rig(), so a disconnected
+# member — present in `names` but never in a round's snapshot — leaves no
+# frozen ghost. One-shot, so a game's later deliberate hide (KO, elimination)
+# is not fought.
+var _rig_revealed := {}
 # slot (int) -> {from: Vector2, to: Vector2, at: float, interval: float};
 # per-frame interpolation targets (M12-04).
 var _rig_samples := {}
@@ -105,6 +111,21 @@ func rig_for_slot(slot: int) -> CharacterRig:
 	return _rigs.get(slot)
 
 
+## Reveals a pooled rig the first time a round actually uses its slot (#601),
+## so a disconnected member's rig never appears. One-shot: after the first
+## reveal the game owns the rig's visibility (deliberate KO/elimination hides
+## are not fought). Stationary-rig views that never call update_rig (e.g.
+## Bullseye Bowl) call this directly for the slots in their snapshot.
+func reveal_rig(slot: int) -> void:
+	if slot in _rig_revealed:
+		return
+	var rig: CharacterRig = _rigs.get(slot)
+	if rig == null:
+		return
+	_rig_revealed[slot] = true
+	rig.visible = true
+
+
 # --- One-shot FX (M13-01): fire-and-forget wrappers over ArenaFX --------------
 
 
@@ -134,6 +155,7 @@ func update_rig(slot: int, world_pos: Vector2, height: float = 0.0) -> void:
 	var rig: CharacterRig = _rigs.get(slot)
 	if rig == null:
 		return
+	reveal_rig(slot)
 	var last: Vector2 = _rig_last_pos.get(slot, world_pos)
 	var delta := world_pos - last
 	_record_rig_sample(slot, rig, to_arena(world_pos, height))
@@ -354,6 +376,9 @@ func _build_character_rigs() -> void:
 		rig.player_color = player_color(slot)
 		rig.display_name = player_name(slot)
 		rig.nameplate_priority = 1 if slot == my_slot else 0
+		# Pooled hidden (#601): revealed on the slot's first update_rig() /
+		# reveal_rig(). Slots never present in a round's snapshot stay invisible.
+		rig.visible = false
 		arena.add_child(rig)
 		_rigs[slot] = rig
 
