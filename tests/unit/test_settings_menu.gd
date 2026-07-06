@@ -77,3 +77,59 @@ func test_show_names_toggle_off_by_default_and_reaches_minigame_view() -> void:
 	assert_false(toggle.button_pressed, "nameplates are off out of the box")
 	toggle.button_pressed = true
 	assert_true(MinigameView.show_names, "the toggle reaches every view")
+
+
+# --- Settings 2.0 sectioned pages + reset (M18-01 part 2, #612) ----------------
+
+
+func test_section_bar_has_a_button_per_store_section() -> void:
+	var bar: HBoxContainer = menu.get_node("%SectionBar")
+	assert_eq(bar.get_child_count(), SettingsStore.SECTIONS.size())
+
+
+func test_section_buttons_switch_visible_page() -> void:
+	assert_true((menu.get_node("%GameplayCard") as PanelContainer).visible, "Gameplay opens first")
+	assert_false((menu.get_node("%AudioCard") as PanelContainer).visible)
+	menu._show_section("Audio")
+	assert_true((menu.get_node("%AudioCard") as PanelContainer).visible)
+	assert_false((menu.get_node("%GameplayCard") as PanelContainer).visible)
+
+
+## Regression for the pre-part-2 wipe: the old screen rebuilt settings from
+## its own controls only, so touching any slider erased keys it didn't own
+## (player_name). Saving now overlays onto the stored settings.
+func test_touching_a_slider_preserves_player_name() -> void:
+	var settings := SettingsStore.load_settings()
+	settings.player_name = "Ada"
+	SettingsStore.save_settings(settings)
+	(menu.get_node("%NameEdit") as LineEdit).text = "Ada"  # mirror what a reopen would seed
+	(menu.get_node("%MasterSlider") as HSlider).value = 42.0  # emits -> _apply_and_save
+	assert_eq(
+		String(SettingsStore.load_settings().player_name), "Ada", "unrelated edits keep the name"
+	)
+
+
+func test_reset_section_restores_only_that_page() -> void:
+	(menu.get_node("%MasterSlider") as HSlider).value = 42.0
+	(menu.get_node("%AddressEdit") as LineEdit).text = "myhost.example"
+	menu._apply_and_save()
+	menu._on_reset_section("Audio")
+	var saved := SettingsStore.load_settings()
+	assert_eq(float(saved.master_volume), float(SettingsStore.DEFAULTS.master_volume))
+	assert_eq(String(saved.server_address), "myhost.example", "other sections keep their values")
+	assert_eq(
+		(menu.get_node("%MasterSlider") as HSlider).value,
+		float(SettingsStore.DEFAULTS.master_volume) * 100.0,
+		"the UI re-seeds from the reset"
+	)
+
+
+func test_reset_all_restores_factory_defaults_including_celestrum() -> void:
+	(menu.get_node("%AddressEdit") as LineEdit).text = "myhost.example"
+	(menu.get_node("%MasterSlider") as HSlider).value = 42.0
+	menu._apply_and_save()
+	menu._on_reset_all()
+	var saved := SettingsStore.load_settings()
+	assert_eq(String(saved.server_address), "celestrum.com", "the default server comes back")
+	assert_eq(float(saved.master_volume), float(SettingsStore.DEFAULTS.master_volume))
+	assert_eq((menu.get_node("%AddressEdit") as LineEdit).text, "celestrum.com")
