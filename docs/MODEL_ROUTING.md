@@ -73,6 +73,34 @@ agent: check here before re-deriving this from scratch.
 | ~~Epic #256~~ (M13 tracking issue) | ✅ closed |
 | ~~#467~~ cache per-tick alive set | ✅ closed |
 
+## Human playtest wave (2026-07-05 evening, 8-player lobby ×2)
+
+Two human playtests (owner + #570) triaged by Fable into scoped issues.
+**Suggested order:** #575 first (three games unplayable, root-caused), then
+#577 (unblocks the owner testing everything else), then #576 (systemic
+readability, root-caused, cheap). The rest are parallel.
+
+| Issue | Task | Model |
+|---|---|---|
+| **#575** | [CRITICAL] side-scroll games broken in real matches — SideScrollView setup-before-ready null crash (root cause + fix sketch in the issue; tests were order-blind) | **Opus** |
+| **#577** | [HIGH] practice mode — host adds bots in the lobby to test any game solo | **Opus** |
+| **#576** | bottom banner text clipped in every game — `make_banner` grow direction (root-caused, two-line fix + sweep) | **Sonnet** |
+| #578 | Thin Ice desync (died without ice breaking) | Opus |
+| #579 | Target Range mouse aim + firing feedback | Opus |
+| #586 | Memory Match objective unclear — classify bug vs UX | Opus |
+| #581 | choosable player colors (PlayerPalette override funnel + lobby UI) | Opus |
+| #585 | Shred Session device-aware control labels + lane arrows + drum SFX (coordinate with M17) | Opus |
+| #584 | Gauntlet weapons-or-better-push | ⛔ owner design call, then Opus |
+| #589 | per-game floor variation (shared MultiMesh tint hook, then per-game tints) | Opus → Sonnet |
+| #580 | nameplates off by default + settings toggle | Sonnet |
+| #582 | Trap Corridor: announce who is setting traps (⛓ #576) | Sonnet |
+| #583 | Gauntlet ring-shrink telegraph | Sonnet (Opus if sim must expose timing) |
+| #587 | juice batch 1: Coin Scramble bump-burst, KotH shove anim, Sumo dash FX, Rumble Ring SFX | Sonnet |
+| #588 | juice batch 2: Simon Stomp start delay/flash, Bullseye Bowl lane colors, Treasure Divers pool dressing | Sonnet |
+| #590 | replace remaining grey backgrounds with the animated backdrop | Sonnet |
+| #591 | match-start jingle swap | Sonnet |
+| #592 | emote rate-limit tuning | Sonnet |
+
 ## Project review findings (2026-07-05)
 
 From the full audit in [PROJECT_REVIEW.md](PROJECT_REVIEW.md). These are the
