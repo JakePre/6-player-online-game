@@ -8,7 +8,18 @@ extends MinigameView3D
 ## decorative: the round loop is the vibe, the replicated clock is the truth.
 
 const LANE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"action_primary"]
+## Flat direction glyph per lane, shown on the screen-space HUD header (#585) —
+## unambiguous where the old iso-projected Label3D arrows were hard to read.
 const LANE_LABELS: Array[String] = ["◀", "▶", "▲", "●"]
+## Per-lane drum one-shot (#585): a distinct hit per lane replaces the single
+## reused "alarm" tone. Procedurally generated originals (CC0), played on the
+## SFX bus so the mixer/settings still apply.
+const LANE_DRUMS: Array[String] = [
+	"res://assets/audio/shred_drums/kick.wav",
+	"res://assets/audio/shred_drums/snare.wav",
+	"res://assets/audio/shred_drums/hat.wav",
+	"res://assets/audio/shred_drums/tom.wav",
+]
 const LANE_COLORS: Array[Color] = [
 	Color(0.95, 0.35, 0.4),  # left
 	Color(0.35, 0.6, 0.95),  # right
@@ -44,6 +55,12 @@ var _score_rows := {}  # slot -> Label
 var _scoreboard: VBoxContainer
 var _my_last_event := 0
 
+## Screen-space lane-header glyph labels (#585): the device-aware bound input
+## per lane, refreshed live on InputGlyphs.device_changed.
+var _lane_glyph_labels: Array[Label] = []
+## One AudioStreamPlayer per lane, preloaded with that lane's drum (#585).
+var _lane_players: Array[AudioStreamPlayer] = []
+
 
 func _arena_half() -> float:
 	return 8.0
@@ -54,6 +71,9 @@ func _setup_3d() -> void:
 	_build_hitline()
 	_build_rig_row()
 	_build_hud()
+	_build_lane_headers()
+	_build_drums()
+	InputGlyphs.device_changed.connect(_on_device_changed)
 
 
 func _process(_delta: float) -> void:
@@ -110,20 +130,8 @@ func _build_hitline() -> void:
 	bar.mesh = mesh
 	bar.position = to_arena(Vector2(0.0, HIT_Z), 0.08)
 	arena.add_child(bar)
-	# A colored arrow target sits on the line under each lane.
-	for lane in ShredSession.LANES:
-		var tag := Label3D.new()
-		tag.name = "LaneTarget%d" % lane
-		tag.text = LANE_LABELS[lane]
-		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		tag.no_depth_test = true
-		tag.fixed_size = true
-		tag.pixel_size = 0.005
-		tag.font_size = 48
-		tag.outline_size = 14
-		tag.modulate = LANE_COLORS[lane]
-		tag.position = to_arena(Vector2(LANE_X[lane], HIT_Z), 0.9)
-		arena.add_child(tag)
+	# Lane identity now reads off the flat screen-space header (_build_lane_headers,
+	# #585) — the old iso-projected Label3D arrows were ambiguous on the grid.
 
 
 ## Players stand in a row across the back of the highway, facing the camera.
@@ -173,6 +181,66 @@ func _build_hud() -> void:
 	_scoreboard.position = Vector2(-16.0, 16.0)
 	_scoreboard.add_theme_constant_override(&"separation", PartyTheme.SPACE_XS)
 	add_child(_scoreboard)
+
+
+## Flat, screen-space lane headers (#585): a row of chips along the bottom, one
+## per lane in left-to-right order, each a clear direction arrow plus the
+## device-aware bound input below it. Replaces the iso-projected Label3D arrows.
+func _build_lane_headers() -> void:
+	var row := HBoxContainer.new()
+	row.name = "LaneHeaders"
+	row.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	row.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	row.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	row.position.y = -24.0
+	row.add_theme_constant_override(&"separation", PartyTheme.SPACE_MD)
+	add_child(row)
+	_lane_glyph_labels.clear()
+	for lane in ShredSession.LANES:
+		var chip := VBoxContainer.new()
+		chip.alignment = BoxContainer.ALIGNMENT_CENTER
+		var arrow := Label.new()
+		arrow.text = LANE_LABELS[lane]
+		arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		arrow.add_theme_font_size_override(&"font_size", PartyTheme.SIZE_HEADER)
+		arrow.add_theme_color_override(&"font_color", LANE_COLORS[lane])
+		chip.add_child(arrow)
+		var glyph := Label.new()
+		glyph.theme_type_variation = PartyTheme.SMALL_VARIATION  # SmallLabel — smaller text
+		glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		chip.add_child(glyph)
+		row.add_child(chip)
+		_lane_glyph_labels.append(glyph)
+	_refresh_lane_glyphs()
+
+
+## One preloaded player per lane on the SFX bus (#585), so a strum fires that
+## lane's drum without contending for the shared chrome SFX pool.
+func _build_drums() -> void:
+	_lane_players.clear()
+	for lane in ShredSession.LANES:
+		var player := AudioStreamPlayer.new()
+		player.bus = &"SFX"
+		player.stream = load(LANE_DRUMS[lane])
+		add_child(player)
+		_lane_players.append(player)
+
+
+func _on_device_changed(_device: InputGlyphs.Device) -> void:
+	_refresh_lane_glyphs()
+
+
+## Show each lane's bound input for the active device. Movement lanes are stick
+## axes on a pad (no button glyph) — there the arrow alone is the instruction,
+## so an empty glyph just clears the sub-label.
+func _refresh_lane_glyphs() -> void:
+	for lane in _lane_glyph_labels.size():
+		_lane_glyph_labels[lane].text = InputGlyphs.glyph_for(LANE_ACTIONS[lane])
+
+
+func _play_drum(lane: int) -> void:
+	if lane >= 0 and lane < _lane_players.size():
+		_lane_players[lane].play()
 
 
 # --- Notes --------------------------------------------------------------------
@@ -233,7 +301,7 @@ func _read_input() -> void:
 		if Input.is_action_just_pressed(LANE_ACTIONS[lane]):
 			NetManager.send_match_input({"lane": lane})
 			_lane_flash_until[lane] = _now_sec() + FLASH_SEC
-			play_sfx(&"click")
+			_play_drum(lane)
 
 
 ## The server's verdict for the local player: flash the lane and call it out.

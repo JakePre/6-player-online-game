@@ -11,6 +11,14 @@ func before_each() -> void:
 	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
+	InputGlyphs.active_layout = InputGlyphs.Layout.GENERIC
+
+
+func after_each() -> void:
+	# InputGlyphs is a shared autoload — restore the default between tests.
+	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
+	InputGlyphs.active_layout = InputGlyphs.Layout.GENERIC
 
 
 ## players entry: [score, streak, last_judgment, last_lane, event_count]
@@ -87,3 +95,43 @@ func test_streak_banner_shows_once_the_multiplier_is_live() -> void:
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view._note_nodes.size(), 0)
+
+
+func test_flat_lane_headers_replace_the_iso_projected_glyphs() -> void:
+	# #585: the ambiguous iso Label3D targets are gone; a flat screen-space
+	# header row carries lane identity instead.
+	assert_null(view.arena.get_node_or_null("LaneTarget0"), "no iso lane glyphs")
+	assert_not_null(view.get_node_or_null("LaneHeaders"), "flat header row exists")
+	assert_eq(view._lane_glyph_labels.size(), ShredSession.LANES, "one glyph label per lane")
+
+
+func test_lane_headers_show_the_device_aware_bound_input() -> void:
+	# On keyboard each header mirrors InputGlyphs' bound-key label; the action
+	# lane is Space.
+	for lane in ShredSession.LANES:
+		assert_eq(
+			view._lane_glyph_labels[lane].text,
+			InputGlyphs.glyph_for(view.LANE_ACTIONS[lane]),
+			"lane %d header mirrors the glyph helper" % lane
+		)
+	assert_eq(view._lane_glyph_labels[3].text, "Space", "action lane shows the keyboard key")
+
+
+func test_lane_glyphs_refresh_when_the_device_changes() -> void:
+	InputGlyphs.active_device = InputGlyphs.Device.GAMEPAD
+	InputGlyphs.active_layout = InputGlyphs.Layout.XBOX
+	InputGlyphs.device_changed.emit(InputGlyphs.Device.GAMEPAD)
+	# action_primary is a pad button (A); movement lanes are stick axes with no
+	# button glyph, so those sub-labels clear and the arrow alone instructs.
+	assert_eq(view._lane_glyph_labels[3].text, "A", "action lane shows the pad button")
+	assert_eq(view._lane_glyph_labels[0].text, "", "a stick-axis lane has no button glyph")
+
+
+func test_each_lane_has_a_distinct_drum_on_the_sfx_bus() -> void:
+	assert_eq(view._lane_players.size(), ShredSession.LANES, "one player per lane")
+	var paths := {}
+	for player: AudioStreamPlayer in view._lane_players:
+		assert_not_null(player.stream, "lane player is loaded")
+		assert_eq(player.bus, &"SFX", "drums route through the SFX bus")
+		paths[player.stream.resource_path] = true
+	assert_eq(paths.size(), ShredSession.LANES, "each lane's drum is distinct")
