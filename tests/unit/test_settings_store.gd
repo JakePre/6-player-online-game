@@ -51,6 +51,7 @@ func test_save_load_round_trip() -> void:
 		"player_name": "Jake",
 		"colorblind": true,
 		"reduced_motion": true,
+		"show_names": true,
 		"keybinds": {"move_up": KEY_UP},
 	}
 	SettingsStore.save_settings(settings)
@@ -90,6 +91,12 @@ func test_sanitize_coerces_accessibility_flags() -> void:
 	assert_false(SettingsStore.DEFAULTS.reduced_motion)
 
 
+## #580: nameplates off by default, toggleable.
+func test_sanitize_coerces_show_names() -> void:
+	assert_true(SettingsStore.sanitize({"show_names": 1}).show_names)
+	assert_false(SettingsStore.DEFAULTS.show_names, "off out of the box")
+
+
 func test_sanitize_keybinds_keeps_valid_drops_junk() -> void:
 	var clean := SettingsStore.sanitize(
 		{"keybinds": {"move_up": KEY_UP, "not_an_action": KEY_X, "emote": 0}}
@@ -112,6 +119,14 @@ func test_apply_sets_accessibility_statics() -> void:
 	SettingsStore.apply({"colorblind": false, "reduced_motion": false}, null)
 	assert_false(PlayerPalette.use_colorblind)
 	assert_false(ArenaFX.reduced_motion)
+
+
+## #580: nameplates off by default, toggleable — reaches the shared view flag.
+func test_apply_sets_show_names_static() -> void:
+	SettingsStore.apply({"show_names": true}, null)
+	assert_true(MinigameView.show_names)
+	SettingsStore.apply({"show_names": false}, null)
+	assert_false(MinigameView.show_names)
 
 
 func test_apply_keybinds_rebinds_keyboard_keeps_gamepad() -> void:

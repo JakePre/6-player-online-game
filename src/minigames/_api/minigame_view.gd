@@ -19,6 +19,13 @@ signal shake_requested(strength: float)
 ## assert_signal_emitted(view, "sfx_requested"), no AudioManager mocking.
 signal sfx_requested(name: StringName)
 
+## Owner directive: nameplates off by default (#580). A settings-driven flag
+## shared by every view, mirroring PlayerPalette.use_colorblind — set once by
+## SettingsStore.apply(). player_name() falls back to the number-only badge
+## (the same fallback nameless slots already get) whenever it's off; the
+## masquerade mutator's hide_nameplates view flag still force-hides regardless.
+static var show_names := false
+
 var names := {}
 var my_slot := -1
 ## The round mutator's view flags (M9-05), assigned by the match screen
@@ -91,7 +98,12 @@ func player_color(slot: int) -> Color:
 	return PlayerPalette.color_for_slot(slot)
 
 
+## The number badge (e.g. "#3") always shows; the player's own name only
+## joins it when show_names is on (#580) — the same look a nameless slot
+## already gets, just applied uniformly while the setting is off.
 func player_name(slot: int) -> String:
+	if not show_names:
+		return PlayerPalette.label_for_slot(slot)
 	return MatchFormat.player_name(names, slot)
 
 

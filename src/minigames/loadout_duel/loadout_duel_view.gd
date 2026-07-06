@@ -112,7 +112,7 @@ func _update_hud(scores: Dictionary) -> void:
 			banner = "Round %d over" % (sub_round + 1)
 	var parts: Array = []
 	for slot: int in scores:
-		parts.append("%s %d" % [names.get(slot, "P%d" % slot), int(scores[slot])])
+		parts.append("%s %d" % [player_name(slot), int(scores[slot])])
 	_hud.text = "%s    %s" % [banner, "  ·  ".join(parts)]
 
 

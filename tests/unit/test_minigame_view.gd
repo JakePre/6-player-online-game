@@ -5,9 +5,11 @@ extends GutTest
 ## transition triggered the expected sound without mocking AudioManager.
 
 var view: MinigameView3D
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
 	# Any MinigameView3D scene will do — King of the Hill's is a plain,
 	# already-tested fixture with no extra setup requirements.
 	var scene: PackedScene = load("res://src/minigames/king_of_the_hill/king_of_the_hill_view.tscn")
@@ -16,10 +18,23 @@ func before_each() -> void:
 	view.setup({0: "Alice"}, 0)
 
 
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
+
+
 func test_play_sfx_emits_sfx_requested_with_the_name() -> void:
 	watch_signals(view)
 	view.play_sfx(&"coin")
 	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"coin"])
+
+
+## #580: nameplates off by default — player_name() falls back to just the
+## number badge until show_names is switched on.
+func test_player_name_respects_the_show_names_flag() -> void:
+	MinigameView.show_names = false
+	assert_eq(view.player_name(0), "P1", "off shows just the number badge")
+	MinigameView.show_names = true
+	assert_eq(view.player_name(0), "P1 Alice", "on joins the chosen name")
 
 
 ## #576: a long banner (e.g. Faulty Wiring's role line) must stay centered

@@ -3,6 +3,7 @@ extends GutTest
 ## shared iso-arena without simulating anything locally.
 
 var view: MinigameView
+var _saved_show_names := false
 
 
 func _instantiate_view() -> MinigameView:
@@ -13,8 +14,14 @@ func _instantiate_view() -> MinigameView:
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	view = _instantiate_view()
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_setup_stores_identity_context() -> void:

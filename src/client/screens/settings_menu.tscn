@@ -139,6 +139,11 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Fullscreen"
 
+[node name="ShowNamesToggle" type="CheckButton" parent="Margin/Scroll/Center/Column/DisplayCard/DisplayColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Show player names"
+
 [node name="AccessibilityCard" type="PanelContainer" parent="Margin/Scroll/Center/Column"]
 layout_mode = 2
 theme_type_variation = &"CardPanel"
