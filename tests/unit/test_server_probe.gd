@@ -38,8 +38,7 @@ func test_chip_text_per_state_names_the_address() -> void:
 		"celestrum.com · online · 34 ms"
 	)
 	assert_string_contains(
-		ServerProbe.chip_text(ServerProbe.Status.UNREACHABLE, -1, "celestrum.com"),
-		"unreachable"
+		ServerProbe.chip_text(ServerProbe.Status.UNREACHABLE, -1, "celestrum.com"), "unreachable"
 	)
 	# Graceful for a local/custom override — just reflects the address.
 	assert_string_contains(
