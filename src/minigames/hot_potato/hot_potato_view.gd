@@ -64,6 +64,11 @@ func _process(delta: float) -> void:
 			play_sfx(&"tick")
 
 
+## Warm panicked-red floor for the passing bomb (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.82, 0.75)
+
+
 func _arena_half() -> float:
 	return HotPotato.ARENA_HALF
 

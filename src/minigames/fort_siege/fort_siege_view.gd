@@ -42,6 +42,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			NetManager.send_match_input({"act": true})
 
 
+## Cool stone floor for the fortress clash (#589).
+func _floor_tint() -> Color:
+	return Color(0.85, 0.88, 0.95)
+
+
 func _arena_half() -> float:
 	return FortSiege.ARENA_HALF + 1.0
 

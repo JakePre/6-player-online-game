@@ -37,6 +37,11 @@ func _process(_delta: float) -> void:
 ## MinigameScaling.arena_half()'s sqrt — a lane bank is one-dimensional.
 ## names is populated before the camera builds (MinigameView.setup order),
 ## and lobbies up to the 6-player baseline keep the classic framing exactly.
+## Warm bowling-lane floor (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.92, 0.78)
+
+
 func _arena_half() -> float:
 	return BullseyeBowl.LANE_LENGTH * 0.75 * MinigameScaling.growth(names.size())
 

@@ -62,6 +62,11 @@ var _lane_glyph_labels: Array[Label] = []
 var _lane_players: Array[AudioStreamPlayer] = []
 
 
+## Neon stage-purple floor (#589).
+func _floor_tint() -> Color:
+	return Color(0.88, 0.85, 1.0)
+
+
 func _arena_half() -> float:
 	return 8.0
 

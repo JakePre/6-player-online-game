@@ -43,6 +43,11 @@ func _process(_delta: float) -> void:
 		NetManager.send_match_input({"shove": true})
 
 
+## Dusty mine-cart floor (#589).
+func _floor_tint() -> Color:
+	return Color(0.95, 0.88, 0.74)
+
+
 func _arena_half() -> float:
 	return CartPush.ARENA_HALF
 

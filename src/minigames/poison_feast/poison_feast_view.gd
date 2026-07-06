@@ -36,6 +36,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Sickly-green floor for the banquet menace (#589).
+func _floor_tint() -> Color:
+	return Color(0.88, 0.98, 0.82)
+
+
 func _arena_half() -> float:
 	# Sim and view derive the same play size from the lobby count via the
 	# shared base const, so the rendered floor/camera match the scaled arena.

@@ -79,6 +79,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		NetManager.send_match_input({"dive": false})
 
 
+## Deep-sea blue floor (#589).
+func _floor_tint() -> Color:
+	return Color(0.78, 0.9, 1.0)
+
+
 func _arena_half() -> float:
 	# Grow the framed floor with the lobby to match the sim's scaled play area
 	# (M15, ADR 003 F4); at <=6 players this is the tuned TreasureDivers.ARENA_HALF.

@@ -48,6 +48,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_voted = true
 
 
+## Playful bright-yellow game-show floor (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.97, 0.78)
+
+
 func _arena_half() -> float:
 	return RoShamBo.ARENA_HALF
 

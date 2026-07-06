@@ -27,6 +27,11 @@ var _banner: Label
 var _role_label: Label
 
 
+## Electric cyan floor for the circuit-repair tension (#589).
+func _floor_tint() -> Color:
+	return Color(0.8, 0.95, 0.98)
+
+
 func _arena_half() -> float:
 	return FaultyWiring.ARENA_HALF
 

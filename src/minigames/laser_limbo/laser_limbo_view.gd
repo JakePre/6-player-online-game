@@ -40,6 +40,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		NetManager.send_match_input({"duck": false})
 
 
+## Neon violet floor under the sweeping lasers (#589).
+func _floor_tint() -> Color:
+	return Color(0.92, 0.82, 1.0)
+
+
 func _arena_half() -> float:
 	# Sim and view derive the same scaled play size from the lobby count (M15).
 	return MinigameScaling.arena_half(LaserLimbo.ARENA_HALF, names.size())

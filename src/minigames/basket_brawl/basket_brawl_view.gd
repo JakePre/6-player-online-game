@@ -39,6 +39,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			NetManager.send_match_input({"act": true})
 
 
+## Warm hardwood-court floor (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.93, 0.8)
+
+
 func _arena_half() -> float:
 	return BasketBrawl.ARENA_HALF + 1.0
 

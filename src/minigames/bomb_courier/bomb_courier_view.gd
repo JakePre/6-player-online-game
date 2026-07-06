@@ -42,6 +42,11 @@ func _process(delta: float) -> void:
 	_trail_fuse_sparks(delta)
 
 
+## Ember-warm floor for the lit-fuse sprint (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.86, 0.75)
+
+
 func _arena_half() -> float:
 	return BombCourier.ARENA_HALF
 
