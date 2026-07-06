@@ -70,7 +70,8 @@ static func make_meta() -> MinigameMeta:
 					"Hit each lane's note as it crosses the line! "
 					+ "Nail the beat for double, keep a streak for a multiplier."
 				),
-				"controls": "Strum the four lanes — ◀ ▶ ▲ / action, on the beat",
+				"controls":
+				"Strum the four lanes — ◀ ▶ ▲ / action (left stick / pad A), on the beat",
 			}
 		)
 	)
