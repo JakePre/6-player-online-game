@@ -176,6 +176,23 @@ func test_grudge_prompt_only_for_eliminated_local_player() -> void:
 	assert_string_contains(prompt.text, "GRUDGE")
 
 
+## Regression for #576: the grudge prompt's long "GRUDGE → name … aim / strike"
+## line must grow upward off its bottom anchor, not downward past the viewport.
+## Hand-built (not routed through the shared make_banner()), so it carries its
+## own copy of the same fix.
+func test_grudge_prompt_stays_within_the_viewport() -> void:
+	var v := _make_view(3)
+	var prompt: Label = v.get_node("GrudgePrompt")
+	v.render(
+		{"radius": 10.0, "players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
+	)
+	await get_tree().process_frame
+	assert_true(
+		prompt.position.y + prompt.size.y <= v.size.y + 1.0,
+		"the grudge prompt grows upward off its anchor, not downward past the screen edge"
+	)
+
+
 func test_grudge_cycles_between_living_rivals() -> void:
 	var v := _make_view(4)
 	(

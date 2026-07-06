@@ -203,6 +203,9 @@ func _setup_3d() -> void:
 	_grudge_prompt.add_theme_stylebox_override(&"normal", _chrome_panel(PartyTheme.DANGER))
 	_grudge_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_grudge_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	# Grow upward off the bottom anchor, or the long "GRUDGE → name … aim /
+	# strike" prompt runs downward off screen (#576).
+	_grudge_prompt.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_grudge_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_grudge_prompt.position.y = -70.0
 	_grudge_prompt.visible = false
