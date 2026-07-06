@@ -30,6 +30,11 @@ func _physics_process(_delta: float) -> void:
 		NetManager.send_match_input({"bomb": true})
 
 
+## Ashy warm floor under the crate grid (#589).
+func _floor_tint() -> Color:
+	return Color(0.95, 0.88, 0.82)
+
+
 func _arena_half() -> float:
 	return BlastGrid.ARENA_HALF + 1.0
 

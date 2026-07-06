@@ -51,6 +51,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			NetManager.send_match_input({"use": true})
 
 
+## Dark asphalt floor for the race track (#589).
+func _floor_tint() -> Color:
+	return Color(0.85, 0.86, 0.9)
+
+
 func _arena_half() -> float:
 	return TurboLap.TRACK_RX + TurboLap.TRACK_HALF_WIDTH + 1.0
 

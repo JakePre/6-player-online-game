@@ -36,6 +36,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Elegant violet floor for the bullet-hell weave (#589).
+func _floor_tint() -> Color:
+	return Color(0.9, 0.85, 1.0)
+
+
 func _arena_half() -> float:
 	# Grow the framed floor with the lobby to match the sim's scaled play area
 	# (M15, ADR 003 F4); at <=6 players this is the tuned BulletWaltz.ARENA_HALF.

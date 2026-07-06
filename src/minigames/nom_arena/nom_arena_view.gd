@@ -26,6 +26,11 @@ func _physics_process(_delta: float) -> void:
 		NetManager.send_match_input({"lunge": true})
 
 
+## Warm food-yellow floor (#589).
+func _floor_tint() -> Color:
+	return Color(0.98, 0.96, 0.78)
+
+
 func _arena_half() -> float:
 	return NomArena.ARENA_HALF + 1.0
 

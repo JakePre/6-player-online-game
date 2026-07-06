@@ -41,6 +41,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Cool neutral floor so the paint tiles do the talking (#589).
+func _floor_tint() -> Color:
+	return Color(0.92, 0.94, 0.98)
+
+
 func _arena_half() -> float:
 	return ColorClash.arena_half_for(names.size()) + 1.0
 

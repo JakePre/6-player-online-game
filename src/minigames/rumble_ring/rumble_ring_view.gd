@@ -51,6 +51,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		NetManager.send_match_input({"guard": false})
 
 
+## Warm boxing-ring floor (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.82, 0.8)
+
+
 func _arena_half() -> float:
 	return RumbleRing.ARENA_HALF
 

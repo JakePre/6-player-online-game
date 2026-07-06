@@ -74,6 +74,11 @@ func _votable_slots() -> Array:
 	return out
 
 
+## Suspicious cool blue-grey floor (#589).
+func _floor_tint() -> Color:
+	return Color(0.85, 0.88, 0.94)
+
+
 func _arena_half() -> float:
 	return TheMole.ARENA_HALF + 1.0
 

@@ -38,6 +38,11 @@ var _my_lane := 1
 var _catches_seen := {}
 
 
+## Aqua pool floor (#589).
+func _floor_tint() -> Color:
+	return Color(0.82, 0.95, 1.0)
+
+
 func _arena_half() -> float:
 	return MinigameScaling.arena_half(BASE_ARENA_HALF, names.size())
 

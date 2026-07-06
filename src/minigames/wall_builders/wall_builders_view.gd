@@ -25,6 +25,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Warm construction-wood floor (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.92, 0.78)
+
+
 func _arena_half() -> float:
 	return WallBuilders.ARENA_HALF + 1.0
 

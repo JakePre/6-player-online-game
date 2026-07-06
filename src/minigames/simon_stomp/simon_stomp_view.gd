@@ -77,6 +77,11 @@ var _was_cleared := false
 var _was_failed := false
 
 
+## Rhythmic blue-violet floor for the stomp panels (#589).
+func _floor_tint() -> Color:
+	return Color(0.85, 0.88, 1.0)
+
+
 func _arena_half() -> float:
 	return 6.0
 

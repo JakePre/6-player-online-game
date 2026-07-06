@@ -5,10 +5,14 @@ extends GutTest
 ## exercises the base — King of the Hill is a plain, already-tested fixture
 ## with no extra setup requirements (same choice test_minigame_view.gd made).
 
-## A plain, untinted base-floor 3D view — the default-tint fixture (#589).
-const PLAIN_VIEW_SCENE := preload("res://src/minigames/simon_stomp/simon_stomp_view.tscn")
-
 var view: MinigameView3D
+
+
+## A bare MinigameView3D instance — every registered game now declares its own
+## _floor_tint() (#589), so the true "un-overridden" fixture is the base class
+## itself, not any particular game.
+func _plain_view() -> MinigameView3D:
+	return MinigameView3D.new()
 
 
 func before_each() -> void:
@@ -55,7 +59,7 @@ func _floor_albedo(v: MinigameView3D) -> Color:
 func test_floor_material_is_a_per_view_duplicate() -> void:
 	var mine := (view.arena.get_node("Floor") as MultiMeshInstance3D).material_override
 	assert_true(mine is StandardMaterial3D, "the floor has a StandardMaterial3D override")
-	var other: MinigameView3D = PLAIN_VIEW_SCENE.instantiate()
+	var other: MinigameView3D = _plain_view()
 	add_child_autofree(other)
 	other.setup({0: "Alice"}, 0)
 	var theirs := (other.arena.get_node("Floor") as MultiMeshInstance3D).material_override
@@ -73,7 +77,7 @@ func test_floor_tint_override_recolors_the_material() -> void:
 
 
 func test_untinted_game_keeps_the_neutral_white_floor() -> void:
-	var plain: MinigameView3D = PLAIN_VIEW_SCENE.instantiate()
+	var plain: MinigameView3D = _plain_view()
 	add_child_autofree(plain)
 	plain.setup({0: "Alice"}, 0)
 	assert_eq(plain._floor_tint(), Color.WHITE, "default tint is neutral")

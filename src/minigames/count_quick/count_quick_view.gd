@@ -32,6 +32,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Bright yellow-green floor for the critter scramble (#589).
+func _floor_tint() -> Color:
+	return Color(0.95, 1.0, 0.82)
+
+
 func _arena_half() -> float:
 	return CountQuick.ARENA_HALF
 

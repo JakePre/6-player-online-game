@@ -82,6 +82,11 @@ func _decay_knot_flare() -> void:
 	_marker_material.emission_energy_multiplier = 2.6 if flaring else 0.9
 
 
+## Dusty tan floor for the rope struggle (#589).
+func _floor_tint() -> Color:
+	return Color(0.98, 0.9, 0.76)
+
+
 func _arena_half() -> float:
 	return TugOfWar.WIN_OFFSET + 4.0
 

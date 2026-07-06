@@ -23,6 +23,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+## Serpentine green floor (#589).
+func _floor_tint() -> Color:
+	return Color(0.85, 0.98, 0.85)
+
+
 func _arena_half() -> float:
 	# Frame the scaled arena (ADR 003) — `names` is set before setup runs.
 	return SnakeChain.arena_half_for(names.size())

@@ -53,6 +53,11 @@ func _process(_delta: float) -> void:
 	_update_lamp()
 
 
+## Sandy high-noon floor (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.9, 0.72)
+
+
 func _arena_half() -> float:
 	return MinigameScaling.arena_half(BASE_ARENA_HALF, names.size())
 

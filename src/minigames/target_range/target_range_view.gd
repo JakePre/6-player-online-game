@@ -37,6 +37,11 @@ var _crosshairs := {}  # slot (int) -> MeshInstance3D
 var _aim_beams := {}  # slot (int) -> MeshInstance3D (#214 aim lines)
 
 
+## Desert range floor (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.9, 0.74)
+
+
 func _arena_half() -> float:
 	return TargetRange.arena_half_for(names.size())
 

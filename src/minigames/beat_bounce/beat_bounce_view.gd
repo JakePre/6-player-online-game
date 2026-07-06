@@ -78,6 +78,11 @@ var _last_flash := -1
 var _burst_kos := {}  # slot -> already popped the KO burst
 
 
+## Bright pink energy-floor for the music-pulse pads (#589).
+func _floor_tint() -> Color:
+	return Color(1.0, 0.85, 0.95)
+
+
 func _arena_half() -> float:
 	return 7.0
 
