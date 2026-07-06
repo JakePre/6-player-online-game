@@ -70,3 +70,26 @@ func test_glyph_for_gamepad_shows_the_layout_button() -> void:
 
 func test_glyph_for_unknown_action_is_empty() -> void:
 	assert_eq(InputGlyphs.glyph_for(&"not_an_action"), "")
+
+
+func test_compose_hint_interleaves_literals_and_action_glyphs() -> void:
+	# A fake resolver keeps this pure — no live device needed.
+	var glyph := func(action: StringName) -> String: return "[%s]" % action
+	var segments := ["Press ", {"action": &"action_primary"}, " to draw"]
+	assert_eq(InputGlyphs.compose_hint(segments, glyph), "Press [action_primary] to draw")
+
+
+func test_compose_hint_ignores_malformed_segments() -> void:
+	# A dict without "action", or a non-string/dict, degrades to the literals.
+	var glyph := func(_action: StringName) -> String: return "X"
+	var segments := ["a", {"nope": 1}, 42, "b"]
+	assert_eq(InputGlyphs.compose_hint(segments, glyph), "ab")
+
+
+func test_hint_for_renders_against_the_active_device() -> void:
+	InputGlyphs.active_device = InputGlyphs.Device.GAMEPAD
+	InputGlyphs.active_layout = InputGlyphs.Layout.PLAYSTATION
+	var segments := ["Drift — ", {"action": &"action_primary"}]
+	assert_eq(InputGlyphs.hint_for(segments), "Drift — ✕")
+	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
+	assert_eq(InputGlyphs.hint_for(segments), "Drift — Space")

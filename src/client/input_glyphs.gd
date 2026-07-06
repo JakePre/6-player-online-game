@@ -55,6 +55,27 @@ func _refresh_layout() -> void:
 	)
 
 
+## Composes a structured control-hint segment list (MinigameMeta.control_hints,
+## #608) into one device-aware string for the active device — literal String
+## segments pass through verbatim, `{"action": &"..."}` segments render as the
+## active glyph. Ignores unknown segment shapes so a malformed hint degrades to
+## its literal parts rather than crashing the intro card.
+func hint_for(segments: Array) -> String:
+	return compose_hint(segments, glyph_for)
+
+
+## Pure form of hint_for: same composition against any glyph resolver, so the
+## segment format is unit-testable headless without a live device.
+static func compose_hint(segments: Array, glyph: Callable) -> String:
+	var out := ""
+	for segment: Variant in segments:
+		if segment is String:
+			out += segment
+		elif segment is Dictionary and (segment as Dictionary).has("action"):
+			out += String(glyph.call((segment as Dictionary)["action"]))
+	return out
+
+
 ## The label to show for an input action on the *active* device: the keyboard
 ## key (respecting rebinds already in the InputMap) or the pad button glyph.
 func glyph_for(action: StringName) -> String:

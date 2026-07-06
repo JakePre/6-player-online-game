@@ -49,6 +49,10 @@ var _names := {}
 var _totals := {}
 var _minigame_id := ""
 var _minigame_name := ""
+## Current intro card's device-aware hint segments (#608) and the plain-prose
+## fallback, kept so a live device change can re-render without the event.
+var _intro_hint_segments: Array = []
+var _intro_controls_fallback := ""
 var _round_view_flags: Array = []
 var _minigame_view: MinigameView
 ## In-match pause/options overlay (M18-03), mounted on top in _ready.
@@ -90,6 +94,10 @@ func _ready() -> void:
 	NetManager.snapshot_received.connect(_on_snapshot)
 	NetManager.emote_received.connect(_on_emote_received)
 	_skip_button.pressed.connect(_on_skip_pressed)
+	# Intro control hints re-render live when the player switches device (#608).
+	InputGlyphs.device_changed.connect(
+		func(_device: InputGlyphs.Device) -> void: _refresh_intro_controls()
+	)
 	_build_emote_bar()
 	# Pause overlay (M18-03) sits above the HUD; the match keeps running behind.
 	_pause_overlay = PauseOverlay.new()
@@ -283,9 +291,11 @@ func _show_intro(event: Dictionary) -> void:
 	_apply_key_art(String(minigame.id))
 	_intro_category.text = MatchFormat.category_name(int(minigame.category))
 	_intro_rules.text = minigame.rules
-	# Control hints (M6-04); older servers may not send the key yet.
-	_intro_controls.text = String(minigame.get("controls", ""))
-	_intro_controls.visible = not _intro_controls.text.is_empty()
+	# Control hints (M6-04); older servers may not send the key yet. When the
+	# local catalog has device-aware hints (#608) they win over the prose.
+	_intro_controls_fallback = String(minigame.get("controls", ""))
+	_intro_hint_segments = _control_hints_for(String(minigame.id))
+	_refresh_intro_controls()
 	# Mutator announcement (M9-03) — no hidden modifiers.
 	var mutator: Dictionary = event.get("mutator", {})
 	_intro_mutator.visible = not mutator.is_empty()
@@ -295,6 +305,27 @@ func _show_intro(event: Dictionary) -> void:
 	_skip_button.text = "Skip intro"
 	_skip_votes_label.text = ""
 	_show_panel(_intro_card)
+
+
+## The local catalog's device-aware hint segments for this game, or [] to fall
+## back to the server-sent prose. The client already registers the catalog
+## (net_manager), so this needs no protocol change.
+func _control_hints_for(id: String) -> Array:
+	if not MinigameCatalog.is_registered(StringName(id)):
+		return []
+	return MinigameCatalog.meta_of(StringName(id)).control_hints
+
+
+## Renders the intro control line for the active device, re-callable on device
+## change. Device-aware segments win; otherwise the plain-prose fallback shows.
+func _refresh_intro_controls() -> void:
+	var text := (
+		InputGlyphs.hint_for(_intro_hint_segments)
+		if not _intro_hint_segments.is_empty()
+		else _intro_controls_fallback
+	)
+	_intro_controls.text = text
+	_intro_controls.visible = not text.is_empty()
 
 
 ## The digit tracks the replicated countdown clock (600 ms per step, #182),
