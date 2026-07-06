@@ -21,7 +21,7 @@ var _transition: ScreenTransition
 
 @onready var _screen_host: Control = $ScreenHost
 @onready var _reconnect_overlay: Control = $ReconnectOverlay
-@onready var _toasts: Control = $Toasts
+@onready var _toasts: Toasts = $Toasts
 
 
 func _ready() -> void:
@@ -42,6 +42,7 @@ func _ready() -> void:
 	NetManager.left_room.connect(func() -> void: goto_screen(&"main_menu"))
 	NetManager.server_disconnected.connect(_on_server_disconnected)
 	_reconnect_overlay.closed.connect(_on_reconnect_closed)
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	goto_screen(&"main_menu")
 
 
@@ -111,3 +112,29 @@ func _on_join_failed(reason: int) -> void:
 
 func _on_match_start_failed(reason: String) -> void:
 	_toasts.show_toast("Could not start the match: %s" % reason)
+
+
+## Hot-plug feedback (M17-01): pads announce themselves so players know the
+## game saw them, and unrecognized GUIDs are logged so unmapped hardware is
+## diagnosable straight from a player report.
+func _on_joy_connection_changed(device: int, connected: bool) -> void:
+	if not connected:
+		_toasts.show_toast("Controller disconnected.")
+		return
+	var joy_name := Input.get_joy_name(device)
+	if Input.is_joy_known(device):
+		_toasts.show_toast(
+			"Controller connected: %s" % joy_name, Toasts.DEFAULT_DURATION_SEC, PartyTheme.SUCCESS
+		)
+	else:
+		push_warning(
+			(
+				"Unrecognized controller '%s' (GUID %s) — generic mapping"
+				% [joy_name, Input.get_joy_guid(device)]
+			)
+		)
+		_toasts.show_toast(
+			"Controller '%s' not in the mapping database — using a generic layout." % joy_name,
+			Toasts.DEFAULT_DURATION_SEC,
+			PartyTheme.INFO
+		)
