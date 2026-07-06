@@ -85,6 +85,24 @@ horizontal_alignment = 1
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
 
+[node name="ServerStatusRow" type="HBoxContainer" parent="Center/Card/Pad/Column"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="ServerStatusChip" type="Label" parent="Center/Card/Pad/Column/ServerStatusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+text = "Checking…"
+horizontal_alignment = 1
+
+[node name="ProbeRetryButton" type="Button" parent="Center/Card/Pad/Column/ServerStatusRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Retry"
+
 [node name="NameRow" type="HBoxContainer" parent="Center/Card/Pad/Column"]
 layout_mode = 2
 theme_override_constants/separation = 8
