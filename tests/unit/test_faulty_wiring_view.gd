@@ -89,6 +89,23 @@ func test_only_the_local_saboteur_sees_the_role_prompt() -> void:
 	assert_eq(view.get_node("RoleLabel").text, "", "crew never see a role prompt")
 
 
+## Regression for #576: the owner reported the saboteur's own role text
+## unreadable at the bottom of the screen — the default grow direction let a
+## long line grow downward until it clipped past the viewport's bottom edge.
+## This label is hand-built (not routed through the shared make_banner()) so
+## it carries its own copy of the same fix.
+func test_role_prompt_stays_within_the_viewport() -> void:
+	view.private_state = {"role": "saboteur", "cut_cd": 0.0}
+	view.render({"phase": FaultyWiring.Phase.WORK, "players": {}, "nodes": []})
+	await get_tree().process_frame
+	var label: Label = view.get_node("RoleLabel")
+	assert_string_contains(label.text, "SPACE to cut a wire")
+	assert_true(
+		label.position.y + label.size.y <= view.size.y + 1.0,
+		"the role prompt grows upward off its anchor, not downward past the screen edge"
+	)
+
+
 func test_reveal_names_the_saboteur_and_the_outcome() -> void:
 	(
 		view

@@ -123,6 +123,9 @@ func _build_labels() -> void:
 	_role_label.add_theme_font_size_override(&"font_size", 26)
 	_role_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_role_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	# Grow upward off the bottom anchor, or long role text runs downward off
+	# screen — reported unreadable at the bottom edge (#576).
+	_role_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_role_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_role_label.position.y = -60.0
 	add_child(_role_label)
