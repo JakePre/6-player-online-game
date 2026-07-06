@@ -31,6 +31,7 @@ var _bind_buttons := {}
 @onready var _sfx_slider: HSlider = %SfxSlider
 @onready var _nameplate_slider: HSlider = %NameplateSlider
 @onready var _fullscreen_toggle: CheckButton = %FullscreenToggle
+@onready var _show_names_toggle: CheckButton = %ShowNamesToggle
 @onready var _colorblind_toggle: CheckButton = %ColorblindToggle
 @onready var _reduced_motion_toggle: CheckButton = %ReducedMotionToggle
 @onready var _keybinds_list: VBoxContainer = %KeybindsList
@@ -46,6 +47,7 @@ func _ready() -> void:
 	_sfx_slider.value = settings.sfx_volume * 100.0
 	_nameplate_slider.value = settings.nameplate_scale * 100.0
 	_fullscreen_toggle.set_pressed_no_signal(settings.fullscreen)
+	_show_names_toggle.set_pressed_no_signal(settings.show_names)
 	_colorblind_toggle.set_pressed_no_signal(settings.colorblind)
 	_reduced_motion_toggle.set_pressed_no_signal(settings.reduced_motion)
 	_address_edit.text = settings.server_address
@@ -55,7 +57,9 @@ func _ready() -> void:
 	_build_keybind_rows()
 	for slider: HSlider in [_master_slider, _music_slider, _sfx_slider, _nameplate_slider]:
 		slider.value_changed.connect(func(_value: float) -> void: _apply_and_save())
-	for toggle: CheckButton in [_fullscreen_toggle, _colorblind_toggle, _reduced_motion_toggle]:
+	for toggle: CheckButton in [
+		_fullscreen_toggle, _show_names_toggle, _colorblind_toggle, _reduced_motion_toggle
+	]:
 		toggle.toggled.connect(func(_on: bool) -> void: _apply_and_save())
 	_address_edit.text_changed.connect(func(_text: String) -> void: _apply_and_save())
 	_port_edit.text_changed.connect(func(_text: String) -> void: _apply_and_save())
@@ -117,6 +121,7 @@ func _apply_and_save() -> void:
 		"sfx_volume": _sfx_slider.value / 100.0,
 		"nameplate_scale": _nameplate_slider.value / 100.0,
 		"fullscreen": _fullscreen_toggle.button_pressed,
+		"show_names": _show_names_toggle.button_pressed,
 		"colorblind": _colorblind_toggle.button_pressed,
 		"reduced_motion": _reduced_motion_toggle.button_pressed,
 		"keybinds": _stored_overrides(),

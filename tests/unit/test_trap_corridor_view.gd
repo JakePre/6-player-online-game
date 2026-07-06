@@ -3,13 +3,20 @@ extends GutTest
 ## simulating anything locally; remembers only its own trap placements.
 
 var view: MinigameView
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	var scene: PackedScene = load("res://src/minigames/trap_corridor/trap_corridor_view.tscn")
 	view = scene.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_view_scene_lives_at_catalog_path() -> void:

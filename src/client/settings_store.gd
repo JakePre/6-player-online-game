@@ -44,6 +44,10 @@ const DEFAULTS := {
 	## Accessibility (M12-03).
 	"colorblind": false,
 	"reduced_motion": false,
+	## Owner directive: nameplates off by default, toggleable (#580). The
+	## slot/number badge (PlayerPalette.label_for_slot) stays visible either
+	## way — only the player's chosen name is gated.
+	"show_names": false,
 	## Keyboard rebind overrides: action -> physical keycode. Empty means all
 	## factory bindings; only changed actions are stored.
 	"keybinds": {},
@@ -91,6 +95,8 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 		clean.colorblind = bool(raw.colorblind)
 	if raw.has("reduced_motion"):
 		clean.reduced_motion = bool(raw.reduced_motion)
+	if raw.has("show_names"):
+		clean.show_names = bool(raw.show_names)
 	clean.keybinds = _sanitize_keybinds(raw.get("keybinds", {}))
 	return clean
 
@@ -142,6 +148,7 @@ static func apply(settings: Dictionary, window: Window) -> void:
 	# consume them, set once here so every view and the palette see the change.
 	PlayerPalette.use_colorblind = clean.colorblind
 	ArenaFX.reduced_motion = clean.reduced_motion
+	MinigameView.show_names = clean.show_names
 	apply_keybinds(clean)
 
 

@@ -5,12 +5,19 @@ extends GutTest
 const VIEW_SCENE := preload("res://src/minigames/poison_feast/poison_feast_view.tscn")
 
 var view: MinigameView
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
+	MinigameView.show_names = true  # #580: names off by default; this suite tests the name itself
 	view = VIEW_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice", 1: "Bob"}, 0)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_dishes_appear_by_id_at_snapshot_positions() -> void:

@@ -4,9 +4,11 @@ extends GutTest
 ## screen, and interpolates snapshots (M12-04 pattern, world-space samples).
 
 var view: SideScrollView
+var _saved_show_names := false
 
 
 func before_each() -> void:
+	_saved_show_names = MinigameView.show_names
 	view = SideScrollView.new()
 	add_child_autofree(view)
 	view.size = Vector2(800.0, 450.0)
@@ -16,6 +18,10 @@ func before_each() -> void:
 		[Rect2(-2.0, 2.0, 4.0, 0.5)] as Array[Rect2],
 		Rect2(-12.0, -6.0, 24.0, 18.0)
 	)
+
+
+func after_each() -> void:
+	MinigameView.show_names = _saved_show_names
 
 
 func test_stage_builds_one_panel_per_platform() -> void:
@@ -31,13 +37,23 @@ func test_world_to_screen_flips_y_and_centers() -> void:
 
 
 func test_render_builds_palette_rigs_with_nameplates() -> void:
+	MinigameView.show_names = true
 	view.render_side_scroll({0: [0.0, 0.5, 1, 1], 1: [2.0, 0.5, -1, 1]})
 	var rig := view.rig_for_slot(0)
 	assert_not_null(rig)
 	var plate: Label = rig.get_node("Plate")
-	assert_eq(plate.text, "Alice")
+	assert_eq(plate.text, "P1 Alice")
 	assert_eq(plate.get_theme_color(&"font_color"), PlayerPalette.color_for_slot(0))
 	assert_not_null(view.rig_for_slot(1))
+
+
+## #580: nameplates off by default — the plate shows just the number badge
+## until show_names is switched on.
+func test_plate_shows_number_badge_only_by_default() -> void:
+	MinigameView.show_names = false
+	view.render_side_scroll({0: [0.0, 0.5, 1, 1]})
+	var plate: Label = view.rig_for_slot(0).get_node("Plate")
+	assert_eq(plate.text, "P1", "off shows just the number badge")
 
 
 func test_facing_leans_the_eye() -> void:

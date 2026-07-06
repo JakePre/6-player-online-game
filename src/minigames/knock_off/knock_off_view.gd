@@ -92,7 +92,7 @@ func _render_fighter(slot: int, state: Array) -> void:
 	rig.modulate = Color.WHITE if alive else KO_MODULATE
 	var plate: Label = rig.get_node("Plate")
 	var percent := int(state[4])
-	plate.text = "%s  %d%%" % [names.get(slot, ""), percent]
+	plate.text = "%s  %d%%" % [player_name(slot), percent]
 	# Nameplate reddens with damage — the at-a-glance danger read.
 	plate.add_theme_color_override(
 		&"font_color",
