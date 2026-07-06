@@ -109,11 +109,13 @@ func test_mouse_motion_is_handled_in_input() -> void:
 ## the gallery, and the result is always clamped to +/- the arena half.
 func test_screen_to_floor_projects_inside_the_gallery() -> void:
 	view.size = Vector2(1280, 720)
-	var hit := view._screen_to_floor(Vector2(640, 360))
+	# Explicit types: `view` is typed MinigameView3D but _screen_to_floor is on
+	# the subclass, so `:=` inference fails CI's stricter parser (§11).
+	var hit: Vector2 = view._screen_to_floor(Vector2(640, 360))
 	assert_between(hit.x, -view._half, view._half, "projected x stays in the gallery")
 	assert_between(hit.y, -view._half, view._half, "projected z stays in the gallery")
 	# A far off-screen point still clamps rather than flying to infinity.
-	var far := view._screen_to_floor(Vector2(99999, 99999))
+	var far: Vector2 = view._screen_to_floor(Vector2(99999, 99999))
 	assert_lte(absf(far.x), view._half + 0.001, "off-screen aim clamps to the arena")
 
 
