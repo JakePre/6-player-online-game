@@ -47,6 +47,7 @@ Live (M17, owner directive 2026-07-05 — full controller support):
 | **M18-01** settings 2.0 (L) | Sectioned settings screen + schema-versioned SettingsStore with migrations, reset-to-defaults, celestrum.com server default. The foundation piece of the 2026-07-06 owner batch. |
 | **M18-02** disconnected-player ghost fix (M) | #601 — diagnosis done in the issue; core fix is small, the 42-view verification sweep is the work. |
 | **M18-03** in-match pause/options overlay (M) | New surface on established M16/M17 conventions; server sim never pauses. |
+| **M18-06** server diagnostics log (M) | Shared `DiagnosticsLog` helper (JSONL, level-gated, buffered, rotating, crash hook) + always-on server wiring per DIAGNOSTICS.md. Perf-sensitive (never touch the 30 Hz budget) and event-selection judgment — Opus. |
 | **#577** practice mode: lobby bots (owner HIGH) | Real feature: host adds headless-bot members to a live room — the playtest-bot input pump (#560) is most of the brain; the work is room/lobby plumbing. |
 | **#565** release self-heal vs branch protection (S) | Pick + implement one of the three listed mechanisms (PR-based sync is the likely winner). |
 | **#577–#592 playtest wave** | Individually claimable; mostly Opus/Sonnet-sized — classify per issue when claiming. #584 is the exception (Fable, design-first). |
@@ -62,6 +63,9 @@ Live: **M17-05** regression guards (S) — GUT tests locking in joypad+keyboard
 coverage per action, pad mentions in every game's controls hint, and remap
 round-tripping (⛓ M17-03). Plus **#564** landing owner-generated image
 batches as they arrive (mechanical: files + CREDITS rows + status flips).
+Plus **M18-07** client diagnostics log (M) — reuses M18-06's `DiagnosticsLog`
+helper; the work is the opt-in setting, client-side event wiring, and the
+Diagnostics settings page (toggle + open/copy log path). ⛓ M18-06.
 
 Everything below is **done** — kept as a record, not a work queue. Next
 agent: check here before re-deriving this from scratch.
