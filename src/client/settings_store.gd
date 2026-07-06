@@ -28,7 +28,7 @@ const SECTIONS := {
 	"Gameplay": ["player_name", "nameplate_scale", "show_names"],
 	"Video": ["fullscreen", "colorblind", "reduced_motion"],
 	"Audio": ["master_volume", "music_volume", "sfx_volume"],
-	"Controls": ["keybinds"],
+	"Controls": ["keybinds", "padbinds"],
 	"Network": ["server_address", "server_port"],
 	"Diagnostics": ["diagnostics_log"],
 }
@@ -52,6 +52,19 @@ const REBINDABLE_ACTIONS := {
 	"action_primary": KEY_SPACE,
 	"action_secondary": KEY_E,
 	"emote": KEY_T,
+}
+
+## Factory gamepad bindings per rebindable action (M17-03), mirroring
+## project.godot's [input] joypad events: movement on the left stick axes,
+## actions on face buttons. {button: index} or {axis: index, sign: -1|1}.
+const REBINDABLE_PAD_ACTIONS := {
+	"move_up": {"axis": JOY_AXIS_LEFT_Y, "sign": -1},
+	"move_down": {"axis": JOY_AXIS_LEFT_Y, "sign": 1},
+	"move_left": {"axis": JOY_AXIS_LEFT_X, "sign": -1},
+	"move_right": {"axis": JOY_AXIS_LEFT_X, "sign": 1},
+	"action_primary": {"button": JOY_BUTTON_A},
+	"action_secondary": {"button": JOY_BUTTON_X},
+	"emote": {"button": JOY_BUTTON_Y},
 }
 
 const DEFAULTS := {
@@ -83,6 +96,9 @@ const DEFAULTS := {
 	## default; when on, apply() starts DiagnosticsLog mirroring the session to
 	## user://logs/client-*.log so a tester can attach it to a bug report.
 	"diagnostics_log": false,
+	## Gamepad rebind overrides (M17-03): action -> {button: idx} or
+	## {axis: idx, sign: -1|1}. Same only-changed-actions convention.
+	"padbinds": {},
 }
 
 
@@ -169,7 +185,67 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 	if raw.has("diagnostics_log"):
 		clean.diagnostics_log = bool(raw.diagnostics_log)
 	clean.keybinds = _sanitize_keybinds(raw.get("keybinds", {}))
+	clean.padbinds = _sanitize_padbinds(raw.get("padbinds", {}))
 	return clean
+
+
+## Keeps only overrides for known actions shaped like {button: idx} or
+## {axis: idx, sign: -1|1} with plausible indices; everything else drops so a
+## stale or hand-edited file can never bind an action to garbage.
+static func _sanitize_padbinds(raw: Variant) -> Dictionary:
+	var clean := {}
+	if raw is not Dictionary:
+		return clean
+	for action: String in REBINDABLE_PAD_ACTIONS:
+		if not raw.has(action) or raw[action] is not Dictionary:
+			continue
+		var bind: Dictionary = raw[action]
+		if bind.has("button"):
+			var button := int(bind.button)
+			if button >= 0 and button < JOY_BUTTON_MAX:
+				clean[action] = {"button": button}
+		elif bind.has("axis"):
+			var axis := int(bind.axis)
+			var axis_sign := signi(int(bind.get("sign", 0)))
+			if axis >= 0 and axis < JOY_AXIS_MAX and axis_sign != 0:
+				clean[action] = {"axis": axis, "sign": axis_sign}
+	return clean
+
+
+## The full action -> pad binding map in force: factory bindings with the
+## sanitized overrides layered on top (mirror of effective_keybinds).
+static func effective_padbinds(settings: Dictionary) -> Dictionary:
+	var binds := REBINDABLE_PAD_ACTIONS.duplicate(true)
+	var overrides := _sanitize_padbinds(settings.get("padbinds", {}))
+	for action: String in overrides:
+		binds[action] = overrides[action]
+	return binds
+
+
+## Rewrites each rebindable action's JOYPAD binding in the live InputMap to
+## the effective pad bind, leaving that action's keyboard events in place —
+## the exact mirror of apply_keybinds. Safe to call repeatedly.
+static func apply_padbinds(settings: Dictionary) -> void:
+	var binds := effective_padbinds(settings)
+	for action: String in binds:
+		if not InputMap.has_action(action):
+			continue
+		for event in InputMap.action_get_events(action):
+			if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+				InputMap.action_erase_event(action, event)
+		var bind: Dictionary = binds[action]
+		if bind.has("button"):
+			var press := InputEventJoypadButton.new()
+			press.device = -1
+			press.button_index = int(bind.button)
+			press.pressed = true
+			InputMap.action_add_event(action, press)
+		else:
+			var motion := InputEventJoypadMotion.new()
+			motion.device = -1
+			motion.axis = int(bind.axis)
+			motion.axis_value = float(signi(int(bind.sign)))
+			InputMap.action_add_event(action, motion)
 
 
 ## Keeps only overrides for known actions with a plausible keycode; everything
@@ -228,6 +304,7 @@ static func apply(settings: Dictionary, window: Window) -> void:
 			DiagnosticsLog.configure("client", DiagnosticsLog.Level.INFO)
 	elif DiagnosticsLog.is_active():
 		DiagnosticsLog.stop()
+	apply_padbinds(clean)
 
 
 ## Rewrites each rebindable action's keyboard binding in the live InputMap to

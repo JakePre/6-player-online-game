@@ -195,3 +195,49 @@ func test_reset_diagnostics_section_turns_logging_back_off() -> void:
 	assert_false(menu._diagnostics_toggle.button_pressed, "the UI re-seeds off")
 	assert_false(DiagnosticsLog.is_active(), "and logging actually stops")
 	assert_false(bool(SettingsStore.load_settings().diagnostics_log))
+
+
+# --- Pad rebinding (M17-03) ------------------------------------------------------
+
+
+func test_pad_capture_binds_a_button_and_persists() -> void:
+	menu._begin_pad_capture("action_primary")
+	var press := InputEventJoypadButton.new()
+	press.pressed = true
+	press.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	menu._input(press)
+	assert_eq(menu._padbinds["action_primary"], {"button": JOY_BUTTON_RIGHT_SHOULDER})
+	var saved: Dictionary = SettingsStore.load_settings().padbinds
+	assert_eq(saved, {"action_primary": {"button": JOY_BUTTON_RIGHT_SHOULDER}})
+
+
+func test_pad_capture_binds_a_stick_direction() -> void:
+	menu._begin_pad_capture("move_up")
+	var push := InputEventJoypadMotion.new()
+	push.axis = JOY_AXIS_RIGHT_Y
+	push.axis_value = -0.9
+	menu._input(push)
+	assert_eq(menu._padbinds["move_up"], {"axis": JOY_AXIS_RIGHT_Y, "sign": -1})
+
+
+func test_pad_capture_ignores_small_stick_noise() -> void:
+	menu._begin_pad_capture("move_up")
+	var drift := InputEventJoypadMotion.new()
+	drift.axis = JOY_AXIS_LEFT_X
+	drift.axis_value = 0.2
+	menu._input(drift)
+	assert_eq(menu._pad_capturing, "move_up", "sub-threshold motion keeps capturing")
+
+
+func test_escape_cancels_pad_capture_without_rebinding() -> void:
+	menu._begin_pad_capture("emote")
+	var esc := InputEventKey.new()
+	esc.pressed = true
+	esc.keycode = KEY_ESCAPE
+	menu._input(esc)
+	assert_eq(menu._pad_capturing, "")
+	assert_eq(
+		menu._padbinds["emote"],
+		SettingsStore.REBINDABLE_PAD_ACTIONS["emote"],
+		"emote keeps its factory pad bind"
+	)
