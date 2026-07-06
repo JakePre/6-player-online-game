@@ -61,17 +61,24 @@ last gaps.
 
 Live: **M17-05** regression guards (S) — GUT tests locking in joypad+keyboard
 coverage per action, pad mentions in every game's controls hint, and remap
-round-tripping (⛓ M17-03). Plus **#564** landing owner-generated image
-batches as they arrive (mechanical: files + CREDITS rows + status flips).
-Plus **M18-07** client diagnostics log (M) — reuses M18-06's `DiagnosticsLog`
-helper; the work is the opt-in setting, client-side event wiring, and the
-Diagnostics settings page (toggle + open/copy log path). ⛓ M18-06.
+round-tripping — blocked until M17-03 (claimed, Opus, #645) actually lands,
+since there's no remap UI yet to round-trip against (⛓ M17-03). Plus **#564**
+landing owner-generated image batches as they arrive (mechanical: files +
+CREDITS rows + status flips) — no batch has landed yet as of 2026-07-06, so
+there is nothing to pick up until one does.
+
+**As of 2026-07-06, the Sonnet queue is empty**: every other Sonnet-tagged
+item below is done, and #588/#609 were found already-delivered-elsewhere and
+closed rather than re-implemented (see their closing comments). Check here
+before assuming there's unclaimed work — the "Live" list above is short by
+design, not stale.
 
 Everything below is **done** — kept as a record, not a work queue. Next
 agent: check here before re-deriving this from scratch.
 
 | Task | Status |
 |---|---|
+| ~~M18-07~~ client diagnostics log | ✅ done (#644) |
 | ~~M15 8-caps~~ (10): Sumo Smash, Rumble Ring, Shock Tag, Hot Potato, Cart Push, Wall Builders, Bomb Courier, Heist Night, Trap Corridor, Fish Frenzy | ✅ done — all at `max_players: 8` |
 | ~~M15 simple 24-caps~~ (8): Beat Bounce, Bullseye Bowl, Count Quick, Hurdle Dash, Memory Match, Quick Draw, Simon Stomp, Tug of War | ✅ done — all at `max_players: 24` |
 | ~~M15 remaining 12-caps~~ (8): King of the Hill, Meteor Shower, Musical Platforms, Poison Feast, Relay Sprint, Snake Chain, Thin Ice, Treasure Divers | ✅ done — all at `max_players: 12` |
