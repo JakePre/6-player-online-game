@@ -176,3 +176,32 @@ func test_nameplate_width_is_capped() -> void:
 		"long text fits the shared width cap"
 	)
 	assert_gt(scale, 0.0)
+
+
+# --- Held weapons (#584) --------------------------------------------------------
+
+
+func test_attack_action_maps_to_the_spin_swing() -> void:
+	var rig := _make_rig()
+	assert_true(rig.play(&"attack"), "all shipped characters carry the spin animation")
+	assert_eq(rig.current_action(), &"attack")
+
+
+func test_held_weapon_attaches_to_the_hand_and_clears() -> void:
+	var rig := _make_rig()
+	assert_false(rig.has_held_weapon())
+	rig.set_held_weapon(BoxMesh.new())
+	assert_true(rig.has_held_weapon())
+	var attach := rig.find_children("HeldWeapon", "BoneAttachment3D", true, false)
+	assert_eq(attach.size(), 1, "one weapon attachment on the skeleton")
+	assert_eq((attach[0] as BoneAttachment3D).bone_name, "handslot.r")
+	rig.clear_held_weapon()
+	assert_false(rig.has_held_weapon())
+
+
+func test_held_weapon_survives_a_character_swap() -> void:
+	var rig := _make_rig()
+	rig.set_held_weapon(BoxMesh.new())
+	rig.character_scene = load("res://assets/characters/kaykit_skeletons/Skeleton_Minion.glb")
+	var attach := rig.find_children("HeldWeapon", "BoneAttachment3D", true, false)
+	assert_eq(attach.size(), 1, "the new body is re-armed (skeletons have no props of their own)")

@@ -3,7 +3,8 @@ extends MinigameView3D
 ## telegraphed hazard discs, and players in the shared 2.5D iso-arena
 ## (M8-01). New build — the Gauntlet sim (M5-02) had server logic only.
 ## Renders Gauntlet.get_snapshot() untouched: {radius, shrink_in, players:
-## {slot: [x, y, lives, respawn_left]}, hazards: [[x, y, r, warn_left]]}.
+## {slot: [x, y, lives, respawn_left, swings, swing_seq, hit_seq]}, hazards:
+## [[x, y, r, warn_left]], weapons: [[x, y]]} (#584 weapon fields).
 
 const PLATFORM_COLOR := Color(0.45, 0.43, 0.4)
 const PLATFORM_THICKNESS := 0.4
@@ -15,6 +16,20 @@ const HAZARD_ARMED_COLOR := Color(0.7, 0.1, 0.05, 0.7)
 const HAZARD_FX_COLOR := Color(0.95, 0.35, 0.2)
 const CRUMBLE_PUFFS := 6
 const FX_LIFT := PLATFORM_THICKNESS + 0.1
+
+## Weapon pickups (#584): the floor axes and the in-hand model both use the
+## Barbarian's CC0 2H_Axe mesh (already shipped); the grip offset mirrors the
+## GLB's own 2H_Axe bone rest relative to the shared handslot.r bone.
+const AXE_SOURCE_SCENE := "res://assets/characters/kaykit_adventurers/Barbarian.glb"
+const AXE_MESH_NAME := "2H_Axe"
+const AXE_BONE := "handslot.r"
+const WEAPON_COLOR := Color(0.95, 0.78, 0.25)
+const WEAPON_BOB_HEIGHT := 0.25
+const WEAPON_SPIN_HZ := 0.5
+## Floor axes hover this far above the platform (plus the bob).
+const WEAPON_FLOAT_Y := 0.55
+## How long a swing/stagger animation owns the rig before walk/idle resumes.
+const REACTION_HOLD_SEC := 0.6
 
 ## Shrink telegraph (#583): the band the next shrink stage is about to shed
 ## lights up for Gauntlet.SHRINK_WARN_SEC before it actually shrinks, reddening
@@ -38,6 +53,7 @@ const WINNER_HOLD_SEC := 4.5
 var radius := Gauntlet.START_RADIUS
 var players := {}
 var hazards: Array = []
+var weapons: Array = []
 
 var _platform: MeshInstance3D
 var _platform_mesh: CylinderMesh
@@ -46,6 +62,18 @@ var _hazard_nodes: Array[MeshInstance3D] = []
 var _last_radius := Gauntlet.START_RADIUS
 var _last_hazard_keys := {}  # quantized "x,y" -> Vector2 world pos (detonation FX)
 var _last_lives := {}  # slot -> lives (fall/KO burst)
+
+## Weapon pickups (#584).
+var _axe_mesh: Mesh
+var _weapon_nodes: Array[MeshInstance3D] = []
+var _last_weapon_keys := {}  # quantized "x,y" -> Vector2 (pickup flash)
+var _last_swing_seq := {}  # slot -> seq (play the swing exactly once)
+var _last_hit_seq := {}  # slot -> seq (hit reaction exactly once)
+var _armed := {}  # slot -> swings left, mirrored for the nameplate + hand prop
+var _axe_hint_shown := false
+## slot -> ticks_msec until which a swing/stagger owns the rig's animation —
+## the #587 _reaction_hold idiom, so update_rig's walk/idle can't stomp it.
+var _reaction_hold := {}
 
 ## Shrink telegraph (#583).
 var _shrink_in := Gauntlet.SHRINK_STAGE_SEC
@@ -81,22 +109,32 @@ func _physics_process(_delta: float) -> void:
 
 ## Pulses the shrink telegraph between snapshots so the warning reads as alive,
 ## not a static tint — suppressed under reduced motion (a steady tint instead).
+## Floor axes spin and bob for the same reason (steady hover when reduced).
 func _process(_delta: float) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	for node in _weapon_nodes:
+		if ArenaFX.reduced_motion:
+			continue
+		node.rotation.y = TAU * t * WEAPON_SPIN_HZ
+		node.position.y = PLATFORM_THICKNESS + WEAPON_FLOAT_Y + WEAPON_BOB_HEIGHT * sin(TAU * t)
 	if _shrink_telegraph == null or not _shrink_telegraph.visible or ArenaFX.reduced_motion:
 		return
-	var phase := TAU * (Time.get_ticks_msec() / 1000.0) / SHRINK_TELEGRAPH_PULSE_SEC
+	var phase := TAU * t / SHRINK_TELEGRAPH_PULSE_SEC
 	var pulse := 0.75 + 0.25 * sin(phase)
 	_shrink_telegraph_mat.albedo_color.a = _shrink_base_alpha * pulse
 
 
-## Alive: action_secondary spends a sabotage token on the nearest living rival.
-## Eliminated: aim the one grudge with move-left/right and strike with either
-## action button. Parity-clean — one stick axis to aim, one button to fire.
+## Alive: action_primary swings the held axe (#584), action_secondary spends a
+## sabotage token on the nearest living rival. Eliminated: aim the one grudge
+## with move-left/right and strike with either action button. Parity-clean —
+## one stick axis to aim, one button to fire.
 func _unhandled_input(event: InputEvent) -> void:
 	if NetManager.multiplayer.multiplayer_peer == null:
 		return
 	if _local_lives() > 0:
-		if event.is_action_pressed(&"action_secondary"):
+		if event.is_action_pressed(&"action_primary"):
+			NetManager.send_match_input({"swing": true})
+		elif event.is_action_pressed(&"action_secondary"):
 			NetManager.send_match_input({"sabotage": _sabotage_target()})
 		return
 	if _grudge_spent:
@@ -240,6 +278,14 @@ func _setup_3d() -> void:
 	_shrink_telegraph.visible = false
 	arena.add_child(_shrink_telegraph)
 
+	# The axe model for floor pickups and hands (#584) is lifted straight out of
+	# the shipped Barbarian GLB — no new asset, guaranteed to match the rig.
+	var axe_source: Node = (load(AXE_SOURCE_SCENE) as PackedScene).instantiate()
+	var axe_nodes := axe_source.find_children(AXE_MESH_NAME, "MeshInstance3D", true, false)
+	if not axe_nodes.is_empty():
+		_axe_mesh = (axe_nodes[0] as MeshInstance3D).mesh
+	axe_source.free()
+
 	_grudge_prompt = Label.new()
 	_grudge_prompt.name = "GrudgePrompt"
 	_grudge_prompt.theme_type_variation = PartyTheme.HEADER_VARIATION
@@ -274,8 +320,10 @@ func _render_3d(game: Dictionary) -> void:
 	if radius < _last_radius - 0.01:
 		_crumble_ring(_last_radius)
 	_last_radius = radius
+	weapons = game.get("weapons", [])
 	_update_players()
 	_update_hazards()
+	_update_weapons()
 	_update_shrink_telegraph()
 	_update_grudge_prompt()
 	_check_winner()
@@ -302,9 +350,84 @@ func _update_players() -> void:
 		rig.visible = lives > 0 and not respawning
 		if not rig.visible:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		rig.position.y = PLATFORM_THICKNESS
-		rig.display_name = "%s %s" % [player_name(slot), "♥".repeat(lives)]
+		_update_weapon_state(slot, state, rig)
+		if Time.get_ticks_msec() < int(_reaction_hold.get(slot, 0)):
+			# A swing/stagger owns the rig (#587 idiom): move it, don't re-animate.
+			rig.position = to_arena(Vector2(state[0], state[1]), PLATFORM_THICKNESS)
+		else:
+			update_rig(slot, Vector2(state[0], state[1]))
+			rig.position.y = PLATFORM_THICKNESS
+		rig.display_name = (
+			"%s %s%s" % [player_name(slot), "♥".repeat(lives), "⚔".repeat(int(_armed.get(slot, 0)))]
+		)
+
+
+## Arms/disarms the rig's hand and fires the swing/hit reactions off the sim's
+## monotonic counters (#584) — each plays exactly once no matter how snapshots
+## are sampled, and a mid-match join seeds silently instead of replaying.
+func _update_weapon_state(slot: int, state: Array, rig: CharacterRig) -> void:
+	if state.size() < 7:
+		return  # pre-#584 snapshot shape
+	var swings := int(state[4])
+	var was_armed := int(_armed.get(slot, 0)) > 0
+	_armed[slot] = swings
+	if swings > 0 and not was_armed:
+		if _axe_mesh != null:
+			# Grip offset = the GLB's own 2H_Axe bone rest relative to handslot.r.
+			rig.set_held_weapon(
+				_axe_mesh, AXE_BONE, Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, 0.033, 0.0))
+			)
+		play_sfx(&"confirm")
+		fx_sparkle(Vector2(rig.position.x, rig.position.z), WEAPON_COLOR, FX_LIFT + 0.6)
+		if slot == my_slot and not _axe_hint_shown:
+			_axe_hint_shown = true
+			_show_event("AXE! Swing to launch rivals", PartyTheme.ACCENT_BRIGHT)
+	elif swings <= 0 and was_armed:
+		rig.clear_held_weapon()
+	var swing := int(state[5])
+	var hit := int(state[6])
+	var swing_seen: int = _last_swing_seq.get(slot, swing)
+	var hit_seen: int = _last_hit_seq.get(slot, hit)
+	_last_swing_seq[slot] = swing
+	_last_hit_seq[slot] = hit
+	# A hit reaction outranks the swing pose — the victim's stagger is the story.
+	if hit > hit_seen:
+		rig.play(&"hit")
+		_reaction_hold[slot] = Time.get_ticks_msec() + int(REACTION_HOLD_SEC * 1000.0)
+		fx_burst(Vector2(rig.position.x, rig.position.z), WEAPON_COLOR, FX_LIFT + 0.5)
+		if slot == my_slot:
+			request_shake(8.0)
+			play_sfx(&"error")
+	elif swing > swing_seen:
+		rig.play(&"attack")
+		_reaction_hold[slot] = Time.get_ticks_msec() + int(REACTION_HOLD_SEC * 1000.0)
+		play_sfx(&"click")
+		fx_sparkle(Vector2(rig.position.x, rig.position.z), WEAPON_COLOR, FX_LIFT + 0.8)
+
+
+## Floor axes: one spinning gold-tinted model per replicated pickup; a sparkle
+## telegraphs the drop and a flash marks the spot where one was grabbed.
+func _update_weapons() -> void:
+	for node in _weapon_nodes:
+		node.queue_free()
+	_weapon_nodes.clear()
+	var current_keys := {}
+	for weapon: Array in weapons:
+		var pos := Vector2(float(weapon[0]), float(weapon[1]))
+		if _axe_mesh != null:
+			var node := MeshInstance3D.new()
+			node.mesh = _axe_mesh
+			node.position = to_arena(pos, PLATFORM_THICKNESS + WEAPON_FLOAT_Y)
+			arena.add_child(node)
+			_weapon_nodes.append(node)
+		var key := _hazard_key(pos)
+		current_keys[key] = pos
+		if not _last_weapon_keys.has(key):
+			fx_sparkle(pos, WEAPON_COLOR, FX_LIFT + WEAPON_FLOAT_Y)
+	for key: String in _last_weapon_keys:
+		if not current_keys.has(key):
+			fx_burst(_last_weapon_keys[key], WEAPON_COLOR, FX_LIFT + WEAPON_FLOAT_Y)
+	_last_weapon_keys = current_keys
 
 
 ## Dust puffs kicked evenly off the rim the platform just shed as it shrank.
@@ -448,7 +571,7 @@ func _flash_intro() -> void:
 	if _intro_box == null:
 		return
 	_intro_title.text = "THE GAUNTLET"
-	_intro_sub.text = "Last one standing takes the crown"
+	_intro_sub.text = "Grab an axe — last one standing takes the crown"
 	if _intro_tween != null and _intro_tween.is_valid():
 		_intro_tween.kill()
 	_intro_tween = _reveal(_intro_box, INTRO_HOLD_SEC)
