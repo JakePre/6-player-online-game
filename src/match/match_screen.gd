@@ -51,6 +51,8 @@ var _minigame_id := ""
 var _minigame_name := ""
 var _round_view_flags: Array = []
 var _minigame_view: MinigameView
+## In-match pause/options overlay (M18-03), mounted on top in _ready.
+var _pause_overlay: PauseOverlay
 var _shake_tween: Tween
 var _shake_origin := Vector2.ZERO
 var _countdown_digit := 0
@@ -89,6 +91,9 @@ func _ready() -> void:
 	NetManager.emote_received.connect(_on_emote_received)
 	_skip_button.pressed.connect(_on_skip_pressed)
 	_build_emote_bar()
+	# Pause overlay (M18-03) sits above the HUD; the match keeps running behind.
+	_pause_overlay = PauseOverlay.new()
+	add_child(_pause_overlay)
 	# Hard cap (#571): whatever _pack_total_chips can't keep to two rows at the
 	# current width scrolls instead of stretching the HUD panel over the arena.
 	_totals_scroll.custom_minimum_size.y = TOTALS_ROW_MAX_HEIGHT
@@ -214,7 +219,26 @@ func _on_skip_pressed() -> void:
 
 
 ## Number keys 1-6 mirror the emote bar buttons.
+## Esc / pad Start toggles the pause overlay (M18-03). The server sim is never
+## paused — this just overlays local controls while the round runs on.
+func _unhandled_input(event: InputEvent) -> void:
+	var toggles := event.is_action_pressed(&"ui_cancel")
+	if not toggles and event is InputEventJoypadButton:
+		var pad := event as InputEventJoypadButton
+		toggles = pad.pressed and pad.button_index == JOY_BUTTON_START
+	if not toggles or _pause_overlay == null:
+		return
+	if _pause_overlay.is_open():
+		_pause_overlay.close()
+	else:
+		_pause_overlay.open()
+	get_viewport().set_input_as_handled()
+
+
 func _unhandled_key_input(event: InputEvent) -> void:
+	# Emotes are muted while the pause menu owns input.
+	if _pause_overlay != null and _pause_overlay.is_open():
+		return
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
