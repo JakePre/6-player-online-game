@@ -64,3 +64,12 @@ func test_each_game_view_survives_setup_before_ready() -> void:
 		var rig: Node = view.rig_for_slot(0)
 		assert_not_null(rig, "%s rendered a rig after production mount" % id)
 		assert_not_null(rig.get_parent(), "%s parented the rig to the rig layer" % id)
+		if id == "tumble_run":
+			# Consumer-side variant (#575): crumble panels parent to Tumble
+			# Run's own _ensure_chrome()-built _fx_layer during _setup(). A
+			# regression there leaves nulls/orphans that none of the base-layer
+			# checks above can see.
+			assert_gt(view._crumble_nodes.size(), 0, "crumble panels built before _ready")
+			var crumble: Node = view._crumble_nodes.values()[0]
+			assert_true(is_instance_valid(crumble), "the crumble panel is a real node")
+			assert_not_null(crumble.get_parent(), "and parented to the fx layer")
