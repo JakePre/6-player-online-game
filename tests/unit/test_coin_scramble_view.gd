@@ -64,6 +64,15 @@ func test_pickup_sparkles_once_seeded() -> void:
 	assert_eq(view.arena.get_child_count(), before + 1, "count up = one sparkle")
 
 
+## #587: a bumped player's count drops (the sim scatters 20% of their haul) —
+## that reads as a burst, distinct from the pickup sparkle.
+func test_bump_scatter_bursts_when_count_drops() -> void:
+	view.render({"players": {0: [0.0, 0.0, 5]}, "coins": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {0: [0.0, 0.0, 4]}, "coins": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "count down = one burst")
+
+
 func test_fresh_coins_dust_in_after_seeding() -> void:
 	view.render({"players": {0: [0.0, 0.0, 0]}, "coins": [[1.0, 1.0]]})
 	var before: int = view.arena.get_child_count()

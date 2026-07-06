@@ -73,10 +73,12 @@ func _render_3d(game: Dictionary) -> void:
 		var dashing := int(state[3]) == 1
 		if dashing and rig.current_action() != &"run":
 			rig.play(&"run")
-		# M13-06: dashes trail dust; a sudden non-dash displacement means a
-		# shove landed - burst at the contact. Seeded via _last_pos.
+		# Dash trail (#587): a player-colored burst reads as a fast streak far
+		# better than the old generic gray dust puff. A sudden non-dash
+		# displacement means a shove landed - burst at the contact too, same
+		# treatment. Seeded via _last_pos.
 		if dashing:
-			fx_dust(at)
+			fx_burst(at, player_color(slot), 0.5)
 		elif _last_pos.has(slot) and (_last_pos[slot] as Vector2).distance_to(at) > 0.25:
 			fx_burst(at, player_color(slot), 0.6)
 		_last_pos[slot] = at
