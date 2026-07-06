@@ -60,3 +60,29 @@ func test_capped_items_disable_buy_and_enable_refund() -> void:
 	assert_true((shield.buy as Button).disabled, "cap 1 reached")
 	assert_false((shield.refund as Button).disabled, "owned items refundable")
 	assert_eq((shield.owned as Label).text, "×1")
+
+
+## M17-02 pad parity: when a Buy the controller is focused on becomes disabled
+## (bought to cap / spent out), focus is re-homed to a live control instead of
+## being dropped to null — otherwise a pad user is stranded mid-shop.
+func test_focus_rescued_when_focused_buy_becomes_disabled() -> void:
+	# Afford only the shield (40c); focus its Buy button.
+	panel.render(_shop_state({"coins": 40, "items": {}, "confirmed": false}), 0, 30.0)
+	var shield_buy: Button = panel._rows[&"shield"]["buy"]
+	shield_buy.grab_focus()
+	assert_eq(panel.get_viewport().gui_get_focus_owner(), shield_buy)
+	# Now the shield is owned (cap 1) and coins are gone: its Buy disables.
+	panel.render(_shop_state({"coins": 0, "items": {&"shield": 1}, "confirmed": false}), 0, 30.0)
+	var owner := panel.get_viewport().gui_get_focus_owner()
+	assert_not_null(owner, "focus is not dropped to null — the pad user keeps an anchor")
+	assert_true(owner is Button and not (owner as Button).disabled, "re-homed to a live control")
+
+
+## Rescue never fires when focus is not ours — a stray render must not yank a
+## controller off some other on-screen control.
+func test_render_does_not_steal_external_focus() -> void:
+	var outsider := Button.new()
+	add_child_autofree(outsider)
+	outsider.grab_focus()
+	panel.render(_shop_state({"coins": 0, "items": {&"shield": 1}, "confirmed": false}), 0, 30.0)
+	assert_eq(panel.get_viewport().gui_get_focus_owner(), outsider, "external focus untouched")

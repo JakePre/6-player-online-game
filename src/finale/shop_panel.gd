@@ -53,6 +53,11 @@ func grab_initial_focus() -> void:
 ## Renders the authoritative shop snapshot: {"players": {slot: {coins, items,
 ## confirmed}}}. `time_left` comes from the match snapshot's clock.
 func render(shop: Dictionary, my_slot: int, time_left: float) -> void:
+	# Pad parity (M17-02): remember who held focus BEFORE we start disabling
+	# buttons, so we can rescue a controller whose focused control goes away.
+	var prev_focus: Control = null
+	if is_inside_tree():
+		prev_focus = get_viewport().gui_get_focus_owner()
 	_time_label.text = MatchFormat.clock(time_left)
 	var players: Dictionary = shop.get("players", {})
 	var mine: Dictionary = players.get(my_slot, {})
@@ -69,6 +74,42 @@ func render(shop: Dictionary, my_slot: int, time_left: float) -> void:
 	_confirmed_label.text = "%d/%d locked in" % [confirmed, players.size()]
 	_confirm_button.disabled = _my_confirmed
 	_confirm_button.text = "Locked in!" if _my_confirmed else "Lock in"
+	_rescue_focus(prev_focus)
+
+
+## Pad parity (M17-02): buying an item to its cap (or spending down so it is
+## unaffordable) disables its Buy button — and Godot drops focus to null when
+## the focused control is disabled, stranding a controller with no anchor. If
+## the control we just disabled was OURS and had focus, hand focus to the next
+## live control. We only act when we owned the lost focus, so normal stick
+## navigation is never stolen.
+func _rescue_focus(prev_focus: Control) -> void:
+	if prev_focus == null or not _owns(prev_focus):
+		return
+	if prev_focus is Button and not (prev_focus as Button).disabled:
+		return  # still focusable; the user is fine where they are
+	for id: StringName in _rows:
+		var buy: Button = _rows[id]["buy"]
+		if not buy.disabled:
+			buy.grab_focus()
+			return
+	for id: StringName in _rows:
+		var refund: Button = _rows[id]["refund"]
+		if not refund.disabled:
+			refund.grab_focus()
+			return
+	if not _confirm_button.disabled:
+		_confirm_button.grab_focus()
+
+
+## True if `control` is one of the shop's own interactive buttons.
+func _owns(control: Control) -> bool:
+	if control == _confirm_button:
+		return true
+	for id: StringName in _rows:
+		if control == _rows[id]["buy"] or control == _rows[id]["refund"]:
+			return true
+	return false
 
 
 func _build_row(entry: Dictionary) -> Control:
