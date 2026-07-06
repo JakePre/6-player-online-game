@@ -278,6 +278,14 @@ func _render_3d(_game: Dictionary) -> void:
 
 
 func _build_scene_tree() -> void:
+	# The liked drifting-blob field (M16-03/#590) sits behind the arena
+	# viewport instead of the old flat grey — added first so it renders
+	# behind the container, and shows through wherever the 3D scene's own
+	# transparent background (see _build_lighting) doesn't cover the frame.
+	var backdrop := MenuBackdrop.new()
+	backdrop.name = "Backdrop"
+	add_child(backdrop)
+
 	var container := SubViewportContainer.new()
 	container.name = "Arena3DContainer"
 	container.stretch = true
@@ -288,6 +296,7 @@ func _build_scene_tree() -> void:
 	_viewport = SubViewport.new()
 	_viewport.name = "Arena3DViewport"
 	_viewport.own_world_3d = true
+	_viewport.transparent_bg = true
 	container.add_child(_viewport)
 
 	arena = Node3D.new()
@@ -312,8 +321,11 @@ func _build_lighting() -> void:
 	var world_env := WorldEnvironment.new()
 	world_env.name = "Environment"
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.05, 0.06, 0.08)
+	# Transparent background (#590): lets the Backdrop control show through
+	# instead of the old flat grey. Ambient lighting is set independently
+	# below (AMBIENT_SOURCE_COLOR), so this changes what shows behind the
+	# arena, not how anything in it is lit.
+	environment.background_mode = Environment.BG_CLEAR_COLOR
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.3, 0.32, 0.36)
 	environment.ambient_light_energy = 0.6
