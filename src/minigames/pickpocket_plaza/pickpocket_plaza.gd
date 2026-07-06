@@ -86,6 +86,12 @@ static func make_meta() -> MinigameMeta:
 					+ " stunned and robbed. Guard: patrol in disguise and arrest the thieves!"
 				),
 				"controls": "Move — WASD / left stick · Arrest (guard) — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				[
+					"Move — WASD / left stick · Arrest (guard) — ",
+					{"action": &"action_primary"},
+				],
 			}
 		)
 	)

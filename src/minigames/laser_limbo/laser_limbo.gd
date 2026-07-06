@@ -56,6 +56,14 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"laser_limbo",
 				"controls": "Move — WASD / stick · Jump — SPACE / pad A · Duck — hold E / pad X",
+				# Device-aware (#608): the buttons read as what the player holds.
+				"control_hints":
+				[
+					"Move — WASD / stick · Jump — ",
+					{"action": &"action_primary"},
+					" · Duck — hold ",
+					{"action": &"action_secondary"},
+				],
 				"name": "Laser Limbo",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

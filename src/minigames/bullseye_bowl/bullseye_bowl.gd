@@ -37,6 +37,9 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"bullseye_bowl",
 				"controls": "Roll — SPACE / pad A (lead the sliding target!)",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Roll — ", {"action": &"action_primary"}, " (lead the sliding target!)"],
 				"name": "Bullseye Bowl",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

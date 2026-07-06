@@ -77,6 +77,12 @@ static func make_meta() -> MinigameMeta:
 					+ " watch the sparks and out-repair them."
 				),
 				"controls": "Move — WASD / left stick · Cut (saboteur) — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				[
+					"Move — WASD / left stick · Cut (saboteur) — ",
+					{"action": &"action_primary"},
+				],
 			}
 		)
 	)

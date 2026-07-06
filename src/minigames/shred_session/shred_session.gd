@@ -72,6 +72,12 @@ static func make_meta() -> MinigameMeta:
 				),
 				"controls":
 				"Strum the four lanes — ◀ ▶ ▲ / action (left stick / pad A), on the beat",
+				"control_hints":  # Device-aware (#608); stick lanes stay literal (axis-bound).
+				[
+					"Strum the four lanes — ◀ ▶ ▲ / action (left stick / ",
+					{"action": &"action_primary"},
+					"), on the beat",
+				],
 			}
 		)
 	)

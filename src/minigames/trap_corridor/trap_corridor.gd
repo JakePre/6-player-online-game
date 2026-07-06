@@ -55,6 +55,13 @@ static func make_meta() -> MinigameMeta:
 					"Move — WASD / left stick · Trapper: move the cursor + Space/Ⓐ to arm"
 					+ " (or click a tile)"
 				),
+				# Device-aware (#608): the trap-arm button reads as what the player holds.
+				"control_hints":
+				[
+					"Move — WASD / left stick · Trapper: move the cursor + ",
+					{"action": &"action_primary"},
+					" to arm (or click a tile)",
+				],
 				"name": "Trap Corridor",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 3,

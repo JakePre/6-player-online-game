@@ -67,6 +67,9 @@ static func make_meta() -> MinigameMeta:
 					+ " Defuse the hot ones for scraps. Most delivered wins."
 				),
 				"controls": "Move — WASD / left stick · Swap-dash — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Move — WASD / left stick · Swap-dash — ", {"action": &"action_primary"}],
 			}
 		)
 	)

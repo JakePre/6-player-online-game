@@ -74,6 +74,13 @@ static func make_meta() -> MinigameMeta:
 				"id": &"loadout_duel",
 				"controls":
 				"Move — A/D / stick · Jump — W / stick up · Fire — SPACE / pad A · Throw — E / pad X",
+				"control_hints":  # Device-aware (#608); Jump stays literal (move_up is axis-bound).
+				[
+					"Move — A/D / stick · Jump — W / stick up · Fire — ",
+					{"action": &"action_primary"},
+					" · Throw — ",
+					{"action": &"action_secondary"},
+				],
 				"name": "Loadout Duel",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

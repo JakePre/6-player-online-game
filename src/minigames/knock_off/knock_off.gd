@@ -50,6 +50,13 @@ static func make_meta() -> MinigameMeta:
 				"id": &"knock_off",
 				"controls":
 				"Move — A/D / stick · Jump — W / stick up · Jab — SPACE / pad A · Smash — E / pad X",
+				"control_hints":  # Device-aware (#608); Jump stays literal (move_up is axis-bound).
+				[
+					"Move — A/D / stick · Jump — W / stick up · Jab — ",
+					{"action": &"action_primary"},
+					" · Smash — ",
+					{"action": &"action_secondary"},
+				],
 				"name": "Knock-Off",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
