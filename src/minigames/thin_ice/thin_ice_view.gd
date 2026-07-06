@@ -28,6 +28,12 @@ var _tile_nodes: Array[MeshInstance3D] = []
 var _intact_material: StandardMaterial3D
 var _cracked_material: StandardMaterial3D
 var _breaking_material: StandardMaterial3D
+var _water: MeshInstance3D
+## The grid dimension / half-extent the tile nodes are currently built for. The
+## setup-time estimate (from names.size()) seeds these; the snapshot's
+## authoritative grid_size corrects them on render (#578).
+var _view_grid := 0
+var _view_half := 0.0
 ## Previous snapshot's tile states, for crack/collapse SFX on transitions.
 var _prev_tiles: Array = []
 ## Last standing position per slot, so the splash lands where they fell.
@@ -40,31 +46,34 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
-## This lobby's grid dimension, mirroring the sim's M15 scaling formula so
-## the built tile-node grid matches what the snapshot sends. Equal
-## ThinIce.GRID_SIZE at <=6 players.
-func _grid_size() -> int:
+## Setup-time head-count estimate of the grid dimension, mirroring the sim's
+## M15 scaling formula. Only a best-effort seed: names.size() counts held
+## (incl. disconnected) members while the sim scales from the active round
+## slots, so near a scaling boundary these disagree — the snapshot's
+## authoritative grid_size corrects it on render (#578). Equal ThinIce.GRID_SIZE
+## at <=6 players.
+func _estimate_grid() -> int:
 	return roundi(ThinIce.GRID_SIZE * sqrt(MinigameScaling.growth(names.size())))
 
 
 func _arena_half() -> float:
-	return _grid_size() * ThinIce.TILE_SIZE / 2.0
+	return _view_half if _view_half > 0.0 else _estimate_grid() * ThinIce.TILE_SIZE / 2.0
 
 
 ## The ice grid IS the floor: a dark water plane below, one box per tile with
-## its top surface at y=0 so rigs stand on the ice.
+## its top surface at y=0 so rigs stand on the ice. Materials + water are made
+## once; the tile grid itself is (re)built by _build_ice_grid so a snapshot with
+## a different authoritative grid_size can rebuild it (#578).
 func _build_floor() -> void:
-	var half := _arena_half()
 	var water_mesh := PlaneMesh.new()
-	water_mesh.size = Vector2.ONE * half * 2.5
 	var water_material := StandardMaterial3D.new()
 	water_material.albedo_color = WATER_COLOR
 	water_mesh.material = water_material
-	var water := MeshInstance3D.new()
-	water.name = "Water"
-	water.mesh = water_mesh
-	water.position.y = -WATER_DEPTH
-	arena.add_child(water)
+	_water = MeshInstance3D.new()
+	_water.name = "Water"
+	_water.mesh = water_mesh
+	_water.position.y = -WATER_DEPTH
+	arena.add_child(_water)
 
 	_intact_material = StandardMaterial3D.new()
 	_intact_material.albedo_color = INTACT_COLOR
@@ -76,10 +85,23 @@ func _build_floor() -> void:
 	_breaking_material.emission_enabled = true
 	_breaking_material.emission = BREAKING_COLOR
 	_breaking_material.emission_energy_multiplier = 0.6
+
+	_build_ice_grid(_estimate_grid())
+
+
+## (Re)builds the grid_size x grid_size tile nodes over a matching arena half.
+## Frees any prior nodes first (removed from the tree immediately, not just
+## queue_free) so a rebuild leaves no stale tiles and node names stay free.
+func _build_ice_grid(grid_size: int) -> void:
+	_view_grid = grid_size
+	_view_half = grid_size * ThinIce.TILE_SIZE / 2.0
+	_water.mesh.size = Vector2.ONE * _view_half * 2.5
+	for node in _tile_nodes:
+		arena.remove_child(node)
+		node.queue_free()
+	_tile_nodes.clear()
 	var tile_mesh := BoxMesh.new()
 	tile_mesh.size = Vector3(ThinIce.TILE_SIZE, TILE_THICKNESS, ThinIce.TILE_SIZE)
-
-	var grid_size := _grid_size()
 	for y in grid_size:
 		for x in grid_size:
 			var node := MeshInstance3D.new()
@@ -87,18 +109,35 @@ func _build_floor() -> void:
 			node.mesh = tile_mesh
 			node.material_override = _intact_material
 			node.position = Vector3(
-				-half + (x + 0.5) * ThinIce.TILE_SIZE,
+				-_view_half + (x + 0.5) * ThinIce.TILE_SIZE,
 				-TILE_THICKNESS / 2.0,
-				-half + (y + 0.5) * ThinIce.TILE_SIZE
+				-_view_half + (y + 0.5) * ThinIce.TILE_SIZE
 			)
 			arena.add_child(node)
 			_tile_nodes.append(node)
+
+
+## Honor the sim's authoritative grid dimension (#578): if it disagrees with the
+## setup-time estimate, rebuild the tile grid to match so the flat `tiles` array
+## maps onto the right nodes (else a GONE tile renders on the wrong square and a
+## player drops over ice that still looks intact). Drops the transition baseline
+## so a stale-width delta never lights the wrong tiles, and re-fits the camera.
+func _adopt_snapshot_grid(grid_size: int) -> void:
+	if grid_size <= 0 or grid_size == _view_grid:
+		return
+	_build_ice_grid(grid_size)
+	_prev_tiles = []
+	if _camera_rig != null:
+		_camera_rig.ortho_size = _view_half * 2.4
 
 
 func _render_3d(game: Dictionary) -> void:
 	tiles = game.get("tiles", [])
 	players = game.get("players", {})
 	fallen = game.get("fallen", [])
+	# Match the sim's authoritative grid before mapping tiles onto nodes (#578).
+	if game.has("grid_size"):
+		_adopt_snapshot_grid(int(game["grid_size"]))
 	_update_tiles()
 	_update_players()
 	_shake_on_new_falls()
@@ -182,11 +221,11 @@ func _update_tiles() -> void:
 ## sight with their tile. `fallen` groups simultaneous falls (see
 ## ThinIce._flush_falls), so it flattens one level.
 func _tile_center(idx: int) -> Vector2:
-	var grid_size := _grid_size()
-	var half := _arena_half()
-	var x := idx % grid_size
-	var y := int(floorf(float(idx) / grid_size))
-	return Vector2(-half + (x + 0.5) * ThinIce.TILE_SIZE, -half + (y + 0.5) * ThinIce.TILE_SIZE)
+	var x := idx % _view_grid
+	var y := int(floorf(float(idx) / _view_grid))
+	return Vector2(
+		-_view_half + (x + 0.5) * ThinIce.TILE_SIZE, -_view_half + (y + 0.5) * ThinIce.TILE_SIZE
+	)
 
 
 func _update_players() -> void:

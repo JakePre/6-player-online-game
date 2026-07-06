@@ -116,15 +116,64 @@ func test_tile_transitions_fire_fx_once_seeded() -> void:
 ## lobby builds a bigger tile grid matching what the snapshot's tiles array
 ## will be sized to.
 func test_grid_scales_at_twelve_players() -> void:
-	assert_eq(view._grid_size(), ThinIce.GRID_SIZE, "2 players = baseline grid")
+	assert_eq(view._estimate_grid(), ThinIce.GRID_SIZE, "2 players = baseline grid")
 	var big: MinigameView3D = VIEW_SCENE.instantiate()
 	add_child_autofree(big)
 	var names := {}
 	for i in 12:
 		names[i] = "P%d" % (i + 1)
 	big.setup(names, 0)
-	assert_gt(big._grid_size(), ThinIce.GRID_SIZE, "12 players get a bigger grid")
-	var last: int = int(big._grid_size()) - 1
+	assert_gt(big._estimate_grid(), ThinIce.GRID_SIZE, "12 players get a bigger grid")
+	var last: int = int(big._estimate_grid()) - 1
 	assert_not_null(
 		big.arena.get_node_or_null("Tile_%d_%d" % [last, last]), "the grown grid actually built"
 	)
+
+
+## #578: the setup-time estimate counts held (incl. disconnected) members while
+## the sim scales from active slots, so near a boundary the view built the wrong
+## grid width and the flat `tiles` array mapped onto the wrong nodes — a player
+## on a GONE tile appeared to drop through intact ice. The view now adopts the
+## snapshot's authoritative grid_size.
+func _grid_of(grid_size: int, state: int) -> Array:
+	var grid: Array = []
+	grid.resize(grid_size * grid_size)
+	grid.fill(state)
+	return grid
+
+
+func test_render_adopts_a_larger_authoritative_grid_size() -> void:
+	# 2-player setup estimates the 7-wide baseline; the sim says 10.
+	assert_eq(view._view_grid, ThinIce.GRID_SIZE, "built from the estimate first")
+	view.render({"grid_size": 10, "tiles": _grid_of(10, ThinIce.TileState.INTACT), "players": {}})
+	assert_eq(view._view_grid, 10, "adopted the snapshot dim")
+	assert_eq(view._tile_nodes.size(), 100, "one node per snapshot tile — indices line up")
+	assert_not_null(view.arena.get_node_or_null("Tile_9_9"), "the grown grid actually built")
+	var tile_children := 0
+	for child in view.arena.get_children():
+		if String(child.name).begins_with("Tile_"):
+			tile_children += 1
+	assert_eq(tile_children, 100, "the old 7x7 nodes were freed, not left alongside the rebuild")
+
+
+func test_matching_grid_size_does_not_rebuild() -> void:
+	var tile00: MeshInstance3D = view.arena.get_node("Tile_0_0")
+	view.render(
+		{
+			"grid_size": ThinIce.GRID_SIZE,
+			"tiles": _full_grid(ThinIce.TileState.INTACT),
+			"players": {}
+		}
+	)
+	assert_eq(view.arena.get_node("Tile_0_0"), tile00, "the all-connected common path never churns")
+
+
+func test_gone_tile_after_adopt_hides_the_matching_node() -> void:
+	# On a 10-wide grid, index 63 is (3,6) — under the old 7-wide build that
+	# index would map to (0,9), off the grid entirely, so the break never showed.
+	var grid := _grid_of(10, ThinIce.TileState.INTACT)
+	grid[63] = ThinIce.TileState.GONE
+	view.render({"grid_size": 10, "tiles": grid, "players": {}})
+	var gone: MeshInstance3D = view.arena.get_node("Tile_3_6")
+	assert_false(gone.visible, "the GONE tile at the sim's index is the one that vanishes")
+	assert_almost_eq(gone.position.x, -view._view_half + 3.5 * ThinIce.TILE_SIZE, 0.01)
