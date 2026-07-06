@@ -35,10 +35,10 @@ func test_safe_tiles_light_up_only_while_showing() -> void:
 	var unlit: MeshInstance3D = view.arena.get_node("Tile_1_0")
 	assert_eq(lit.material_override, view._safe_material)
 	assert_eq(unlit.material_override, view._dark_material)
-	assert_eq(view.get_node("PhaseLabel").text, view.SHOW_TEXT)
+	assert_string_contains(view.get_node("PhaseLabel").text, view.SHOW_TEXT)
 	view.render({"players": {}, "phase": MemoryMatch.Phase.DARK, "safe_tiles": [], "fallen": []})
 	assert_eq(lit.material_override, view._dark_material, "everything uniform in the dark")
-	assert_eq(view.get_node("PhaseLabel").text, view.DARK_TEXT)
+	assert_string_contains(view.get_node("PhaseLabel").text, view.DARK_TEXT)
 
 
 func test_failed_check_collapses_and_shakes() -> void:
@@ -92,3 +92,38 @@ func test_drop_splashes_into_the_pit() -> void:
 	var before: int = view.arena.get_child_count()
 	view.render({"players": {0: [0.0, 0.0]}, "phase": 0, "safe_tiles": [0], "fallen": [[1]]})
 	assert_eq(view.arena.get_child_count(), before + 1, "splash where they dropped")
+
+
+## #586 clarity: the SHOW banner names the objective, the round, and how many
+## safe tiles to remember (the count is safe to show here — the tiles are lit).
+func test_show_banner_carries_round_and_safe_count() -> void:
+	view.render(
+		{
+			"players": {},
+			"phase": MemoryMatch.Phase.SHOW,
+			"safe_tiles": [0, 7, 14],
+			"fallen": [],
+			"round": 2
+		}
+	)
+	var text: String = view.get_node("PhaseLabel").text
+	assert_string_contains(text, "Round 3", "1-based round for players")
+	assert_string_contains(text, "3 safe", "how many tiles to remember")
+	assert_string_contains(text, "GREEN", "names the green safe tiles, not a 'pattern'")
+
+
+## The count is not shown in the dark — that would be a memory-peek.
+func test_dark_banner_omits_the_safe_count() -> void:
+	view.render(
+		{"players": {}, "phase": MemoryMatch.Phase.DARK, "safe_tiles": [], "fallen": [], "round": 0}
+	)
+	assert_string_contains(view.get_node("PhaseLabel").text, view.DARK_TEXT)
+	assert_false(view.get_node("PhaseLabel").text.contains("safe)"), "no count while dark")
+
+
+## The safe tiles pulse during SHOW so they read as the focal "go here".
+func test_safe_tiles_pulse_during_show() -> void:
+	view.render({"players": {}, "phase": MemoryMatch.Phase.SHOW, "safe_tiles": [0], "fallen": []})
+	view._process(0.0)
+	var glow: float = view._safe_material.emission_energy_multiplier
+	assert_between(glow, view.SAFE_GLOW_MIN, view.SAFE_GLOW_MAX, "pulse stays in range")

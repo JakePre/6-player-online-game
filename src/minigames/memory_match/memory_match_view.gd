@@ -9,14 +9,22 @@ const TILE_DARK_COLOR := Color(0.28, 0.3, 0.38)
 const PIT_COLOR := Color(0.04, 0.04, 0.07)
 const TILE_THICKNESS := 0.3
 const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
-const SHOW_TEXT := "REMEMBER THE PATTERN!"
-const DARK_TEXT := "GET TO A SAFE TILE!"
+## Objective-naming banners (#586): the old "REMEMBER THE PATTERN!" read as a
+## maze; players weren't sure the green tiles were where to *stand*.
+const SHOW_TEXT := "STAND ON A GREEN SAFE TILE — MEMORIZE IT!"
+const DARK_TEXT := "GET TO A SAFE TILE — NOW!"
+## Safe tiles pulse between these emission energies during SHOW so they read as
+## the focal "go here", not scenery.
+const SAFE_GLOW_MIN := 0.5
+const SAFE_GLOW_MAX := 1.4
+const SAFE_PULSE_HZ := 1.5
 
 ## Latest replicated state, straight from MemoryMatch.get_snapshot().
 var players := {}
 var phase: int = MemoryMatch.Phase.SHOW
 var safe_tiles: Array = []
 var fallen: Array = []
+var round_number := 0
 
 var _tile_nodes: Array[MeshInstance3D] = []
 var _safe_material: StandardMaterial3D
@@ -31,6 +39,16 @@ var _fallen_seen := -1
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
+
+
+## Pulse the safe tiles during SHOW so the green reads as "go here" rather than
+## a static maze pattern (#586). Phase comes from wall time so the per-snapshot
+## material reuse never resets it.
+func _process(_delta: float) -> void:
+	if phase != MemoryMatch.Phase.SHOW or _safe_material == null:
+		return
+	var t := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * SAFE_PULSE_HZ)
+	_safe_material.emission_energy_multiplier = lerpf(SAFE_GLOW_MIN, SAFE_GLOW_MAX, t)
 
 
 func _arena_half() -> float:
@@ -78,7 +96,12 @@ func _build_floor() -> void:
 func _setup_3d() -> void:
 	_phase_label = Label.new()
 	_phase_label.name = "PhaseLabel"
-	_phase_label.add_theme_font_size_override(&"font_size", 32)
+	_phase_label.theme_type_variation = PartyTheme.TITLE_VARIATION
+	_phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# A black outline so it stays legible over both the bright-green and dark
+	# floor phases (#586) — the old plain label washed out against the tiles.
+	_phase_label.add_theme_constant_override(&"outline_size", 10)
+	_phase_label.add_theme_color_override(&"font_outline_color", Color(0, 0, 0, 0.85))
 	_phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_phase_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_phase_label.position.y = 16.0
@@ -90,11 +113,23 @@ func _render_3d(game: Dictionary) -> void:
 	phase = int(game.get("phase", MemoryMatch.Phase.SHOW))
 	safe_tiles = game.get("safe_tiles", [])
 	fallen = game.get("fallen", [])
-	_phase_label.text = SHOW_TEXT if phase == MemoryMatch.Phase.SHOW else DARK_TEXT
+	round_number = int(game.get("round", round_number))
+	_update_phase_label()
 	_update_tiles()
 	_update_players()
 	_reveal_wave_fx()
 	_shake_on_new_downs()
+
+
+## Banner names the objective, with round context — and during SHOW the safe
+## count, so the player knows the memory load (#586). The count is only shown
+## while the tiles are already visible, so it is not a dark-phase peek.
+func _update_phase_label() -> void:
+	var round_tag := "Round %d" % maxi(round_number + 1, 1)
+	if phase == MemoryMatch.Phase.SHOW:
+		_phase_label.text = "%s — %s  (%d safe)" % [round_tag, SHOW_TEXT, safe_tiles.size()]
+	else:
+		_phase_label.text = "%s — %s" % [round_tag, DARK_TEXT]
 
 
 ## The pattern landing gets a sparkle wave over the safe tiles (M13-12),

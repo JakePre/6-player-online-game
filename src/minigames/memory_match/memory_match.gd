@@ -45,7 +45,10 @@ static func make_meta() -> MinigameMeta:
 				"max_players": 24,
 				"duration_sec": 75.0,
 				"rules":
-				"The floor flashes the safe tiles, then goes dark. Remember. Stand. Survive.",
+				(
+					"The floor flashes the GREEN safe tiles, then goes dark — be standing on"
+					+ " one when it does, or you drop into the pit! Fewer safe tiles each round."
+				),
 			}
 		)
 	)
