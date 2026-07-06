@@ -42,6 +42,10 @@ func test_hover_scales_the_button() -> void:
 	var button := _button()
 	ButtonMotion.attach(button)
 	button.mouse_entered.emit()
-	# The tween starts immediately; let it run its DUR_FAST, then check the pop.
-	await get_tree().create_timer(PartyTheme.DUR_FAST + 0.05).timeout
+	# Await the actual tween rather than a fixed wall-clock timer (#653): under
+	# full-suite CPU contention the SceneTree timer and the hover Tween don't
+	# advance in lockstep, so a fixed sleep can fire before the tween finishes.
+	var tween := ButtonMotion.active_tween(button)
+	assert_not_null(tween, "hover starts a tween")
+	await tween.finished
 	assert_almost_eq(button.scale.x, ButtonMotion.HOVER_SCALE, 0.01, "hover grows the button")

@@ -42,3 +42,10 @@ static func _scale_to(button: Button, target: float) -> void:
 	var tween := button.create_tween()
 	tween.set_trans(PartyTheme.TRANS_DEFAULT).set_ease(PartyTheme.EASE_DEFAULT)
 	tween.tween_property(button, "scale", Vector2(target, target), PartyTheme.DUR_FAST)
+	button.set_meta(&"_button_motion_tween", tween)
+
+
+## Returns the in-flight hover/press tween, if any — lets tests await the
+## actual animation instead of racing a fixed wall-clock timer (#653).
+static func active_tween(button: Button) -> Tween:
+	return button.get_meta(&"_button_motion_tween", null)
