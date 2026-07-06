@@ -54,6 +54,7 @@ func test_save_load_round_trip() -> void:
 		"show_names": true,
 		"diagnostics_log": true,
 		"keybinds": {"move_up": KEY_UP},
+		"padbinds": {"emote": {"button": JOY_BUTTON_LEFT_SHOULDER}},
 	}
 	SettingsStore.save_settings(settings)
 	assert_eq(SettingsStore.load_settings(), settings)
@@ -258,3 +259,76 @@ func test_apply_starts_and_stops_the_diagnostics_log_live() -> void:
 	settings.diagnostics_log = false
 	SettingsStore.apply(settings, null)
 	assert_false(DiagnosticsLog.is_active(), "and stops it immediately")
+
+
+# --- Pad rebinding (M17-03) ------------------------------------------------------
+
+
+func test_padbinds_sanitize_keeps_valid_shapes_only() -> void:
+	var clean := (
+		SettingsStore
+		. sanitize(
+			{
+				"padbinds":
+				{
+					"action_primary": {"button": JOY_BUTTON_B},
+					"move_up": {"axis": JOY_AXIS_RIGHT_Y, "sign": -1},
+					"emote": {"button": 999},
+					"move_down": {"axis": 3, "sign": 0},
+					"nonsense_action": {"button": 1},
+					"action_secondary": "garbage",
+				}
+			}
+		)
+	)
+	var binds: Dictionary = clean.padbinds
+	assert_eq(binds.get("action_primary"), {"button": JOY_BUTTON_B})
+	assert_eq(binds.get("move_up"), {"axis": JOY_AXIS_RIGHT_Y, "sign": -1})
+	assert_false(binds.has("emote"), "out-of-range button drops")
+	assert_false(binds.has("move_down"), "zero sign drops")
+	assert_false(binds.has("nonsense_action"))
+	assert_false(binds.has("action_secondary"))
+
+
+func test_effective_padbinds_layers_overrides_on_factory() -> void:
+	var binds := SettingsStore.effective_padbinds(
+		{"padbinds": {"emote": {"button": JOY_BUTTON_LEFT_SHOULDER}}}
+	)
+	assert_eq(binds.emote, {"button": JOY_BUTTON_LEFT_SHOULDER})
+	assert_eq(binds.action_primary, {"button": JOY_BUTTON_A}, "untouched actions stay factory")
+
+
+func test_apply_padbinds_rewrites_joypad_and_preserves_keyboard() -> void:
+	var settings := SettingsStore.defaults()
+	settings.padbinds = {"action_primary": {"button": JOY_BUTTON_RIGHT_SHOULDER}}
+	SettingsStore.apply_padbinds(settings)
+	var events := InputMap.action_get_events("action_primary")
+	var pads := events.filter(func(e: InputEvent) -> bool: return e is InputEventJoypadButton)
+	var keys := events.filter(func(e: InputEvent) -> bool: return e is InputEventKey)
+	assert_eq(pads.size(), 1)
+	assert_eq((pads[0] as InputEventJoypadButton).button_index, JOY_BUTTON_RIGHT_SHOULDER)
+	assert_gt(keys.size(), 0, "keyboard events untouched")
+	# Restore factory for later tests.
+	SettingsStore.apply_padbinds(SettingsStore.defaults())
+
+
+func test_apply_padbinds_axis_bind_lands_as_motion_event() -> void:
+	var settings := SettingsStore.defaults()
+	settings.padbinds = {"action_secondary": {"axis": JOY_AXIS_TRIGGER_RIGHT, "sign": 1}}
+	SettingsStore.apply_padbinds(settings)
+	var motions := InputMap.action_get_events("action_secondary").filter(
+		func(e: InputEvent) -> bool: return e is InputEventJoypadMotion
+	)
+	assert_eq(motions.size(), 1)
+	assert_eq((motions[0] as InputEventJoypadMotion).axis, JOY_AXIS_TRIGGER_RIGHT)
+	assert_eq((motions[0] as InputEventJoypadMotion).axis_value, 1.0)
+	SettingsStore.apply_padbinds(SettingsStore.defaults())
+
+
+func test_controls_section_reset_clears_padbinds_too() -> void:
+	var settings := SettingsStore.defaults()
+	settings.padbinds = {"emote": {"button": JOY_BUTTON_LEFT_SHOULDER}}
+	settings.keybinds = {"emote": KEY_Q}
+	var reset := SettingsStore.reset_section(settings, "Controls")
+	assert_eq(reset.padbinds, {}, "pad overrides reset with the section")
+	assert_eq(reset.keybinds, {}, "keyboard overrides reset with the section")

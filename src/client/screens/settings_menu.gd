@@ -26,9 +26,15 @@ const ACTION_LABELS := {
 ## Live keyboard override map (action -> physical keycode), seeded from the
 ## effective binds and written back on every rebind.
 var _keybinds := {}
+## Live pad override map (action -> {button}|{axis, sign}), same convention
+## (M17-03).
+var _padbinds := {}
 ## The action whose button is waiting for a key press, or "" when idle.
 var _capturing := ""
+## The action whose pad button is waiting for a pad press, or "" when idle.
+var _pad_capturing := ""
 var _bind_buttons := {}
+var _pad_buttons := {}
 ## Section name -> its page card, in SettingsStore.SECTIONS order.
 var _cards := {}
 ## Guards live-apply while a seed/reset rewrites every control at once.
@@ -183,6 +189,9 @@ func _seed(settings: Dictionary) -> void:
 	_keybinds = SettingsStore.effective_keybinds(settings)
 	for action: String in _bind_buttons:
 		(_bind_buttons[action] as Button).text = _key_name(int(_keybinds[action]))
+	_padbinds = SettingsStore.effective_padbinds(settings)
+	for action: String in _pad_buttons:
+		(_pad_buttons[action] as Button).text = _pad_label(_padbinds[action])
 	_seeding = false
 
 
@@ -198,6 +207,11 @@ func _build_keybind_rows() -> void:
 		button.pressed.connect(_begin_capture.bind(action))
 		row.add_child(button)
 		_bind_buttons[action] = button
+		var pad_button := Button.new()
+		pad_button.custom_minimum_size = Vector2(120, 0)
+		pad_button.pressed.connect(_begin_pad_capture.bind(action))
+		row.add_child(pad_button)
+		_pad_buttons[action] = pad_button
 		_keybinds_list.add_child(row)
 
 
@@ -232,6 +246,9 @@ func _begin_capture(action: String) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if not _pad_capturing.is_empty():
+		_handle_pad_capture(event)
+		return
 	if _capturing.is_empty():
 		return
 	var key := event as InputEventKey
@@ -246,6 +263,61 @@ func _input(event: InputEvent) -> void:
 		_keybinds[action] = int(code)
 	_bind_buttons[action].text = _key_name(int(_keybinds[action]))
 	_apply_and_save()
+
+
+## Pad capture (M17-03): the next pad button press or decisive stick push
+## becomes the binding. Pad B is a bindable candidate, NOT cancel - Escape
+## (keyboard) cancels, as the hint line says.
+func _handle_pad_capture(event: InputEvent) -> void:
+	var action := _pad_capturing
+	var key := event as InputEventKey
+	if key != null and key.pressed and key.keycode == KEY_ESCAPE:
+		get_viewport().set_input_as_handled()
+		_pad_capturing = ""
+		_pad_buttons[action].text = _pad_label(_padbinds[action])
+		return
+	var button := event as InputEventJoypadButton
+	if button != null and button.pressed:
+		get_viewport().set_input_as_handled()
+		_pad_capturing = ""
+		_padbinds[action] = {"button": int(button.button_index)}
+		_pad_buttons[action].text = _pad_label(_padbinds[action])
+		_apply_and_save()
+		return
+	var motion := event as InputEventJoypadMotion
+	if motion != null and absf(motion.axis_value) > 0.5:
+		get_viewport().set_input_as_handled()
+		_pad_capturing = ""
+		var direction := signi(int(roundf(motion.axis_value)))
+		_padbinds[action] = {"axis": int(motion.axis), "sign": direction}
+		_pad_buttons[action].text = _pad_label(_padbinds[action])
+		_apply_and_save()
+
+
+func _begin_pad_capture(action: String) -> void:
+	if not _pad_capturing.is_empty() and _pad_buttons.has(_pad_capturing):
+		_pad_buttons[_pad_capturing].text = _pad_label(_padbinds[_pad_capturing])
+	_pad_capturing = action
+	_pad_buttons[action].text = "Press a pad control..."
+
+
+## Human label for a pad bind: face-button glyph in the active pad's layout,
+## or a stick/axis direction ("LS up", "Axis 4 +").
+func _pad_label(bind: Dictionary) -> String:
+	if bind.has("button"):
+		return InputGlyphs.pad_button_label(int(bind.button), InputGlyphs.active_layout)
+	var axis := int(bind.axis)
+	var positive := int(bind.sign) > 0
+	match axis:
+		JOY_AXIS_LEFT_X:
+			return "LS right" if positive else "LS left"
+		JOY_AXIS_LEFT_Y:
+			return "LS down" if positive else "LS up"
+		JOY_AXIS_RIGHT_X:
+			return "RS right" if positive else "RS left"
+		JOY_AXIS_RIGHT_Y:
+			return "RS down" if positive else "RS up"
+	return "Axis %d %s" % [axis, "+" if positive else "-"]
 
 
 func _key_name(keycode: int) -> String:
@@ -268,6 +340,7 @@ func _collect() -> Dictionary:
 	settings.colorblind = _colorblind_toggle.button_pressed
 	settings.reduced_motion = _reduced_motion_toggle.button_pressed
 	settings.keybinds = _stored_overrides()
+	settings.padbinds = _stored_pad_overrides()
 	settings.server_address = _address_edit.text
 	settings.server_port = int(_port_edit.text) if _port_edit.text.is_valid_int() else 0
 	settings.diagnostics_log = _diagnostics_toggle.button_pressed
@@ -280,6 +353,18 @@ func _apply_and_save() -> void:
 	var settings := _collect()
 	SettingsStore.apply(settings, get_window())
 	SettingsStore.save_settings(settings)
+
+
+## Only pad binds away from factory are persisted (mirror of
+## _stored_overrides), so default changes reach players who never rebound.
+func _stored_pad_overrides() -> Dictionary:
+	var overrides := {}
+	for action: String in SettingsStore.REBINDABLE_PAD_ACTIONS:
+		var factory: Dictionary = SettingsStore.REBINDABLE_PAD_ACTIONS[action]
+		var bind: Dictionary = _padbinds.get(action, factory)
+		if bind != factory:
+			overrides[action] = bind
+	return overrides
 
 
 ## Only actions bound away from their factory key are persisted, so a later
