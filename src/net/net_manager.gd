@@ -661,6 +661,11 @@ func _broadcast_snapshots() -> void:
 func _start_match(room: Room, config: Dictionary) -> void:
 	var controller := MatchController.new(room, config)
 	match_controllers[room.code] = controller
+	DiagnosticsLog.event(
+		&"match",
+		&"match_start",
+		{"room": room.code, "players": room.connected_count(), "bots": room.bot_count()}
+	)
 	controller.event_emitted.connect(_relay_match_event.bind(room))
 	# Room state goes out first so clients are on the match screen before the
 	# match_started/round_intro events (all reliable, so order holds).
@@ -678,11 +683,21 @@ func _relay_match_event(event: Dictionary, room: Room) -> void:
 func _deliver_join_outcome(peer_id: int, outcome: Dictionary) -> void:
 	if outcome.result != NetConfig.JoinResult.OK:
 		_rpc_join_failed.rpc_id(peer_id, outcome.result)
+		DiagnosticsLog.event(
+			&"room",
+			&"join_failed",
+			{"peer": peer_id, "result": NetConfig.JoinResult.keys()[outcome.result]}
+		)
 		return
 	var room: Room = outcome.room
 	var member: RoomMember = outcome.member
 	_rpc_room_joined.rpc_id(
 		peer_id, room.code, member.slot, member.session_token, room.to_state_dict()
+	)
+	DiagnosticsLog.event(
+		&"room",
+		&"join",
+		{"peer": peer_id, "room": room.code, "slot": member.slot, "members": room.members.size()}
 	)
 	_broadcast_room_state(room)
 	peer_joined_room.emit(room, member)
@@ -701,12 +716,14 @@ func _broadcast_room_state(room: Room) -> void:
 func _on_peer_connected(peer_id: int) -> void:
 	if is_server:
 		print("[server] peer %d connected" % peer_id)
+		DiagnosticsLog.event(&"net", &"peer_connect", {"peer": peer_id})
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not is_server:
 		return
 	print("[server] peer %d disconnected" % peer_id)
+	DiagnosticsLog.event(&"net", &"peer_disconnect", {"peer": peer_id})
 	var room: Room = room_manager.handle_disconnect(peer_id, Time.get_ticks_msec())
 	if room != null and room_manager.rooms.has(room.code):
 		_broadcast_room_state(room)

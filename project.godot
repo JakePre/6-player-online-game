@@ -26,6 +26,7 @@ buses/default_bus_layout="res://default_bus_layout.tres"
 AudioManager="*res://src/client/audio_manager.gd"
 NetManager="*res://src/net/net_manager.gd"
 InputGlyphs="*res://src/client/input_glyphs.gd"
+DiagnosticsLog="*res://src/client/diagnostics_log.gd"
 
 [debug]
 
