@@ -63,6 +63,13 @@ static func make_meta() -> MinigameMeta:
 				"rules":
 				"Shoot the moving targets! Small and gold ones are worth more. Highest score wins.",
 				"controls": "Aim — mouse or WASD / left stick · Fire — click or SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds (click stays
+				# literal — mouse has no InputGlyphs concept).
+				"control_hints":
+				[
+					"Aim — mouse or WASD / left stick · Fire — click or ",
+					{"action": &"action_primary"},
+				],
 			}
 		)
 	)

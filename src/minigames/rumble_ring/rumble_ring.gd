@@ -58,6 +58,15 @@ static func make_meta() -> MinigameMeta:
 				"id": &"rumble_ring",
 				"controls":
 				"Move — WASD/stick · Swing — Space/Ⓐ · Guard/Smash — E/Ⓧ (hold, release)",
+				# Device-aware (#608): the buttons read as what the player holds.
+				"control_hints":
+				[
+					"Move — WASD/stick · Swing — ",
+					{"action": &"action_primary"},
+					" · Guard/Smash — ",
+					{"action": &"action_secondary"},
+					" (hold, release)",
+				],
 				"name": "Rumble Ring",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

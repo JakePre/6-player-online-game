@@ -60,6 +60,9 @@ static func make_meta() -> MinigameMeta:
 					+ " biggest blob when the ring closes wins!"
 				),
 				"controls": "Move — WASD / left stick · Lunge — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Move — WASD / left stick · Lunge — ", {"action": &"action_primary"}],
 			}
 		)
 	)

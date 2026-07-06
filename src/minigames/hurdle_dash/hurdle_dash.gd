@@ -37,6 +37,9 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"hurdle_dash",
 				"controls": "Run — WASD / left stick · Jump — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Run — WASD / left stick · Jump — ", {"action": &"action_primary"}],
 				"name": "Hurdle Dash",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

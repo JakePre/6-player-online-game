@@ -58,6 +58,12 @@ static func make_meta() -> MinigameMeta:
 				"rules":
 				"Aim, charge, and putt into the cup — fewest strokes wins. Mind the moving bar!",
 				"controls": "Aim — WASD / stick / mouse · Charge + putt — hold & release SPACE / Ⓐ",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				[
+					"Aim — WASD / stick / mouse · Charge + putt — hold & release ",
+					{"action": &"action_primary"},
+				],
 			}
 		)
 	)

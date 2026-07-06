@@ -33,6 +33,9 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"sumo_smash",
 				"controls": "Move — WASD / left stick · Dash — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Move — WASD / left stick · Dash — ", {"action": &"action_primary"}],
 				"name": "Sumo Smash",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

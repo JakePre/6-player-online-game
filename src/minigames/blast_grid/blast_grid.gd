@@ -62,6 +62,9 @@ static func make_meta() -> MinigameMeta:
 					+ " dodge the cross, be the last one standing!"
 				),
 				"controls": "Move — WASD / left stick · Bomb — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Move — WASD / left stick · Bomb — ", {"action": &"action_primary"}],
 			}
 		)
 	)

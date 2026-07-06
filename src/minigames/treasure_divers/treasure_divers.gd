@@ -48,6 +48,9 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"treasure_divers",
 				"controls": "Move — WASD / left stick · Hold SPACE / pad A to dive",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Move — WASD / left stick · Hold ", {"action": &"action_primary"}, " to dive"],
 				"name": "Treasure Divers",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

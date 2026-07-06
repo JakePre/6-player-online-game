@@ -71,6 +71,12 @@ static func make_meta() -> MinigameMeta:
 					+ " siege wins the day."
 				),
 				"controls": "Move — WASD / left stick · Shove (defending) — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				[
+					"Move — WASD / left stick · Shove (defending) — ",
+					{"action": &"action_primary"},
+				],
 			}
 		)
 	)

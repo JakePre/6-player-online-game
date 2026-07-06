@@ -64,6 +64,9 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"cart_push",
 				"controls": "Move — WASD / left stick · Shove — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Move — WASD / left stick · Shove — ", {"action": &"action_primary"}],
 				"name": "Cart Push",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 4,

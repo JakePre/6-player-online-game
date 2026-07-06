@@ -58,6 +58,12 @@ static func make_meta() -> MinigameMeta:
 					+ " but a flying ball is anyone's ball."
 				),
 				"controls": "Move — WASD / left stick · Pass (carrying) / Shove — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				[
+					"Move — WASD / left stick · Pass (carrying) / Shove — ",
+					{"action": &"action_primary"},
+				],
 			}
 		)
 	)

@@ -77,6 +77,38 @@ func test_every_registered_minigame_has_control_hints() -> void:
 		assert_eq(meta.to_dict().controls, meta.controls_text)
 
 
+## #608: every game's device-aware control_hints (where present) names only
+## real InputMap actions and composes to non-empty text on both device
+## classes — a stale/typo'd action name would otherwise silently render a
+## blank gap in the intro card instead of erroring.
+func test_control_hints_reference_real_actions_and_never_render_blank() -> void:
+	MinigameCatalog.clear()
+	MinigameCatalog.register_builtins()
+	var kb_glyph := func(action: StringName) -> String: return "[kb:%s]" % action
+	var pad_glyph := func(action: StringName) -> String: return "[pad:%s]" % action
+	for id: StringName in MinigameCatalog.registered_ids():
+		var meta := MinigameCatalog.meta_of(id)
+		if meta.control_hints.is_empty():
+			continue
+		var has_action_segment := false
+		for segment: Variant in meta.control_hints:
+			if segment is Dictionary and (segment as Dictionary).has("action"):
+				has_action_segment = true
+				var action: StringName = (segment as Dictionary)["action"]
+				assert_true(
+					InputMap.has_action(action),
+					"%s's control_hints names unknown action %s" % [id, action]
+				)
+		assert_true(
+			has_action_segment,
+			"%s's control_hints has no action segment — use plain controls_text instead" % id
+		)
+		var kb_text := InputGlyphs.compose_hint(meta.control_hints, kb_glyph)
+		var pad_text := InputGlyphs.compose_hint(meta.control_hints, pad_glyph)
+		assert_false(kb_text.is_empty(), "%s's control_hints composed to nothing on keyboard" % id)
+		assert_false(pad_text.is_empty(), "%s's control_hints composed to nothing on pad" % id)
+
+
 func test_gauntlet_finale_has_control_hints() -> void:
 	assert_false(Gauntlet.make_meta().controls_text.is_empty())
 

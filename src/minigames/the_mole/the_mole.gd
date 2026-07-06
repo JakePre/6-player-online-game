@@ -74,6 +74,12 @@ static func make_meta() -> MinigameMeta:
 				),
 				"controls":
 				"Move — WASD / left stick · Sabotage (mole) / cycle vote — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				[
+					"Move — WASD / left stick · Sabotage (mole) / cycle vote — ",
+					{"action": &"action_primary"},
+				],
 			}
 		)
 	)
