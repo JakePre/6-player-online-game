@@ -155,3 +155,73 @@ func test_dropped_delta_heals_on_next_keyframe() -> void:
 	# The next keyframe carries the true grid and heals the miss.
 	view.render({"players": {}, "grid": [0, 0, 1], "teams": [], "counts": {}})
 	assert_eq(view.grid, [0, 0, 1], "the keyframe restores the true grid")
+
+
+# --- Authoritative grid dimension (#662, sibling of Thin Ice #578) ---
+
+
+## A grid of `dim`x`dim`, tile 0 painted faction 0, the rest unpainted.
+func _grid_of(dim: int) -> Array:
+	var g: Array = []
+	g.resize(dim * dim)
+	g.fill(ColorClash.UNPAINTED)
+	g[0] = 0
+	return g
+
+
+## A held-but-disconnected member inflates names.size() past a grid_dim_for
+## boundary, so the view's estimate (dim 14 for 8) overshoots the sim's
+## authoritative dim (13 for the 7 active slots). The view must rebuild its
+## tile grid to the snapshot's dim, or the flat grid scrambles onto wrong nodes.
+func test_view_adopts_snapshot_dim_when_estimate_is_wrong() -> void:
+	var names := {}
+	for i in 8:
+		names[i] = "P%d" % i
+	var v := _new_view(names)
+	assert_eq(v._dim, ColorClash.grid_dim_for(8), "estimate is 14 from 8 members")
+	var sim_dim := ColorClash.grid_dim_for(7)  # 13 active slots
+	(
+		v
+		. render(
+			{
+				"players": {},
+				"grid": _grid_of(sim_dim),
+				"teams": [],
+				"counts": {},
+				"dim": sim_dim,
+				"half": ColorClash.arena_half_for(7),
+			}
+		)
+	)
+	assert_eq(v._dim, sim_dim, "the view rebuilt to the authoritative dim")
+	var tiles: MultiMeshInstance3D = v.arena.get_node("PaintTiles")
+	assert_eq(tiles.multimesh.instance_count, sim_dim * sim_dim, "tile grid matches the sim")
+	assert_eq(v.grid.size(), sim_dim * sim_dim, "the keyframe grid folded onto the fresh grid")
+	assert_ne(v.tile_color(0), v.UNPAINTED_COLOR, "the painted tile maps to node 0, not scrambled")
+
+
+## The common all-connected path (estimate already matches) never churns the
+## MultiMesh — same node, same instance count.
+func test_matching_dim_does_not_rebuild() -> void:
+	var before: MultiMeshInstance3D = view.arena.get_node("PaintTiles")
+	var dim := ColorClash.grid_dim_for(2)
+	view.render({"players": {}, "grid": _grid_of(dim), "teams": [], "counts": {}, "dim": dim})
+	assert_same(
+		view.arena.get_node("PaintTiles"), before, "no rebuild when the dim already matches"
+	)
+
+
+## After a rebuild the delta-fold baseline resets: a grid_changes computed
+## against the old width is not applied to the fresh grid — it waits for a
+## keyframe (#479), so no stale-width tile leaks through.
+func test_stale_width_delta_is_not_applied_after_rebuild() -> void:
+	var names := {}
+	for i in 8:
+		names[i] = "P%d" % i
+	var v := _new_view(names)
+	var sim_dim := ColorClash.grid_dim_for(7)
+	# A delta-only snapshot at the corrected dim: the rebuild drops the baseline,
+	# so this delta has nothing to fold onto and is ignored until a keyframe.
+	v.render({"players": {}, "grid_changes": [[5, 0]], "teams": [], "counts": {}, "dim": sim_dim})
+	assert_eq(v._dim, sim_dim, "still adopts the authoritative dim")
+	assert_eq(v.grid, [], "the stale-width delta is not folded onto the fresh grid")

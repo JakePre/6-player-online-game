@@ -46,8 +46,24 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
-	_dim = ColorClash.grid_dim_for(names.size())
-	_half = ColorClash.arena_half_for(names.size())
+	# Best-effort size from the head count; the snapshot's authoritative dim
+	# corrects it on the first render if a held-but-disconnected member skewed
+	# the estimate across a grid_dim_for boundary (#662).
+	_build_tile_grid(ColorClash.grid_dim_for(names.size()), ColorClash.arena_half_for(names.size()))
+
+
+## Builds (or rebuilds) the `dim`x`dim` paint-tile MultiMesh over an arena of
+## half-extent `half`, freeing any prior grid first so a rebuild is clean.
+func _build_tile_grid(dim: int, half: float) -> void:
+	_dim = dim
+	_half = half
+	if _tiles != null:
+		# Remove from the tree immediately (not just queue_free, which defers to
+		# frame end) so the name "PaintTiles" is free for the replacement and no
+		# stale node lingers alongside it.
+		arena.remove_child(_tiles)
+		_tiles.queue_free()
+	_tile_colors.clear()
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(ColorClash.TILE_WORLD, ColorClash.TILE_WORLD) * 0.94
 	var material := StandardMaterial3D.new()
@@ -76,8 +92,28 @@ func _setup_3d() -> void:
 	arena.add_child(_tiles)
 
 
+## The setup-time estimate over-counts disconnected-but-held members, so at a
+## grid_dim_for boundary the view built a wrong-width tile grid and the sim's
+## flat `grid` mapped onto the wrong nodes — scrambled paint (#662, sibling of
+## Thin Ice #578). When the snapshot's authoritative dim disagrees, rebuild to
+## match and drop the delta-fold baseline: a `grid_changes` computed against the
+## old width must never be folded onto the fresh grid, so it waits for the
+## keyframe the sim always sends on a resize (#479).
+func _adopt_snapshot_dim(dim: int, half: float) -> void:
+	if dim == _dim:
+		return
+	_build_tile_grid(dim, half)
+	_grid_seen = []  # no splat storm on the rebuilt board
+	grid = []  # await a fresh keyframe; never apply a stale-width delta
+	if _camera_rig != null:
+		_camera_rig.ortho_size = (half + 1.0) * 2.4  # re-fit like _arena_half() + 1
+
+
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
+	# Honor the sim's authoritative grid dimension before folding paint (#662).
+	if game.has("dim"):
+		_adopt_snapshot_dim(int(game["dim"]), float(game.get("half", _half)))
 	# Grid replication (#479): a keyframe carries the full "grid" — an
 	# authoritative reset that mounts a fresh view and heals any dropped delta.
 	# Between keyframes "grid_changes" carries only the tiles that flipped, which
