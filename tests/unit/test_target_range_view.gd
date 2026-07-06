@@ -85,3 +85,43 @@ func test_wide_arena_bursts_shots_past_the_old_edge() -> void:
 		if child is CPUParticles3D:
 			after += 1
 	assert_gt(after, bursts, "a shot near the wide edge still breaks with a burst")
+
+
+# --- Mouse aim + fire feedback (#579) ---
+
+
+## The bug: mouse motion was handled in _unhandled_input, but the view roots are
+## default MOUSE_FILTER_STOP Controls that swallow it first, so aiming did
+## nothing. It's now in _input (runs before GUI picking). A synthetic motion
+## event must reach the handler and drive the aim projection.
+func test_mouse_motion_is_handled_in_input() -> void:
+	# Poison the aim out of bounds; a mouse-motion event routed through _input
+	# must recompute it via the (clamped) floor projection. On the old code —
+	# where mouse lived in _unhandled_input and _input was the base no-op — the
+	# poisoned value would survive, so this distinguishes the fix.
+	view._aim = Vector2(9999.0, 9999.0)
+	view._input(InputEventMouseMotion.new())
+	assert_lte(absf(view._aim.x), view._half + 0.001, "_input reprojected + clamped the aim")
+	assert_lte(absf(view._aim.y), view._half + 0.001)
+
+
+## The floor projection is sane: a ray straight down the iso camera lands inside
+## the gallery, and the result is always clamped to +/- the arena half.
+func test_screen_to_floor_projects_inside_the_gallery() -> void:
+	view.size = Vector2(1280, 720)
+	var hit := view._screen_to_floor(Vector2(640, 360))
+	assert_between(hit.x, -view._half, view._half, "projected x stays in the gallery")
+	assert_between(hit.y, -view._half, view._half, "projected z stays in the gallery")
+	# A far off-screen point still clamps rather than flying to infinity.
+	var far := view._screen_to_floor(Vector2(99999, 99999))
+	assert_lte(absf(far.x), view._half + 0.001, "off-screen aim clamps to the arena")
+
+
+## Firing now makes noise and flashes: a shot cue, a muzzle burst at the shooter,
+## and the tracer streak (was silent + tracer-only before).
+func test_fire_shot_plays_a_cue_and_flashes() -> void:
+	watch_signals(view)
+	var before := _burst_count()
+	view._fire_shot()
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"click"], "a shot cue fires")
+	assert_gt(_burst_count(), before, "a muzzle flash bursts at the shooter")
