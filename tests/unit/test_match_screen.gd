@@ -266,8 +266,11 @@ func test_rejoiner_snapshot_mounts_view_without_events() -> void:
 
 func test_emote_bar_has_one_button_per_emote() -> void:
 	var bar: HBoxContainer = screen.get_node("%EmoteBar")
-	assert_eq(bar.get_child_count(), Emotes.EMOTES.size())
-	assert_eq((bar.get_child(5) as Button).text, "GG")
+	var buttons := bar.get_children().filter(func(c: Node) -> bool: return c is Button)
+	assert_eq(buttons.size(), Emotes.EMOTES.size(), "one button per emote")
+	assert_eq((buttons[5] as Button).text, "GG")
+	# The trailing child is the device-aware react hint (#608), not a 7th emote.
+	assert_true(bar.get_node("EmoteHint") is Label)
 
 
 func test_emote_feed_shows_and_expires_toasts() -> void:

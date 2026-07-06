@@ -57,6 +57,10 @@ var _round_view_flags: Array = []
 var _minigame_view: MinigameView
 ## In-match pause/options overlay (M18-03), mounted on top in _ready.
 var _pause_overlay: PauseOverlay
+## Controller emote wheel (#608 part 3), mounted below the pause overlay.
+var _emote_radial: EmoteRadial
+## Device-aware "how to react" hint under the emote bar (#608).
+var _emote_hint: Label
 var _shake_tween: Tween
 var _shake_origin := Vector2.ZERO
 var _countdown_digit := 0
@@ -94,11 +98,18 @@ func _ready() -> void:
 	NetManager.snapshot_received.connect(_on_snapshot)
 	NetManager.emote_received.connect(_on_emote_received)
 	_skip_button.pressed.connect(_on_skip_pressed)
-	# Intro control hints re-render live when the player switches device (#608).
+	# Intro hints and the emote hint re-render live on a device switch (#608).
 	InputGlyphs.device_changed.connect(
-		func(_device: InputGlyphs.Device) -> void: _refresh_intro_controls()
+		func(_device: InputGlyphs.Device) -> void:
+			_refresh_intro_controls()
+			_refresh_emote_hint()
 	)
 	_build_emote_bar()
+	# Controller emote wheel (#608 part 3): mounted before the pause overlay so
+	# pause draws on top of it. The right stick aims it; see _process.
+	_emote_radial = EmoteRadial.new()
+	add_child(_emote_radial)
+	set_process(true)
 	# Pause overlay (M18-03) sits above the HUD; the match keeps running behind.
 	_pause_overlay = PauseOverlay.new()
 	add_child(_pause_overlay)
@@ -230,6 +241,8 @@ func _on_skip_pressed() -> void:
 ## Esc / pad Start toggles the pause overlay (M18-03). The server sim is never
 ## paused — this just overlays local controls while the round runs on.
 func _unhandled_input(event: InputEvent) -> void:
+	if _handle_emote_input(event):
+		return
 	var toggles := event.is_action_pressed(&"ui_cancel")
 	if not toggles and event is InputEventJoypadButton:
 		var pad := event as InputEventJoypadButton
@@ -239,8 +252,50 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _pause_overlay.is_open():
 		_pause_overlay.close()
 	else:
+		_emote_radial.close()  # pause takes over; drop any open wheel
 		_pause_overlay.open()
 	get_viewport().set_input_as_handled()
+
+
+## Controller emote wheel (#608 part 3): hold the emote button to open, release
+## to send the aimed slot (or cancel). Pad-only; keyboard keeps the 1–6 keys.
+## Returns true when the event was consumed.
+func _handle_emote_input(event: InputEvent) -> bool:
+	if _emote_radial.is_open() and event.is_action_released(&"emote"):
+		var index := _emote_radial.selected_index()
+		_emote_radial.close()
+		if Emotes.is_valid(index):
+			NetManager.request_send_emote(index)
+		get_viewport().set_input_as_handled()
+		return true
+	var paused := _pause_overlay != null and _pause_overlay.is_open()
+	if (
+		event.is_action_pressed(&"emote")
+		and InputGlyphs.active_device == InputGlyphs.Device.GAMEPAD
+		and not paused
+		and not _emote_radial.is_open()
+	):
+		_emote_radial.open()
+		get_viewport().set_input_as_handled()
+		return true
+	return false
+
+
+## While the wheel is open, aim it with the right stick every frame (the left
+## stick keeps driving movement).
+func _process(_delta: float) -> void:
+	if _emote_radial != null and _emote_radial.is_open():
+		_emote_radial.aim(_right_stick())
+
+
+func _right_stick() -> Vector2:
+	var pads := Input.get_connected_joypads()
+	if pads.is_empty():
+		return Vector2.ZERO
+	var device: int = pads[0]
+	return Vector2(
+		Input.get_joy_axis(device, JOY_AXIS_RIGHT_X), Input.get_joy_axis(device, JOY_AXIS_RIGHT_Y)
+	)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -280,6 +335,25 @@ func _build_emote_bar() -> void:
 		button.pressed.connect(func() -> void: NetManager.request_send_emote(i))
 		_emote_bar.add_child(button)
 		ButtonMotion.attach(button)
+	# Device-aware "how to react" hint (#608): keys on keyboard, the wheel on a
+	# pad. Lives in the bar so it sits with the emotes it explains.
+	_emote_hint = Label.new()
+	_emote_hint.name = "EmoteHint"
+	_emote_hint.theme_type_variation = PartyTheme.SMALL_VARIATION
+	_emote_bar.add_child(_emote_hint)
+	_refresh_emote_hint()
+
+
+## Swaps the emote hint for the active device: the 1–6 shortcuts on keyboard,
+## the hold-to-open wheel on a pad (the emote button's glyph per pad layout).
+func _refresh_emote_hint() -> void:
+	if _emote_hint == null:
+		return
+	if InputGlyphs.active_device == InputGlyphs.Device.GAMEPAD:
+		var glyph := InputGlyphs.glyph_for(&"emote")
+		_emote_hint.text = "Hold %s + stick to react" % (glyph if not glyph.is_empty() else "pad")
+	else:
+		_emote_hint.text = "1–6 to react"
 
 
 func _show_intro(event: Dictionary) -> void:
