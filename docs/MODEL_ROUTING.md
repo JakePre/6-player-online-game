@@ -59,15 +59,13 @@ last gaps.
 
 ## Sonnet 5 — mechanical, pattern-following
 
-Live: **#564** landing owner-generated image batches as they arrive
-(mechanical: files + CREDITS rows + status flips) — no batch has landed yet
-as of 2026-07-06, so there is nothing to pick up until one does.
-
-**As of 2026-07-06, the Sonnet queue is empty**: every other Sonnet-tagged
-item below is done, and #588/#609 were found already-delivered-elsewhere and
-closed rather than re-implemented (see their closing comments). Check here
-before assuming there's unclaimed work — the "Live" list above is short by
-design, not stale.
+**As of 2026-07-06, the Sonnet queue is empty.** #564 (image batch landing)
+closed done — the owner landed the final batch directly (commit 3de1060);
+all 42 rows in IMAGE_REQUESTS.md are `landed`, no CREDITS.md rows needed
+(owner-commissioned art, not third-party licensed assets). Every other
+Sonnet-tagged item below is done, and #588/#609 were found
+already-delivered-elsewhere and closed rather than re-implemented (see their
+closing comments). Check here before assuming there's unclaimed work.
 
 Everything below is **done** — kept as a record, not a work queue. Next
 agent: check here before re-deriving this from scratch.
@@ -137,9 +135,9 @@ All seven review findings are closed — the full audit's follow-ups are done.
 ## Structural notes
 
 - **M17 (full controller support) opened 2026-07-05 (late)** by owner
-  directive alongside the v0.6.1 cut: M17-01..04 (Opus) are parallel and
-  claimable now; M17-05 (Sonnet) ⛓ M17-03; M17-06 (Fable) closes the
-  milestone ⛓ all. See IMPLEMENTATION_PLAN §M17.
+  directive alongside the v0.6.1 cut: M17-01..05 are all done (PR #610, #655,
+  #647, #643, #654 respectively); only **M17-06** (Fable, closing sweep ⛓ all)
+  is left. See IMPLEMENTATION_PLAN §M17.
 - **The plan board is otherwise complete except M12-01** (as of 2026-07-05 evening):
   M14 Genre Hop, M15 caps, and all of M16 shipped; the M16-13 closing audit
   merged as PR #556. The finale — built across M5/M8/M13/M16 but never
