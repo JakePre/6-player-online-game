@@ -68,8 +68,10 @@ jobs:
           unzip -q godot.zip
           mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
           chmod +x godot-bin
-      - name: Install xvfb
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+      - name: Install xvfb + ffmpeg
+        # ffmpeg is NOT preinstalled on current ubuntu-latest images (shakedown
+        # run 28812902887 failed on exactly this).
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb ffmpeg
       - name: Import resources
         run: ./godot-bin --headless --import || true
       - name: Render ${{ matrix.game }}
