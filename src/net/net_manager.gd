@@ -28,11 +28,15 @@ signal peer_left_room(room: Room)
 signal match_started(room: Room)
 
 const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
-## Server-side floor between quick emotes from one player (anti-spam).
-const EMOTE_COOLDOWN_MS := 1000
 ## How often the server pumps a practice bot's intent (#577), matching the
 ## human client input cadence.
 const BOT_INPUT_INTERVAL_SEC := 0.25
+## Server-side emote anti-spam (#592): a token bucket, not a flat cooldown —
+## a burst reads as snappy party chat, the sustained rate after it still caps
+## a 24-player room. EMOTE_BURST_MAX spends instantly; each EMOTE_REFILL_MS
+## regains one token (so the sustained rate is 1000.0 / EMOTE_REFILL_MS/sec).
+const EMOTE_BURST_MAX := 3.0
+const EMOTE_REFILL_MS := 500.0
 
 var is_server := false
 var room_manager: RoomManager
@@ -58,8 +62,8 @@ var my_room_state := {}
 var fake_lag_ms := 0
 var fake_loss := 0.0
 
-# Server-only: per-peer timestamp of the last relayed emote.
-var _emote_last_ms := {}
+# Server-only: per-peer emote token-bucket state, {tokens: float, last_ms: int}.
+var _emote_tokens := {}
 var _lag_rng := RandomNumberGenerator.new()
 var _lag_queue: Array[Dictionary] = []
 var _snapshot_accum := 0.0
@@ -206,7 +210,7 @@ func request_skip_intro() -> void:
 
 
 ## Broadcast a quick emote (Emotes index) to the room; the server enforces
-## a per-player cooldown.
+## a per-player token-bucket rate limit (#592).
 func request_send_emote(emote: int) -> void:
 	_rpc_send_emote.rpc_id(1, emote)
 
@@ -429,6 +433,23 @@ func _rpc_skip_intro() -> void:
 		controller.handle_skip(member.slot)
 
 
+## True if `peer_id` may send an emote at `now_ms`, consuming a token if so
+## (#592). `now_ms` is a parameter rather than read internally so the
+## token-bucket math is directly unit-testable without live multiplayer
+## transport or real delays.
+func _emote_allowed(peer_id: int, now_ms: int) -> bool:
+	var state: Dictionary = _emote_tokens.get(
+		peer_id, {"tokens": EMOTE_BURST_MAX, "last_ms": now_ms}
+	)
+	var elapsed := now_ms - int(state.last_ms)
+	var tokens: float = minf(EMOTE_BURST_MAX, float(state.tokens) + elapsed / EMOTE_REFILL_MS)
+	if tokens < 1.0:
+		_emote_tokens[peer_id] = {"tokens": tokens, "last_ms": now_ms}
+		return false
+	_emote_tokens[peer_id] = {"tokens": tokens - 1.0, "last_ms": now_ms}
+	return true
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_send_emote(emote: int) -> void:
 	if not is_server or not Emotes.is_valid(emote):
@@ -437,10 +458,8 @@ func _rpc_send_emote(emote: int) -> void:
 	var room: Room = room_manager.room_of_peer(peer_id)
 	if room == null:
 		return
-	var now := Time.get_ticks_msec()
-	if now - int(_emote_last_ms.get(peer_id, -EMOTE_COOLDOWN_MS)) < EMOTE_COOLDOWN_MS:
+	if not _emote_allowed(peer_id, Time.get_ticks_msec()):
 		return
-	_emote_last_ms[peer_id] = now
 	var member := room.find_by_peer(peer_id)
 	if member == null:
 		return
