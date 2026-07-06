@@ -58,6 +58,11 @@ var _countdown_step_sec := COUNTDOWN_STEP_SEC
 ## degenerate rooms (fewer than 2 connected, e.g. --debug-minigame solo) skip
 ## straight to the podium exactly as before #554.
 var _finale_enabled := true
+## Debug/render path (#685): skip the rounds entirely and open on the buy-in
+## shop, with a seeded purse so loadouts actually feature. Config-gated like
+## every other override — the server accepts it only under --debug-rpcs.
+var _finale_only := false
+var _finale_coins := 120
 var _state_left := 0.0
 var _rng := RandomNumberGenerator.new()
 var _round_slots: Array[int] = []
@@ -78,6 +83,8 @@ func _init(match_room: Room, config: Dictionary) -> void:
 	_shop_sec = config.get("shop_sec", _shop_sec)
 	_duration_override = config.get("duration_override", 0.0)
 	_finale_enabled = config.get("finale", true)
+	_finale_only = config.get("finale_only", false)
+	_finale_coins = int(config.get("finale_coins", _finale_coins))
 	# Compress the 3-2-1 gate for the playtest harness too, or a full match
 	# overruns the bot's phase budget (#369).
 	_countdown_step_sec = config.get("countdown_step_sec", _countdown_step_sec)
@@ -99,6 +106,13 @@ func start() -> void:
 	for member in room.members:
 		member.score = 0
 	event_emitted.emit({"type": "match_started", "rounds": playlist.size()})
+	if _finale_only:
+		# #685: straight to the finale for debug/render sessions — everyone
+		# gets the seeded purse in place of round earnings.
+		for member in room.members:
+			member.score = _finale_coins
+		_enter_finale_shop()
+		return
 	_enter_intro()
 
 

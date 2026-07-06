@@ -55,3 +55,17 @@ func test_negative_values_clamp_to_off() -> void:
 	assert_eq(launcher.bot_count, 0)
 	assert_eq(launcher.duration_sec, 0.0)
 	assert_false(launcher.start_config().has("duration_override"))
+
+
+## #685: `gauntlet` is the finale, not a catalog game — its config skips the
+## playlist and opens on a compressed buy-in shop.
+func test_gauntlet_config_is_finale_only() -> void:
+	var launcher := _launcher(
+		PackedStringArray(["--debug-minigame=gauntlet", "--debug-duration=40"])
+	)
+	var config: Dictionary = launcher.start_config()
+	assert_true(bool(config.get("finale_only", false)))
+	assert_true(bool(config.get("debug_force_start", false)))
+	assert_false(config.has("playlist"), "the finale has no playlist")
+	assert_eq(config.get("shop_sec"), 8.0, "shop compressed for a tight clip")
+	assert_eq(config.get("duration_override"), 40.0)
