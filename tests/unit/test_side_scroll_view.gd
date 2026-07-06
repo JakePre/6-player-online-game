@@ -75,3 +75,25 @@ func test_render_tolerates_missing_and_short_data() -> void:
 	view.render_side_scroll({})
 	view.render_side_scroll({0: [1.0]})
 	assert_null(view.rig_for_slot(0), "short samples are ignored")
+
+
+## Production mount order (#575): the match screen calls setup() BEFORE
+## add_child(), so setup_stage() must work on a view that has never entered
+## the tree. This is the order that shipped three broken games — the tests
+## above (add-then-setup) could not see it.
+func test_setup_stage_before_entering_the_tree() -> void:
+	var cold := SideScrollView.new()
+	cold.setup({0: "Alice"}, 0)
+	cold.setup_stage(
+		[Rect2(-10.0, -1.0, 20.0, 1.0)] as Array[Rect2],
+		[] as Array[Rect2],
+		Rect2(-12.0, -6.0, 24.0, 18.0)
+	)
+	assert_eq(cold._platform_nodes.size(), 1, "platforms build before _ready()")
+	# The load-bearing check: on the broken code the null-layer call aborted
+	# inside _make_platform() and a NULL was appended — size alone passes while
+	# the stage renders nothing ("platforms don't load").
+	assert_not_null(cold._platform_nodes[0], "the panel is real, not an aborted null")
+	add_child_autofree(cold)
+	cold.size = Vector2(800.0, 450.0)
+	assert_gt(cold._platform_nodes[0].size.x, 0.0, "and lay out once sized in-tree")

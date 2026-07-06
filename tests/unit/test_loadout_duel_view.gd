@@ -115,3 +115,16 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.shots, [])
+
+
+## Production mount order (#575): match_screen calls setup() BEFORE
+## add_child(). This exact sequence crashed the live 8-player playtest.
+func test_setup_before_add_child_matches_production() -> void:
+	var cold: SideScrollView = VIEW_SCENE.instantiate()
+	cold.setup({0: "Alice", 1: "Bob"}, 0)
+	assert_gt(cold._platform_nodes.size(), 0, "the stage builds before entering the tree")
+	assert_not_null(cold._platform_nodes[0], "panels are real, not nulls from an aborted build")
+	add_child_autofree(cold)
+	cold.size = Vector2(960.0, 540.0)
+	cold.render({"players": {0: [0.0, 0.5, 1, 0, 0]}})
+	assert_not_null(cold.rig_for_slot(0), "renders normally once mounted")

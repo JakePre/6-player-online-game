@@ -29,6 +29,16 @@ var _seen_snapshot := false
 
 func _ready() -> void:
 	super()
+	_ensure_chrome()
+	resized.connect(_layout_crumble)
+
+
+## Idempotent FX/HUD construction (#575): _setup() runs before _ready() in
+## the production mount order, and the crumble panels parent to _fx_layer —
+## so it must exist by whichever runs first.
+func _ensure_chrome() -> void:
+	if _fx_layer != null:
+		return
 	_fx_layer = Control.new()
 	_fx_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fx_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -40,10 +50,10 @@ func _ready() -> void:
 	_hud.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hud)
-	resized.connect(_layout_crumble)
 
 
 func _setup() -> void:
+	_ensure_chrome()
 	# The base draws solids + one-way from the sim's static layout; the
 	# always-solid floor and summit go through it, plus the full ledge
 	# ladder. Crumble ledges get their own toggleable panels on top.

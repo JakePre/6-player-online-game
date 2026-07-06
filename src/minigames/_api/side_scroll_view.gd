@@ -9,6 +9,13 @@ extends MinigameView
 ## render_side_scroll(players) per snapshot with SideScrollSim's
 ## {slot: [x, y, facing, grounded]} samples. World space is y-up (the sim's
 ## convention); this class owns the flip to screen coordinates.
+##
+## Mount-order warning (#575): the match screen calls setup() BEFORE
+## add_child(), so _setup()/setup_stage() run before _ready(). Anything a
+## view needs during _setup() must therefore be built lazily (see
+## _ensure_layers()), never in _ready() — that ordering shipped three
+## broken games because the view tests added-then-setup, the reverse of
+## production. Regression tests now mirror the production order.
 
 const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
 const MAX_SAMPLE_INTERVAL := 0.35
@@ -35,16 +42,27 @@ var _drift := 0.0
 func _ready() -> void:
 	set_process_internal(true)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ensure_layers()
+	resized.connect(_layout_stage)
+
+
+## Idempotent layer construction (#575). setup_stage()/_make_rig() run from
+## _setup(), which the match screen calls BEFORE add_child() — so _ready()
+## alone is too late and the layers must build on first use. Children added
+## here pre-tree simply enter the tree with the view.
+func _ensure_layers() -> void:
+	if _backdrop != null:
+		return
 	_backdrop = _layer()
 	_backdrop.draw.connect(_draw_backdrop)
 	_platform_layer = _layer()
 	_rig_layer = _layer()
-	resized.connect(_layout_stage)
 
 
 ## Stage geometry, in the sim's y-up world units. Call from _setup() with
 ## the exact rects the server sim uses so what players see is the truth.
 func setup_stage(solids: Array[Rect2], one_way: Array[Rect2], world_bounds: Rect2) -> void:
+	_ensure_layers()
 	_stage_solids = solids
 	_stage_one_way = one_way
 	_world = world_bounds
@@ -121,6 +139,7 @@ func _layout_stage() -> void:
 
 
 func _make_rig(slot: int) -> Control:
+	_ensure_layers()
 	var rig := Control.new()
 	rig.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var color := PlayerPalette.color_for_slot(slot)
