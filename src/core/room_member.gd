@@ -20,6 +20,10 @@ var ready := false
 ## Selected roster character (M2-03, SPEC $8). Persists across rounds and
 ## rejoin, unlike `ready`; duplicate picks across members are allowed.
 var character_id: StringName = CharacterRoster.DEFAULT_ID
+## Chosen player color as a palette index (#581), or -1 for the slot default.
+## Unlike character, colors are server-validated unique within the room.
+## Persists across rounds and rejoin like character_id.
+var color_index: int = -1
 
 
 func to_dict() -> Dictionary:
@@ -30,5 +34,6 @@ func to_dict() -> Dictionary:
 		"connected": connected,
 		"ready": ready,
 		"character_id": character_id,
+		"color_index": color_index,
 		"is_bot": is_bot,
 	}

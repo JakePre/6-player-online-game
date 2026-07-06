@@ -167,6 +167,13 @@ func request_set_character(character_id: StringName) -> void:
 	_rpc_set_character.rpc_id(1, character_id)
 
 
+## Choose a player color (#581); `index` is a palette index. The server accepts
+## it only if no other member already shows that colour (uniqueness), so the
+## authoritative pick echoes back via room_updated.
+func request_set_color(index: int) -> void:
+	_rpc_set_color.rpc_id(1, index)
+
+
 func request_set_series_length(length: int) -> void:
 	_rpc_set_series_length.rpc_id(1, length)
 
@@ -307,6 +314,30 @@ func _rpc_set_character(character_id: StringName) -> void:
 	if member == null:
 		return
 	member.character_id = character_id
+	_broadcast_room_state(room)
+
+
+## Server-validated colour pick (#581): only in the lobby, only a real palette
+## index, and only if no *other* member already effectively shows that colour.
+## A rejected pick is a silent no-op — the client keeps whatever the last
+## broadcast said.
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_color(index: int) -> void:
+	if not is_server:
+		return
+	var room: Room = room_manager.room_of_peer(multiplayer.get_remote_sender_id())
+	if room == null or room.state != Room.State.LOBBY:
+		return
+	var member := room.find_by_peer(multiplayer.get_remote_sender_id())
+	if member == null:
+		return
+	var others: Array = []
+	for other: RoomMember in room.members:
+		if other.slot != member.slot:
+			others.append([other.slot, other.color_index])
+	if not PlayerPalette.is_index_free(index, others):
+		return  # out of range or colour taken — reject, keep the current pick
+	member.color_index = index
 	_broadcast_room_state(room)
 
 
@@ -488,6 +519,7 @@ func _rpc_room_joined(code: String, slot: int, token: String, state: Dictionary)
 	my_slot = slot
 	my_session_token = token
 	my_room_state = state
+	_sync_palette_overrides(state)
 	DiagnosticsLog.event(&"room", &"joined", {"room": code, "slot": slot})
 	joined_room.emit(code, slot, token)
 	room_updated.emit(state)
@@ -540,7 +572,21 @@ func _rpc_remove_bot() -> void:
 @rpc("authority", "call_remote", "reliable")
 func _rpc_room_state(state: Dictionary) -> void:
 	my_room_state = state
+	_sync_palette_overrides(state)
 	room_updated.emit(state)
+
+
+## Rebuild PlayerPalette's chosen-color overrides from the broadcast members
+## (#581), so every color_for_slot() call site — lobby, match views, emote
+## feed — reflects picks with no per-call-site change. Only members who made an
+## explicit pick (color_index >= 0) override their slot default.
+func _sync_palette_overrides(state: Dictionary) -> void:
+	var overrides := {}
+	for member: Dictionary in state.get("members", []):
+		var idx := int(member.get("color_index", -1))
+		if idx >= 0:
+			overrides[int(member.slot)] = idx
+	PlayerPalette.set_overrides(overrides)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
@@ -784,6 +830,7 @@ func _reset_client_session() -> void:
 	my_slot = -1
 	my_session_token = ""
 	my_room_state = {}
+	PlayerPalette.clear_overrides()  # don't carry a left room's colours forward (#581)
 
 
 static func _arg_value(args: PackedStringArray, key: String, fallback: String) -> String:

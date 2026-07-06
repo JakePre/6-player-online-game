@@ -50,17 +50,55 @@ const COLORS_COLORBLIND: Array[Color] = [
 ## true, color_for_slot() serves the colorblind-safe set.
 static var use_colorblind := false
 
+## Chosen-color overrides (slot -> palette index), set from room state (#581)
+## so every color_for_slot() call site reflects lobby colour picks with no
+## per-view change. Empty = everyone on their slot default. Keys are int slots.
+static var _overrides := {}
+
+
+## Replace the chosen-color overrides wholesale (the client rebuilds this from
+## each room_updated). A pick is a palette *index*, not a Color, so it survives
+## the colorblind toggle — index N means "the Nth swatch of whatever set is
+## active".
+static func set_overrides(map: Dictionary) -> void:
+	_overrides = map.duplicate()
+
+
+static func clear_overrides() -> void:
+	_overrides = {}
+
+
+## The palette index a slot actually shows: its explicit pick if it made one,
+## else the slot default. Shared by the client funnel and the server's
+## uniqueness check so both sides agree on which colour is "taken".
+static func effective_index(slot: int, color_index: int) -> int:
+	return color_index if color_index >= 0 else posmod(slot, COLORS.size())
+
+
+## Can `index` be picked, given the other members as [slot, color_index] pairs?
+## A real palette index that no other member effectively shows (#581). Pure, so
+## the server's uniqueness rule is unit-testable without the whole net stack.
+static func is_index_free(index: int, others: Array) -> bool:
+	if index < 0 or index >= COLORS.size():
+		return false
+	for pair: Array in others:
+		if effective_index(int(pair[0]), int(pair[1])) == index:
+			return false
+	return true
+
 
 ## The palette in force right now (respects the colorblind toggle).
 static func active_colors() -> Array[Color]:
 	return COLORS_COLORBLIND if use_colorblind else COLORS
 
 
-## Player color for a room slot. Wraps at the palette size, so a 13th player
-## reuses P1's color — `label_for_slot()` keeps them distinct.
+## Player color for a room slot: the slot's chosen override if any, else its
+## slot default. Wraps at the palette size, so a 13th player reuses P1's color —
+## `label_for_slot()` keeps them distinct.
 static func color_for_slot(slot: int) -> Color:
 	var colors := active_colors()
-	return colors[posmod(slot, colors.size())]
+	var idx: int = _overrides.get(slot, slot)
+	return colors[posmod(idx, colors.size())]
 
 
 ## Always-unique player number for a room slot ("P1" for slot 0). The second

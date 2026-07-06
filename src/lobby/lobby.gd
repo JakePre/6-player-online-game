@@ -18,6 +18,9 @@ var _last_state: Dictionary = {}
 ## Host-only practice-bot controls (#577), built in _ready so no .tscn churn.
 var _add_bot_button: Button
 var _remove_bot_button: Button
+## Pickable color swatches (#581), one per palette index, built in code under
+## the character card. Index i maps to PlayerPalette.active_colors()[i].
+var _color_swatches: Array[ColorRect] = []
 
 @onready var _code_label: Label = %CodeLabel
 @onready var _copy_button: Button = %CopyButton
@@ -59,6 +62,7 @@ func _ready() -> void:
 	)
 	_build_mutator_toggles()
 	_build_game_toggles()
+	_build_color_swatches()
 	_code_label.text = NetManager.my_room_code
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
 	_ready_button.grab_focus()
@@ -179,6 +183,63 @@ func _sync_game_toggles(state: Dictionary, editable: bool) -> void:
 		toggle.disabled = not editable
 
 
+## A row of pickable color swatches under the character card (#581). Built once;
+## colors/enabled state are refreshed from room state in _sync_color_swatches.
+func _build_color_swatches() -> void:
+	var row := HBoxContainer.new()
+	row.name = "ColorSwatches"
+	row.add_theme_constant_override(&"separation", PartyTheme.SPACE_XS)
+	_character_preview.get_parent().add_child(row)
+	for i in PlayerPalette.COLORS.size():
+		var swatch := ColorRect.new()
+		swatch.name = "Swatch%d" % i
+		swatch.custom_minimum_size = Vector2(24, 24)
+		swatch.color = PlayerPalette.active_colors()[i]
+		swatch.tooltip_text = "Color P%d" % (i + 1)
+		swatch.gui_input.connect(_on_swatch_input.bind(i))
+		row.add_child(swatch)
+		_color_swatches.append(swatch)
+
+
+## Only a left click on an enabled swatch requests it; the server validates
+## uniqueness and echoes the accepted pick back via room_updated.
+func _on_swatch_input(event: InputEvent, index: int) -> void:
+	if not bool(_color_swatches[index].get_meta(&"pickable", false)):
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		NetManager.request_set_color(index)
+
+
+## Reflect the broadcast: swatches taken by *other* members dim and stop
+## responding; the local player's current color is scaled up as the selection
+## cue. Editable is false in-match, freezing the whole row.
+func _sync_color_swatches(state: Dictionary, editable: bool) -> void:
+	var taken := {}
+	for member: Dictionary in state.get("members", []):
+		if int(member.slot) == NetManager.my_slot:
+			continue
+		var idx := PlayerPalette.effective_index(
+			int(member.slot), int(member.get("color_index", -1))
+		)
+		taken[idx] = true
+	var mine := PlayerPalette.effective_index(NetManager.my_slot, _my_color_index(state))
+	for i in _color_swatches.size():
+		var swatch := _color_swatches[i]
+		swatch.color = PlayerPalette.active_colors()[i]
+		var is_taken: bool = taken.has(i)
+		swatch.set_meta(&"pickable", editable and not is_taken)
+		swatch.modulate.a = 0.3 if is_taken else 1.0
+		swatch.pivot_offset = swatch.size / 2.0
+		swatch.scale = Vector2(1.2, 1.2) if i == mine else Vector2.ONE
+
+
+func _my_color_index(state: Dictionary) -> int:
+	for member: Dictionary in state.get("members", []):
+		if int(member.slot) == NetManager.my_slot:
+			return int(member.get("color_index", -1))
+	return -1
+
+
 ## Steps the local player's roster pick by `delta` (wraps around); the server
 ## is the source of truth and echoes the accepted pick back via room_updated.
 func _on_character_step(delta: int) -> void:
@@ -218,6 +279,7 @@ func _on_room_updated(state: Dictionary) -> void:
 	_prev_character_button.disabled = in_match
 	_next_character_button.disabled = in_match
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
+	_sync_color_swatches(state, not in_match)
 	_ready_button.set_pressed_no_signal(_my_ready(state))
 	_ready_button.disabled = in_match
 	_start_button.visible = i_am_host
