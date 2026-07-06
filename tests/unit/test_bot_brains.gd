@@ -221,3 +221,181 @@ func test_gauntlet_brain_grabs_axes_and_swings_in_range() -> void:
 		)
 	)
 	assert_gt(float(unarmed.get("mx", 0.0)), 0.0, "unarmed: head for the axe at +3")
+
+
+# --- Hidden / rotating-role batch (M19-02, #686) ------------------------------
+
+
+func test_the_mole_brain_drains_the_machine_when_progress_is_worth_it() -> void:
+	var brain := BotBrains.brain_for(&"the_mole", 0, 1)
+	var game := {
+		"phase": TheMole.Phase.WORK,
+		"progress": 5,
+		"sparked": false,
+		"players": {0: [0.0, 0.0, 0], 1: [4.0, 4.0, 0]},
+		"cells": [[6.0, 0.0]],
+	}
+	var intent := brain.think(_play_state("the_mole", game), {"role": "mole"})
+	assert_true(
+		bool(intent.get("act", false)), "the mole at the machine with banked fuel sabotages"
+	)
+
+
+func test_the_mole_brain_crew_hauls_the_nearest_cell() -> void:
+	var brain := BotBrains.brain_for(&"the_mole", 0, 1)
+	var game := {
+		"phase": TheMole.Phase.WORK,
+		"progress": 1,
+		"sparked": false,
+		"players": {0: [0.0, 0.0, 0]},
+		"cells": [[6.0, 0.0], [-9.0, 0.0]],
+	}
+	var intent := brain.think(_play_state("the_mole", game), {})
+	assert_gt(float(intent.get("mx", 0.0)), 0.5, "crew runs at the nearer cell (+x)")
+	assert_false(intent.has("act"), "crew never sabotages")
+
+
+func test_the_mole_brain_crew_votes_the_sparked_suspect() -> void:
+	var brain := BotBrains.brain_for(&"the_mole", 0, 1)
+	# A spark fires (rising edge) with rival slot 2 standing on the machine.
+	var work := {
+		"phase": TheMole.Phase.WORK,
+		"progress": 4,
+		"sparked": true,
+		"players": {0: [5.0, 5.0, 0], 1: [8.0, 0.0, 0], 2: [0.0, 0.0, 0]},
+		"cells": [],
+	}
+	brain.think(_play_state("the_mole", work), {})
+	var vote := {
+		"phase": TheMole.Phase.VOTE,
+		"players": {0: [5.0, 5.0, 0], 1: [8.0, 0.0, 0], 2: [0.0, 0.0, 0]},
+		"cells": [],
+	}
+	var intent := brain.think(_play_state("the_mole", vote), {})
+	assert_eq(int(intent.get("vote", -1)), 2, "votes the one caught at the machine on the spark")
+
+
+func test_the_mole_brain_mole_votes_an_innocent() -> void:
+	var brain := BotBrains.brain_for(&"the_mole", 1, 1)
+	var vote := {
+		"phase": TheMole.Phase.VOTE,
+		"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0], 2: [2.0, 2.0, 0]},
+		"cells": [],
+	}
+	var intent := brain.think(_play_state("the_mole", vote), {"role": "mole"})
+	assert_true(intent.has("vote"), "the mole casts a deflecting vote")
+	assert_ne(int(intent.vote), 1, "never votes itself")
+
+
+func test_faulty_wiring_brain_saboteur_cuts_the_best_node_off_cooldown() -> void:
+	var brain := BotBrains.brain_for(&"faulty_wiring", 0, 1)
+	var game := {
+		"phase": FaultyWiring.Phase.WORK,
+		"players": {0: [5.0, 5.0]},
+		"nodes": [[5.0, 5.0, 0.8, 0], [-5.0, -5.0, 0.1, 0]],
+	}
+	var intent := brain.think(
+		_play_state("faulty_wiring", game), {"role": "saboteur", "cut_cd": 0.0}
+	)
+	assert_true(bool(intent.get("cut", false)), "cuts the highest-value node it stands on")
+
+
+func test_faulty_wiring_brain_saboteur_holds_cut_on_cooldown() -> void:
+	var brain := BotBrains.brain_for(&"faulty_wiring", 0, 1)
+	var game := {
+		"phase": FaultyWiring.Phase.WORK,
+		"players": {0: [5.0, 5.0]},
+		"nodes": [[5.0, 5.0, 0.8, 0]],
+	}
+	var intent := brain.think(
+		_play_state("faulty_wiring", game), {"role": "saboteur", "cut_cd": 2.0}
+	)
+	assert_false(intent.has("cut"), "no cut while the private cooldown is live")
+
+
+func test_faulty_wiring_brain_crew_moves_to_an_unfinished_node() -> void:
+	var brain := BotBrains.brain_for(&"faulty_wiring", 0, 1)
+	var game := {
+		"phase": FaultyWiring.Phase.WORK,
+		"players": {0: [0.0, 0.0]},
+		"nodes":
+		[[-5.0, -5.0, 0.2, 0], [5.0, -5.0, 1.0, 0], [-5.0, 5.0, 1.0, 0], [5.0, 5.0, 1.0, 0]],
+	}
+	var intent := brain.think(_play_state("faulty_wiring", game), {})
+	assert_lt(float(intent.get("mx", 0.0)), 0.0, "heads to node[0] (unfinished, its sl%count pick)")
+	assert_false(intent.has("cut"), "crew never cuts")
+
+
+func test_faulty_wiring_brain_idle_outside_work() -> void:
+	var brain := BotBrains.brain_for(&"faulty_wiring", 0, 1)
+	var game := {"phase": FaultyWiring.Phase.REVEAL, "players": {0: [0.0, 0.0]}, "nodes": []}
+	assert_eq(brain.think(_play_state("faulty_wiring", game), {}), {}, "no input during the reveal")
+
+
+func test_trap_corridor_brain_trapper_arms_interior_tiles() -> void:
+	var brain := BotBrains.brain_for(&"trap_corridor", 0, 1)
+	var game := {
+		"phase": TrapCorridor.Phase.TRAPPING,
+		"trapper": 0,
+		"traps_left": 6,
+		"players": {},
+		"revealed": []
+	}
+	var intent := brain.think(_play_state("trap_corridor", game), {})
+	assert_true(intent.has("trap"), "the trapper arms a tile")
+	var col := int((intent.trap as Array)[0])
+	assert_between(col, 1, TrapCorridor.COLS - 2, "never the safe start/finish columns")
+
+
+func test_trap_corridor_brain_trapper_stops_at_budget() -> void:
+	var brain := BotBrains.brain_for(&"trap_corridor", 0, 1)
+	var game := {
+		"phase": TrapCorridor.Phase.TRAPPING,
+		"trapper": 0,
+		"traps_left": 0,
+		"players": {},
+		"revealed": []
+	}
+	assert_eq(
+		brain.think(_play_state("trap_corridor", game), {}), {}, "budget spent: nothing to arm"
+	)
+
+
+func test_trap_corridor_brain_runner_pushes_to_the_finish() -> void:
+	var brain := BotBrains.brain_for(&"trap_corridor", 0, 1)
+	var game := {
+		"phase": TrapCorridor.Phase.RUNNING,
+		"trapper": 1,
+		"players": {0: [2.0, 0.0]},
+		"revealed": []
+	}
+	var intent := brain.think(_play_state("trap_corridor", game), {})
+	assert_almost_eq(float(intent.get("mx", 0.0)), 1.0, 0.001, "runs flat out toward the finish")
+
+
+func test_trap_corridor_brain_runner_steers_to_a_sprung_safe_lane() -> void:
+	var brain := BotBrains.brain_for(&"trap_corridor", 0, 1)
+	# A revealed (already-sprung, safe) tile at col 3, row 4, two rows above us.
+	var safe_tile := 3 * TrapCorridor.ROWS + 4
+	var game := {
+		"phase": TrapCorridor.Phase.RUNNING,
+		"trapper": 1,
+		"players": {0: [2.0, 0.0]},
+		"revealed": [safe_tile],
+	}
+	var intent := brain.think(_play_state("trap_corridor", game), {})
+	assert_gt(float(intent.get("my", 0.0)), 0.0, "steers toward the known-safe lane ahead")
+
+
+func test_trap_corridor_brain_idle_when_not_your_turn_to_trap() -> void:
+	var brain := BotBrains.brain_for(&"trap_corridor", 0, 1)
+	var game := {
+		"phase": TrapCorridor.Phase.TRAPPING,
+		"trapper": 1,
+		"traps_left": 6,
+		"players": {},
+		"revealed": []
+	}
+	assert_eq(
+		brain.think(_play_state("trap_corridor", game), {}), {}, "non-trappers wait out TRAPPING"
+	)
