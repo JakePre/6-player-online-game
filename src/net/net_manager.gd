@@ -498,7 +498,7 @@ func _rpc_send_emote(emote: int) -> void:
 	if member == null:
 		return
 	for target: RoomMember in room.members:
-		if target.connected:
+		if _is_rpc_target(target):
 			_rpc_emote.rpc_id(target.peer_id, member.slot, emote)
 
 
@@ -708,7 +708,7 @@ func _broadcast_snapshots() -> void:
 		if controller != null:
 			payload["match"] = controller.get_snapshot()
 		for member: RoomMember in room.members:
-			if not member.connected:
+			if not _is_rpc_target(member):
 				continue
 			# Hidden-role data is computed per recipient so a player's secret
 			# role never reaches another player's client (#254). Games with no
@@ -754,7 +754,7 @@ func _start_match(room: Room, config: Dictionary) -> void:
 
 func _relay_match_event(event: Dictionary, room: Room) -> void:
 	for member: RoomMember in room.members:
-		if member.connected:
+		if _is_rpc_target(member):
 			_rpc_match_event.rpc_id(member.peer_id, event)
 
 
@@ -784,7 +784,7 @@ func _deliver_join_outcome(peer_id: int, outcome: Dictionary) -> void:
 func _broadcast_room_state(room: Room) -> void:
 	var state := room.to_state_dict()
 	for member: RoomMember in room.members:
-		if member.connected:
+		if _is_rpc_target(member):
 			_rpc_room_state.rpc_id(member.peer_id, state)
 
 
@@ -836,6 +836,15 @@ func _drain_lag_queue() -> void:
 	while not _lag_queue.is_empty() and _lag_queue[0].deliver_at <= now:
 		var entry: Dictionary = _lag_queue.pop_front()
 		snapshot_received.emit(entry.snapshot)
+
+
+## True when `member` is a real remote peer we can rpc_id() to. Practice bots
+## (#577) hold peer_id 0 and `connected = true` — and rpc_id(0) means
+## BROADCAST-TO-ALL in Godot, so RPC-ing a bot multiplies every event and
+## snapshot to every client and bypasses the per-recipient private isolation
+## (#254). Every per-member send loop must use this guard (#688).
+static func _is_rpc_target(member: RoomMember) -> bool:
+	return member.connected and member.peer_id > 0
 
 
 ## Returns the sender's room only when the sender is that room's host: the
