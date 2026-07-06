@@ -33,6 +33,10 @@ var _bind_buttons := {}
 var _cards := {}
 ## Guards live-apply while a seed/reset rewrites every control at once.
 var _seeding := false
+## Diagnostics page (M18-07): built in code, not the scene, mirroring the
+## M18-03 pause-overlay precedent — no .tscn edit needed for a new page.
+var _diagnostics_toggle: CheckButton
+var _diagnostics_reset_button: Button
 
 @onready var _section_bar: HBoxContainer = %SectionBar
 @onready var _name_edit: LineEdit = %NameEdit
@@ -59,6 +63,7 @@ func _ready() -> void:
 		"Controls": %ControlsCard,
 		"Network": %NetworkCard,
 	}
+	_build_diagnostics_card()
 	_build_section_bar()
 	_build_keybind_rows()
 	_seed(SettingsStore.load_settings())
@@ -75,11 +80,67 @@ func _ready() -> void:
 	_wire_reset(%ResetAudioButton, "Audio")
 	_wire_reset(%ResetControlsButton, "Controls")
 	_wire_reset(%ResetNetworkButton, "Network")
+	_wire_reset(_diagnostics_reset_button, "Diagnostics")
 	_reset_all_button.pressed.connect(_on_reset_all)
 	_back_button.pressed.connect(func() -> void: navigate.emit(&"main_menu"))
 	_back_button.grab_focus()
 	ButtonMotion.attach(_reset_all_button)
 	ButtonMotion.attach(_back_button)
+
+
+## Diagnostics page (M18-07): a settings card built in code and appended
+## beside the scene-authored cards, so a new page needs no .tscn edit. The
+## opt-in toggle starts/stops DiagnosticsLog through SettingsStore.apply();
+## Open/Copy help a tester actually find the file to attach to a bug report.
+func _build_diagnostics_card() -> void:
+	var card := PanelContainer.new()
+	card.name = "DiagnosticsCard"
+	card.theme_type_variation = PartyTheme.CARD_VARIATION
+	card.visible = false
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override(&"separation", PartyTheme.SPACE_MD)
+	card.add_child(column)
+	var hint := Label.new()
+	hint.text = (
+		"Saves a detailed session log to help diagnose bugs during testing. "
+		+ "The log stays on this machine unless you choose to share it."
+	)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD
+	hint.theme_type_variation = PartyTheme.SMALL_VARIATION
+	column.add_child(hint)
+	_diagnostics_toggle = CheckButton.new()
+	_diagnostics_toggle.text = "Save a diagnostics log"
+	_diagnostics_toggle.toggled.connect(func(_on: bool) -> void: _apply_and_save())
+	column.add_child(_diagnostics_toggle)
+	var folder_row := HBoxContainer.new()
+	folder_row.add_theme_constant_override(&"separation", PartyTheme.SPACE_SM)
+	var open_button := Button.new()
+	open_button.text = "Open log folder"
+	open_button.pressed.connect(_on_open_log_folder_pressed)
+	folder_row.add_child(open_button)
+	var copy_button := Button.new()
+	copy_button.text = "Copy log path"
+	copy_button.pressed.connect(_on_copy_log_path_pressed)
+	folder_row.add_child(copy_button)
+	column.add_child(folder_row)
+	_diagnostics_reset_button = Button.new()
+	_diagnostics_reset_button.text = "Reset section"
+	column.add_child(_diagnostics_reset_button)
+	for button: Button in [open_button, copy_button, _diagnostics_reset_button]:
+		ButtonMotion.attach(button)
+	(%NetworkCard as PanelContainer).get_parent().add_child(card)
+	_cards["Diagnostics"] = card
+
+
+func _on_open_log_folder_pressed() -> void:
+	OS.shell_open(ProjectSettings.globalize_path(DiagnosticsLog.LOG_DIR))
+
+
+func _on_copy_log_path_pressed() -> void:
+	var path := DiagnosticsLog.current_path()
+	if path.is_empty():
+		path = DiagnosticsLog.LOG_DIR
+	DisplayServer.clipboard_set(ProjectSettings.globalize_path(path))
 
 
 ## One toggle button per store section; a ButtonGroup makes them radio-style,
@@ -118,6 +179,7 @@ func _seed(settings: Dictionary) -> void:
 	_address_edit.text = settings.server_address
 	var port: int = settings.server_port
 	_port_edit.text = str(port) if port > 0 else ""
+	_diagnostics_toggle.set_pressed_no_signal(settings.diagnostics_log)
 	_keybinds = SettingsStore.effective_keybinds(settings)
 	for action: String in _bind_buttons:
 		(_bind_buttons[action] as Button).text = _key_name(int(_keybinds[action]))
@@ -208,6 +270,7 @@ func _collect() -> Dictionary:
 	settings.keybinds = _stored_overrides()
 	settings.server_address = _address_edit.text
 	settings.server_port = int(_port_edit.text) if _port_edit.text.is_valid_int() else 0
+	settings.diagnostics_log = _diagnostics_toggle.button_pressed
 	return settings
 
 

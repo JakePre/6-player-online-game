@@ -30,6 +30,7 @@ const SECTIONS := {
 	"Audio": ["master_volume", "music_volume", "sfx_volume"],
 	"Controls": ["keybinds"],
 	"Network": ["server_address", "server_port"],
+	"Diagnostics": ["diagnostics_log"],
 }
 
 ## Volume keys map to the audio buses in default_bus_layout.tres.
@@ -78,6 +79,10 @@ const DEFAULTS := {
 	## Keyboard rebind overrides: action -> physical keycode. Empty means all
 	## factory bindings; only changed actions are stored.
 	"keybinds": {},
+	## Opt-in client diagnostics log (M18-07, docs/DIAGNOSTICS.md). Off by
+	## default; when on, apply() starts DiagnosticsLog mirroring the session to
+	## user://logs/client-*.log so a tester can attach it to a bug report.
+	"diagnostics_log": false,
 }
 
 
@@ -161,6 +166,8 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 		clean.reduced_motion = bool(raw.reduced_motion)
 	if raw.has("show_names"):
 		clean.show_names = bool(raw.show_names)
+	if raw.has("diagnostics_log"):
+		clean.diagnostics_log = bool(raw.diagnostics_log)
 	clean.keybinds = _sanitize_keybinds(raw.get("keybinds", {}))
 	return clean
 
@@ -214,6 +221,13 @@ static func apply(settings: Dictionary, window: Window) -> void:
 	ArenaFX.reduced_motion = clean.reduced_motion
 	MinigameView.show_names = clean.show_names
 	apply_keybinds(clean)
+	# Diagnostics log (M18-07): starts/stops live so the toggle takes effect
+	# immediately, same as every other setting here.
+	if clean.diagnostics_log:
+		if not DiagnosticsLog.is_active():
+			DiagnosticsLog.configure("client", DiagnosticsLog.Level.INFO)
+	elif DiagnosticsLog.is_active():
+		DiagnosticsLog.stop()
 
 
 ## Rewrites each rebindable action's keyboard binding in the live InputMap to

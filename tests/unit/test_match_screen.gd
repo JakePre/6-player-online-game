@@ -28,6 +28,16 @@ func after_all() -> void:
 	NetManager.my_room_state = {}
 
 
+func after_each() -> void:
+	# Only the diagnostics-log test below configures it; harmless no-op cleanup
+	# for every other test in this file.
+	DiagnosticsLog._close()
+	var dir := DirAccess.open(DiagnosticsLog.LOG_DIR)
+	if dir != null:
+		for name in dir.get_files():
+			dir.remove(name)
+
+
 func _intro_event() -> Dictionary:
 	return {
 		"type": "round_intro",
@@ -562,3 +572,34 @@ func test_finale_shop_takes_initial_focus() -> void:
 	var owner := screen.get_viewport().gui_get_focus_owner()
 	assert_not_null(owner, "the shop grabs focus for pad users")
 	assert_true(owner is Button)
+
+
+## M18-07: view mount/unmount are part of the client diagnostics catalog.
+func test_view_mount_and_unmount_are_logged() -> void:
+	DiagnosticsLog.configure("test", DiagnosticsLog.Level.INFO, "matchscreen")
+	NetManager.match_event_received.emit(_intro_event())
+	NetManager.match_event_received.emit({"type": "round_started", "round": 1})
+	DiagnosticsLog.flush()
+	var mounts := _log_events("view_mount")
+	assert_eq(mounts.size(), 1)
+	assert_eq(String(mounts[0].game), "coin_scramble")
+	NetManager.match_event_received.emit({"type": "leaderboard", "totals": {}})
+	DiagnosticsLog.flush()
+	var unmounts := _log_events("view_unmount")
+	assert_eq(unmounts.size(), 1)
+	assert_eq(String(unmounts[0].game), "coin_scramble")
+
+
+func _log_events(ev: String) -> Array:
+	var out: Array = []
+	var f := FileAccess.open(DiagnosticsLog.current_path(), FileAccess.READ)
+	if f == null:
+		return out
+	while not f.eof_reached():
+		var line := f.get_line()
+		if line.is_empty():
+			continue
+		var obj: Dictionary = JSON.parse_string(line)
+		if String(obj.get("ev", "")) == ev:
+			out.append(obj)
+	return out

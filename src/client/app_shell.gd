@@ -14,10 +14,15 @@ const SCREENS := {
 	&"match": "res://src/match/match_screen.tscn",
 }
 const ROOM_SCREENS: Array[StringName] = [&"room", &"match"]
+## A frame longer than this is worth a diagnostics note (M18-07); rate-limited
+## so a rough patch logs one line, not one per frame.
+const PERF_SPIKE_SEC := 0.1
+const PERF_SPIKE_COOLDOWN_SEC := 2.0
 
 var _current_screen: Node
 var _current_id := &""
 var _transition: ScreenTransition
+var _perf_spike_cooldown := 0.0
 
 @onready var _screen_host: Control = $ScreenHost
 @onready var _reconnect_overlay: Control = $ReconnectOverlay
@@ -32,6 +37,28 @@ func _ready() -> void:
 	_transition = ScreenTransition.new()
 	add_child(_transition)
 	SettingsStore.apply(SettingsStore.load_settings(), get_window())
+	# Diagnostics log (M18-07): if the opt-in setting just started it, note the
+	# session so a bug report's log has the client's version/OS/resolution.
+	if DiagnosticsLog.is_active():
+		var window_size := DisplayServer.window_get_size()
+		(
+			DiagnosticsLog
+			. event(
+				&"app",
+				&"boot",
+				{
+					"version": AppVersion.VERSION,
+					"os": OS.get_name(),
+					"resolution": "%dx%d" % [window_size.x, window_size.y],
+				}
+			)
+		)
+	InputGlyphs.device_changed.connect(
+		func(device: InputGlyphs.Device) -> void:
+			DiagnosticsLog.event(
+				&"input", &"device_change", {"device": InputGlyphs.Device.keys()[device]}
+			)
+	)
 	NetManager.joined_room.connect(_on_joined_room)
 	NetManager.room_updated.connect(_on_room_updated)
 	NetManager.join_failed.connect(_on_join_failed)
@@ -49,6 +76,17 @@ func _ready() -> void:
 	for device in Input.get_connected_joypads():
 		_on_joy_connection_changed.call_deferred(device, true)
 	goto_screen(&"main_menu")
+
+
+## Diagnostics log (M18-07): a long frame worth a note, rate-limited so a
+## rough patch costs one line, not one per frame. No-op while logging is off.
+func _process(delta: float) -> void:
+	if not DiagnosticsLog.is_active():
+		return
+	_perf_spike_cooldown = maxf(0.0, _perf_spike_cooldown - delta)
+	if delta > PERF_SPIKE_SEC and _perf_spike_cooldown <= 0.0:
+		_perf_spike_cooldown = PERF_SPIKE_COOLDOWN_SEC
+		DiagnosticsLog.warn(&"perf", &"spike", {"frame_ms": snappedf(delta * 1000.0, 0.1)})
 
 
 func goto_screen(id: StringName) -> void:

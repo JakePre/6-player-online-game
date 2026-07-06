@@ -115,6 +115,7 @@ func connect_to_server(address: String, port: int) -> Error:
 	if err != OK:
 		return err
 	multiplayer.multiplayer_peer = peer
+	DiagnosticsLog.event(&"net", &"connect_attempt", {"address": address, "port": port})
 	return OK
 
 
@@ -487,24 +488,29 @@ func _rpc_room_joined(code: String, slot: int, token: String, state: Dictionary)
 	my_slot = slot
 	my_session_token = token
 	my_room_state = state
+	DiagnosticsLog.event(&"room", &"joined", {"room": code, "slot": slot})
 	joined_room.emit(code, slot, token)
 	room_updated.emit(state)
 
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_join_failed(reason: int) -> void:
+	# Covers version_mismatch as a reason value — no separate event needed.
+	DiagnosticsLog.event(&"net", &"join_failed", {"reason": NetConfig.JoinResult.keys()[reason]})
 	join_failed.emit(reason)
 
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_left_room() -> void:
 	_reset_client_session()
+	DiagnosticsLog.event(&"room", &"left", {})
 	left_room.emit()
 
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_kicked() -> void:
 	_reset_client_session()
+	DiagnosticsLog.event(&"room", &"kicked", {})
 	kicked.emit()
 	left_room.emit()
 
@@ -731,17 +737,20 @@ func _on_peer_disconnected(peer_id: int) -> void:
 
 
 func _on_connected_to_server() -> void:
+	DiagnosticsLog.event(&"net", &"connected", {})
 	connected_to_server.emit()
 
 
 func _on_connection_failed() -> void:
 	multiplayer.multiplayer_peer = null
+	DiagnosticsLog.event(&"net", &"connect_failed", {})
 	connection_failed.emit()
 
 
 func _on_server_disconnected() -> void:
 	multiplayer.multiplayer_peer = null
 	_reset_client_session()
+	DiagnosticsLog.event(&"net", &"disconnect", {})
 	server_disconnected.emit()
 
 
