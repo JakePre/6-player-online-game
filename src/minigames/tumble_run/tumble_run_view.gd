@@ -29,6 +29,15 @@ var _seen_snapshot := false
 
 func _ready() -> void:
 	super()
+	_ensure_chrome()
+
+
+## Chrome (fx layer + HUD) is built lazily + idempotently because _setup()
+## runs before _ready() in the production mount order and creates crumble
+## panels into _fx_layer (#575). Building only in _ready() left it null.
+func _ensure_chrome() -> void:
+	if _fx_layer != null:
+		return
 	_fx_layer = Control.new()
 	_fx_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fx_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -47,8 +56,11 @@ func _setup() -> void:
 	# The base draws solids + one-way from the sim's static layout; the
 	# always-solid floor and summit go through it, plus the full ledge
 	# ladder. Crumble ledges get their own toggleable panels on top.
+	# Order matters: setup_stage() builds the base layers (bottom), then
+	# _ensure_chrome() puts the fx layer + HUD on top of them.
 	var base_solids := TumbleRun.solid_platforms()
 	setup_stage(base_solids, TumbleRun.ledges(), TumbleRun.stage_bounds())
+	_ensure_chrome()
 	for index in TumbleRun._crumble_indices():
 		var node := _make_crumble_panel()
 		_crumble_nodes[index] = node
