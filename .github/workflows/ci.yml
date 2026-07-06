@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # GitHub's merge queue tests each queued PR by firing a merge_group event;
+  # without this trigger the required checks (lint/test/soak) never report on
+  # queue entries and every enqueued PR stalls forever (#628). Harmless until
+  # the owner enables "Require merge queue" — the event simply never fires.
+  merge_group:
   # Nightly + on-demand triggers for the heavy 12/24-player playtest below;
   # PR/push runs skip it (see the job's `if:`) so the fast gates stay fast.
   schedule:
