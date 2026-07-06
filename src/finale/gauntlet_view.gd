@@ -273,7 +273,8 @@ func _setup_3d() -> void:
 	_shrink_telegraph = MeshInstance3D.new()
 	_shrink_telegraph.name = "ShrinkTelegraph"
 	_shrink_telegraph.mesh = _shrink_telegraph_mesh
-	_shrink_telegraph.rotation.x = PI / 2.0  # lay flat on the platform
+	# No rotation: TorusMesh is already flat (its axis is Y). The old
+	# rotation.x = PI/2 stood the ring UP — an arch over the stage (#693).
 	_shrink_telegraph.position = Vector3(0.0, PLATFORM_THICKNESS + 0.03, 0.0)
 	_shrink_telegraph.visible = false
 	arena.add_child(_shrink_telegraph)
