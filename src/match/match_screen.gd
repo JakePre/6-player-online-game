@@ -23,6 +23,18 @@ const COIN_FLY_SEC := 0.6
 ## so nothing runs off-screen at up to 24 players.
 const COIN_GRID_SPACING := Vector2(80.0, 30.0)
 const RESULTS_MAX_ROWS := 12
+## In-match HUD score strip (#571): the totals row scrolls instead of growing
+## the HUD panel past two chip-rows, and past this many players chips pack
+## several players together (SmallLabel keeps each pill compact too) so most
+## room sizes fit without ever needing the scrollbar; the scroll is the hard
+## safety net for whatever still doesn't fit at extreme name lengths. Height
+## is two chip rows (chip label's font size plus its pill padding) plus one
+## row of separation, all from PartyTheme tokens — no invented pixels.
+const TOTALS_MAX_CHIPS := 8
+const TOTALS_CHIP_ROW_HEIGHT := (
+	PartyTheme.SIZE_SMALL + PartyTheme.SPACE_XS * 2 + PartyTheme.SPACE_SM
+)
+const TOTALS_ROW_MAX_HEIGHT := TOTALS_CHIP_ROW_HEIGHT * 2 + PartyTheme.SPACE_SM
 ## Intro-card key art (M16-07): the styled text fallback shows until a file
 ## lands here for the round's minigame. M16-12 batches these image requests;
 ## dropping `<id>.png` in this dir lights the slot up with no code change.
@@ -47,6 +59,7 @@ var _countdown_digit := 0
 @onready var _round_label: Label = %RoundLabel
 @onready var _game_name_label: Label = %GameNameLabel
 @onready var _timer_label: Label = %TimerLabel
+@onready var _totals_scroll: ScrollContainer = %TotalsScroll
 @onready var _totals_row: HFlowContainer = %TotalsRow
 @onready var _play_area: Control = %PlayArea
 @onready var _play_placeholder: Label = %PlayPlaceholder
@@ -76,6 +89,9 @@ func _ready() -> void:
 	NetManager.emote_received.connect(_on_emote_received)
 	_skip_button.pressed.connect(_on_skip_pressed)
 	_build_emote_bar()
+	# Hard cap (#571): whatever _pack_total_chips can't keep to two rows at the
+	# current width scrolls instead of stretching the HUD panel over the arena.
+	_totals_scroll.custom_minimum_size.y = TOTALS_ROW_MAX_HEIGHT
 	# Waiting for the first event (or, for a mid-match rejoiner, a snapshot).
 	_show_panel(null)
 	if NetManager.my_room_state.has("members"):
@@ -454,7 +470,10 @@ func _fly_coins(awards: Dictionary) -> void:
 		add_child(coin)
 		var offset := _coin_grid_offset(placed, earners.size(), size.x)
 		coin.position = size / 2.0 + offset - Vector2(size.x * 0.25, 0.0)
-		var target := _totals_row.position + offset
+		# global_position (not local .position) so the target stays correct no
+		# matter how many containers now sit between TotalsRow and this root
+		# (#571 added a ScrollContainer wrapper to cap the HUD's height).
+		var target := _totals_row.global_position - global_position + offset
 		var tween := create_tween()
 		# EASE_IN is deliberate — chips accelerate away; the curve stays on-token.
 		tween.set_ease(Tween.EASE_IN).set_trans(PartyTheme.TRANS_DEFAULT)
@@ -486,18 +505,37 @@ func _fit_result_lines(lines: Array[String]) -> Array[String]:
 	return packed
 
 
+## Groups sorted slots into at most TOTALS_MAX_CHIPS pill-groups (several
+## players sharing one pill past that many), the same multi-per-row trick
+## _fit_result_lines uses for the results panel (#571): the HUD's chip *count*
+## stays bounded so two rows is always enough, instead of letting the
+## HFlowContainer wrap into as many rows as it needs. No player's name/score
+## is ever dropped, only grouped — and a group of one keeps its own color.
+func _pack_total_chips(slots: Array) -> Array:
+	if slots.size() <= TOTALS_MAX_CHIPS:
+		return slots.map(func(s: int) -> Array: return [s])
+	var per_chip := int(ceil(float(slots.size()) / float(TOTALS_MAX_CHIPS)))
+	var groups := []
+	for i in range(0, slots.size(), per_chip):
+		groups.append(slots.slice(i, i + per_chip))
+	return groups
+
+
 func _rebuild_totals_row() -> void:
 	for child in _totals_row.get_children():
 		child.queue_free()
 	var slots: Array = _names.keys()
 	slots.sort()
-	for slot: int in slots:
-		_totals_row.add_child(_make_total_chip(slot))
+	for group: Array in _pack_total_chips(slots):
+		_totals_row.add_child(_make_total_chip(group))
 
 
 ## A compact themed score pill (M16-08): "P# N" in the player's color on a
-## small raised background, so 24 running totals stay scannable at a glance.
-func _make_total_chip(slot: int) -> PanelContainer:
+## small raised background, so running totals stay scannable at a glance. Once
+## _pack_total_chips groups several players into one pill (24-player rooms,
+## #571) the shared pill lists each "P# N" in the default text color instead —
+## same trade the results panel already makes when it condenses rows.
+func _make_total_chip(group: Array) -> PanelContainer:
 	var pill := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = PartyTheme.BG_RAISED
@@ -508,8 +546,15 @@ func _make_total_chip(slot: int) -> PanelContainer:
 	style.content_margin_bottom = PartyTheme.SPACE_XS
 	pill.add_theme_stylebox_override(&"panel", style)
 	var chip := Label.new()
-	chip.text = "%s %d" % [MatchFormat.player_name(_names, slot), int(_totals.get(slot, 0))]
-	chip.add_theme_color_override(&"font_color", PlayerPalette.color_for_slot(slot))
+	# SmallLabel keeps pills compact (M16-01 token) so more fit per row before
+	# _pack_total_chips ever needs to group players together (#571).
+	chip.theme_type_variation = PartyTheme.SMALL_VARIATION
+	var texts: Array[String] = []
+	for slot: int in group:
+		texts.append("%s %d" % [MatchFormat.player_name(_names, slot), int(_totals.get(slot, 0))])
+	chip.text = "   ".join(texts)
+	if group.size() == 1:
+		chip.add_theme_color_override(&"font_color", PlayerPalette.color_for_slot(group[0]))
 	pill.add_child(chip)
 	return pill
 

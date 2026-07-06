@@ -297,6 +297,95 @@ func test_totals_row_wraps_for_large_lobbies() -> void:
 	assert_true(screen._totals_row is HFlowContainer, "totals row uses a wrapping container")
 
 
+## #571: the totals row sits in a height-capped ScrollContainer so the HUD
+## panel itself never grows past two chip-rows, no matter how many players
+## or how long their names are.
+func test_totals_scroll_caps_hud_height() -> void:
+	assert_true(
+		screen._totals_scroll is ScrollContainer, "totals row is wrapped in a scroll container"
+	)
+	assert_almost_eq(
+		screen._totals_scroll.custom_minimum_size.y,
+		float(screen.TOTALS_ROW_MAX_HEIGHT),
+		0.01,
+		"scroll wrapper is pinned to the two-row cap"
+	)
+
+
+## #571: whatever the player count, _pack_total_chips never returns more than
+## TOTALS_MAX_CHIPS groups, so the HFlowContainer never needs more than a
+## couple of rows to lay them out. Checked at 2, 12, and 24 players (the
+## current NetConfig.MAX_PLAYERS_PER_ROOM).
+func test_pack_total_chips_never_exceeds_max_chips_at_any_room_size() -> void:
+	for count in [2, 12, 24, int(NetConfig.MAX_PLAYERS_PER_ROOM)]:
+		var slots: Array = range(count)
+		var groups: Array = screen._pack_total_chips(slots)
+		assert_true(
+			groups.size() <= screen.TOTALS_MAX_CHIPS,
+			(
+				"%d players pack into <=%d chips, got %d"
+				% [count, screen.TOTALS_MAX_CHIPS, groups.size()]
+			)
+		)
+
+
+## #571: packing never drops a player — every slot from the input shows up in
+## exactly one group's flattened contents, at small, medium, and max room size.
+func test_pack_total_chips_never_drops_a_player() -> void:
+	for count in [2, 12, 24]:
+		var slots: Array = range(count)
+		var groups: Array = screen._pack_total_chips(slots)
+		var flattened: Array = []
+		for group: Array in groups:
+			flattened.append_array(group)
+		flattened.sort()
+		assert_eq(flattened, slots, "%d players: no slot dropped or duplicated" % count)
+
+
+## #571: a lobby small enough to fit under TOTALS_MAX_CHIPS keeps one player
+## per pill (no needless grouping) so names/colors stay per-player.
+func test_pack_total_chips_keeps_one_player_per_chip_for_small_lobbies() -> void:
+	var groups: Array = screen._pack_total_chips([0, 1])
+	assert_eq(groups, [[0], [1]], "small lobbies get one player per chip")
+
+
+## #571: rebuilding the totals row at 2, 12, and 24 players never creates more
+## chip pills than TOTALS_MAX_CHIPS, including with a mix of short/long names.
+func test_rebuild_totals_row_caps_chip_count_at_representative_room_sizes() -> void:
+	for count in [2, 12, 24]:
+		screen._names.clear()
+		for i in count:
+			# Alternate short and long names to exercise both chip widths.
+			screen._names[i] = "Al" if i % 2 == 0 else "Alexandria-Constantinopolis"
+		screen._rebuild_totals_row()
+		# _rebuild_totals_row() queue_free()s the previous chips, which only
+		# actually leave the tree at end-of-frame; wait one so get_child_count
+		# reflects this iteration's chips, not a carryover from the last.
+		await wait_frames(1)
+		assert_true(
+			screen._totals_row.get_child_count() <= screen.TOTALS_MAX_CHIPS,
+			(
+				"%d players: <=%d chip pills, got %d"
+				% [count, screen.TOTALS_MAX_CHIPS, screen._totals_row.get_child_count()]
+			)
+		)
+
+
+## #571: the coin-fly animation still targets a sane on-screen point (inside
+## the HUD bar, not off in space) after TotalsRow moved one level deeper into
+## a ScrollContainer.
+func test_coin_fly_target_stays_near_totals_row() -> void:
+	NetManager.match_event_received.emit(_results_event())
+	var coin: Label = screen.get_node("CoinFly0")
+	# The tween's final key targets _totals_row's on-screen position; confirm
+	# that position is finite and within the HUD panel's own bounds rather
+	# than some huge/NaN offset from a broken container-nesting assumption.
+	var target: Vector2 = screen._totals_row.global_position - screen.global_position
+	assert_false(is_nan(target.x) or is_nan(target.y), "coin-fly target is a real point")
+	assert_between(target.y, 0.0, 200.0, "totals row stays near the top HUD bar")
+	assert_not_null(coin)
+
+
 ## Coin chips fly to a grid that stays within the screen width at any count.
 func test_coin_grid_stays_within_screen_width() -> void:
 	var width := 1152.0
