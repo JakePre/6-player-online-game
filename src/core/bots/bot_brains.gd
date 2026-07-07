@@ -56,6 +56,9 @@ const BRAINS := {
 	&"memory_match": preload("res://src/core/bots/brains/memory_match_brain.gd"),
 	&"poison_feast": preload("res://src/core/bots/brains/poison_feast_brain.gd"),
 	&"pickpocket_plaza": preload("res://src/core/bots/brains/pickpocket_plaza_brain.gd"),
+	# Team-siege batch (M19-02, #686).
+	&"fort_siege": preload("res://src/core/bots/brains/fort_siege_brain.gd"),
+	&"wall_builders": preload("res://src/core/bots/brains/wall_builders_brain.gd"),
 }
 
 
