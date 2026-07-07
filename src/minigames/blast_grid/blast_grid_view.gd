@@ -16,12 +16,32 @@ var players := {}
 var grid: Array = []
 
 var _blocks := {}  # cell (int) -> MeshInstance3D (SOLID pillars + SOFT walls)
+# Pooled (#709): reused across snapshots, hiding surplus instead of freeing, so
+# a dense grid (bombs+flames+powerups at 24 players) stops churning
+# MeshInstance3D/StandardMaterial3D allocations every render.
 var _bomb_nodes: Array[MeshInstance3D] = []
+var _bomb_materials: Array[StandardMaterial3D] = []
+var _bombs: Array = []
+var _flame_mesh: BoxMesh
 var _flame_nodes: Array[MeshInstance3D] = []
+var _flame_cells: Array = []
 var _power_nodes: Array[MeshInstance3D] = []
+var _power_materials: Array[StandardMaterial3D] = []
+var _powerups: Array = []
 var _flames_seen := {}
 ## Snapshot counter drives the fuse pulse without a local clock.
 var _ticks := 0
+
+
+func _setup_3d() -> void:
+	_flame_mesh = BoxMesh.new()
+	_flame_mesh.size = Vector3(BlastGrid.CELL_SIZE * 0.9, 0.1, BlastGrid.CELL_SIZE * 0.9)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = FLAME_COLOR
+	material.emission_enabled = true
+	material.emission = FLAME_COLOR
+	material.emission_energy_multiplier = 1.8
+	_flame_mesh.material = material
 
 
 func _physics_process(_delta: float) -> void:
@@ -80,78 +100,84 @@ func _make_block(cell: int, solid: bool) -> MeshInstance3D:
 
 
 func _update_bombs(bomb_list: Array) -> void:
-	for node in _bomb_nodes:
-		node.queue_free()
-	_bomb_nodes.clear()
-	for bomb: Array in bomb_list:
-		var mesh := SphereMesh.new()
-		mesh.radius = BlastGrid.CELL_SIZE * 0.32
-		mesh.height = mesh.radius * 2.0
-		var material := StandardMaterial3D.new()
-		material.albedo_color = BOMB_COLOR
-		material.emission_enabled = true
-		# Pulses faster as the fuse shortens — the readable "about to blow" cue.
-		var urgency := clampf(1.0 - float(bomb[1]) / BlastGrid.BOMB_FUSE, 0.0, 1.0)
-		var beat := 0.5 + 0.5 * sin(_ticks * (0.3 + urgency))
-		material.emission = FLAME_COLOR
-		material.emission_energy_multiplier = beat * (0.4 + urgency)
-		mesh.material = material
-		var node := MeshInstance3D.new()
-		node.mesh = mesh
-		node.position = to_arena(_cell_pos(int(bomb[0])), mesh.radius)
-		arena.add_child(node)
-		_bomb_nodes.append(node)
+	_bombs = bomb_list
+	sync_pool(_bomb_nodes, bomb_list.size(), _make_bomb, _place_bomb)
+
+
+func _make_bomb() -> Node3D:
+	var mesh := SphereMesh.new()
+	mesh.radius = BlastGrid.CELL_SIZE * 0.32
+	mesh.height = mesh.radius * 2.0
+	var material := StandardMaterial3D.new()
+	material.albedo_color = BOMB_COLOR
+	material.emission_enabled = true
+	mesh.material = material
+	_bomb_materials.append(material)
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	return node
+
+
+func _place_bomb(node: Node3D, index: int) -> void:
+	var bomb: Array = _bombs[index]
+	# Pulses faster as the fuse shortens — the readable "about to blow" cue.
+	var urgency := clampf(1.0 - float(bomb[1]) / BlastGrid.BOMB_FUSE, 0.0, 1.0)
+	var beat := 0.5 + 0.5 * sin(_ticks * (0.3 + urgency))
+	_bomb_materials[index].emission = FLAME_COLOR
+	_bomb_materials[index].emission_energy_multiplier = beat * (0.4 + urgency)
+	node.position = to_arena(_cell_pos(int(bomb[0])), BlastGrid.CELL_SIZE * 0.32)
 
 
 ## Flame cells glow; a cell newly on fire pops a burst + shake (the detonation).
 func _update_flames(flame_cells: Array) -> void:
-	for node in _flame_nodes:
-		node.queue_free()
-	_flame_nodes.clear()
 	var current := {}
 	for cell_v: Variant in flame_cells:
-		var cell := int(cell_v)
-		current[cell] = true
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(BlastGrid.CELL_SIZE * 0.9, 0.1, BlastGrid.CELL_SIZE * 0.9)
-		var material := StandardMaterial3D.new()
-		material.albedo_color = FLAME_COLOR
-		material.emission_enabled = true
-		material.emission = FLAME_COLOR
-		material.emission_energy_multiplier = 1.8
-		mesh.material = material
-		var node := MeshInstance3D.new()
-		node.mesh = mesh
-		node.position = to_arena(_cell_pos(cell), 0.12)
-		arena.add_child(node)
-		_flame_nodes.append(node)
+		current[int(cell_v)] = true
+	for cell: int in current:
 		if not _flames_seen.has(cell):
 			fx_burst(_cell_pos(cell), FLAME_COLOR, 0.6)
 	if current.size() > _flames_seen.size():
 		request_shake(4.0)
 	_flames_seen = current
+	_flame_cells = flame_cells
+	sync_pool(_flame_nodes, flame_cells.size(), _make_flame, _place_flame)
+
+
+func _make_flame() -> Node3D:
+	var node := MeshInstance3D.new()
+	node.mesh = _flame_mesh
+	return node
+
+
+func _place_flame(node: Node3D, index: int) -> void:
+	node.position = to_arena(_cell_pos(int(_flame_cells[index])), 0.12)
 
 
 func _update_powerups(power_list: Array) -> void:
-	for node in _power_nodes:
-		node.queue_free()
-	_power_nodes.clear()
-	for entry: Array in power_list:
-		var mesh := SphereMesh.new()
-		mesh.radius = BlastGrid.CELL_SIZE * 0.22
-		mesh.height = mesh.radius * 2.0
-		var material := StandardMaterial3D.new()
-		var color := RANGE_COLOR if int(entry[1]) == BlastGrid.Power.RANGE else BOMB_POWER_COLOR
-		material.albedo_color = color
-		material.emission_enabled = true
-		material.emission = color
-		material.emission_energy_multiplier = 0.8
-		mesh.material = material
-		var node := MeshInstance3D.new()
-		node.mesh = mesh
-		node.position = to_arena(_cell_pos(int(entry[0])), 0.4)
-		arena.add_child(node)
-		_power_nodes.append(node)
+	_powerups = power_list
+	sync_pool(_power_nodes, power_list.size(), _make_powerup, _place_powerup)
+
+
+func _make_powerup() -> Node3D:
+	var mesh := SphereMesh.new()
+	mesh.radius = BlastGrid.CELL_SIZE * 0.22
+	mesh.height = mesh.radius * 2.0
+	var material := StandardMaterial3D.new()
+	material.emission_enabled = true
+	material.emission_energy_multiplier = 0.8
+	mesh.material = material
+	_power_materials.append(material)
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	return node
+
+
+func _place_powerup(node: Node3D, index: int) -> void:
+	var entry: Array = _powerups[index]
+	var color := RANGE_COLOR if int(entry[1]) == BlastGrid.Power.RANGE else BOMB_POWER_COLOR
+	_power_materials[index].albedo_color = color
+	_power_materials[index].emission = color
+	node.position = to_arena(_cell_pos(int(entry[0])), 0.4)
 
 
 func _update_players() -> void:

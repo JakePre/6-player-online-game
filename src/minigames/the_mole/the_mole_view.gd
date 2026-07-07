@@ -26,6 +26,8 @@ var votes_in := 0
 var reveal := {}
 
 var _machine_material: StandardMaterial3D
+# Pooled (#709): reused across snapshots, hiding surplus instead of freeing.
+var _cell_mesh: BoxMesh
 var _cell_nodes: Array[MeshInstance3D] = []
 var _banner: Label
 ## Index into the votable slot list this client is currently aiming at.
@@ -100,6 +102,14 @@ func _setup_3d() -> void:
 	machine.position = to_arena(TheMole.MACHINE_POS, MACHINE_HEIGHT / 2.0)
 	arena.add_child(machine)
 	_banner = make_banner(&"Phase", 26)
+	_cell_mesh = BoxMesh.new()
+	_cell_mesh.size = Vector3(CELL_SIZE, CELL_SIZE, CELL_SIZE)
+	var cell_material := StandardMaterial3D.new()
+	cell_material.albedo_color = CELL_COLOR
+	cell_material.emission_enabled = true
+	cell_material.emission = CELL_COLOR
+	cell_material.emission_energy_multiplier = 0.3
+	_cell_mesh.material = cell_material
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -128,23 +138,18 @@ func _update_players() -> void:
 
 
 func _update_cells() -> void:
-	for node in _cell_nodes:
-		node.queue_free()
-	_cell_nodes.clear()
-	for cell: Array in cells:
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(CELL_SIZE, CELL_SIZE, CELL_SIZE)
-		var material := StandardMaterial3D.new()
-		material.albedo_color = CELL_COLOR
-		material.emission_enabled = true
-		material.emission = CELL_COLOR
-		material.emission_energy_multiplier = 0.3
-		mesh.material = material
-		var node := MeshInstance3D.new()
-		node.mesh = mesh
-		node.position = to_arena(Vector2(float(cell[0]), float(cell[1])), CELL_SIZE / 2.0)
-		arena.add_child(node)
-		_cell_nodes.append(node)
+	sync_pool(_cell_nodes, cells.size(), _make_cell, _place_cell)
+
+
+func _make_cell() -> Node3D:
+	var node := MeshInstance3D.new()
+	node.mesh = _cell_mesh
+	return node
+
+
+func _place_cell(node: Node3D, index: int) -> void:
+	var cell: Array = cells[index]
+	node.position = to_arena(Vector2(float(cell[0]), float(cell[1])), CELL_SIZE / 2.0)
 
 
 func _update_machine() -> void:
