@@ -4,7 +4,7 @@ class_name AppVersion
 ## checklist; stamping it automatically from the release workflow is the
 ## [INFRA] follow-up tracked on the claim issue.
 
-const VERSION := "0.6.1"
+const VERSION := "0.6.3"
 
 
 ## True when `tag` (a release tag like "v0.4.1" or "0.4.1") is a newer
