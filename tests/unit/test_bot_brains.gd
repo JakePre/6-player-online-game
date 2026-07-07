@@ -3,6 +3,12 @@ extends GutTest
 ## minigame id (random fallback for uncovered games), and each archetype brain
 ## steers correctly given a crafted snapshot — pure think() calls, no scene.
 
+## A synthetic id, not a real minigame — the fan-out (#686) is heading toward
+## full roster coverage, so pinning this to a real-but-currently-uncovered id
+## goes stale the moment that game gets a brain (it already happened twice:
+## heist_night, then fort_siege). A fake id can never be "claimed".
+const UNCOVERED_ID := &"__no_such_minigame__"
+
 
 func _play_state(id: String, game: Dictionary) -> Dictionary:
 	return {"state": MatchController.State.PLAY, "minigame": id, "game": game}
@@ -11,12 +17,12 @@ func _play_state(id: String, game: Dictionary) -> Dictionary:
 func test_registry_picks_dedicated_brains_and_falls_back_to_random() -> void:
 	assert_true(BotBrains.brain_for(&"coin_scramble", 0, 1) is CoinScrambleBrain)
 	assert_true(BotBrains.brain_for(&"gauntlet", 0, 1) is GauntletBrain)
-	assert_true(BotBrains.brain_for(&"heist_night", 0, 1) is RandomBrain, "uncovered id -> random")
-	assert_false(BotBrains.has_brain(&"heist_night"))
+	assert_true(BotBrains.brain_for(UNCOVERED_ID, 0, 1) is RandomBrain, "uncovered id -> random")
+	assert_false(BotBrains.has_brain(UNCOVERED_ID))
 
 
 func test_random_fallback_still_produces_intents() -> void:
-	var brain := BotBrains.brain_for(&"heist_night", 0, 42)
+	var brain := BotBrains.brain_for(UNCOVERED_ID, 0, 42)
 	var intent := brain.think({}, {})
 	assert_true(intent.has("mx"), "fallback keeps the pre-M19 random behavior")
 
