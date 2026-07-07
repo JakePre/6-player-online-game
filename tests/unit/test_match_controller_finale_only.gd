@@ -3,7 +3,11 @@ extends GutTest
 ## the buy-in shop with a seeded purse, skipping the playlist entirely — how
 ## `--debug-minigame=gauntlet` and the render harness reach the finale. Split
 ## from test_match_controller.gd to stay under gdlint's public-method cap
-## (same precedent as test_match_screen_diagnostics.gd).
+## (same precedent as test_match_screen_diagnostics.gd). Also covers the
+## finale_results event (#706), since it only ever fires on this same
+## SHOP -> PLAY -> PODIUM path.
+
+const TICK := 1.0 / 30.0
 
 var events: Array = []
 
@@ -49,3 +53,36 @@ func test_finale_only_defaults_off() -> void:
 	var controller := MatchController.new(room, {"seed": 7, "playlist": [&"coin_scramble"]})
 	controller.start()
 	assert_eq(controller.state, MatchController.State.INTRO, "normal matches are untouched")
+
+
+## #706: the finale skips round_results entirely (straight to podium), so its
+## KO-cause breakdown rides its own event — this is the only place that event
+## can be observed end to end.
+func test_finale_results_event_carries_the_ko_cause_breakdown() -> void:
+	var room := _make_room(2)
+	var controller := MatchController.new(
+		room, {"seed": 7, "finale": true, "finale_only": true, "finale_coins": 0}
+	)
+	controller.event_emitted.connect(events.append)
+	controller.start()
+	controller.handle_input(0, {"shop": {"action": "confirm"}})
+	controller.handle_input(1, {"shop": {"action": "confirm"}})
+	controller.tick(TICK)
+	assert_eq(
+		controller.state, MatchController.State.FINALE_PLAY, "both confirmed: shop closes early"
+	)
+	var gauntlet := controller.game as Gauntlet
+	assert_not_null(gauntlet, "the finale runs The Gauntlet directly")
+	# Walk slot 0 off the rim — a plain KO, no swing involved.
+	gauntlet.positions[0] = Vector2(gauntlet.radius + 1.0, 0.0)
+	controller.tick(TICK)
+	assert_eq(controller.state, MatchController.State.PODIUM, "one KO with 2 players ends it")
+	var results_event: Dictionary = {}
+	for event: Dictionary in events:
+		if String(event.get("type", "")) == "finale_results":
+			results_event = event
+	assert_eq(String(results_event.get("type", "")), "finale_results", "the event fired")
+	assert_eq(int((results_event.ko_causes as Dictionary).get("rim", 0)), 1)
+	assert_true(
+		results_event.has("placements"), "carries placements too, same shape as round_results"
+	)

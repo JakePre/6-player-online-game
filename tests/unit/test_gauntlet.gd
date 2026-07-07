@@ -466,3 +466,62 @@ func test_snapshot_carries_weapon_state() -> void:
 	assert_eq(int(snapshot.players[0][4]), 1, "swings left on the held axe")
 	assert_eq(int(snapshot.players[0][5]), 1, "attacker swing_seq")
 	assert_eq(int(snapshot.players[1][6]), 1, "victim hit_seq")
+
+
+# --- KO-cause telemetry (#706) ---------------------------------------------------
+
+
+func test_hazard_ko_is_tagged_hazard() -> void:
+	var game := _gauntlet([0, 1, 2])
+	game.positions[0] = Vector2(3.0, 3.0)
+	game.positions[1] = Vector2(-5.0, -5.0)
+	game._spawn_hazard(Vector2(3.0, 3.0))
+	_quiet_tick(game, Gauntlet.HAZARD_WARN_SEC + 0.1)
+	assert_eq(int(game.ko_causes.get("hazard", 0)), 1)
+	assert_eq(game.ko_causes.get("rim", 0), 0)
+	assert_eq(game.ko_causes.get("axe_launch", 0), 0)
+
+
+func test_plain_rim_walkoff_is_tagged_rim_not_axe_launch() -> void:
+	var game := _gauntlet([0, 1])
+	game.positions[0] = Vector2(game.radius + 1.0, 0.0)
+	game._hazard_accum = -INF
+	game.tick(TICK)
+	assert_eq(int(game.ko_causes.get("rim", 0)), 1, "walked off on their own, no swing involved")
+	assert_eq(game.ko_causes.get("axe_launch", 0), 0)
+	assert_eq(game.axe_kills, {}, "no attacker to credit")
+
+
+func test_axe_launch_off_the_rim_is_tagged_and_credited_to_the_attacker() -> void:
+	var game := _gauntlet([0, 1, 2])
+	game.positions[0] = Vector2(Gauntlet.START_RADIUS - 2.5, 0.0)
+	game.positions[1] = Vector2(Gauntlet.START_RADIUS - 1.2, 0.0)
+	game.positions[2] = Vector2(-5.0, 0.0)
+	game.armed[0] = Gauntlet.WEAPON_SWINGS
+	game.handle_input(0, {"swing": true})
+	_quiet_tick(game, 1.0)
+	assert_eq(game.lives[1], 0, "launched off the rim")
+	assert_eq(int(game.ko_causes.get("axe_launch", 0)), 1)
+	assert_eq(game.ko_causes.get("rim", 0), 0, "the launch is the cause, not a plain walk-off")
+	assert_eq(int(game.axe_kills.get(0, 0)), 1, "credited to the swinger")
+
+
+func test_shield_saved_ko_is_not_counted_in_any_cause() -> void:
+	var game := _gauntlet([0, 1])
+	game.apply_loadouts({0: {"items": {&"shield": 1}, "coins_left": 0}})
+	game.positions[0] = Vector2(game.radius + 1.0, 0.0)
+	game._hazard_accum = -INF
+	game.tick(TICK)
+	assert_true(game.lives.get(0) == 1, "no life lost")
+	assert_eq(game.ko_causes, {}, "a shield save costs no life, so nothing is attributed")
+
+
+func test_get_results_carries_the_ko_breakdown() -> void:
+	var game := _gauntlet([0, 1])
+	game.positions[0] = Vector2(game.radius + 1.0, 0.0)
+	game._hazard_accum = -INF
+	game.tick(TICK)
+	var results := game.get_results()
+	assert_has(results, "ko_causes")
+	assert_has(results, "axe_kills")
+	assert_eq(int(results.ko_causes.get("rim", 0)), 1)
