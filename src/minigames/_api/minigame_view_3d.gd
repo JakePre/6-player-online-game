@@ -257,6 +257,50 @@ func make_banner(banner_name: StringName, font_size := 24) -> Label:
 	return label
 
 
+# --- Pooled transient entity nodes (#709) -------------------------------------
+
+
+## Reconcile a persistent pool of transient entity nodes (coins, bombs, hazards,
+## floor markers…) to `count` visible instances instead of freeing and
+## recreating them on every snapshot render (up to 30 Hz). New nodes are built
+## with `factory` only when the pool must grow; the surplus is HIDDEN, never
+## freed — so dense-entity games stop churning MeshInstance3D/StandardMaterial3D
+## allocations and RenderingServer objects at 24 players.
+##
+## - `pool`: the view's persistent node array; grown in place (passed by ref).
+## - `count`: how many entities to show this frame.
+## - `factory` (`func() -> Node3D`): builds ONE node — put per-node static setup
+##   (mesh, rotation, material) here; it runs once per node's lifetime, not per
+##   frame.
+## - `update` (`func(node: Node3D, index: int) -> void`): positions/updates the
+##   node for entity `index` (0..count-1) this frame; close over the entity data.
+## - `parent`: where new nodes are added; defaults to `arena`.
+##
+## Spawn/despawn FX diffing (keyed data sets like `_last_hazard_keys`) is
+## unaffected — it diffs snapshot data, not these nodes.
+func sync_pool(
+	pool: Array, count: int, factory: Callable, update: Callable, parent: Node3D = null
+) -> void:
+	reconcile_pool(pool, count, factory, update, parent if parent != null else arena)
+
+
+## The pure reconciliation `sync_pool` wraps (kept static + parent-explicit so
+## the pool math is unit-testable without standing up a whole arena view).
+static func reconcile_pool(
+	pool: Array, count: int, factory: Callable, update: Callable, parent: Node3D
+) -> void:
+	while pool.size() < count:
+		var fresh := factory.call() as Node3D
+		parent.add_child(fresh)
+		pool.append(fresh)
+	for i in pool.size():
+		var node: Node3D = pool[i]
+		var active := i < count
+		node.visible = active
+		if active:
+			update.call(node, i)
+
+
 # --- Overridables ------------------------------------------------------------
 
 

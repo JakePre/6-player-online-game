@@ -38,6 +38,9 @@ func _process(_delta: float) -> void:
 	var spin := now * TAU * COIN_SPIN_HZ
 	for i in _coin_nodes.size():
 		var node := _coin_nodes[i]
+		# Pooled surplus (#709) is hidden, not freed — don't animate it.
+		if not node.visible:
+			continue
 		node.rotation = Vector3(PI / 2.0, spin + i, 0.0)
 		node.position.y = COIN_HOVER + sin(now * 2.0 + i) * COIN_BOB
 
@@ -118,13 +121,18 @@ func _update_coins() -> void:
 				fx_dust(Vector2(coin[0], coin[1]))
 	_coins_seen = coins.duplicate(true)
 	_coins_rendered_once = true
-	for node in _coin_nodes:
-		node.queue_free()
-	_coin_nodes.clear()
-	for coin: Array in coins:
-		var node := MeshInstance3D.new()
-		node.mesh = _coin_mesh
-		node.position = to_arena(Vector2(coin[0], coin[1]), COIN_HOVER)
-		node.rotation.x = PI / 2.0
-		arena.add_child(node)
-		_coin_nodes.append(node)
+	# Pooled (#709): reuse the disc nodes across snapshots, hiding surplus, so a
+	# 30 Hz coin field stops churning MeshInstance3D allocations.
+	sync_pool(_coin_nodes, coins.size(), _make_coin, _place_coin)
+
+
+func _make_coin() -> Node3D:
+	var node := MeshInstance3D.new()
+	node.mesh = _coin_mesh
+	node.rotation.x = PI / 2.0
+	return node
+
+
+func _place_coin(node: Node3D, index: int) -> void:
+	var coin: Array = coins[index]
+	node.position = to_arena(Vector2(coin[0], coin[1]), COIN_HOVER)
