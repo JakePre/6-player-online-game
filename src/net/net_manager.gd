@@ -37,6 +37,16 @@ const BOT_INPUT_INTERVAL_SEC := 0.25
 ## regains one token (so the sustained rate is 1000.0 / EMOTE_REFILL_MS/sec).
 const EMOTE_BURST_MAX := 3.0
 const EMOTE_REFILL_MS := 500.0
+## Server-side gameplay-input flood guard (#707): the same token-bucket shape as
+## the emote limiter, sized far above real play so no legitimate client is ever
+## throttled. Movement views send one intent per 30 Hz physics tick plus
+## edge-triggered actions — a legit peak is ~30-40/s — while a hostile client
+## can spam intents at packet rate, each costing an O(n) sim scan before it's
+## rejected. INPUT_BURST_MAX spends instantly; one token returns every
+## INPUT_REFILL_MS, so the sustained cap is 1000.0 / INPUT_REFILL_MS per sec
+## (~67/s here — roughly double the real peak).
+const INPUT_BURST_MAX := 30.0
+const INPUT_REFILL_MS := 15.0
 
 var is_server := false
 var room_manager: RoomManager
@@ -64,6 +74,8 @@ var fake_loss := 0.0
 
 # Server-only: per-peer emote token-bucket state, {tokens: float, last_ms: int}.
 var _emote_tokens := {}
+# Server-only: per-peer gameplay-input token-bucket state (#707), same shape.
+var _input_tokens := {}
 var _lag_rng := RandomNumberGenerator.new()
 var _lag_queue: Array[Dictionary] = []
 var _snapshot_accum := 0.0
@@ -440,6 +452,11 @@ func _rpc_match_input(data: Dictionary) -> void:
 	if not is_server:
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
+	# Flood guard (#707): drop over-budget packets before the room/controller
+	# lookups and the sim's O(n) input scan, so a spammer can't burn CPU. A
+	# laggy client resending is not an attacker, so this is a silent drop.
+	if not _input_allowed(peer_id, Time.get_ticks_msec()):
+		return
 	var room: Room = room_manager.room_of_peer(peer_id)
 	if room == null:
 		return
@@ -481,6 +498,23 @@ func _emote_allowed(peer_id: int, now_ms: int) -> bool:
 		_emote_tokens[peer_id] = {"tokens": tokens, "last_ms": now_ms}
 		return false
 	_emote_tokens[peer_id] = {"tokens": tokens - 1.0, "last_ms": now_ms}
+	return true
+
+
+## True if `peer_id` may send a gameplay intent at `now_ms`, consuming a token
+## if so (#707). Same token-bucket math as _emote_allowed, its own generous
+## budget; `now_ms` is a parameter so the bucket is unit-testable without live
+## transport or real delays.
+func _input_allowed(peer_id: int, now_ms: int) -> bool:
+	var state: Dictionary = _input_tokens.get(
+		peer_id, {"tokens": INPUT_BURST_MAX, "last_ms": now_ms}
+	)
+	var elapsed := now_ms - int(state.last_ms)
+	var tokens: float = minf(INPUT_BURST_MAX, float(state.tokens) + elapsed / INPUT_REFILL_MS)
+	if tokens < 1.0:
+		_input_tokens[peer_id] = {"tokens": tokens, "last_ms": now_ms}
+		return false
+	_input_tokens[peer_id] = {"tokens": tokens - 1.0, "last_ms": now_ms}
 	return true
 
 
@@ -803,6 +837,10 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		return
 	print("[server] peer %d disconnected" % peer_id)
 	DiagnosticsLog.event(&"net", &"peer_disconnect", {"peer": peer_id})
+	# Drop the peer's rate-limit buckets so hostile connect/disconnect churn
+	# can't grow these dicts unbounded (#707).
+	_input_tokens.erase(peer_id)
+	_emote_tokens.erase(peer_id)
 	var room: Room = room_manager.handle_disconnect(peer_id, Time.get_ticks_msec())
 	if room != null and room_manager.rooms.has(room.code):
 		_broadcast_room_state(room)
