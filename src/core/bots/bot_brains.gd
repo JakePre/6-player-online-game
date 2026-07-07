@@ -52,6 +52,10 @@ const BRAINS := {
 	&"nom_arena": preload("res://src/core/bots/brains/nom_arena_brain.gd"),
 	&"treasure_divers": preload("res://src/core/bots/brains/treasure_divers_brain.gd"),
 	&"musical_platforms": preload("res://src/core/bots/brains/musical_platforms_brain.gd"),
+	# Decision / deduction batch (M19-02, #686).
+	&"memory_match": preload("res://src/core/bots/brains/memory_match_brain.gd"),
+	&"poison_feast": preload("res://src/core/bots/brains/poison_feast_brain.gd"),
+	&"pickpocket_plaza": preload("res://src/core/bots/brains/pickpocket_plaza_brain.gd"),
 }
 
 
