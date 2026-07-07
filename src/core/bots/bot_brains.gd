@@ -42,6 +42,10 @@ const BRAINS := {
 	&"count_quick": preload("res://src/core/bots/brains/count_quick_brain.gd"),
 	&"shred_session": preload("res://src/core/bots/brains/shred_session_brain.gd"),
 	&"ro_sham_bo": preload("res://src/core/bots/brains/ro_sham_bo_brain.gd"),
+	# Hazard-survival batch (M19-02, #686).
+	&"bullet_waltz": preload("res://src/core/bots/brains/bullet_waltz_brain.gd"),
+	&"blast_grid": preload("res://src/core/bots/brains/blast_grid_brain.gd"),
+	&"laser_limbo": preload("res://src/core/bots/brains/laser_limbo_brain.gd"),
 }
 
 
