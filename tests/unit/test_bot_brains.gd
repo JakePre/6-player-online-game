@@ -399,3 +399,155 @@ func test_trap_corridor_brain_idle_when_not_your_turn_to_trap() -> void:
 	assert_eq(
 		brain.think(_play_state("trap_corridor", game), {}), {}, "non-trappers wait out TRAPPING"
 	)
+
+
+# --- Aim / reaction / racing batch (M19-02, #686) -----------------------------
+
+
+func test_quick_draw_brain_never_presses_while_waiting() -> void:
+	var brain := BotBrains.brain_for(&"quick_draw", 0, 1)
+	# WAITING: pressing forfeits — the brain must stay silent no matter how many
+	# ticks pass.
+	for i in 20:
+		var intent := brain.think(_play_state("quick_draw", {"phase": QuickDraw.Phase.WAITING}), {})
+		assert_true(intent.is_empty(), "no press during WAITING (tick %d)" % i)
+
+
+func test_quick_draw_brain_presses_after_its_reaction_delay_once_live() -> void:
+	var brain := BotBrains.brain_for(&"quick_draw", 0, 1)
+	var pressed := false
+	# LIVE: within a handful of ticks (< REACT_MAX / interval) the brain fires.
+	for i in 10:
+		var intent := brain.think(_play_state("quick_draw", {"phase": QuickDraw.Phase.LIVE}), {})
+		if intent.get("press", false):
+			pressed = true
+			break
+	assert_true(pressed, "the brain reacts to LIVE within its delay window")
+
+
+func test_target_range_brain_aims_at_the_best_target_and_fires_when_ready() -> void:
+	var brain := BotBrains.brain_for(&"target_range", 0, 1)
+	# Gold (kind 2, value 5) at +3; standard (kind 0) at +1. Crosshair at gold,
+	# cooldown clear -> fire at the gold.
+	var game := {
+		"targets": [[7, 3.0, 0.0, 0.55, 2], [8, 1.0, 0.0, 0.8, 0]],
+		"aims": {0: [3.0, 0.0]},
+		"scores": {0: 0},
+		"cd": {0: 0.0},
+	}
+	# Seed the last-position map so the lead term is zero (static target here).
+	brain.think(_play_state("target_range", game), {})
+	var intent := brain.think(_play_state("target_range", game), {})
+	assert_almost_eq(float(intent.ax), 3.0, 0.2, "aims at the gold target")
+	assert_true(intent.get("fire", false), "crosshair on target + cd clear -> fire")
+
+
+func test_target_range_brain_holds_fire_on_cooldown() -> void:
+	var brain := BotBrains.brain_for(&"target_range", 0, 1)
+	var game := {
+		"targets": [[7, 3.0, 0.0, 0.55, 2]],
+		"aims": {0: [3.0, 0.0]},
+		"scores": {0: 0},
+		"cd": {0: 0.5},
+	}
+	var intent := brain.think(_play_state("target_range", game), {})
+	assert_false(intent.get("fire", false), "still cooling down -> no fire")
+
+
+func test_putt_panic_brain_aims_at_the_cup_and_putts_at_rest() -> void:
+	var brain := BotBrains.brain_for(&"putt_panic", 0, 1)
+	# [x, y, strokes, sunk, aim_x, aim_y, at_rest]; me below the cup at (0, 6.5).
+	var game := {
+		"players": {0: [0.0, -7.0, 0, 0, 0.0, 1.0, 1]},
+		"cup": [0.0, 6.5],
+		"bar": [0.0, 0.0],
+		"shot_clock": 5.0,
+	}
+	var intent := brain.think(_play_state("putt_panic", game), {})
+	assert_almost_eq(float(intent.ay), 1.0, 0.01, "aim straight up the green at the cup")
+	assert_almost_eq(float(intent.ax), 0.0, 0.01)
+	assert_true(intent.get("putt", false), "at rest -> take the stroke")
+	assert_gt(float(intent.power), 0.0, "with real power")
+
+
+func test_putt_panic_brain_does_not_putt_while_rolling() -> void:
+	var brain := BotBrains.brain_for(&"putt_panic", 0, 1)
+	var game := {
+		"players": {0: [0.0, -7.0, 0, 0, 0.0, 1.0, 0]},  # at_rest = 0
+		"cup": [0.0, 6.5],
+		"bar": [0.0, 0.0],
+		"shot_clock": 5.0,
+	}
+	var intent := brain.think(_play_state("putt_panic", game), {})
+	assert_false(intent.get("putt", false), "ball still rolling -> aim only, no stroke")
+
+
+func test_bullseye_bowl_brain_rolls_when_the_target_will_land_centered() -> void:
+	var brain := BotBrains.brain_for(&"bullseye_bowl", 0, 1)
+	# Two ticks establish direction; construct offsets so the predicted landing
+	# lands near center. Sweep a full oscillation and require at least one roll.
+	var rolled := false
+	var period := BullseyeBowl.TARGET_PERIOD_SEC
+	var amp := BullseyeBowl.TARGET_AMPLITUDE
+	var prev := 0.0
+	for i in 40:
+		var t := i * NetManager.BOT_INPUT_INTERVAL_SEC
+		var offset := amp * sin(TAU * t / period)
+		var game := {"players": {0: [0, 5, -1.0, offset]}}
+		var intent := brain.think(_play_state("bullseye_bowl", game), {})
+		if intent.get("roll", false):
+			rolled = true
+		prev = offset
+	assert_true(rolled, "over a full cycle the brain finds a centered-landing roll")
+
+
+func test_bullseye_bowl_brain_holds_when_mid_flight_or_out_of_balls() -> void:
+	var brain := BotBrains.brain_for(&"bullseye_bowl", 0, 1)
+	# Seed a direction sample, then a mid-flight snapshot must never roll.
+	brain.think(_play_state("bullseye_bowl", {"players": {0: [0, 5, -1.0, 0.0]}}), {})
+	var flying := brain.think(_play_state("bullseye_bowl", {"players": {0: [0, 5, 0.4, 0.0]}}), {})
+	assert_false(flying.get("roll", false), "no roll while a ball is in flight")
+	var spent := brain.think(_play_state("bullseye_bowl", {"players": {0: [0, 0, -1.0, 0.0]}}), {})
+	assert_false(spent.get("roll", false), "no roll with no balls left")
+
+
+func test_turbo_lap_brain_drives_forward_and_steers_along_the_track() -> void:
+	var brain := BotBrains.brain_for(&"turbo_lap", 0, 1)
+	# At the rightmost point of the ellipse (start line) facing +y (CCW along
+	# the track). bits = 0 (racing). Should throttle forward and steer.
+	var game := {
+		"players": {0: [TurboLap.TRACK_RX, 0.0, PI / 2.0, 0, 0]},
+		"shells": [],
+		"oils": [],
+		"pads": [],
+		"standings": [0],
+	}
+	var intent := brain.think(_play_state("turbo_lap", game), {})
+	assert_eq(float(intent.my), -1.0, "full throttle (my = -throttle)")
+	assert_between(float(intent.mx), -1.0, 1.0, "steer stays in range")
+
+
+func test_turbo_lap_brain_uses_a_held_item_and_idles_when_finished() -> void:
+	var brain := BotBrains.brain_for(&"turbo_lap", 0, 1)
+	var with_item := {
+		"players": {0: [TurboLap.TRACK_RX, 0.0, PI / 2.0, TurboLap.ITEM_BOOST, 0]},
+		"shells": [],
+		"oils": [],
+		"pads": [],
+		"standings": [0],
+	}
+	assert_true(
+		brain.think(_play_state("turbo_lap", with_item), {}).get("use", false),
+		"a held item is fired"
+	)
+	var finished := {
+		"players": {0: [TurboLap.TRACK_RX, 0.0, PI / 2.0, 0, 8]},  # bit 8 = finished
+		"shells": [],
+		"oils": [],
+		"pads": [],
+		"standings": [0],
+	}
+	assert_true(
+		brain.think(_play_state("turbo_lap", finished), {}).is_empty(),
+		"finished karts send nothing"
+	)
