@@ -59,6 +59,12 @@ const BRAINS := {
 	# Team-siege batch (M19-02, #686).
 	&"fort_siege": preload("res://src/core/bots/brains/fort_siege_brain.gd"),
 	&"wall_builders": preload("res://src/core/bots/brains/wall_builders_brain.gd"),
+	# Team / arena batch (M19-02, #686).
+	&"rumble_ring": preload("res://src/core/bots/brains/rumble_ring_brain.gd"),
+	&"heist_night": preload("res://src/core/bots/brains/heist_night_brain.gd"),
+	&"cart_push": preload("res://src/core/bots/brains/cart_push_brain.gd"),
+	&"relay_sprint": preload("res://src/core/bots/brains/relay_sprint_brain.gd"),
+	&"basket_brawl": preload("res://src/core/bots/brains/basket_brawl_brain.gd"),
 }
 
 
