@@ -32,6 +32,10 @@ const BRAINS := {
 	&"snake_chain": preload("res://src/core/bots/brains/snake_chain_brain.gd"),
 	&"sumo_smash": preload("res://src/core/bots/brains/sumo_smash_brain.gd"),
 	&"color_clash": preload("res://src/core/bots/brains/color_clash_brain.gd"),
+	# SideScrollSim platformer batch (M19-02, #686).
+	&"knock_off": preload("res://src/core/bots/brains/knock_off_brain.gd"),
+	&"loadout_duel": preload("res://src/core/bots/brains/loadout_duel_brain.gd"),
+	&"tumble_run": preload("res://src/core/bots/brains/tumble_run_brain.gd"),
 }
 
 
