@@ -15,6 +15,16 @@ Rubric:
 - **Sonnet 5** — mechanical, template-following changes with the hard
   decisions already made upstream.
 
+> **Fable tier retirement (2026-07-07).** Fable is going away. Tasks that
+> would have routed to Fable route to **Opus 4.8 + a mandatory owner
+> checkpoint**: post the proposal/interpretation on the issue and get an
+> owner go-ahead *before* building (the §10 pattern, made compulsory). This
+> trades one round-trip for the missing tier. Applies especially to:
+> M12-01's data interpretation, milestone-closing audits, and anything
+> touching a PHASE2 §7 intentional design. M17-06 was restructured around
+> the same constraint (#713: the owner runs the pad checklist, agents fix
+> the findings).
+
 Keep this file current: when you claim a task, its row here is informational;
 when tasks are added (new milestones, playtest waves), classify them in the
 same PR that adds them, or a follow-up `[DOCS]` PR.
@@ -23,8 +33,8 @@ same PR that adds them, or a follow-up `[DOCS]` PR.
 
 | Task | Why |
 |---|---|
-| **M12-01** balance pass, all 35 games at 2/4/6 | The riskiest remaining task. ⛔ Blocked on data: the pre-#560 telemetry was tie-noise (idle bots, 0.4 s rounds); the fixed `balance-telemetry-{2,4,6}` artifacts (#560, nightly `balance` job) need a few nights to accumulate first. Then: interpret the data, make fairness judgments per game, and know which designs are intentional (§7 tiers, #174/#175). A wrong "fix" here has been reverted before. |
-| **M17-06** closing controller verification sweep (M) | Milestone-closing audit with no checklist: gamepad-only end-to-end across every surface and game on multiple pad layouts, judging "does this feel playable," fixing or routing what it finds. Same tier logic as M16-13. ⛓ M17-01..05. |
+| **M12-01** balance pass, all 45 games at 2/4/6 | The riskiest remaining task — now routes to **Opus + owner checkpoints** (Fable retirement, above). ⛔ Still data-blocked, and worse than previously believed: the nightly `balance` artifacts are STILL random-input noise because the playtest bots never got the M19 brains (#705). Sequence: #705 lands → ~4 nights accumulate → claim M12-01, posting per-game interpretations for owner sign-off before tuning (§7 tiers, #174/#175 — a wrong "fix" here has been reverted before). |
+| **M17-06** closing controller verification sweep (M) | Restructured (#713, 2026-07-07): no agent has physical pads and the Fable tier is retiring, so the sweep becomes an owner-run checklist (`docs/CONTROLLER_CHECKLIST.md`, Sonnet-authored) + individually-claimable fix issues. ⛓ M17-01..05 (all done). |
 | **M18-05** cohesion closing audit (M) | The "feels like one game" sweep across seams no per-surface task sees — controls-hint truthfulness per device, SFX vocabulary (#591's wrong-jingle class), motion tempo at boundaries, first-run flow. ⛓ M18-01..03. |
 | **#584** Gauntlet weapons / push-mechanic rework | Owner explicitly requested a design call — proposal on the issue per §10 first; the build after approval is likely Opus. |
 | ~~**M14-00** side-view platformer framework (L)~~ | ✅ done — `SideScrollSim`/`SideScrollView` landed; M14-01/-03/-09 built on it. |
@@ -143,12 +153,34 @@ All seven review findings are closed — the full audit's follow-ups are done.
   merged as PR #556. The finale — built across M5/M8/M13/M16 but never
   reachable — was wired into the live match flow by #554 (PR #558,
   PROTOCOL_VERSION 8).
-- **M12-01 is the only open task and it is data-gated, not claim-gated.**
-  #560 (PR #561) fixed why: the old playtest telemetry was idle-bot tie-noise.
-  The nightly now runs a `balance` job (2/4/6 players, real durations, bots
-  sending random inputs) uploading `balance-telemetry-<n>.json`. Claim M12-01
-  once several nights of those artifacts exist; `workflow_dispatch` the
-  Nightly playtest to accumulate faster. Tuning-only PRs; respect the
-  PHASE2.md §7 intentional-design tiers (#174/#175 precedent).
+- **M12-01 is data-gated, and the gate is worse than it looked (2026-07-07):**
+  #560 fixed the round durations, but the bots feeding the nightly `balance`
+  job still send *random* inputs — the M19 brains were never wired into the
+  client-side playtest bots (#705). Until #705 lands, the artifacts remain
+  noise. Sequence: #705 → several nights accumulate (`workflow_dispatch` to
+  go faster) → claim M12-01 as Opus with per-game owner checkpoints.
+  Tuning-only PRs; respect the PHASE2.md §7 intentional-design tiers
+  (#174/#175 precedent). Finale tuning additionally wants #706's KO-source
+  tags.
 - Housekeeping: #557 removed 153 accidentally-committed `*.TMP` files and
   gitignored the pattern (PR #559).
+
+## Project review findings (2026-07-07 — Fable exit review)
+
+From the full audit in [PROJECT_REVIEW.md](PROJECT_REVIEW.md). All filed as
+unclaimed backlog specs (claim per AGENT_COORDINATION §2 before starting).
+
+| Task | Issue | Model | Notes |
+|---|---|---|---|
+| Wire BotBrains into playtest bots (the M19 telemetry payoff) | #705 | Opus 4.8 | Highest leverage on the board; unblocks M12-01 |
+| Finale KO-source telemetry | #706 | Sonnet 5 | Pairs with #705; answers the #584 weapons question |
+| Rate-limit `_rpc_match_input` | #707 | Opus 4.8 | §4 hotspot (net_manager), #592 bucket pattern |
+| Snapshot index-enum constants | #708 | Sonnet 5 | Fan-out, one game = one claim |
+| Pooled view nodes | #709 | Opus (helper) → Sonnet (13-view fan-out) | Stage 1 is `_api/` shared framework — §5 rebase rule |
+| Multi-room load soak | #710 | Opus 4.8 | Find the server ceiling before players do |
+| M20-01 audio identity foundation | #711 | Opus 4.8 → Sonnet fan-out | New milestone; CC0 bank + AudioManager channels |
+| Local stats & match history v1 | #712 | Sonnet 5 | Unlocks/cosmetics NOT approved — needs a fresh owner call |
+| M17-06 restructure → owner checklist | #713 | Sonnet 5 + Owner | Replaces the unclaimable Fable sweep |
+| Branch prune + auto-delete | #714 | Sonnet 5 + Owner setting | |
+| Brain quality pass | #715 | Sonnet 5 | ⛔ blocked on #705 + ~4 nights of artifacts |
+| This review + routing refresh | #716 | Fable 5 | ✅ done (this PR) |
