@@ -281,12 +281,16 @@ func _update_players() -> void:
 
 
 func _update_coins() -> void:
-	for node in _coin_nodes:
-		node.queue_free()
-	_coin_nodes.clear()
-	for coin: Array in coins:
-		var node := MeshInstance3D.new()
-		node.mesh = _coin_mesh
-		node.position = to_arena(Vector2(coin[0], coin[1]), 0.06)
-		arena.add_child(node)
-		_coin_nodes.append(node)
+	# Pooled (#709): reused across snapshots, hiding surplus instead of freeing.
+	sync_pool(_coin_nodes, coins.size(), _make_coin, _place_coin)
+
+
+func _make_coin() -> Node3D:
+	var node := MeshInstance3D.new()
+	node.mesh = _coin_mesh
+	return node
+
+
+func _place_coin(node: Node3D, index: int) -> void:
+	var coin: Array = coins[index]
+	node.position = to_arena(Vector2(coin[0], coin[1]), 0.06)

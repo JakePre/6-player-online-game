@@ -35,7 +35,10 @@ var _zone_center_seen := Vector2.INF
 var _points_seen := {}
 var _pulse_ticks := 0
 var _pillars_built := false
+# Pooled (#709): reused across snapshots, hiding surplus instead of freeing.
 var _item_nodes: Array[MeshInstance3D] = []
+var _item_materials: Array[StandardMaterial3D] = []
+var _items: Array = []
 var _held_label: Label
 ## Last-seen held map, for pickup-moment detection (#260).
 var _last_held := {}
@@ -121,24 +124,29 @@ func _render_3d(game: Dictionary) -> void:
 
 
 func _update_items() -> void:
-	for node in _item_nodes:
-		node.queue_free()
-	_item_nodes.clear()
-	for item: Array in items:
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(0.5, 0.5, 0.5)
-		var material := StandardMaterial3D.new()
-		var color: Color = ITEM_COLORS[clampi(int(item[2]), 0, 1)]
-		material.albedo_color = color
-		material.emission_enabled = true
-		material.emission = color
-		material.emission_energy_multiplier = 0.4
-		mesh.material = material
-		var node := MeshInstance3D.new()
-		node.mesh = mesh
-		node.position = to_arena(Vector2(float(item[0]), float(item[1])), 0.4)
-		arena.add_child(node)
-		_item_nodes.append(node)
+	_items = items
+	sync_pool(_item_nodes, items.size(), _make_item, _place_item)
+
+
+func _make_item() -> Node3D:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.5, 0.5, 0.5)
+	var material := StandardMaterial3D.new()
+	material.emission_enabled = true
+	material.emission_energy_multiplier = 0.4
+	mesh.material = material
+	_item_materials.append(material)
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	return node
+
+
+func _place_item(node: Node3D, index: int) -> void:
+	var item: Array = _items[index]
+	var color: Color = ITEM_COLORS[clampi(int(item[2]), 0, 1)]
+	_item_materials[index].albedo_color = color
+	_item_materials[index].emission = color
+	node.position = to_arena(Vector2(float(item[0]), float(item[1])), 0.4)
 
 
 ## Pickup flash + sound so grabbing reads (#260), plus a shove animation on
