@@ -1,118 +1,94 @@
-# Project Review — 2026-07-05
+# Project Review — 2026-07-07 (Fable exit review)
 
-A high-level audit of the whole project (architecture, correctness, scaling, QA,
-process), performed while the build fleet was idle. Read the core layers (net,
-match controller, economy, room, minigame contract), sampled sims/views across
-the 35 minigames, measured real behavior at 24 players, and traced the finale
-end to end.
+A full-project audit performed as the Fable tier retires: architecture, net
+layer, all 45 sims/views/brains, the finale, testing, security seams, process
+docs, and product-level gaps. Supersedes the 2026-07-05 review (whose findings
+all closed: #462 fixed, #463 measured→#479 fixed, #464 capped, #465 gated).
 
-Each actionable finding has a tracking issue and a recommended model tier
-(complexity signal, per [MODEL_ROUTING.md](MODEL_ROUTING.md) — not an
-assignment).
+Every actionable finding below has a tracking issue and a model tier
+(complexity signal per [MODEL_ROUTING.md](MODEL_ROUTING.md), not an
+assignment). Jobs are filed as **unclaimed backlog specs** — claim per
+[AGENT_COORDINATION.md](AGENT_COORDINATION.md) §2 before starting.
 
-## Overall health: strong
+## Where the project stands
 
-~20.6K LOC source / ~13.4K LOC tests (a ~0.65 test ratio that is real —
-behavioral, edge-triggered tests, not coverage theater). Clean
-server-authoritative architecture; a well-designed Minigame Contract that let 35
-games and a full 24-player scaling pass land without structural strain; almost
-no `TODO/FIXME/HACK` debt; a coordination protocol that demonstrably kept a
-parallel agent fleet conflict-free. The items below are what to fix, not signs
-of trouble.
+~34K LOC source (21K minigames) / ~23K LOC tests · 45 minigames + Gauntlet
+finale · 2–24 players · protocol v11 · five releases (latest v0.6.2) · zero
+TODO/FIXME markers · board clear except M17-06.
 
-## Findings
+**Phase change:** the project is feature-complete and pre-tuning. The
+architecture bet paid off — one server-authoritative Minigame Contract
+absorbed 45 games, the 24-player scaling pass, a finale economy, weapons, and
+a full bot-AI layer without a structural rewrite. The risk profile has
+inverted: the danger is no longer "can we build it" but **"is it fun and
+fair" — and the project currently has no data-driven way to know.** The top
+jobs all close that loop.
 
-| # | Severity | Finding | Issue | Model | Status |
+## The headline finding
+
+**M19's strategic payoff never shipped (#705).** The bot brains were wired
+into the *server* practice-bot pump only; `tests/soak/playtest_bot.gd` — the
+client bots that generate the nightly `balance-telemetry-{2,4,6}` artifacts —
+still runs the random `BotInputDriver`. Every nightly balance run since M19
+still measures noise, and M12-01 (the balance pass) is blocked on data that is
+silently not being collected. One S–M Opus PR unblocks the whole tuning phase.
+
+## Findings & jobs
+
+| # | Severity | Finding | Issue | Model | Depends on |
 |---|---|---|---|---|---|
-| 1 | 🔴 High | Finale grudge mechanic unreachable; sabotage tokens center-only | [#462](https://github.com/JakePre/6-player-online-game/issues/462) | Opus 4.8 | ✅ **fixed** (PR #476) |
-| 2 | 🟠 Med-High | Match snapshots at 24 unmeasured; no delta/AOI compression | [#463](https://github.com/JakePre/6-player-online-game/issues/463) | Opus 4.8 | ✅ **measured** → follow-up [#479](https://github.com/JakePre/6-player-online-game/issues/479) |
-| 3 | 🟡 Med | 4 post-ADR games have no documented cap decision | [#464](https://github.com/JakePre/6-player-online-game/issues/464) | Owner decision → Sonnet/Opus | ✅ **fixed** (Basket Brawl→8 PR #460, Fort Siege→12 PR #478, The Mole→8 PR #485, Faulty Wiring→12 PR #475) |
-| 4 | 🟢 Low | `--check-only` missing from the local gate → recurring CI-only parse failures | [#465](https://github.com/JakePre/6-player-online-game/issues/465) | Sonnet 5 | ✅ **fixed** (PR #472) |
-| 5 | 🟡 Med | No nightly 12/24-player full-match verification | [#466](https://github.com/JakePre/6-player-online-game/issues/466) | Opus 4.8 | ☐ open |
-| 6 | 🟢 Low | Repeated per-tick `slots.filter(_is_in)` allocations | [#467](https://github.com/JakePre/6-player-online-game/issues/467) | Sonnet 5 | ✅ **fixed** (PR #477) |
+| 1 | 🔴 High | Playtest bots still random — M19 telemetry payoff missing; M12-01 blocked on phantom data | [#705](https://github.com/JakePre/6-player-online-game/issues/705) | Opus | — |
+| 2 | 🔴 High | Finale KOs untagged — #584 weapons tuning question unanswerable | [#706](https://github.com/JakePre/6-player-online-game/issues/706) | Sonnet | — |
+| 3 | 🔴 High | `_rpc_match_input` has no rate limit (emotes do) — flood vector on the public server | [#707](https://github.com/JakePre/6-player-online-game/issues/707) | Opus | — |
+| 4 | 🟠 Med | Snapshot contracts stringly-typed in 3 places per game (sim/view/brain magic indices) | [#708](https://github.com/JakePre/6-player-online-game/issues/708) | Sonnet fan-out | — |
+| 5 | 🟠 Med | 13 views rebuild entity nodes every snapshot — alloc/render churn at 24 players | [#709](https://github.com/JakePre/6-player-online-game/issues/709) | Opus + Sonnet fan-out | stage 1 first |
+| 6 | 🟠 Med | Multi-room server capacity unmeasured (all load evidence is 1 room) | [#710](https://github.com/JakePre/6-player-online-game/issues/710) | Opus | — |
+| 7 | 🟡 Product | Audio identity absent — 13 files for 45 games; the missing M13/M16-equivalent pass | [#711](https://github.com/JakePre/6-player-online-game/issues/711) (M20) | Opus + Sonnet fan-out | M20-01 first |
+| 8 | 🟡 Product | Nothing persists — local stats/match-history screen (v1 approved; unlocks are NOT) | [#712](https://github.com/JakePre/6-player-online-game/issues/712) | Sonnet | — |
+| 9 | 🟡 Product | M17-06 needs physical pads no agent has — restructure into owner checklist + fix queue | [#713](https://github.com/JakePre/6-player-online-game/issues/713) | Sonnet + Owner | — |
+| 10 | 🟢 Hygiene | 63 remote branches, mostly merged claim residue | [#714](https://github.com/JakePre/6-player-online-game/issues/714) | Sonnet + Owner setting | — |
+| 11 | 🟢 Deferred | Cooldown-blind / self-harming brains (nom_arena pays mass to lunge-spam) | [#715](https://github.com/JakePre/6-player-online-game/issues/715) | Sonnet | #705 + ~4 nights of data |
+| 12 | 🟢 Docs | This review + post-Fable model re-routing | [#716](https://github.com/JakePre/6-player-online-game/issues/716) | Fable (this PR) | — |
 
-*(Status column updated 2026-07-05 as findings are worked. The measurement in
-#463 quantified the one real bandwidth outlier — **Color Clash @24 ≈ 4.4 MB/s/room**
-from full-grid replication — and concluded a general net-layer delta protocol is
-**not** warranted; a targeted, self-contained Color Clash grid-delta ([#479](https://github.com/JakePre/6-player-online-game/issues/479),
-Opus) is the proportionate fix. Everything else measured ≤ ~1 MB/s.)*
+**Audited and fine:** session tokens (`Crypto.generate_random_bytes(16)`),
+server-side name sanitation, snapshot bandwidth at 24 (≤ ~1 MB/s/room, the
+Color Clash outlier was delta-fixed in #479), version-mismatch handling, CI
+gate coverage (lint/GUT/soak required + exports + nightly playtest + per-PR
+minigame renders via #626).
 
-## Detail
+**Explicit non-recommendation:** do not attempt web/HTML5 export casually.
+Godot's web export cannot do ENet — it means a WebSocket/WebRTC transport
+under `NetManager`, the most dangerous seam in the codebase. If reach matters,
+itch.io desktop distribution + the existing self-updater (#144) is the cheap
+90%.
 
-### 1. 🔴 Finale grudge + sabotage are non-functional ([#462](https://github.com/JakePre/6-player-online-game/issues/462))
+## Suggested sequence
 
-The standout. The Gauntlet sim ([gauntlet.gd](../src/finale/gauntlet.gd)) fully
-implements and unit-tests two SPEC §6 pillars that don't work in the client:
+```
+Week 1:  #705 playtest brains → #706 finale telemetry → #707 rate limit → #714/#716 hygiene+docs
+Week 2:  data accumulates → #710 multi-room soak · #708/#709 fan-outs in parallel
+Week 3:  M12-01 balance pass (Opus + owner checkpoints, on real data) → v0.7.0
+Then:    M20 audio (#711) · stats v1 (#712) · M17-06 owner pad session (#713) · #715 brain tuning
+```
 
-- **Grudge** (eliminated player's one revenge hazard): `"grudge"` appears *only*
-  in the sim's handler — a grep of all of `src/` finds **no client that sends
-  it**. Unreachable in real play.
-- **Sabotage tokens** (a coin-purchased shop item): the only client wiring
-  hardcodes the target to center — [gauntlet_view.gd:42](../src/finale/gauntlet_view.gd)
-  sends `{"sabotage": [0.0, 0.0]}`. Players buy a token they can't aim.
+The through-line: **stop building width, start closing the loop** —
+instrument, measure, tune, release. The game is built; nobody yet knows if
+it's balanced, and for a party game, feel is the product.
 
-Flagged in-code as a deferred "finale HUD targeting pass" that never landed.
-Dangerous because it is **invisible to CI** — all tests pass, yet a shop
-purchase and a headline mechanic don't function.
+## What to protect (for the post-Fable fleet)
 
-### 2. 🟠 Replication cost at 24 is unmeasured ([#463](https://github.com/JakePre/6-player-online-game/issues/463))
+Three load-bearing disciplines are easy to erode by accident:
 
-`NetManager._broadcast_snapshots` sends the full match snapshot to each of up to
-24 players at 30 Hz — no delta compression, no area-of-interest culling.
-Content-heavy games send whole state uncompressed: **Color Clash** replicates a
-576-int grid (`grid.duplicate()`, [color_clash.gd:135](../src/minigames/color_clash/color_clash.gd))
-to all 24 recipients every tick (~2 MB/s per room for one game); Snake Chain and
-The Mole grow the same way. The M15-01 decision deferred AOI "until measurement
-demands it," but that measurement was never done — the debug telemetry only
-sampled a 184-byte *between-rounds* frame. **No content-heavy PLAY snapshot at 24
-has been measured.** Measure first; a delta protocol (Fable-tier, net-layer,
-`PROTOCOL_VERSION` bump) only if warranted.
-
-### 3. 🟡 Undocumented caps for the newest games ([#464](https://github.com/JakePre/6-player-online-game/issues/464))
-
-Basket Brawl, Fort Siege, The Mole, Faulty Wiring postdate ADR 003, are absent
-from its matrix, and sit at `max_players: 6` — the only games silently excluded
-from large lobbies with no rationale. Several *should* stay small (hidden-role /
-contact games), but that's a design call to document, not omit. Owner decision,
-then per-game impl.
-
-### 4. 🟢 CI-only parse failures ([#465](https://github.com/JakePre/6-player-online-game/issues/465))
-
-CI's Godot rejects `var x := dict.member` (Variant inference) as a parse error;
-local `--import`/GUT tolerate it, so scripts pass locally and fail CI. Cost
-multiple agents a rebase cycle each. `godot --check-only --script <file>`
-reproduces the class locally — document it in the AGENT_COORDINATION §5 gate.
-
-### 5. 🟡 No large-lobby full-match coverage ([#466](https://github.com/JakePre/6-player-online-game/issues/466))
-
-The whole cap milestone was unit-tested at 2-4 players; nothing verified a 12/24
-match *composes* until `run_playtest.py --players` landed (#454). Wire a nightly
-12/24 variant (modeled on the M9-06 mutator soak) into CI.
-
-### 6. 🟢 Per-tick alive-set churn ([#467](https://github.com/JakePre/6-player-online-game/issues/467))
-
-~8 last-standing games recompute `slots.filter(_is_in)` several times per tick.
-Negligible at 24, but worth caching once per tick. Low-priority batch cleanup.
-
-## Strengths worth preserving
-
-- **Test discipline** — behavioral, edge-triggered, ~0.65 test ratio.
-- **Scaling consistency** — 32 files route through the shared `MinigameScaling` /
-  `LaneLayout` / `SpawnLayout` helpers; the parallel fleet did *not* fragment the
-  approach.
-- **Server authority is clean** — clients send intent keyed to their own
-  peer→slot; no slot spoofing, positions computed and clamped server-side.
-- **The coordination protocol works** — [AGENT_COORDINATION.md](AGENT_COORDINATION.md)
-  encodes real incidents as checked steps and kept a fast fleet conflict-free.
-
-## Process observations (not filed as tasks)
-
-- **Claim-vs-build race window.** Tasks were built then found claimed ~20 s
-  earlier (Color Clash #394/#395). The protocol resolves it correctly
-  (earliest-wins) but wastes work. A lighter "intent to claim" faster than
-  opening an issue would shrink the window — a coordination-protocol change for
-  the owner to weigh.
-- **24-player support is "green in CI" but not "load-verified."** ~15 cap PRs
-  merged in ~2 hours; the structure is sound and unit-tested, but integration at
-  scale (bandwidth, tick budget, fairness) is only now getting coverage (#463,
-  #466). Honest headline: structurally done, not yet proven under load.
+1. **The fair-information boundary.** Bots and clients see `get_snapshot()`
+   plus their own private snapshot — never raw sim state. Every future
+   feature must pass through it, however inconvenient. (The one time it was
+   violated by accident — bots' `peer_id = 0` broadcasting private payloads,
+   #688 — it was a real leak class.)
+2. **The intentional-design locks.** SPEC §2 and PHASE2 §7 mark deliberate
+   designs; "fixing" them has been reverted before (#174/#175). If a design
+   smells deliberate, it is — ask on the issue.
+3. **The claim protocol.** §2's self-assign + marker branch turned would-be
+   duplicate builds into cheap withdrawals repeatedly. Its two hard-won
+   amendments: an unassigned task-ID issue is still a claim (the #684/#687
+   incident), and spec-filings must say "backlog, unclaimed" explicitly —
+   which is why every job above carries that footer.
