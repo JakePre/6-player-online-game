@@ -20,6 +20,12 @@ const BRAINS := {
 	&"the_mole": preload("res://src/core/bots/brains/the_mole_brain.gd"),
 	&"faulty_wiring": preload("res://src/core/bots/brains/faulty_wiring_brain.gd"),
 	&"trap_corridor": preload("res://src/core/bots/brains/trap_corridor_brain.gd"),
+	# Aim / reaction / racing batch (M19-02, #686).
+	&"quick_draw": preload("res://src/core/bots/brains/quick_draw_brain.gd"),
+	&"target_range": preload("res://src/core/bots/brains/target_range_brain.gd"),
+	&"putt_panic": preload("res://src/core/bots/brains/putt_panic_brain.gd"),
+	&"bullseye_bowl": preload("res://src/core/bots/brains/bullseye_bowl_brain.gd"),
+	&"turbo_lap": preload("res://src/core/bots/brains/turbo_lap_brain.gd"),
 }
 
 
