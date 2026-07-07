@@ -36,6 +36,12 @@ const BRAINS := {
 	&"knock_off": preload("res://src/core/bots/brains/knock_off_brain.gd"),
 	&"loadout_duel": preload("res://src/core/bots/brains/loadout_duel_brain.gd"),
 	&"tumble_run": preload("res://src/core/bots/brains/tumble_run_brain.gd"),
+	# Timing / pad-selection batch (M19-02, #686).
+	&"beat_bounce": preload("res://src/core/bots/brains/beat_bounce_brain.gd"),
+	&"simon_stomp": preload("res://src/core/bots/brains/simon_stomp_brain.gd"),
+	&"count_quick": preload("res://src/core/bots/brains/count_quick_brain.gd"),
+	&"shred_session": preload("res://src/core/bots/brains/shred_session_brain.gd"),
+	&"ro_sham_bo": preload("res://src/core/bots/brains/ro_sham_bo_brain.gd"),
 }
 
 
