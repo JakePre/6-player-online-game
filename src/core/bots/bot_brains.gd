@@ -46,6 +46,12 @@ const BRAINS := {
 	&"bullet_waltz": preload("res://src/core/bots/brains/bullet_waltz_brain.gd"),
 	&"blast_grid": preload("res://src/core/bots/brains/blast_grid_brain.gd"),
 	&"laser_limbo": preload("res://src/core/bots/brains/laser_limbo_brain.gd"),
+	# Collector / skill batch (M19-02, #686).
+	&"bomb_courier": preload("res://src/core/bots/brains/bomb_courier_brain.gd"),
+	&"fish_frenzy": preload("res://src/core/bots/brains/fish_frenzy_brain.gd"),
+	&"nom_arena": preload("res://src/core/bots/brains/nom_arena_brain.gd"),
+	&"treasure_divers": preload("res://src/core/bots/brains/treasure_divers_brain.gd"),
+	&"musical_platforms": preload("res://src/core/bots/brains/musical_platforms_brain.gd"),
 }
 
 
