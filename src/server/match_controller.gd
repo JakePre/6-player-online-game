@@ -447,7 +447,8 @@ func _enter_podium_from_finale() -> void:
 	var coins_left := {}
 	for slot in _round_slots:
 		coins_left[slot] = shop.coins_left(slot)
-	var ranked: Array = FinaleRanking.rank(game.get_results().placements, coins_left, _totals())
+	var results := game.get_results()
+	var ranked: Array = FinaleRanking.rank(results.placements, coins_left, _totals())
 	var standings: Array = []
 	var placement := 1
 	for group: Array in ranked:
@@ -456,6 +457,22 @@ func _enter_podium_from_finale() -> void:
 		placement += group.size()
 	for row: Dictionary in _absentee_rows(placement):
 		standings.append(row)
+	# Balance telemetry (#706): the finale never emits round_results (it skips
+	# straight to the podium), so this is its own event — KO-cause breakdown
+	# answers the #584 weapons-vs-hazards tuning question once bots (#705)
+	# start feeding real balance data.
+	if results.has("ko_causes"):
+		(
+			event_emitted
+			. emit(
+				{
+					"type": "finale_results",
+					"placements": results.placements,
+					"ko_causes": results.ko_causes,
+					"axe_kills": results.axe_kills,
+				}
+			)
+		)
 	game = null
 	_enter_podium(standings)
 

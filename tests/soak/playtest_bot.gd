@@ -286,6 +286,12 @@ func _on_match_event(event: Dictionary) -> void:
 			NetManager.send_match_input({"shop": {"action": "confirm"}})
 		"finale_started":
 			_got_finale_started = true
+		"finale_results":
+			# #706: the finale skips round_results (straight to podium), so its
+			# KO-cause breakdown rides its own event into the same telemetry
+			# stream the balance job already collects.
+			if _create:
+				_record_finale_telemetry(event)
 		"match_ended":
 			_got_match_ended = true
 			_match_ended_standings = event.get("standings", [])
@@ -311,6 +317,31 @@ func _record_telemetry(event: Dictionary) -> void:
 				"placements": event.get("placements", []),
 				"awards": string_awards,
 				"duration_ms": Time.get_ticks_msec() - _round_started_ms,
+			}
+		)
+	)
+
+
+## The finale's own telemetry record (#706): no `round`/`awards` (the finale
+## isn't a round-scored game), just the KO-cause breakdown that answers
+## "hazards vs. rim vs. axes" once the balance pass reads these artifacts.
+## `axe_kills` arrives keyed by int slot — stringified for the same
+## JSON.stringify() reason as `awards` above.
+func _record_finale_telemetry(event: Dictionary) -> void:
+	var axe_kills: Dictionary = event.get("axe_kills", {})
+	var string_axe_kills := {}
+	for slot: Variant in axe_kills:
+		string_axe_kills[str(slot)] = int(axe_kills[slot])
+	(
+		_telemetry
+		. append(
+			{
+				"game_id": "gauntlet",
+				"finale": true,
+				"player_count": _expected_members,
+				"placements": event.get("placements", []),
+				"ko_causes": event.get("ko_causes", {}),
+				"axe_kills": string_axe_kills,
 			}
 		)
 	)

@@ -78,6 +78,16 @@ var armed := {}
 var swing_seq := {}
 var hit_seq := {}
 
+## Balance telemetry (#706): cause -> count of life-losing KOs. Shield saves
+## are excluded (no life lost, nothing to attribute) — this answers whether
+## axes are pulling their weight against hazards and the shrinking rim, the
+## #584 weapons-tuning question the M12-01 balance pass needs data for.
+## Causes: "hazard" (a blast catches you), "rim" (you walked/were pushed off
+## on your own), "axe_launch" (a swing's knockback carried you off the rim).
+var ko_causes := {}
+## Attacker slot -> axe_launch KOs credited to them.
+var axe_kills := {}
+
 var _respawn_left := {}
 var _hazard_accum := 0.0
 var _weapon_accum := 0.0
@@ -85,6 +95,10 @@ var _stage_accum := 0.0
 var _pending_elims: Array = []
 ## slot -> decaying knockback velocity from axe hits.
 var _impulses := {}
+## slot -> the attacker whose swing produced the live entry in _impulses,
+## mirrored 1:1 with it so a rim fall mid-launch can be attributed to
+## "axe_launch" instead of a plain "rim" walk-off (#706).
+var _impulse_attacker := {}
 var _swing_cooldowns := {}
 
 
@@ -227,6 +241,16 @@ func get_snapshot() -> Dictionary:
 	}
 
 
+## Extends the base placements/pickup_coins/team_mode with the KO-cause
+## breakdown (#706) so the playtest telemetry can carry it alongside
+## placements without a separate reporting path.
+func get_results() -> Dictionary:
+	var results := super.get_results()
+	results["ko_causes"] = ko_causes.duplicate()
+	results["axe_kills"] = axe_kills.duplicate()
+	return results
+
+
 ## Timeout fallback: survivors (grouped by lives left, more first), then the
 ## eliminated in reverse KO order.
 func _rank_players() -> Array:
@@ -277,11 +301,13 @@ func _apply_impulses(delta: float) -> void:
 	for slot: int in _impulses.keys():
 		if not _is_alive(slot) or _respawn_left.has(slot):
 			_impulses.erase(slot)
+			_impulse_attacker.erase(slot)
 			continue
 		positions[slot] += _impulses[slot] * delta
 		_impulses[slot] *= exp(-IMPULSE_DECAY * delta)
 		if (_impulses[slot] as Vector2).length() < 0.1:
 			_impulses.erase(slot)
+			_impulse_attacker.erase(slot)
 
 
 ## Spawns floor axes on a cadence (capped by head count) and arms whoever walks
@@ -333,6 +359,7 @@ func _handle_swing(slot: int) -> void:
 			continue
 		var axis := apart.normalized() if apart.length() > 0.001 else Vector2.RIGHT
 		_impulses[victim] = _impulses.get(victim, Vector2.ZERO) + axis * SWING_KNOCKBACK
+		_impulse_attacker[victim] = slot
 		hit_seq[victim] = int(hit_seq[victim]) + 1
 		if armed.has(victim):
 			armed.erase(victim)
@@ -365,14 +392,21 @@ func _tick_hazards(delta: float) -> void:
 			continue
 		for slot: int in _active_slots():
 			if positions[slot].distance_to(hazards[i].pos) <= hazards[i].radius:
-				_knock_out(slot)
+				_knock_out(slot, "hazard")
 		hazards.remove_at(i)
 
 
 func _check_falls() -> void:
 	for slot: int in _active_slots():
-		if positions[slot].length() > radius:
-			_knock_out(slot)
+		if positions[slot].length() <= radius:
+			continue
+		# A rim fall while a swing's knockback is still live on this slot is
+		# an axe kill, not a plain walk-off (#706) — credited to the swinger.
+		var attacker: int = _impulse_attacker.get(slot, -1)
+		if attacker != -1:
+			_knock_out(slot, "axe_launch", attacker)
+		else:
+			_knock_out(slot, "rim")
 
 
 func _check_end() -> void:
@@ -387,17 +421,23 @@ func _check_end() -> void:
 	finish(placements + _eliminated_placements())
 
 
-func _knock_out(slot: int) -> void:
+## `cause` is "hazard", "rim", or "axe_launch" (#706 balance telemetry);
+## `attacker` is the swinger credited for an axe_launch, else unused.
+func _knock_out(slot: int, cause: String, attacker: int = -1) -> void:
 	# A KO (or shield save) always ends the launch and drops the axe with them.
 	_impulses.erase(slot)
+	_impulse_attacker.erase(slot)
 	armed.erase(slot)
 	if shields[slot]:
 		# The bought shield absorbs one KO on the spot: no life lost, pulled
-		# back to safety instead of respawning.
+		# back to safety instead of respawning — nothing to attribute.
 		shields[slot] = false
 		positions[slot] = Vector2.ZERO
 		move_dirs[slot] = Vector2.ZERO
 		return
+	ko_causes[cause] = int(ko_causes.get(cause, 0)) + 1
+	if cause == "axe_launch" and attacker != -1:
+		axe_kills[attacker] = int(axe_kills.get(attacker, 0)) + 1
 	lives[slot] = int(lives[slot]) - 1
 	if lives[slot] > 0:
 		_respawn_left[slot] = RESPAWN_SEC
