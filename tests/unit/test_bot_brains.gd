@@ -27,6 +27,27 @@ func test_random_fallback_still_produces_intents() -> void:
 	assert_true(intent.has("mx"), "fallback keeps the pre-M19 random behavior")
 
 
+func test_brain_id_for_routes_snapshot_to_the_right_brain() -> void:
+	# The shared router the server pump and the client playtest bot both use
+	# (#705): a round's minigame id, or gauntlet when the snapshot carries none
+	# (the finale shop phase).
+	assert_eq(BotBrains.brain_id_for({"minigame": "coin_scramble"}), &"coin_scramble")
+	assert_eq(BotBrains.brain_id_for({"minigame": "gauntlet"}), &"gauntlet")
+	assert_eq(BotBrains.brain_id_for({}), &"gauntlet", "no minigame id -> the finale brain")
+
+
+func test_playtest_bot_intent_path_yields_a_brain_decision() -> void:
+	# The exact chain the playtest bot's _brain_intent() runs: route the snapshot
+	# to a brain and think() — a goal-seeking decision, not a random one. A coin
+	# dead ahead means a deterministic run toward it, which random never grants.
+	var match_state := _play_state(
+		"coin_scramble", {"players": {0: [0.0, 0.0, 0]}, "coins": [[5.0, 0.0]]}
+	)
+	var brain := BotBrains.brain_for(BotBrains.brain_id_for(match_state), 0, 7)
+	var intent := brain.think(match_state, {})
+	assert_gt(float(intent.mx), 0.0, "brain steers toward the coin at +5, not a random direction")
+
+
 func test_coin_scramble_brain_runs_at_the_nearest_coin() -> void:
 	var brain := BotBrains.brain_for(&"coin_scramble", 0, 1)
 	var intent := brain.think(

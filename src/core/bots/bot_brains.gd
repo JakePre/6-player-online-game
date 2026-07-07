@@ -78,3 +78,11 @@ static func brain_for(minigame_id: StringName, slot: int, seed_value: int) -> Bo
 
 static func has_brain(minigame_id: StringName) -> bool:
 	return BRAINS.has(minigame_id)
+
+
+## The brain id for a match snapshot: its minigame id, or "gauntlet" for the
+## finale (the shop phase carries no minigame id but belongs to that brain).
+## Shared so the server pump (NetManager._drive_bots) and the client playtest
+## bot route identically off one definition.
+static func brain_id_for(match_state: Dictionary) -> StringName:
+	return StringName(String(match_state.get("minigame", "gauntlet")))
