@@ -3,16 +3,15 @@ extends GutTest
 ## minigame id (random fallback for uncovered games), and each archetype brain
 ## steers correctly given a crafted snapshot — pure think() calls, no scene.
 
-
-func _play_state(id: String, game: Dictionary) -> Dictionary:
-	return {"state": MatchController.State.PLAY, "minigame": id, "game": game}
-
-
 ## A synthetic id, not a real minigame — the fan-out (#686) is heading toward
 ## full roster coverage, so pinning this to a real-but-currently-uncovered id
 ## goes stale the moment that game gets a brain (it already happened twice:
 ## heist_night, then fort_siege). A fake id can never be "claimed".
 const UNCOVERED_ID := &"__no_such_minigame__"
+
+
+func _play_state(id: String, game: Dictionary) -> Dictionary:
+	return {"state": MatchController.State.PLAY, "minigame": id, "game": game}
 
 
 func test_registry_picks_dedicated_brains_and_falls_back_to_random() -> void:
