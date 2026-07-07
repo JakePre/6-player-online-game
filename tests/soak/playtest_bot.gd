@@ -16,7 +16,12 @@ extends Node
 ##
 ## User args: --address=127.0.0.1 --port=7777 --name=Bot1 --rounds=12
 ##            --create | --code=ABCDEF [--balance] [--phase-timeout=1800]
-##            [--inputs=idle]
+##            [--inputs=brains|random|idle]
+##
+## --inputs (M19-03, #705): `brains` (default) drives each round through its
+## goal-seeking BotBrain so nightly balance telemetry reflects real play, not
+## random noise; `random` restores the pre-M19 fuzz driver; `idle` sends no
+## gameplay input (spectate-only smoke).
 
 enum Phase {
 	CONNECTING,
@@ -55,8 +60,12 @@ const BALANCE_CONFIG := {
 	"countdown_step_sec": 0.2,
 	"shop_sec": 5.0,
 }
-## Random-intent pump cadence while a round is live (#560).
+## Intent pump cadence while a round is live (#560).
 const INPUT_INTERVAL_SEC := 0.25
+## Snapshot states whose intents the sim accepts as gameplay — the only ones a
+## brain drives. The finale shop is handled by the explicit finale_shop event
+## path below, not the brain, so bots keep exercising the buy/confirm flow.
+const BRAIN_STATES := [MatchController.State.PLAY, MatchController.State.FINALE_PLAY]
 ## Chance each pump also presses one action key on top of the movement stick.
 const LEADERBOARD_EVERY := 5
 ## Seed for the --mutators variant (M9-06): the per-round roll is seed-driven,
@@ -71,13 +80,23 @@ var _create := false
 var _with_mutators := false
 var _balance := false
 var _send_inputs := true
+## Drive intents through goal-seeking brains (M19-03, #705) rather than the
+## random fuzz driver; false only under --inputs=random.
+var _use_brains := true
 var _phase_timeout_sec := PHASE_TIMEOUT_SEC
 var _join_code := ""
+var _slot := -1
 var _expected_members := 0
 var _input_accum := 0.0
 ## Shared random-intent generator (#577 extracted BotInputDriver); seeded per
 ## seat in _on_joined so intents stay deterministic per bot.
 var _input_driver: BotInputDriver = null
+## Latest match snapshot RPC payload ({tick, server_ms, match, private?}); the
+## brain reads `match` (this player's client view) and its own `private` (#254).
+var _latest_snapshot: Dictionary = {}
+## Rebuilt when the round's minigame changes, mirroring NetManager._drive_bots.
+var _bot_brain: BotBrain = null
+var _brain_id := &""
 
 var _phase := Phase.CONNECTING
 var _phase_started_ms := 0
@@ -110,10 +129,12 @@ func _ready() -> void:
 	_create = args.has("--create")
 	_with_mutators = args.has("--mutators")
 	_balance = args.has("--balance")
-	# Bots play by default (#560) — random intents both feed real balance
-	# telemetry and fuzz every sim's _handle_input path nightly. --inputs=idle
-	# restores the old spectate-only behaviour.
-	_send_inputs = NetManager._arg_value(args, "--inputs", "random") != "idle"
+	# Bots play by default (#560, #705) — brains drive real, goal-seeking play so
+	# balance telemetry means something. --inputs=random restores the old fuzz
+	# driver; --inputs=idle is spectate-only.
+	var inputs_mode := NetManager._arg_value(args, "--inputs", "brains")
+	_send_inputs = inputs_mode != "idle"
+	_use_brains = inputs_mode == "brains"
 	_phase_timeout_sec = float(
 		NetManager._arg_value(args, "--phase-timeout", str(PHASE_TIMEOUT_SEC))
 	)
@@ -127,6 +148,7 @@ func _ready() -> void:
 		func(reason: int) -> void: _fail("join_failed_" + NetConfig.join_result_name(reason))
 	)
 	NetManager.room_updated.connect(_on_room_updated)
+	NetManager.snapshot_received.connect(_on_snapshot)
 	NetManager.match_event_received.connect(_on_match_event)
 	NetManager.match_start_failed.connect(
 		func(reason: String) -> void: _fail("start_failed_" + reason)
@@ -149,8 +171,38 @@ func _process(delta: float) -> void:
 		if _input_accum >= INPUT_INTERVAL_SEC:
 			_input_accum = 0.0
 			# The server drops intents outside PLAY/FINALE_PLAY, so pumping
-			# through intros/results is harmless.
-			NetManager.send_match_input(_input_driver.next_intent())
+			# through intros/results is harmless; an empty brain intent (nothing
+			# worth doing this tick) is simply not sent.
+			var intent := _next_intent()
+			if not intent.is_empty():
+				NetManager.send_match_input(intent)
+
+
+func _on_snapshot(snapshot: Dictionary) -> void:
+	_latest_snapshot = snapshot
+
+
+## This tick's intent: a goal-seeking brain's, or the random driver's under
+## --inputs=random.
+func _next_intent() -> Dictionary:
+	if not _use_brains:
+		return _input_driver.next_intent()
+	return _brain_intent()
+
+
+## Feed our own client view (the match snapshot + our private payload) through
+## the round's brain, exactly as NetManager._drive_bots does server-side.
+## Rebuilds the brain when the minigame changes; only acts during live play
+## (the finale shop is driven by the explicit finale_shop event handler).
+func _brain_intent() -> Dictionary:
+	var match_state: Dictionary = _latest_snapshot.get("match", {})
+	if match_state.is_empty() or int(match_state.get("state", -1)) not in BRAIN_STATES:
+		return {}
+	var brain_id := BotBrains.brain_id_for(match_state)
+	if _bot_brain == null or brain_id != _brain_id:
+		_brain_id = brain_id
+		_bot_brain = BotBrains.brain_for(brain_id, _slot, hash("%s:%d" % [_room_code, _slot]))
+	return _bot_brain.think(match_state, _latest_snapshot.get("private", {}))
 
 
 func _on_connected() -> void:
@@ -161,8 +213,9 @@ func _on_connected() -> void:
 		NetManager.request_join_room(_join_code, _bot_name)
 
 
-func _on_joined_room(code: String, _slot: int, _token: String) -> void:
+func _on_joined_room(code: String, slot: int, _token: String) -> void:
 	_room_code = code
+	_slot = slot
 	if _create:
 		print("ROOM_CODE=%s" % code)
 		# Mutator soak variant (M9-06): the host enables the full pool so the

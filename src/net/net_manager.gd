@@ -681,8 +681,9 @@ func _drive_bots(delta: float) -> void:
 		# One shared room snapshot per pump; per-bot privates below (#254).
 		var match_state := controller.get_snapshot()
 		# The finale shop carries no minigame id; it belongs to the gauntlet
-		# brain, which handles both phases.
-		var active_id := StringName(String(match_state.get("minigame", "gauntlet")))
+		# brain, which handles both phases (BotBrains.brain_id_for, shared with
+		# the client playtest bot so routing lives in one place).
+		var active_id := BotBrains.brain_id_for(match_state)
 		for member: RoomMember in controller.room.members:
 			if not member.is_bot:
 				continue
