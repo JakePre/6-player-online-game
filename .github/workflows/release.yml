@@ -149,7 +149,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           sed -i "s/^const VERSION := \".*\"/const VERSION := \"$V\"/" src/client/app_version.gd
           git add src/client/app_version.gd
-          git commit -m "chore: sync AppVersion source const to $GITHUB_REF_NAME [skip ci]"
+          # No [skip ci] here (#719): when the direct push below is rejected by
+          # branch protection, this same commit becomes the sync PR's only
+          # commit, and [skip ci] would suppress every required status check —
+          # permanently blocking that PR from ever merging. A redundant CI run
+          # on the (rarer) direct-push happy path is a cheap trade for that.
+          git commit -m "chore: sync AppVersion source const to $GITHUB_REF_NAME"
           if git push origin HEAD:main; then
             echo "Synced source const to $V (direct push)."
             exit 0
