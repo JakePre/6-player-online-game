@@ -19,6 +19,8 @@ var _hud: Label
 ## Transient swing arcs: {pos, facing, color, age}.
 var _swings: Array[Dictionary] = []
 var _alive_seen := {}
+## slot -> last-seen damage percent, for the hit/hit_heavy edge (#728).
+var _percent_seen := {}
 var _seen_snapshot := false
 
 
@@ -98,6 +100,14 @@ func _render_fighter(slot: int, state: Array) -> void:
 		&"font_color",
 		PlayerPalette.color_for_slot(slot).lerp(SMASH_COLOR, clampf(percent / 130.0, 0.0, 1.0))
 	)
+	# Signature cues (#728, docs/AUDIO_GUIDE.md — Brawlers): a landed jab is
+	# `hit`, a landed smash (double the damage, KnockOff.SMASH_DAMAGE vs
+	# JAB_DAMAGE) is `hit_heavy` — the percent delta tells them apart since
+	# the snapshot carries no separate "landed" flag.
+	var prev_percent: int = _percent_seen.get(slot, percent)
+	if _seen_snapshot and percent > prev_percent:
+		play_sfx(&"hit_heavy" if percent - prev_percent >= 12 else &"hit")
+	_percent_seen[slot] = percent
 	var attack := int(state[5])
 	if attack > 0:
 		(
@@ -111,12 +121,12 @@ func _render_fighter(slot: int, state: Array) -> void:
 				}
 			)
 		)
-	# KO edge: shake + a local sting, seeded so a rejoiner stays quiet.
+	# KO edge: shake + the shared elimination cue for everyone (the whole
+	# stage sees a duck fly off), seeded so a rejoiner stays quiet.
 	var was_alive: bool = _alive_seen.get(slot, true)
 	if _seen_snapshot and was_alive and not alive:
 		request_shake(8.0)
-		if slot == my_slot:
-			play_sfx(&"error")
+		play_sfx(&"ko")
 	_alive_seen[slot] = alive
 
 

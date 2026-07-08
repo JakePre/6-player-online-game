@@ -78,6 +78,9 @@ func _render_3d(game: Dictionary) -> void:
 		var dashing := int(state[3]) == 1
 		if dashing and rig.current_action() != &"run":
 			rig.play(&"run")
+			# Signature cue (#728, docs/AUDIO_GUIDE.md — Brawlers): the dash
+			# lunge itself, fired on the same edge as the run pose.
+			play_sfx(&"dash")
 		# Dash trail (#587): a player-colored burst reads as a fast streak far
 		# better than the old generic gray dust puff. A sudden non-dash
 		# displacement means a shove landed - burst at the contact too, same
@@ -86,6 +89,8 @@ func _render_3d(game: Dictionary) -> void:
 			fx_burst(at, player_color(slot), 0.5)
 		elif _last_pos.has(slot) and (_last_pos[slot] as Vector2).distance_to(at) > 0.25:
 			fx_burst(at, player_color(slot), 0.6)
+			# Non-damaging body contact — the shove that just landed.
+			play_sfx(&"bump")
 		_last_pos[slot] = at
 		var cooldown := float(state[2])
 		var caption := player_name(slot)
@@ -123,6 +128,9 @@ func _fx_on_ringouts() -> void:
 		out_count += group.size()
 	if _out_seen >= 0 and out_count > _out_seen:
 		request_shake(10.0)
+		# The shared elimination cue (#728) — a ring-out is a KO, same as
+		# every other game's terminal-for-the-round moment.
+		play_sfx(&"ko")
 		for group: Array in out:
 			for slot: int in group:
 				if _last_pos.has(slot):
