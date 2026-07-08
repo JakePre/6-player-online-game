@@ -19,6 +19,19 @@ const COIN_WAVE_SEC := 2.0
 const COINS_PER_WAVE := 3
 const MAX_ACTIVE_COINS := 12
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_COINS := 2
+const PS_DIVING := 3
+const PS_AIR_FRAC := 4
+const PS_STUNNED := 5
+const PS_COUNT := 6
+
+const TR_X := 0
+const TR_Y := 1
+
 var positions := {}
 var move_dirs := {}
 var coins := {}

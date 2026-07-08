@@ -4,7 +4,8 @@ extends MinigameView3D
 ## (M8-01). New build — the Gauntlet sim (M5-02) had server logic only.
 ## Renders Gauntlet.get_snapshot() untouched: {radius, shrink_in, players:
 ## {slot: [x, y, lives, respawn_left, swings, swing_seq, hit_seq]}, hazards:
-## [[x, y, r, warn_left]], weapons: [[x, y]]} (#584 weapon fields).
+## [[x, y, r, warn_left]], weapons: [[x, y]]} (#584 weapon fields) — indices
+## named via Gauntlet.PS_*/HZ_*/WP_* (#708).
 
 const PLATFORM_COLOR := Color(0.45, 0.43, 0.4)
 const PLATFORM_THICKNESS := 0.4
@@ -154,19 +155,21 @@ func _sabotage_target() -> Array:
 	if slot == -1:
 		return [0.0, 0.0]
 	var state: Array = players[slot]
-	return [state[0], state[1]]
+	return [state[Gauntlet.PS_X], state[Gauntlet.PS_Y]]
 
 
 func _nearest_living_rival() -> int:
 	if not players.has(my_slot):
 		return _first_living_rival()
 	var mine: Array = players[my_slot]
-	var origin := Vector2(float(mine[0]), float(mine[1]))
+	var origin := Vector2(float(mine[Gauntlet.PS_X]), float(mine[Gauntlet.PS_Y]))
 	var best := -1
 	var best_dist := INF
 	for slot: int in _living_rivals():
 		var state: Array = players[slot]
-		var dist := origin.distance_to(Vector2(float(state[0]), float(state[1])))
+		var dist := origin.distance_to(
+			Vector2(float(state[Gauntlet.PS_X]), float(state[Gauntlet.PS_Y]))
+		)
 		if dist < best_dist:
 			best_dist = dist
 			best = slot
@@ -179,7 +182,7 @@ func _living_rivals() -> Array:
 	for slot: int in players:
 		if slot == my_slot:
 			continue
-		if int((players[slot] as Array)[2]) > 0:
+		if int((players[slot] as Array)[Gauntlet.PS_LIVES]) > 0:
 			rivals.append(slot)
 	rivals.sort()
 	return rivals
@@ -193,7 +196,7 @@ func _first_living_rival() -> int:
 func _local_lives() -> int:
 	if not players.has(my_slot):
 		return 1  # pre-snapshot: assume alive, show no grudge prompt
-	return int((players[my_slot] as Array)[2])
+	return int((players[my_slot] as Array)[Gauntlet.PS_LIVES])
 
 
 func _cycle_grudge(direction: int) -> void:
@@ -214,7 +217,7 @@ func _fire_grudge() -> void:
 	if _grudge_target == -1:
 		return
 	var state: Array = players[_grudge_target]
-	NetManager.send_match_input({"grudge": [state[0], state[1]]})
+	NetManager.send_match_input({"grudge": [state[Gauntlet.PS_X], state[Gauntlet.PS_Y]]})
 	_grudge_spent = true
 	_show_event("GRUDGE!  → %s" % player_name(_grudge_target), PartyTheme.DANGER)
 	_update_grudge_prompt()
@@ -336,7 +339,7 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		var lives := int(state[2])
+		var lives := int(state[Gauntlet.PS_LIVES])
 		var prev_lives := int(_last_lives.get(slot, lives))
 		# Fall/KO burst where a player was standing the instant they lose a life.
 		if lives < prev_lives:
@@ -347,16 +350,18 @@ func _update_players() -> void:
 			if lives == 0:
 				_show_event("%s ELIMINATED" % player_name(slot), PartyTheme.DANGER)
 		_last_lives[slot] = lives
-		var respawning := float(state[3]) > 0.0
+		var respawning := float(state[Gauntlet.PS_RESPAWN]) > 0.0
 		rig.visible = lives > 0 and not respawning
 		if not rig.visible:
 			continue
 		_update_weapon_state(slot, state, rig)
 		if Time.get_ticks_msec() < int(_reaction_hold.get(slot, 0)):
 			# A swing/stagger owns the rig (#587 idiom): move it, don't re-animate.
-			rig.position = to_arena(Vector2(state[0], state[1]), PLATFORM_THICKNESS)
+			rig.position = to_arena(
+				Vector2(state[Gauntlet.PS_X], state[Gauntlet.PS_Y]), PLATFORM_THICKNESS
+			)
 		else:
-			update_rig(slot, Vector2(state[0], state[1]))
+			update_rig(slot, Vector2(state[Gauntlet.PS_X], state[Gauntlet.PS_Y]))
 			rig.position.y = PLATFORM_THICKNESS
 		rig.display_name = (
 			"%s %s%s" % [player_name(slot), "♥".repeat(lives), "⚔".repeat(int(_armed.get(slot, 0)))]
@@ -367,9 +372,9 @@ func _update_players() -> void:
 ## monotonic counters (#584) — each plays exactly once no matter how snapshots
 ## are sampled, and a mid-match join seeds silently instead of replaying.
 func _update_weapon_state(slot: int, state: Array, rig: CharacterRig) -> void:
-	if state.size() < 7:
+	if state.size() < Gauntlet.PS_COUNT:
 		return  # pre-#584 snapshot shape
-	var swings := int(state[4])
+	var swings := int(state[Gauntlet.PS_ARMED])
 	var was_armed := int(_armed.get(slot, 0)) > 0
 	_armed[slot] = swings
 	if swings > 0 and not was_armed:
@@ -385,8 +390,8 @@ func _update_weapon_state(slot: int, state: Array, rig: CharacterRig) -> void:
 			_show_event("AXE! Swing to launch rivals", PartyTheme.ACCENT_BRIGHT)
 	elif swings <= 0 and was_armed:
 		rig.clear_held_weapon()
-	var swing := int(state[5])
-	var hit := int(state[6])
+	var swing := int(state[Gauntlet.PS_SWING_SEQ])
+	var hit := int(state[Gauntlet.PS_HIT_SEQ])
 	var swing_seen: int = _last_swing_seq.get(slot, swing)
 	var hit_seen: int = _last_hit_seq.get(slot, hit)
 	_last_swing_seq[slot] = swing
@@ -414,7 +419,7 @@ func _update_weapons() -> void:
 	_weapon_nodes.clear()
 	var current_keys := {}
 	for weapon: Array in weapons:
-		var pos := Vector2(float(weapon[0]), float(weapon[1]))
+		var pos := Vector2(float(weapon[Gauntlet.WP_X]), float(weapon[Gauntlet.WP_Y]))
 		if _axe_mesh != null:
 			var node := MeshInstance3D.new()
 			node.mesh = _axe_mesh
@@ -450,14 +455,16 @@ func _update_hazards() -> void:
 	_hazard_nodes.clear()
 	var current_keys := {}
 	for hazard: Array in hazards:
-		var pos := Vector2(float(hazard[0]), float(hazard[1]))
+		var pos := Vector2(float(hazard[Gauntlet.HZ_X]), float(hazard[Gauntlet.HZ_Y]))
 		var mesh := CylinderMesh.new()
-		mesh.top_radius = float(hazard[2])
-		mesh.bottom_radius = float(hazard[2])
+		mesh.top_radius = float(hazard[Gauntlet.HZ_RADIUS])
+		mesh.bottom_radius = float(hazard[Gauntlet.HZ_RADIUS])
 		mesh.height = 0.05
 		var material := StandardMaterial3D.new()
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		var armed := 1.0 - clampf(float(hazard[3]) / Gauntlet.HAZARD_WARN_SEC, 0.0, 1.0)
+		var armed := (
+			1.0 - clampf(float(hazard[Gauntlet.HZ_WARN]) / Gauntlet.HAZARD_WARN_SEC, 0.0, 1.0)
+		)
 		material.albedo_color = HAZARD_COLOR.lerp(HAZARD_ARMED_COLOR, armed)
 		mesh.material = material
 		var node := MeshInstance3D.new()
@@ -598,7 +605,7 @@ func _check_winner() -> void:
 	var standing := -1
 	var count := 0
 	for slot: int in players:
-		if int((players[slot] as Array)[2]) > 0:
+		if int((players[slot] as Array)[Gauntlet.PS_LIVES]) > 0:
 			count += 1
 			standing = slot
 	if count != 1:

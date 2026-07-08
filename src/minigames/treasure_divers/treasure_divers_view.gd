@@ -213,16 +213,16 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		var is_diving := int(state[3]) == 1
-		var at := Vector2(state[0], state[1])
+		var is_diving := int(state[TreasureDivers.PS_DIVING]) == 1
+		var at := Vector2(state[TreasureDivers.PS_X], state[TreasureDivers.PS_Y])
 		update_rig(slot, at, 0.0 if is_diving else SURFACE_HEIGHT)
-		var coins := int(state[2])
+		var coins := int(state[TreasureDivers.PS_COINS])
 		rig.display_name = "%s  %d" % [player_name(slot), coins]
 		# Pickup ping (M12-02): only the collector hears their own scoop.
 		if _coins_seen.has(slot) and coins > int(_coins_seen[slot]) and slot == my_slot:
 			play_sfx(&"coin")
 		_coins_seen[slot] = coins
-		_air_seen[slot] = float(state[4])
+		_air_seen[slot] = float(state[TreasureDivers.PS_AIR_FRAC])
 		# Water FX (M13-10): splash on every surface crossing, bubbles on a
 		# snapshot-cadence timer while under. Seeded so a rejoiner's first
 		# snapshot stays dry.
@@ -234,7 +234,7 @@ func _update_players() -> void:
 			if float(_bubble_left[slot]) <= 0.0:
 				_bubble_left[slot] = BUBBLE_EVERY_SEC
 				fx_sparkle(at, BUBBLE_COLOR, 0.9)
-		var stun := float(state[5])
+		var stun := float(state[TreasureDivers.PS_STUNNED])
 		if stun > 0.0 and float(_stun_seen.get(slot, 0.0)) <= 0.0:
 			# Fresh blackout: gasp, rattle the screen, and burst the surface.
 			rig.play(&"hit")
@@ -250,4 +250,6 @@ func _update_treasure() -> void:
 		node.visible = i < treasure.size()
 		if node.visible:
 			var state: Array = treasure[i]
-			node.position = to_arena(Vector2(state[0], state[1]), COIN_HOVER)
+			node.position = to_arena(
+				Vector2(state[TreasureDivers.TR_X], state[TreasureDivers.TR_Y]), COIN_HOVER
+			)

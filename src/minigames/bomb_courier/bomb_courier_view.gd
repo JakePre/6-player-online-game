@@ -78,18 +78,18 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		var fuse := float(state[3])
-		var staggered := int(state[4]) == 1
+		update_rig(slot, Vector2(state[BombCourier.PS_X], state[BombCourier.PS_Y]))
+		var fuse := float(state[BombCourier.PS_FUSE])
+		var staggered := int(state[BombCourier.PS_STAGGERED]) == 1
 		var newly_staggered: bool = staggered and not _staggered.get(slot, false)
-		var caption := "%s  %d" % [player_name(slot), int(state[2])]
+		var caption := "%s  %d" % [player_name(slot), int(state[BombCourier.PS_SCORE])]
 		if slot == my_slot:
 			if newly_staggered:
 				play_sfx(&"error")
 				request_shake(7.0)
-			elif int(state[2]) > _my_score:
+			elif int(state[BombCourier.PS_SCORE]) > _my_score:
 				play_sfx(&"coin")
-			_my_score = int(state[2])
+			_my_score = int(state[BombCourier.PS_SCORE])
 		# Handoff flash: a burst the instant a courier takes possession — pickup,
 		# catch, or steal — so the pass beat reads across the arena.
 		var holding := fuse >= 0.0
@@ -131,13 +131,16 @@ func _update_carried(slot: int, fuse: float) -> void:
 func _update_pile() -> void:
 	var seen := {}
 	for entry: Array in pile:
-		var id := int(entry[0])
+		var id := int(entry[BombCourier.PL_ID])
 		seen[id] = true
 		var crate: MeshInstance3D = _crates.get(id)
 		if crate == null:
 			crate = _build_crate(id)
-		crate.position = to_arena(Vector2(float(entry[1]), float(entry[2])), CRATE_SIZE * 0.5)
-		_tint_fuse(crate, float(entry[3]))
+		crate.position = to_arena(
+			Vector2(float(entry[BombCourier.PL_X]), float(entry[BombCourier.PL_Y])),
+			CRATE_SIZE * 0.5
+		)
+		_tint_fuse(crate, float(entry[BombCourier.PL_FUSE]))
 	for id: int in _crates.keys():
 		if not seen.has(id):
 			(_crates[id] as MeshInstance3D).queue_free()

@@ -5,7 +5,8 @@ extends BotBrain
 ## it's in range — the sim silently no-ops mid-cooldown, the same tolerance
 ## every other cooldown-blind brain (sumo_smash, nom_arena) relies on.
 ## Snapshot: {players: {slot: [x, y, hp, points, guarding, invuln, facing_x,
-## facing_y]}, coins, events}. Input: {mx, my} or {"attack": true}.
+## facing_y]}, coins, events}. Input: {mx, my} or {"attack": true}. Indices
+## named via RumbleRing.PS_* (#708).
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -29,9 +30,9 @@ func _nearest_rival(players: Dictionary, me: Vector2) -> Vector2:
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() < 2:
+		if state.size() <= RumbleRing.PS_Y:
 			continue
-		var pos := Vector2(float(state[0]), float(state[1]))
+		var pos := Vector2(float(state[RumbleRing.PS_X]), float(state[RumbleRing.PS_Y]))
 		var dist := me.distance_squared_to(pos)
 		if dist < best_dist:
 			best_dist = dist

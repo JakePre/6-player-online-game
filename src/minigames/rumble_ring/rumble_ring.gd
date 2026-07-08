@@ -32,6 +32,21 @@ const RESPAWN_INVULN_SEC := 1.5
 ## dead-center point would stack them exactly on top of each other.
 const RESPAWN_JITTER_RADIUS := 1.2
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_HP := 2
+const PS_POINTS := 3
+const PS_GUARDING := 4
+const PS_INVULN := 5
+const PS_FACING_X := 6
+const PS_FACING_Y := 7
+const PS_COUNT := 8
+
+const CN_X := 0
+const CN_Y := 1
+
 var positions := {}
 var move_dirs := {}
 var facings := {}

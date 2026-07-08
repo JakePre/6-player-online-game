@@ -181,7 +181,7 @@ func test_snapshot_shape_and_events() -> void:
 	_square_up(game, 0, 1)
 	game.handle_input(0, {"attack": true})
 	var snapshot := game.get_snapshot()
-	assert_eq(snapshot.players[0].size(), 8)
+	assert_eq(snapshot.players[0].size(), RumbleRing.PS_COUNT)
 	var types: Array = snapshot.events.map(func(e: Dictionary) -> String: return e.type)
 	assert_has(types, "swing")
 	assert_has(types, "hit")

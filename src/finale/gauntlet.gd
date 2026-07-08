@@ -53,6 +53,28 @@ const HAZARD_START_RADIUS := 1.5
 const HAZARD_MAX_RADIUS := 3.0
 const HAZARD_RAMP_SEC := 90.0
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read, replacing magic-index prose with a checkable
+## contract. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_LIVES := 2
+const PS_RESPAWN := 3
+const PS_ARMED := 4
+const PS_SWING_SEQ := 5
+const PS_HIT_SEQ := 6
+const PS_COUNT := 7
+
+const HZ_X := 0
+const HZ_Y := 1
+const HZ_RADIUS := 2
+const HZ_WARN := 3
+const HZ_COUNT := 4
+
+const WP_X := 0
+const WP_Y := 1
+const WP_COUNT := 2
+
 var radius := START_RADIUS
 ## Per-instance platform tuning (base at ≤6 players, scaled up beyond).
 var start_radius := START_RADIUS

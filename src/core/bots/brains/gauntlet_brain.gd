@@ -6,7 +6,8 @@ extends BotBrain
 ## Shop snapshot: {shop: {players: {slot: {coins, items, confirmed}}}};
 ## play snapshot: {game: {radius, players: {slot: [x, y, lives, respawn,
 ## swings, swing_seq, hit_seq]}, hazards: [[x, y, radius, warn_left], ...],
-## weapons: [[x, y], ...]}} (Gauntlet, #554/#584).
+## weapons: [[x, y], ...]}} (Gauntlet, #554/#584) — indices named via
+## Gauntlet.PS_*/HZ_*/WP_* (#708).
 
 ## Shop buying order: survivability first, mirroring FinaleShop.ITEMS prices.
 const BUY_PRIORITY: Array[Dictionary] = [
@@ -50,7 +51,7 @@ func _think_play(game: Dictionary) -> Dictionary:
 	# Armed (#584): swing when a living rival is inside the axe's reach.
 	var players: Dictionary = game.get("players", {})
 	var my_state: Array = players.get(slot, [])
-	var swings := int(my_state[4]) if my_state.size() >= 5 else 0
+	var swings := int(my_state[Gauntlet.PS_ARMED]) if my_state.size() > Gauntlet.PS_ARMED else 0
 	if swings > 0 and _rival_in_swing_range(me, players):
 		return {"swing": true}
 	# Unarmed with an axe on the floor: go get it (survival still outranks
@@ -72,10 +73,10 @@ func _think_play(game: Dictionary) -> Dictionary:
 ## ever fleeing off the shrinking platform. {} when no hazard threatens.
 func _flee_hazard(game: Dictionary, me: Vector2) -> Dictionary:
 	for hazard: Array in game.get("hazards", []):
-		if hazard.size() < 4:
+		if hazard.size() < Gauntlet.HZ_COUNT:
 			continue
-		var pos := Vector2(float(hazard[0]), float(hazard[1]))
-		if me.distance_to(pos) >= float(hazard[2]) + 0.4:
+		var pos := Vector2(float(hazard[Gauntlet.HZ_X]), float(hazard[Gauntlet.HZ_Y]))
+		if me.distance_to(pos) >= float(hazard[Gauntlet.HZ_RADIUS]) + 0.4:
 			continue
 		var flee := move_away_from_point(me, pos)
 		var radius := float(game.get("radius", 10.0))
@@ -92,8 +93,13 @@ func _rival_in_swing_range(me: Vector2, players: Dictionary) -> bool:
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() < 4 or int(state[2]) <= 0 or float(state[3]) > 0.0:
+		if (
+			state.size() <= Gauntlet.PS_RESPAWN
+			or int(state[Gauntlet.PS_LIVES]) <= 0
+			or float(state[Gauntlet.PS_RESPAWN]) > 0.0
+		):
 			continue
-		if me.distance_to(Vector2(float(state[0]), float(state[1]))) <= Gauntlet.SWING_RANGE:
+		var pos := Vector2(float(state[Gauntlet.PS_X]), float(state[Gauntlet.PS_Y]))
+		if me.distance_to(pos) <= Gauntlet.SWING_RANGE:
 			return true
 	return false

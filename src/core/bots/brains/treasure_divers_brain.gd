@@ -5,6 +5,7 @@ extends BotBrain
 ## hysteresis band so the bot doesn't flap between diving and surfacing right
 ## at the threshold. Snapshot: {players: {slot: [x, y, coins, diving,
 ## air_frac, stunned]}, treasure: [[x,y], ...]}. Input: {mx, my} + {dive}.
+## Indices named via TreasureDivers.PS_*/TR_* (#708).
 
 ## Surface once air drops to this fraction; dive again only once it's back up
 ## to RESUME_AIR (a gap, not a single threshold, so it doesn't flap).
@@ -18,11 +19,11 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 6:
+	if state.size() < TreasureDivers.PS_COUNT:
 		return {}
-	var me := Vector2(float(state[0]), float(state[1]))
-	var diving := int(state[3]) == 1
-	var air_frac := float(state[4])
+	var me := Vector2(float(state[TreasureDivers.PS_X]), float(state[TreasureDivers.PS_Y]))
+	var diving := int(state[TreasureDivers.PS_DIVING]) == 1
+	var air_frac := float(state[TreasureDivers.PS_AIR_FRAC])
 	if diving and air_frac <= LOW_AIR:
 		_surfacing = true
 	elif not diving and air_frac >= RESUME_AIR:
