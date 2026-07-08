@@ -51,6 +51,25 @@ const ITEM_SHELL := 1
 const ITEM_OIL := 2
 const ITEM_BOOST := 3
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_HEADING := 2
+const PS_ITEM := 3
+const PS_BITS := 4
+const PS_COUNT := 5
+
+const SH_X := 0
+const SH_Y := 1
+
+const OL_X := 0
+const OL_Y := 1
+
+const PD_X := 0
+const PD_Y := 1
+const PD_AVAILABLE := 2
+
 ## Kart state per slot: pos/heading/speed plus drift, boost, spin, item,
 ## and checkpoint progress.
 var karts := {}

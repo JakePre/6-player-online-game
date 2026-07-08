@@ -97,9 +97,15 @@ func test_snapshot_shape() -> void:
 	var game := _game_with(2)
 	game.handle_input(0, {"roll": true})
 	var snapshot := game.get_snapshot()
-	assert_eq((snapshot.players[0] as Array).size(), 4, "[score, balls, flight_t, target_x]")
-	assert_almost_eq(float(snapshot.players[0][2]), 0.0, 0.001, "fresh flight at t=0")
-	assert_eq(float(snapshot.players[1][2]), -1.0, "no flight = -1")
+	assert_eq(
+		(snapshot.players[0] as Array).size(),
+		BullseyeBowl.PS_COUNT,
+		"[score, balls, flight_t, target_x]"
+	)
+	assert_almost_eq(
+		float(snapshot.players[0][BullseyeBowl.PS_FLIGHT_T]), 0.0, 0.001, "fresh flight at t=0"
+	)
+	assert_eq(float(snapshot.players[1][BullseyeBowl.PS_FLIGHT_T]), -1.0, "no flight = -1")
 
 
 func test_max_players_raised_to_twenty_four() -> void:

@@ -252,7 +252,7 @@ func _play_drum(lane: int) -> void:
 
 
 func _note_key(note: Array) -> String:
-	return "%s:%d" % [str(note[0]), int(note[1])]
+	return "%s:%d" % [str(note[ShredSession.NT_TIME]), int(note[ShredSession.NT_LANE])]
 
 
 func _reconcile_notes() -> void:
@@ -261,7 +261,9 @@ func _reconcile_notes() -> void:
 		var key := _note_key(note)
 		wanted[key] = true
 		if not _note_nodes.has(key):
-			_note_nodes[key] = _make_note(float(note[0]), int(note[1]))
+			_note_nodes[key] = _make_note(
+				float(note[ShredSession.NT_TIME]), int(note[ShredSession.NT_LANE])
+			)
 	for key: String in _note_nodes.keys():
 		if not wanted.has(key):
 			(_note_nodes[key].node as MeshInstance3D).queue_free()
@@ -312,19 +314,19 @@ func _read_input() -> void:
 ## The server's verdict for the local player: flash the lane and call it out.
 func _handle_local_judgment() -> void:
 	var me: Array = _players.get(my_slot, [])
-	if me.size() < 5:
+	if me.size() < ShredSession.PS_COUNT:
 		return
-	var event: int = int(me[4])
+	var event: int = int(me[ShredSession.PS_EVENT_COUNT])
 	if event <= _my_last_event:
-		_update_streak(int(me[1]))
+		_update_streak(int(me[ShredSession.PS_STREAK]))
 		return
 	_my_last_event = event
-	var judgment: int = int(me[2])
-	var lane: int = int(me[3])
+	var judgment: int = int(me[ShredSession.PS_LAST_JUDGMENT])
+	var lane: int = int(me[ShredSession.PS_LAST_LANE])
 	if lane >= 0 and lane < ShredSession.LANES:
 		_lane_flash_until[lane] = _now_sec() + FLASH_SEC
 	_show_judgment(judgment)
-	_update_streak(int(me[1]))
+	_update_streak(int(me[ShredSession.PS_STREAK]))
 
 
 func _show_judgment(judgment: int) -> void:
@@ -381,7 +383,8 @@ func _update_scoreboard() -> void:
 		return
 	var order: Array = _players.keys()
 	order.sort_custom(
-		func(a: int, b: int) -> bool: return int(_players[a][0]) > int(_players[b][0])
+		func(a: int, b: int) -> bool:
+			return int(_players[a][ShredSession.PS_SCORE]) > int(_players[b][ShredSession.PS_SCORE])
 	)
 	for slot: int in _players:
 		if not _score_rows.has(slot):
@@ -392,7 +395,7 @@ func _update_scoreboard() -> void:
 			_score_rows[slot] = row
 		var stats: Array = _players[slot]
 		var row: Label = _score_rows[slot]
-		row.text = "%s  %d" % [player_name(slot), int(stats[0])]
+		row.text = "%s  %d" % [player_name(slot), int(stats[ShredSession.PS_SCORE])]
 		row.add_theme_color_override(
 			&"font_color", PartyTheme.ACCENT_BRIGHT if slot == my_slot else PartyTheme.TEXT
 		)
@@ -407,7 +410,7 @@ func _update_rigs() -> void:
 			continue
 		var stats: Array = _players.get(slot, [])
 		if not stats.is_empty():
-			rig.display_name = "%s  %d" % [player_name(slot), int(stats[0])]
+			rig.display_name = "%s  %d" % [player_name(slot), int(stats[ShredSession.PS_SCORE])]
 
 
 func _now_sec() -> float:

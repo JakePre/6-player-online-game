@@ -121,12 +121,12 @@ func _render(game: Dictionary) -> void:
 
 
 func _render_climber(slot: int, state: Array) -> void:
-	if state.size() < 4:
+	if state.size() < TumbleRun.PS_COUNT:
 		return
 	var rig := rig_for_slot(slot)
 	if rig == null:
 		return
-	var flags := int(state[3])
+	var flags := int(state[TumbleRun.PS_FLAGS])
 	var stunned := flags & 1 > 0
 	var summited := flags & 2 > 0
 	if summited:
@@ -163,5 +163,7 @@ func _draw_fx() -> void:
 	var right := world_to_screen(Vector2(_world.end.x, TumbleRun.GOAL_HEIGHT))
 	_fx_layer.draw_line(left, right, Color(SUMMIT_COLOR, 0.6), 3.0)
 	for boulder: Array in boulders:
-		var at := world_to_screen(Vector2(float(boulder[0]), float(boulder[1])))
+		var at := world_to_screen(
+			Vector2(float(boulder[TumbleRun.BL_X]), float(boulder[TumbleRun.BL_Y]))
+		)
 		_fx_layer.draw_circle(at, TumbleRun.BOULDER_RADIUS * _world_scale(), BOULDER_COLOR)

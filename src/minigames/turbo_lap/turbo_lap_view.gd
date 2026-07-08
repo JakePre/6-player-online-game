@@ -176,21 +176,21 @@ func _render_3d(game: Dictionary) -> void:
 	_render_pool(_oil_pool, game.get("oils", []), 0.05)
 	var pads: Array = game.get("pads", [])
 	for i in mini(pads.size(), _item_pad_nodes.size()):
-		var active := int(pads[i][2]) == 1
+		var active := int(pads[i][TurboLap.PD_AVAILABLE]) == 1
 		_item_pad_nodes[i].transparency = 0.0 if active else 0.7
 	_seen_snapshot = true
 
 
 func _render_kart(slot: int, state: Array) -> void:
-	if state.size() < 5:
+	if state.size() < TurboLap.PS_COUNT:
 		return
 	var rig := rig_for_slot(slot)
 	if rig == null:
 		return
-	update_rig(slot, Vector2(float(state[0]), float(state[1])))
-	var bits := int(state[4])
+	update_rig(slot, Vector2(float(state[TurboLap.PS_X]), float(state[TurboLap.PS_Y])))
+	var bits := int(state[TurboLap.PS_BITS])
 	var spinning := bits & 1 > 0
-	var world := Vector2(float(state[0]), float(state[1]))
+	var world := Vector2(float(state[TurboLap.PS_X]), float(state[TurboLap.PS_Y]))
 	if spinning:
 		rig.rotate_y(0.45)
 	if spinning and not _spin_seen.get(slot, false) and _seen_snapshot:
@@ -209,7 +209,7 @@ func _render_kart(slot: int, state: Array) -> void:
 			# Crossing the line is a checkpoint (#728).
 			play_sfx(&"bell")
 	_finish_seen[slot] = finished
-	_label_kart(slot, rig, int(state[3]), finished)
+	_label_kart(slot, rig, int(state[TurboLap.PS_ITEM]), finished)
 
 
 ## Nameplate carries the live race position and the held item:
@@ -221,10 +221,14 @@ func _label_kart(slot: int, rig: CharacterRig, item: int, finished: bool) -> voi
 	rig.display_name = "%s%s %s" % [prefix, player_name(slot), icon]
 
 
+## Shared by both shells and oils — TurboLap.SH_X/SH_Y and OL_X/OL_Y are the
+## same [x, y] shape, so either pair of constants applies here.
 func _render_pool(pool: Array[MeshInstance3D], items: Array, height: float) -> void:
 	for i in pool.size():
 		if i < items.size():
 			pool[i].visible = true
-			pool[i].position = Vector3(float(items[i][0]), height, float(items[i][1]))
+			pool[i].position = Vector3(
+				float(items[i][TurboLap.SH_X]), height, float(items[i][TurboLap.SH_Y])
+			)
 		else:
 			pool[i].visible = false

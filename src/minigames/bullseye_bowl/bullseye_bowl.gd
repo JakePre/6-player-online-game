@@ -21,6 +21,14 @@ const SCORE_BULLSEYE := 5
 const SCORE_MID := 3
 const SCORE_OUTER := 1
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_SCORE := 0
+const PS_BALLS_LEFT := 1
+const PS_FLIGHT_T := 2
+const PS_TARGET_OFFSET := 3
+const PS_COUNT := 4
+
 var scores := {}
 var balls_left := {}
 ## In-flight balls: {slot, t (0..1 progress)}. One per player at most.
