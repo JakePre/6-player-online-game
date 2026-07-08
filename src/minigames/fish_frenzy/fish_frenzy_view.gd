@@ -179,6 +179,12 @@ func _render_3d(game: Dictionary) -> void:
 			var at := Vector2(0.0, _lane_z(player_lane))
 			fx_splash(at)
 			fx_sparkle(at, CATCH_SPARKLE_COLOR)
+			# Signature cues (#728, docs/AUDIO_GUIDE.md — Water): the water-entry
+			# sound matching the splash FX, plus the scoring cue — a catch is
+			# this game's currency.
+			play_sfx(&"splash")
+			if slot == my_slot:
+				play_sfx(&"coin")
 		_catches_seen[slot] = catches
 
 

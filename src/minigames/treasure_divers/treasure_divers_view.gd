@@ -228,6 +228,9 @@ func _update_players() -> void:
 		# snapshot stays dry.
 		if _diving_seen.has(slot) and bool(_diving_seen[slot]) != is_diving:
 			fx_splash(at)
+			# Signature cue (#728, docs/AUDIO_GUIDE.md — Water): every surface
+			# crossing gets the water-entry sound, diving or surfacing alike.
+			play_sfx(&"splash")
 		_diving_seen[slot] = is_diving
 		if is_diving:
 			_bubble_left[slot] = float(_bubble_left.get(slot, 0.0)) - SNAPSHOT_INTERVAL
@@ -240,7 +243,8 @@ func _update_players() -> void:
 			rig.play(&"hit")
 			request_shake(8.0)
 			fx_splash(at)
-			play_sfx(&"error")
+			# `powerdown`'s vocabulary entry names "stun" as its own use case.
+			play_sfx(&"powerdown")
 		_stun_seen[slot] = stun
 
 
