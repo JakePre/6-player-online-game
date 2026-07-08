@@ -5,7 +5,8 @@ extends BotBrain
 ## safe partial score, or dash-dump it onto a nearby rival if one's in reach
 ## (the sim's own "everyone can play saboteur" mechanic, #252 — not a hidden
 ## role). Snapshot: {players: {slot: [x, y, score, fuse, staggered]}, pile:
-## [[id, x, y, fuse], ...]}. Input: {mx, my} + {dash: true}.
+## [[id, x, y, fuse], ...]}. Input: {mx, my} + {dash: true}. Indices named via
+## BombCourier.PS_*/PL_* (#708).
 
 ## Below this much fuse left, a carried package is worth dumping on a rival
 ## rather than risking the walk to depot.
@@ -21,10 +22,10 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 5:
+	if state.size() < BombCourier.PS_COUNT:
 		return {}
-	var me := Vector2(float(state[0]), float(state[1]))
-	var fuse := float(state[3])
+	var me := Vector2(float(state[BombCourier.PS_X]), float(state[BombCourier.PS_Y]))
+	var fuse := float(state[BombCourier.PS_FUSE])
 	if fuse < 0.0:
 		return _find_package(game, me)
 	return _deliver(players, me, fuse)
@@ -54,7 +55,7 @@ func _find_package(game: Dictionary, me: Vector2) -> Dictionary:
 	var best := Vector2.INF
 	var best_dist := INF
 	for entry: Array in game.get("pile", []):
-		var pos := Vector2(float(entry[1]), float(entry[2]))
+		var pos := Vector2(float(entry[BombCourier.PL_X]), float(entry[BombCourier.PL_Y]))
 		var dist := me.distance_squared_to(pos)
 		if dist < best_dist:
 			best_dist = dist
@@ -71,9 +72,9 @@ func _nearest_rival(players: Dictionary, me: Vector2) -> Vector2:
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() < 2:
+		if state.size() <= BombCourier.PS_Y:
 			continue
-		var pos := Vector2(float(state[0]), float(state[1]))
+		var pos := Vector2(float(state[BombCourier.PS_X]), float(state[BombCourier.PS_Y]))
 		var dist := me.distance_squared_to(pos)
 		if dist < best_dist:
 			best_dist = dist

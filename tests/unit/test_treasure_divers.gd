@@ -105,8 +105,12 @@ func test_snapshot_shape() -> void:
 	game.handle_input(0, {"dive": true})
 	game.tick(TICK)
 	var snapshot := game.get_snapshot()
-	assert_eq((snapshot.players[0] as Array).size(), 6, "[x, y, coins, diving, air, stun]")
-	assert_eq(snapshot.players[0][3], 1)
+	assert_eq(
+		(snapshot.players[0] as Array).size(),
+		TreasureDivers.PS_COUNT,
+		"[x, y, coins, diving, air, stun]"
+	)
+	assert_eq(snapshot.players[0][TreasureDivers.PS_DIVING], 1)
 	assert_eq(snapshot.players[1][3], 0)
 
 

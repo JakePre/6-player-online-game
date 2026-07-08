@@ -191,7 +191,7 @@ func _hold_reaction(slot: int) -> void:
 ## A visible slash fan in the attacker's facing so reach reads (#257).
 func _spawn_swing_arc(slot: int) -> void:
 	var state: Array = players.get(slot, [])
-	if state.size() < 8:
+	if state.size() < RumbleRing.PS_COUNT:
 		return
 	var mesh := TorusMesh.new()
 	mesh.inner_radius = RumbleRing.SWING_RANGE * 0.55
@@ -206,8 +206,12 @@ func _spawn_swing_arc(slot: int) -> void:
 	mesh.material = material
 	var node := MeshInstance3D.new()
 	node.mesh = mesh
-	node.position = to_arena(Vector2(float(state[0]), float(state[1])), 0.6)
-	node.rotation.y = atan2(float(state[6]), float(state[7]))
+	node.position = to_arena(
+		Vector2(float(state[RumbleRing.PS_X]), float(state[RumbleRing.PS_Y])), 0.6
+	)
+	node.rotation.y = atan2(
+		float(state[RumbleRing.PS_FACING_X]), float(state[RumbleRing.PS_FACING_Y])
+	)
 	node.scale = Vector3(1.0, 0.15, 1.0)
 	arena.add_child(node)
 	_swing_arcs[node] = Time.get_ticks_msec() + int(SWING_ARC_SEC * 1000.0)
@@ -224,9 +228,9 @@ func _expire_swing_arcs() -> void:
 ## Ground position of a slot's fighter from the latest snapshot (world units).
 func _event_ground(slot: int) -> Vector2:
 	var state: Array = players.get(slot, [])
-	if state.size() < 2:
+	if state.size() <= RumbleRing.PS_Y:
 		return Vector2.ZERO
-	return Vector2(float(state[0]), float(state[1]))
+	return Vector2(float(state[RumbleRing.PS_X]), float(state[RumbleRing.PS_Y]))
 
 
 ## The charged smash (M13-28, #263): a flat ring that bursts outward from the
@@ -266,15 +270,20 @@ func _update_players() -> void:
 			continue
 		if Time.get_ticks_msec() < int(_reaction_hold.get(slot, 0)):
 			# A hit/ko reaction owns the rig: move it, don't re-animate it.
-			rig.position = to_arena(Vector2(state[0], state[1]))
+			rig.position = to_arena(Vector2(state[RumbleRing.PS_X], state[RumbleRing.PS_Y]))
 		else:
-			update_rig(slot, Vector2(state[0], state[1]))
-		var invuln := float(state[5]) > 0.0
+			update_rig(slot, Vector2(state[RumbleRing.PS_X], state[RumbleRing.PS_Y]))
+		var invuln := float(state[RumbleRing.PS_INVULN]) > 0.0
 		rig.visible = true
 		rig.player_color = (
-			GUARD_TINT if int(state[4]) == 1 else PlayerPalette.color_for_slot(slot)
+			GUARD_TINT
+			if int(state[RumbleRing.PS_GUARDING]) == 1
+			else PlayerPalette.color_for_slot(slot)
 		)
-		var caption := "%s  ♥%d ⚔%d" % [player_name(slot), int(state[2]), int(state[3])]
+		var caption := (
+			"%s  ♥%d ⚔%d"
+			% [player_name(slot), int(state[RumbleRing.PS_HP]), int(state[RumbleRing.PS_POINTS])]
+		)
 		if invuln:
 			caption += "  ✨"
 		rig.display_name = caption
@@ -293,4 +302,4 @@ func _make_coin() -> Node3D:
 
 func _place_coin(node: Node3D, index: int) -> void:
 	var coin: Array = coins[index]
-	node.position = to_arena(Vector2(coin[0], coin[1]), 0.06)
+	node.position = to_arena(Vector2(coin[RumbleRing.CN_X], coin[RumbleRing.CN_Y]), 0.06)

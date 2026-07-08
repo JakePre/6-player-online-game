@@ -218,9 +218,9 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.radius, Gauntlet.START_RADIUS)
 	assert_eq(snapshot.players.size(), 2)
 	# #584 extended the per-player array with [swings_left, swing_seq, hit_seq].
-	assert_eq(snapshot.players[0].size(), 7)
+	assert_eq(snapshot.players[0].size(), Gauntlet.PS_COUNT)
 	assert_eq(snapshot.hazards.size(), 1)
-	assert_eq(snapshot.hazards[0].size(), 4)
+	assert_eq(snapshot.hazards[0].size(), Gauntlet.HZ_COUNT)
 	assert_has(snapshot, "shrink_in")
 	assert_has(snapshot, "weapons")
 

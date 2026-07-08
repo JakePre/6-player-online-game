@@ -33,6 +33,21 @@ const DASH_SEC := 0.18
 const DASH_COOLDOWN_SEC := 1.5
 const SWAP_RADIUS := 1.2
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_SCORE := 2
+const PS_FUSE := 3
+const PS_STAGGERED := 4
+const PS_COUNT := 5
+
+const PL_ID := 0
+const PL_X := 1
+const PL_Y := 2
+const PL_FUSE := 3
+const PL_COUNT := 4
+
 var positions := {}
 var move_dirs := {}
 var score := {}
