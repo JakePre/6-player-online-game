@@ -7,7 +7,8 @@ extends BotBrain
 ## from, and stay off the arena rim.
 ##
 ## Snapshot: {players: {slot: [x, y, graze_coins]}, bullets: [[x, y], ...],
-## out} (BulletWaltz). Input: {mx, my}.
+## out} (BulletWaltz). Input: {mx, my}. Indices named via BulletWaltz.BU_*
+## (#708).
 
 ## Only bullets within this radius steer us — the local threat, not the storm.
 const SENSE_RADIUS := 4.0
@@ -26,9 +27,9 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var steer := Vector2.ZERO
 	# Repel from each nearby bullet, weighted by how close it is.
 	for bullet: Array in game.get("bullets", []):
-		if bullet.size() < 2:
+		if bullet.size() <= BulletWaltz.BU_Y:
 			continue
-		var away := me - Vector2(float(bullet[0]), float(bullet[1]))
+		var away := me - Vector2(float(bullet[BulletWaltz.BU_X]), float(bullet[BulletWaltz.BU_Y]))
 		var distance := away.length()
 		if distance > SENSE_RADIUS or distance < 0.001:
 			continue

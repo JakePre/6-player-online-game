@@ -21,6 +21,16 @@ const MAX_FLOOR_BLOCKS := 6
 const STEAL_SEC := 1.2
 const BUMP_DROP_SHOVE := 1.5
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_CARRYING := 2
+const PS_COUNT := 3
+
+const BL_X := 0
+const BL_Y := 1
+
 var positions := {}
 var move_dirs := {}
 var carrying := {}

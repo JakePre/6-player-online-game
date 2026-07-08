@@ -146,7 +146,7 @@ func test_snapshot_shape_and_junk_input() -> void:
 	game.handle_input(99, {"act": true})
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.players.size(), 4)
-	assert_eq(snapshot.ball.size(), 3)
+	assert_eq(snapshot.ball.size(), BasketBrawl.BALL_COUNT)
 	assert_eq(snapshot.scores, [0, 0])
 	assert_eq(snapshot.hoops.size(), 2)
 	assert_eq(snapshot.teams.size(), 2)

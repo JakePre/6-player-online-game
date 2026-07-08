@@ -110,19 +110,20 @@ func _update_players() -> void:
 		var state: Array = players[slot]
 		if rig_for_slot(slot) == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		update_rig(slot, Vector2(state[BasketBrawl.PS_X], state[BasketBrawl.PS_Y]))
 
 
 func _update_ball() -> void:
-	if ball.size() < 3:
+	if ball.size() < BasketBrawl.BALL_COUNT:
 		return
-	var ball_holder := int(ball[2])
+	var ball_holder := int(ball[BasketBrawl.BALL_HOLDER])
 	var height := CARRY_HEIGHT if ball_holder >= 0 else BALL_RADIUS
-	_ball_node.position = to_arena(Vector2(float(ball[0]), float(ball[1])), height)
+	var ball_pos := Vector2(float(ball[BasketBrawl.BALL_X]), float(ball[BasketBrawl.BALL_Y]))
+	_ball_node.position = to_arena(ball_pos, height)
 	# Fumble dust (juice): the holder vanishing without a score change means
 	# the ball just popped loose. Seeded via _holder_seen/_scores_seen.
 	if _holder_seen >= 0 and ball_holder == -1 and scores == _scores_seen:
-		fx_dust(Vector2(float(ball[0]), float(ball[1])))
+		fx_dust(ball_pos)
 		# Signature cue (#728): heard by the player who got shoved off the
 		# ball — a `bump`, not a score/UI sound.
 		if _holder_seen == my_slot:
@@ -138,7 +139,9 @@ func _update_score() -> void:
 			if int(scores[team]) > int(_scores_seen[team]):
 				var hoop: Array = hoops[1 - team]
 				var color := player_color(int(teams[team][0])) if teams.size() == 2 else BALL_COLOR
-				fx_burst(Vector2(float(hoop[0]), float(hoop[1])), color)
+				fx_burst(
+					Vector2(float(hoop[BasketBrawl.HP_X]), float(hoop[BasketBrawl.HP_Y])), color
+				)
 				# Every dunk is heard from your own team's perspective (M12-02).
 				# Signature cue (#728): `bell` for a scored basket, matching
 				# docs/AUDIO_GUIDE.md's own worked example.

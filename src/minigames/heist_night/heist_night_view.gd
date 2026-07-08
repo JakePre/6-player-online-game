@@ -63,7 +63,7 @@ func _render(game: Dictionary) -> void:
 	# means a robbery in progress. First sighting seeds silently.
 	if _seen_snapshot:
 		for slot: int in vaults:
-			var total := int(vaults[slot][2])
+			var total := int(vaults[slot][HeistNight.VT_COINS])
 			var before := int(_totals_seen.get(slot, total))
 			if _totals_seen.has(slot) and total < before:
 				_pulses.append({"slot": slot, "age": 0.0})
@@ -79,7 +79,7 @@ func _render(game: Dictionary) -> void:
 	_seen_snapshot = true
 	_totals_seen = {}
 	for slot: int in vaults:
-		_totals_seen[slot] = int(vaults[slot][2])
+		_totals_seen[slot] = int(vaults[slot][HeistNight.VT_COINS])
 	queue_redraw()
 
 
@@ -120,7 +120,9 @@ func _draw() -> void:
 		if not vaults.has(pulse.slot):
 			continue
 		var vault_state: Array = vaults[pulse.slot]
-		var center := _to_px(Vector2(vault_state[0], vault_state[1]), px_per_unit)
+		var center := _to_px(
+			Vector2(vault_state[HeistNight.VT_X], vault_state[HeistNight.VT_Y]), px_per_unit
+		)
 		var progress: float = pulse.age / PULSE_DURATION
 		var ring_radius := HeistNight.VAULT_RADIUS * px_per_unit * (1.0 + progress)
 		var ring_color := Color(ALARM_COLOR, 1.0 - progress)
@@ -129,14 +131,14 @@ func _draw() -> void:
 	var font_size := get_theme_default_font_size()
 	for slot: int in vaults:
 		var state: Array = vaults[slot]
-		var pos := _to_px(Vector2(state[0], state[1]), px_per_unit)
+		var pos := _to_px(Vector2(state[HeistNight.VT_X], state[HeistNight.VT_Y]), px_per_unit)
 		# Vaults read as blueprint rooms: filled, double-outlined in the
 		# owner's color, coin total front and center.
 		var vault_radius := HeistNight.VAULT_RADIUS * px_per_unit
 		draw_circle(pos, vault_radius, VAULT_FILL)
 		draw_circle(pos, vault_radius, player_color(slot), false, 2.5)
 		draw_circle(pos, vault_radius * 0.82, BLUEPRINT_LINE, false, 1.0)
-		var label := "%s: %d" % [player_name(slot), int(state[2])]
+		var label := "%s: %d" % [player_name(slot), int(state[HeistNight.VT_COINS])]
 		# Vault totals must stay readable through the dark phase (#177): a
 		# black outline under every label, and darker palette colors lifted
 		# toward white while the lights are out.
@@ -163,12 +165,12 @@ func _draw() -> void:
 			label_color
 		)
 	for coin: Array in coins:
-		var coin_px := _to_px(Vector2(coin[0], coin[1]), px_per_unit)
+		var coin_px := _to_px(Vector2(coin[HeistNight.CN_X], coin[HeistNight.CN_Y]), px_per_unit)
 		draw_circle(coin_px, 0.34 * px_per_unit, COIN_COLOR)
 		draw_circle(coin_px, 0.34 * px_per_unit, Color(0.4, 0.3, 0.05), false, 1.5)
 	for slot: int in players:
 		var state: Array = players[slot]
-		var pos := _to_px(Vector2(state[0], state[1]), px_per_unit)
+		var pos := _to_px(Vector2(state[HeistNight.PS_X], state[HeistNight.PS_Y]), px_per_unit)
 		var color := player_color(slot)
 		# Players are radar blips: solid dot + halo ring.
 		draw_circle(pos, HeistNight.PLAYER_RADIUS * px_per_unit, color)
