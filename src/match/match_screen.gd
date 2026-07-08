@@ -135,6 +135,11 @@ func _on_match_event(event: Dictionary) -> void:
 			_totals.clear()
 			_rebuild_totals_row()
 		"round_intro":
+			# Rotate the round music from round 2 on (#711): round 1 keeps the
+			# loop the match mount started, later intros crossfade to the next
+			# loop in the pool so rounds stop all sharing one track.
+			if int(event.get("round", 1)) > 1:
+				AudioManager.advance_round_music()
 			# A wipe punctuates the move into each round (M16-07).
 			_play_transition_wipe()
 			_unmount_view()

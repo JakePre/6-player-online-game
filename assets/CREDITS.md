@@ -30,6 +30,12 @@ packs.
 | "Monkeys Spinning Monkeys" (menu music loop) | `assets/audio/incompetech/menu_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
 | "Pixel Peeker Polka - faster" (round music loop) | `assets/audio/incompetech/round_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
 | "Exhilarate" (finale music loop) | `assets/audio/incompetech/finale_loop.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
+| "Fluffing a Duck" (round music rotation, M20-01 #711) | `assets/audio/incompetech/round_loop_duck.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
+| "Run Amok" (round music rotation, M20-01 #711) | `assets/audio/incompetech/round_loop_amok.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
+| "Scheming Weasel (faster)" (round music rotation, M20-01 #711) | `assets/audio/incompetech/round_loop_weasel.mp3` | Kevin MacLeod (incompetech.com) | CC-BY 4.0 | https://incompetech.com |
+| Kenney Impact Sounds (10 gameplay OGGs, M20-01 #711 — renamed semantically; sources fingerprinted: hit=impactPunch_medium_000, hit_heavy=impactPunch_heavy_004, ko=impactMetal_heavy_004, thud=impactSoft_heavy_000, bump=impactSoft_medium_002, clang=impactMetal_medium_000, bell=impactBell_heavy_002, break_wood=impactPlank_medium_004, crack=impactGlass_light_001, shatter=impactGlass_heavy_001) | `assets/audio/kenney_impact_sounds/` | Kenney | CC0 1.0 | https://kenney.nl/assets/impact-sounds |
+| Kenney Digital Audio (8 gameplay OGGs, M20-01 #711 — renamed semantically; sources fingerprinted: jump=phaseJump1, dash=phaserUp4, zap=zap1, laser=laser4, alarm=lowThreeTone, powerup=powerUp7, powerdown=phaserDown1, pop=pepSound1) | `assets/audio/kenney_digital_audio/` | Kenney | CC0 1.0 | https://kenney.nl/assets/digital-audio |
+| Splash + explosion one-shots (M20-01 #711) — **original**, synthesized by the committed deterministic generator `scripts/synth_sfx.py` (fixed seed; re-running reproduces the files) | `assets/audio/party_rush_synth/*.wav` | Party Rush project | CC0 1.0 (original) | — |
 | Lilita One (display font, M16-01) | `assets/fonts/LilitaOne-Regular.ttf` | Juan Montoreano | OFL 1.1 (`assets/fonts/OFL-LilitaOne.txt`) | https://github.com/google/fonts/tree/main/ofl/lilitaone |
 | Nunito variable (body font, M16-01) | `assets/fonts/Nunito-Variable.ttf` | Vernon Adams, Cyreal, Jacques Le Bailly | OFL 1.1 (`assets/fonts/OFL-Nunito.txt`) | https://github.com/google/fonts/tree/main/ofl/nunito |
 
