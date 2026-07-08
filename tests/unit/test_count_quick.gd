@@ -115,7 +115,7 @@ func test_six_rounds_then_ranking_by_total() -> void:
 func test_snapshot_shape() -> void:
 	var game := _game_with(2)
 	var snapshot := game.get_snapshot()
-	assert_eq((snapshot.players[0] as Array).size(), 4, "[x, y, score, locked]")
+	assert_eq((snapshot.players[0] as Array).size(), CountQuick.PS_COUNT, "[x, y, score, locked]")
 	assert_eq(snapshot.round, 0)
 
 

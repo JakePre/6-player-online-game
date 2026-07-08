@@ -117,7 +117,10 @@ func _update_swarm() -> void:
 			var state: Array = swarm[i]
 			var t := _wiggle_ticks * TAU / 20.0 + i * 1.7
 			node.position = to_arena(
-				Vector2(state[0] + sin(t) * 0.12, state[1] + cos(t * 1.3) * 0.12),
+				Vector2(
+					state[CountQuick.SW_X] + sin(t) * 0.12,
+					state[CountQuick.SW_Y] + cos(t * 1.3) * 0.12
+				),
 				SWARM_RADIUS + absf(sin(t * 2.0)) * 0.15
 			)
 
@@ -129,8 +132,10 @@ func _update_pads() -> void:
 		if not pad.visible:
 			continue
 		var state: Array = pads[i]
-		pad.position = to_arena(Vector2(state[0], state[1]), PAD_DISC_HEIGHT / 2.0)
-		_pad_labels[i].text = str(int(state[2]))
+		pad.position = to_arena(
+			Vector2(state[CountQuick.PD_X], state[CountQuick.PD_Y]), PAD_DISC_HEIGHT / 2.0
+		)
+		_pad_labels[i].text = str(int(state[CountQuick.PD_VALUE]))
 
 
 func _update_players() -> void:
@@ -139,17 +144,17 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		var score := int(state[2])
+		update_rig(slot, Vector2(state[CountQuick.PS_X], state[CountQuick.PS_Y]))
+		var score := int(state[CountQuick.PS_SCORE])
 		var caption := "%s  %d" % [player_name(slot), score]
-		var locked_now := int(state[3]) == 1
+		var locked_now := int(state[CountQuick.PS_LOCKED]) == 1
 		if locked_now:
 			caption += "  [LOCKED]"
 		rig.display_name = caption
 		# Lock-in flash (M13-15): committing an answer sparkles in the
 		# player's color. Seeded via _locked_seen.
 		if _locked_seen.has(slot) and locked_now and not bool(_locked_seen[slot]):
-			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+			fx_sparkle(Vector2(state[CountQuick.PS_X], state[CountQuick.PS_Y]), player_color(slot))
 			if slot == my_slot:
 				play_sfx(&"click")
 		_locked_seen[slot] = locked_now

@@ -21,6 +21,21 @@ const SCORE_CORRECT := 1
 ## Answer pads sit on the arena diagonals at this distance.
 const PAD_DISTANCE := 6.0
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_SCORE := 2
+const PS_LOCKED := 3
+const PS_COUNT := 4
+
+const SW_X := 0
+const SW_Y := 1
+
+const PD_X := 0
+const PD_Y := 1
+const PD_VALUE := 2
+
 var positions := {}
 var move_dirs := {}
 var scores := {}

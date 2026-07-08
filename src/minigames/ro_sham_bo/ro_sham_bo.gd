@@ -24,6 +24,14 @@ const SUDDEN_DEATH_SEC := 2.5
 const REVEAL_SEC := 1.4
 const VOTE_BONUS_COINS := 5
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_ALIVE := 2
+const PS_THROWN := 3
+const PS_COUNT := 4
+
 var positions := {}
 var move_dirs := {}
 ## slot -> shape locked in this sub-round; absent = still deciding.

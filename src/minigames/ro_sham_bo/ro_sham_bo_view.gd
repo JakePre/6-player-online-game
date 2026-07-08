@@ -107,15 +107,15 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		var alive := int(state[2]) == 1
-		update_rig(slot, Vector2(state[0], state[1]))
+		var alive := int(state[RoShamBo.PS_ALIVE]) == 1
+		update_rig(slot, Vector2(state[RoShamBo.PS_X], state[RoShamBo.PS_Y]))
 		rig.visible = alive
 		var caption := player_name(slot)
 		if not alive:
 			caption += "  [OUT]"
 		elif phase == RoShamBo.Phase.REVEAL and throws.has(slot):
 			caption += "  " + SHAPE_NAMES[int(throws[slot])]
-		elif int(state[3]) == 1:
+		elif int(state[RoShamBo.PS_THROWN]) == 1:
 			caption += "  [LOCKED]"
 		rig.display_name = caption
 
@@ -147,7 +147,7 @@ func _handle_elimination_fx() -> void:
 		var group: Array = eliminated_order[i]
 		for slot: int in group:
 			var state: Array = players.get(slot, [0.0, 0.0, 0, 0])
-			fx_burst(Vector2(state[0], state[1]), Color(0.8, 0.2, 0.2))
+			fx_burst(Vector2(state[RoShamBo.PS_X], state[RoShamBo.PS_Y]), Color(0.8, 0.2, 0.2))
 		if my_slot in group:
 			play_sfx(&"error")
 		elif my_slot in players:
@@ -157,7 +157,7 @@ func _handle_elimination_fx() -> void:
 
 func _am_alive() -> bool:
 	var state: Array = players.get(my_slot, [0.0, 0.0, 1, 0])
-	return int(state[2]) == 1
+	return int(state[RoShamBo.PS_ALIVE]) == 1
 
 
 ## Currently-alive slots other than me, in a stable order for the vote cursor.
@@ -167,7 +167,7 @@ func _alive_candidates() -> Array:
 		if slot == my_slot:
 			continue
 		var state: Array = players[slot]
-		if int(state[2]) == 1:
+		if int(state[RoShamBo.PS_ALIVE]) == 1:
 			candidates.append(slot)
 	candidates.sort()
 	return candidates

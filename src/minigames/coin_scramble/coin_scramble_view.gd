@@ -84,21 +84,25 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
+		update_rig(slot, Vector2(state[CoinScramble.PS_X], state[CoinScramble.PS_Y]))
+		rig.display_name = "%s  %d" % [player_name(slot), int(state[CoinScramble.PS_COLLECTED])]
 		# Pickup sparkle (M13-02): the count ticking up flashes the collector.
 		# Bump scatter (#587): a bumped player's count drops (SPEC: the sim
 		# scatters 20% of their haul) — burst the coins outward from them for
 		# clarity + spectacle, distinct from the calm pickup sparkle.
-		var count := int(state[2])
+		var count := int(state[CoinScramble.PS_COLLECTED])
 		if _counts_seen.has(slot):
 			var before := int(_counts_seen[slot])
 			if count > before:
-				fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+				fx_sparkle(
+					Vector2(state[CoinScramble.PS_X], state[CoinScramble.PS_Y]), player_color(slot)
+				)
 				if slot == my_slot:
 					play_sfx(&"coin")
 			elif count < before:
-				fx_burst(Vector2(state[0], state[1]), player_color(slot))
+				fx_burst(
+					Vector2(state[CoinScramble.PS_X], state[CoinScramble.PS_Y]), player_color(slot)
+				)
 				# Signature cue (#728): a bump scatter, not an error/rejection —
 				# docs/AUDIO_GUIDE.md's `bump` meaning names this exact event.
 				if slot == my_slot:
@@ -114,13 +118,13 @@ func _update_coins() -> void:
 			var fresh := true
 			for old: Array in _coins_seen:
 				if (
-					absf(float(old[0]) - float(coin[0])) < 0.01
-					and absf(float(old[1]) - float(coin[1])) < 0.01
+					absf(float(old[CoinScramble.CO_X]) - float(coin[CoinScramble.CO_X])) < 0.01
+					and absf(float(old[CoinScramble.CO_Y]) - float(coin[CoinScramble.CO_Y])) < 0.01
 				):
 					fresh = false
 					break
 			if fresh:
-				fx_dust(Vector2(coin[0], coin[1]))
+				fx_dust(Vector2(coin[CoinScramble.CO_X], coin[CoinScramble.CO_Y]))
 	_coins_seen = coins.duplicate(true)
 	_coins_rendered_once = true
 	# Pooled (#709): reuse the disc nodes across snapshots, hiding surplus, so a
@@ -137,4 +141,4 @@ func _make_coin() -> Node3D:
 
 func _place_coin(node: Node3D, index: int) -> void:
 	var coin: Array = coins[index]
-	node.position = to_arena(Vector2(coin[0], coin[1]), COIN_HOVER)
+	node.position = to_arena(Vector2(coin[CoinScramble.CO_X], coin[CoinScramble.CO_Y]), COIN_HOVER)

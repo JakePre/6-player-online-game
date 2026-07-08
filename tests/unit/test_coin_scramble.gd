@@ -91,7 +91,7 @@ func test_snapshot_lists_players_and_coins() -> void:
 	assert_eq(snapshot.players.size(), 2)
 	assert_eq(snapshot.coins.size(), game.coins.size())
 	var entry: Array = snapshot.players[0]
-	assert_eq(entry.size(), 3, "x, y, collected count")
+	assert_eq(entry.size(), CoinScramble.PS_COUNT, "x, y, collected count")
 
 
 func test_max_players_raised_to_twelve() -> void:
