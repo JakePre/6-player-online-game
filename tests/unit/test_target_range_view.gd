@@ -125,5 +125,5 @@ func test_fire_shot_plays_a_cue_and_flashes() -> void:
 	watch_signals(view)
 	var before := _burst_count()
 	view._fire_shot()
-	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"click"], "a shot cue fires")
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"laser"], "a shot cue fires")
 	assert_gt(_burst_count(), before, "a muzzle flash bursts at the shooter")

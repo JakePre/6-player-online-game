@@ -87,7 +87,9 @@ func _render_3d(game: Dictionary) -> void:
 	_scores = game.get("scores", {})
 	_cooldown = float(game.get("cd", {}).get(my_slot, 0.0))
 	if int(_scores.get(my_slot, 0)) > previous:
-		play_sfx(&"coin")
+		# Signature cue (#728 Aim & targets batch): a bright target hit, not
+		# currency — matches the docs/AUDIO_GUIDE.md `bell` meaning exactly.
+		play_sfx(&"bell")
 	_update_targets(game.get("targets", []))
 	_update_crosshairs(game.get("aims", {}))
 	_update_rigs()
@@ -278,7 +280,8 @@ func _fire_shot() -> void:
 	var rig := rig_for_slot(my_slot)
 	if rig == null:
 		return
-	play_sfx(&"click")
+	# Signature cue (#728): the gallery gunshot, not a UI click.
+	play_sfx(&"laser")
 	fx_burst(Vector2(rig.position.x, rig.position.z), player_color(my_slot), 0.9)
 	var from := rig.position + Vector3(0.0, 0.9, 0.0)
 	var to := to_arena(_aim, CROSSHAIR_HEIGHT)

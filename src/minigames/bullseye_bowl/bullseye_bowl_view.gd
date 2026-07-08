@@ -128,6 +128,7 @@ func _render_3d(game: Dictionary) -> void:
 		(lane.target as Node3D).position.x = center_x + float(state[3])
 		var flight_t := float(state[2])
 		var ball: MeshInstance3D = lane.ball
+		var was_flying := ball.visible
 		ball.visible = flight_t >= 0.0
 		if ball.visible:
 			var z := lerpf(
@@ -148,16 +149,24 @@ func _render_3d(game: Dictionary) -> void:
 			)
 		var score := int(state[0])
 		var seen := int(_scores_seen.get(slot, score))
-		if score > seen:
+		var gained := score - seen
+		if gained > 0:
 			# Ring-hit flash (M13-14): a sparkle at the target scaled to the
-			# ring value - bullseyes burst, outers twinkle.
-			var gained := score - seen
+			# ring value - bullseyes burst, outers twinkle. Signature cues
+			# (#728): `bell` for the bullseye (docs/AUDIO_GUIDE.md calls out
+			# "basket, bullseye" by name), `hit` for a lesser ring.
 			var target_at := Vector2(center_x + float(state[3]), -BullseyeBowl.LANE_LENGTH / 2.0)
 			if gained >= BullseyeBowl.SCORE_BULLSEYE:
 				fx_burst(target_at, player_color(slot), 0.4)
 				request_shake(7.0)  # a bullseye just landed
+				if slot == my_slot:
+					play_sfx(&"bell")
 			else:
 				fx_sparkle(target_at, player_color(slot), 0.3)
-			if slot == my_slot:
-				play_sfx(&"coin")
+				if slot == my_slot:
+					play_sfx(&"hit")
+		elif was_flying and not ball.visible and slot == my_slot:
+			# The ball landed beyond every ring (gained == 0): a clean miss,
+			# previously silent.
+			play_sfx(&"error")
 		_scores_seen[slot] = score

@@ -123,6 +123,10 @@ func _update_ball() -> void:
 	# the ball just popped loose. Seeded via _holder_seen/_scores_seen.
 	if _holder_seen >= 0 and ball_holder == -1 and scores == _scores_seen:
 		fx_dust(Vector2(float(ball[0]), float(ball[1])))
+		# Signature cue (#728): heard by the player who got shoved off the
+		# ball — a `bump`, not a score/UI sound.
+		if _holder_seen == my_slot:
+			play_sfx(&"bump")
 	_holder_seen = ball_holder
 
 
@@ -136,8 +140,10 @@ func _update_score() -> void:
 				var color := player_color(int(teams[team][0])) if teams.size() == 2 else BALL_COLOR
 				fx_burst(Vector2(float(hoop[0]), float(hoop[1])), color)
 				# Every dunk is heard from your own team's perspective (M12-02).
+				# Signature cue (#728): `bell` for a scored basket, matching
+				# docs/AUDIO_GUIDE.md's own worked example.
 				if teams.size() == 2:
-					play_sfx(&"confirm" if my_slot in teams[team] else &"error")
+					play_sfx(&"bell" if my_slot in teams[team] else &"error")
 	_scores_seen = scores.duplicate()
 	if _score_label != null:
 		_score_label.text = "%d : %d" % [int(scores[0]), int(scores[1])]
