@@ -47,9 +47,14 @@ jobs:
     # sending inputs, at the balance pass's 2/4/6 target head counts. This is
     # the telemetry M12-01 consumes — the compressed jobs above are smoke
     # coverage whose all-tie placements carry no balance signal.
+    # 48 rounds per match (#730): at the old 12, the ~45-game catalog gathered
+    # ~1 observation per (game, players) cell every FOUR nights (~40 nights to
+    # a usable per-game sample). 48 real-duration rounds ≈ 55 min, so the job
+    # budget is 90 min and --timeout raises the bots' IN_MATCH deadline to
+    # match. Backfill: re-run this job via workflow_dispatch.
     name: Balance telemetry (${{ matrix.players }} bots, real durations)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -67,7 +72,8 @@ jobs:
         run: ./godot-bin --headless --import || true
       - name: Run balance playtest (${{ matrix.players }} players)
         run: |
-          python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 12 --balance \
+          python3 tests/soak/run_playtest.py --godot ./godot-bin --rounds 48 --balance \
+            --timeout 4800 \
             --players ${{ matrix.players }} \
             --telemetry-out balance-telemetry-${{ matrix.players }}.json
       - name: Upload balance telemetry (#560)
