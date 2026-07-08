@@ -59,9 +59,10 @@ func _render_3d(game: Dictionary) -> void:
 		request_shake(9.0)
 		_zap_arc(_zapped_seen, zapped)
 		# Personal read on the hand-off (M12-02): stuck with it stings, passing
-		# it off relieves.
+		# it off relieves. `zap` (#728, docs/AUDIO_GUIDE.md) is this game's own
+		# literal namesake in the vocabulary.
 		if zapped == my_slot:
-			play_sfx(&"error")
+			play_sfx(&"zap")
 		elif _zapped_seen == my_slot:
 			play_sfx(&"confirm")
 	_zapped_seen = zapped

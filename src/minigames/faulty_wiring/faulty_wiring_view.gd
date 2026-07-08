@@ -23,6 +23,8 @@ var _node_pylons: Array[MeshInstance3D] = []
 var _node_materials: Array[StandardMaterial3D] = []
 var _node_lights: Array[OmniLight3D] = []
 var _spark_seen: Array[int] = []
+## Per-node "already fully repaired" flag, for the completion cue (#728).
+var _fixed_seen: Array[bool] = []
 var _banner: Label
 var _role_label: Label
 
@@ -99,6 +101,7 @@ func _build_nodes() -> void:
 		_node_materials.append(material)
 		_node_lights.append(light)
 		_spark_seen.append(0)
+		_fixed_seen.append(false)
 
 
 ## A small lamp on every rig so players are visible pools of light moving in
@@ -169,8 +172,14 @@ func _update_nodes() -> void:
 			var at := Vector2(float(state[0]), float(state[1]))
 			fx_burst(at, Color(1.0, 0.85, 0.3), NODE_HEIGHT)
 			request_shake(5.0)
-			play_sfx(&"error")
+			# `zap` (#728, docs/AUDIO_GUIDE.md) names "live wire" as its own
+			# use case, replacing the generic UI `error`.
+			play_sfx(&"zap")
 		_spark_seen[i] = pulse
+		var fixed := progress >= 1.0
+		if fixed and not _fixed_seen[i]:
+			play_sfx(&"bell")
+		_fixed_seen[i] = fixed
 
 
 func _update_labels() -> void:

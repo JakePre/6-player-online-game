@@ -134,9 +134,11 @@ func _render(game: Dictionary) -> void:
 		for index: int in revealed:
 			if index not in _revealed_seen:
 				_springs.append({"index": index, "age": 0.0})
-				# The trapper hears their own trap work (M12-02).
+				# The trapper hears their own trap work (M12-02) — `clang` (#728,
+				# docs/AUDIO_GUIDE.md) reads as the mechanical snap, replacing
+				# the generic UI `confirm`.
 				if my_slot == trapper:
-					play_sfx(&"confirm")
+					play_sfx(&"clang")
 	_seen_snapshot = true
 	_revealed_seen = revealed.duplicate()
 	caught = game.get("caught", [])
