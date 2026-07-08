@@ -34,6 +34,28 @@ const ANCHOR_SEC := 5.0
 const ITEM_PICKUP_POINTS := 3.0
 const PUSH_DISTANCE := 0.35
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_POINTS := 2
+const PS_COUNT := 3
+
+const PL_X := 0
+const PL_Y := 1
+const PL_RADIUS := 2
+const PL_COUNT := 3
+
+const IT_X := 0
+const IT_Y := 1
+const IT_TYPE := 2
+const IT_COUNT := 3
+
+const ZN_X := 0
+const ZN_Y := 1
+const ZN_RADIUS := 2
+const ZN_COUNT := 3
+
 var positions := {}
 var move_dirs := {}
 var score_accum := {}

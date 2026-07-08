@@ -12,6 +12,7 @@ extends BotBrain
 ##
 ## Snapshot: {players: {slot: [x, y, faction]}, dim, half, grid?,
 ## grid_changes?}. Input: {mx, my} only (painting is walking, no button).
+## Indices named via ColorClash.PS_*/GC_* (#708).
 
 var _grid: Array = []
 var _dim := 0
@@ -21,10 +22,10 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 3:
+	if state.size() < ColorClash.PS_COUNT:
 		return {}
-	var me := Vector2(float(state[0]), float(state[1]))
-	var faction := int(state[2])
+	var me := Vector2(float(state[ColorClash.PS_X]), float(state[ColorClash.PS_Y]))
+	var faction := int(state[ColorClash.PS_FACTION])
 	var dim := int(game.get("dim", 0))
 	var half := float(game.get("half", 0.0))
 	if dim != _dim:
@@ -34,9 +35,9 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 		_grid = (game["grid"] as Array).duplicate()
 	elif game.has("grid_changes") and not _grid.is_empty():
 		for change: Array in game["grid_changes"]:
-			var index := int(change[0])
+			var index := int(change[ColorClash.GC_INDEX])
 			if index >= 0 and index < _grid.size():
-				_grid[index] = int(change[1])
+				_grid[index] = int(change[ColorClash.GC_OWNER])
 	if _grid.is_empty() or dim <= 0:
 		# No keyframe folded yet: wander so we're not a statue while waiting.
 		return move_toward_point(

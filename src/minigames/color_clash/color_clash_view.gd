@@ -130,9 +130,9 @@ func _render_3d(game: Dictionary) -> void:
 		grid = (game["grid"] as Array).duplicate()
 	elif game.has("grid_changes") and not grid.is_empty():
 		for change: Array in game["grid_changes"]:
-			var index := int(change[0])
+			var index := int(change[ColorClash.GC_INDEX])
 			if index >= 0 and index < grid.size():
-				grid[index] = int(change[1])
+				grid[index] = int(change[ColorClash.GC_OWNER])
 	teams = game.get("teams", [])
 	_counts = game.get("counts", {})
 	_pulse_ticks += 1
@@ -228,7 +228,7 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		update_rig(slot, Vector2(state[ColorClash.PS_X], state[ColorClash.PS_Y]))
 
 
 func _faction_color(faction: int) -> Color:
