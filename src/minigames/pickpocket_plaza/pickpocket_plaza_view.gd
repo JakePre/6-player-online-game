@@ -152,9 +152,11 @@ func _draw() -> void:
 	for slot_key: Variant in thieves:
 		var slot := int(slot_key)
 		var state: Array = thieves[slot_key]
-		var pos := _to_px(Vector2(float(state[0]), float(state[1])), px)
-		var stunned := int(state[2]) == 1
-		var suspect := int(state[3]) == 1
+		var pos := _to_px(
+			Vector2(float(state[PickpocketPlaza.TH_X]), float(state[PickpocketPlaza.TH_Y])), px
+		)
+		var stunned := int(state[PickpocketPlaza.TH_STUN]) == 1
+		var suspect := int(state[PickpocketPlaza.TH_SUSPECT]) == 1
 		var color := player_color(slot)
 		if stunned:
 			color = color.darkened(0.5)
@@ -231,4 +233,4 @@ func _to_px(world: Vector2, px_per_unit: float) -> Vector2:
 
 
 func _vec(pair: Array) -> Vector2:
-	return Vector2(float(pair[0]), float(pair[1]))
+	return Vector2(float(pair[PickpocketPlaza.CR_X]), float(pair[PickpocketPlaza.CR_Y]))

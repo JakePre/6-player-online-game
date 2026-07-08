@@ -4,7 +4,8 @@ extends BotBrain
 ## inside the closing ring, lunge at anything small enough to swallow, else
 ## graze the nearest dot. Priorities in that order — survival first, growth
 ## second. Snapshot: {players: {slot: [x, y, mass, lunging]}, dots: [[x,y],
-## ...], boundary}. Input: {mx, my} + {lunge: true}.
+## ...], boundary}. Input: {mx, my} + {lunge: true}. Indices named via
+## NomArena.PS_*/DT_* (#708).
 
 ## How far out a threat/prey is worth reacting to, scaled by the mass gap so
 ## a much bigger rival is noticed sooner than a marginal one.
@@ -16,10 +17,10 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 4:
+	if state.size() < NomArena.PS_COUNT:
 		return {}
-	var me := Vector2(float(state[0]), float(state[1]))
-	var mass := float(state[2])
+	var me := Vector2(float(state[NomArena.PS_X]), float(state[NomArena.PS_Y]))
+	var mass := float(state[NomArena.PS_MASS])
 	var threat := _nearest_by_size(players, me, mass, true)
 	if threat != Vector2.INF:
 		return move_away_from_point(me, threat)
@@ -47,9 +48,9 @@ func _nearest_by_size(players: Dictionary, me: Vector2, mass: float, want_threat
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() < 3:
+		if state.size() <= NomArena.PS_MASS:
 			continue
-		var other_mass := float(state[2])
+		var other_mass := float(state[NomArena.PS_MASS])
 		var qualifies := (
 			other_mass > mass * NomArena.EAT_RATIO
 			if want_threat
@@ -57,7 +58,7 @@ func _nearest_by_size(players: Dictionary, me: Vector2, mass: float, want_threat
 		)
 		if not qualifies:
 			continue
-		var pos := Vector2(float(state[0]), float(state[1]))
+		var pos := Vector2(float(state[NomArena.PS_X]), float(state[NomArena.PS_Y]))
 		var dist := me.distance_squared_to(pos)
 		if dist <= REACT_RANGE * REACT_RANGE and dist < best_dist:
 			best_dist = dist

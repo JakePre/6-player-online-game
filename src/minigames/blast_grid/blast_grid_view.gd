@@ -126,11 +126,11 @@ func _make_bomb() -> Node3D:
 func _place_bomb(node: Node3D, index: int) -> void:
 	var bomb: Array = _bombs[index]
 	# Pulses faster as the fuse shortens — the readable "about to blow" cue.
-	var urgency := clampf(1.0 - float(bomb[1]) / BlastGrid.BOMB_FUSE, 0.0, 1.0)
+	var urgency := clampf(1.0 - float(bomb[BlastGrid.BM_FUSE]) / BlastGrid.BOMB_FUSE, 0.0, 1.0)
 	var beat := 0.5 + 0.5 * sin(_ticks * (0.3 + urgency))
 	_bomb_materials[index].emission = FLAME_COLOR
 	_bomb_materials[index].emission_energy_multiplier = beat * (0.4 + urgency)
-	node.position = to_arena(_cell_pos(int(bomb[0])), BlastGrid.CELL_SIZE * 0.32)
+	node.position = to_arena(_cell_pos(int(bomb[BlastGrid.BM_CELL])), BlastGrid.CELL_SIZE * 0.32)
 
 
 ## Flame cells glow; a cell newly on fire pops a burst + shake (the detonation).
@@ -185,10 +185,12 @@ func _make_powerup() -> Node3D:
 
 func _place_powerup(node: Node3D, index: int) -> void:
 	var entry: Array = _powerups[index]
-	var color := RANGE_COLOR if int(entry[1]) == BlastGrid.Power.RANGE else BOMB_POWER_COLOR
+	var color := (
+		RANGE_COLOR if int(entry[BlastGrid.PW_KIND]) == BlastGrid.Power.RANGE else BOMB_POWER_COLOR
+	)
 	_power_materials[index].albedo_color = color
 	_power_materials[index].emission = color
-	node.position = to_arena(_cell_pos(int(entry[0])), 0.4)
+	node.position = to_arena(_cell_pos(int(entry[BlastGrid.PW_CELL])), 0.4)
 
 
 func _update_players() -> void:
@@ -206,8 +208,15 @@ func _update_players() -> void:
 		if not alive:
 			continue
 		var state: Array = players[slot]
-		update_rig(slot, Vector2(state[0], state[1]))
-		rig.display_name = "%s  ✚%d 💣%d" % [player_name(slot), int(state[2]), int(state[3])]
+		update_rig(slot, Vector2(state[BlastGrid.PS_X], state[BlastGrid.PS_Y]))
+		rig.display_name = (
+			"%s  ✚%d 💣%d"
+			% [
+				player_name(slot),
+				int(state[BlastGrid.PS_RANGE]),
+				int(state[BlastGrid.PS_MAX_BOMBS])
+			]
+		)
 
 
 func _cell_pos(cell: int) -> Vector2:

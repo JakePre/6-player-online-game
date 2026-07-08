@@ -28,6 +28,20 @@ const MAX_BOMBS := 5
 const SOFT_DENSITY := 0.55
 const POWERUP_CHANCE := 0.4
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_RANGE := 2
+const PS_MAX_BOMBS := 3
+const PS_COUNT := 4
+
+const BM_CELL := 0
+const BM_FUSE := 1
+
+const PW_CELL := 0
+const PW_KIND := 1
+
 var grid: Array[int] = []
 var positions := {}
 var move_dirs := {}

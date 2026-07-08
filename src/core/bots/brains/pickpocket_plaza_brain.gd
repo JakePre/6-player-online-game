@@ -13,7 +13,8 @@ extends BotBrain
 ##
 ## Snapshot: {crowd: [[x, y], ...], thieves: {slot: [x, y, stunned, suspect]},
 ## guard (slot), scores, alarm, time_left} (PickpocketPlaza). Guard private:
-## {role: "guard", body: <crowd index>}. Input: {mx, my, act}.
+## {role: "guard", body: <crowd index>}. Input: {mx, my, act}. Indices named
+## via PickpocketPlaza.CR_*/TH_* (#708).
 
 const ARREST_RANGE := PickpocketPlaza.ARREST_RADIUS
 
@@ -29,7 +30,9 @@ func _guard(game: Dictionary, body: int) -> Dictionary:
 	var crowd: Array = game.get("crowd", [])
 	if body < 0 or body >= crowd.size():
 		return {}
-	var me := Vector2(float(crowd[body][0]), float(crowd[body][1]))
+	var me := Vector2(
+		float(crowd[body][PickpocketPlaza.CR_X]), float(crowd[body][PickpocketPlaza.CR_Y])
+	)
 	var thieves: Dictionary = game.get("thieves", {})
 	# Close on the nearest arrestable suspect; trip the arrest once in range.
 	var suspect := _nearest_suspect(thieves, me)
@@ -45,13 +48,13 @@ func _guard(game: Dictionary, body: int) -> Dictionary:
 func _thief(game: Dictionary) -> Dictionary:
 	var thieves: Dictionary = game.get("thieves", {})
 	var me_state: Array = thieves.get(slot, [])
-	if me_state.size() < 4:
+	if me_state.size() < PickpocketPlaza.TH_COUNT:
 		return {}
-	if int(me_state[2]) == 1:
+	if int(me_state[PickpocketPlaza.TH_STUN]) == 1:
 		return {}  # stunned — frozen, nothing to do
-	var me := Vector2(float(me_state[0]), float(me_state[1]))
+	var me := Vector2(float(me_state[PickpocketPlaza.TH_X]), float(me_state[PickpocketPlaza.TH_Y]))
 	var crowd: Array = game.get("crowd", [])
-	if int(me_state[3]) == 1:
+	if int(me_state[PickpocketPlaza.TH_SUSPECT]) == 1:
 		# Arrestable: any body could be the guard, so break away from the
 		# nearest one and let the suspect window burn down.
 		var threat := _nearest_body(crowd, me)
@@ -67,9 +70,13 @@ func _nearest_suspect(thieves: Dictionary, from: Vector2) -> Vector2:
 	var best_distance := INF
 	for other: int in thieves:
 		var state: Array = thieves[other]
-		if state.size() < 4 or int(state[2]) == 1 or int(state[3]) == 0:
+		if (
+			state.size() < PickpocketPlaza.TH_COUNT
+			or int(state[PickpocketPlaza.TH_STUN]) == 1
+			or int(state[PickpocketPlaza.TH_SUSPECT]) == 0
+		):
 			continue
-		var pos := Vector2(float(state[0]), float(state[1]))
+		var pos := Vector2(float(state[PickpocketPlaza.TH_X]), float(state[PickpocketPlaza.TH_Y]))
 		var distance := from.distance_squared_to(pos)
 		if distance < best_distance:
 			best_distance = distance
@@ -83,9 +90,9 @@ func _nearest_thief(thieves: Dictionary, from: Vector2) -> Vector2:
 	var best_distance := INF
 	for other: int in thieves:
 		var state: Array = thieves[other]
-		if state.size() < 3 or int(state[2]) == 1:
+		if state.size() <= PickpocketPlaza.TH_STUN or int(state[PickpocketPlaza.TH_STUN]) == 1:
 			continue
-		var pos := Vector2(float(state[0]), float(state[1]))
+		var pos := Vector2(float(state[PickpocketPlaza.TH_X]), float(state[PickpocketPlaza.TH_Y]))
 		var distance := from.distance_squared_to(pos)
 		if distance < best_distance:
 			best_distance = distance
@@ -97,9 +104,9 @@ func _nearest_body(crowd: Array, from: Vector2) -> Vector2:
 	var best := Vector2.INF
 	var best_distance := INF
 	for body: Array in crowd:
-		if body.size() < 2:
+		if body.size() <= PickpocketPlaza.CR_Y:
 			continue
-		var pos := Vector2(float(body[0]), float(body[1]))
+		var pos := Vector2(float(body[PickpocketPlaza.CR_X]), float(body[PickpocketPlaza.CR_Y]))
 		var distance := from.distance_squared_to(pos)
 		if distance < best_distance:
 			best_distance = distance

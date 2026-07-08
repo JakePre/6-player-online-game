@@ -130,7 +130,9 @@ func _update_dots(dot_list: Array) -> void:
 		var node := _dot_pool[i]
 		if i < dot_list.size():
 			var dot: Array = dot_list[i]
-			node.position = to_arena(Vector2(float(dot[0]), float(dot[1])), 0.18)
+			node.position = to_arena(
+				Vector2(float(dot[NomArena.DT_X]), float(dot[NomArena.DT_Y])), 0.18
+			)
 			node.visible = true
 		else:
 			node.visible = false
@@ -138,9 +140,9 @@ func _update_dots(dot_list: Array) -> void:
 
 func _update_blob(slot: int) -> void:
 	var state: Array = players[slot]
-	var mass := float(state[2])
+	var mass := float(state[NomArena.PS_MASS])
 	var radius := sqrt(mass) * NomArena.RADIUS_K
-	var pos := Vector2(float(state[0]), float(state[1]))
+	var pos := Vector2(float(state[NomArena.PS_X]), float(state[NomArena.PS_Y]))
 	var blob: MeshInstance3D = _blobs[slot]
 	blob.position = to_arena(pos, DISC_HEIGHT * 0.5)
 	blob.scale = Vector3(radius, 1.0, radius)
@@ -157,7 +159,7 @@ func _update_blob(slot: int) -> void:
 			play_sfx(&"powerdown")
 	_mass_seen[slot] = mass
 	# Lunge onset sparkles.
-	var lunging := int(state[3]) == 1
+	var lunging := int(state[NomArena.PS_LUNGING]) == 1
 	if lunging and not bool(_lunge_seen.get(slot, false)):
 		fx_sparkle(pos, LUNGE_COLOR, 0.4)
 		# Signature cue (#728): heard only by the lunging player.

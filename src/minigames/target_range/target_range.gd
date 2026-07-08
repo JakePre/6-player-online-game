@@ -25,6 +25,18 @@ const HIT_GRACE := 0.15
 const END_SPEED_SCALE := 1.8
 const BASE_TARGETS := 3
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const TL_ID := 0
+const TL_X := 1
+const TL_Y := 2
+const TL_RADIUS := 3
+const TL_KIND := 4
+const TL_COUNT := 5
+
+const AM_X := 0
+const AM_Y := 1
+
 ## Kind -> {radius, value, speed, weight} (weights drive the spawn roll).
 const KIND_STATS := {
 	Kind.STANDARD: {"radius": 0.8, "value": 1, "speed": 2.2, "weight": 6},
