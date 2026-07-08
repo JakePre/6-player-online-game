@@ -189,6 +189,9 @@ func _burst_on_landings() -> void:
 			var at := Vector2(float(old[0]), float(old[1]))
 			fx_burst(at, IMPACT_BURST_COLOR)
 			fx_dust(at)
+			# Signature cue (#728, docs/AUDIO_GUIDE.md — Bombs & blasts): a
+			# heavy object landing — the vocabulary's literal meteor example.
+			play_sfx(&"thud")
 	_meteors_seen = meteors.duplicate(true)
 
 
@@ -222,5 +225,6 @@ func _shake_on_new_downs() -> void:
 		fallen_count += group.size()
 	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
 		request_shake(11.0)
-		play_sfx(&"error")
+		# The shared elimination cue, replacing the generic UI `error`.
+		play_sfx(&"ko")
 	_fallen_seen = fallen_count

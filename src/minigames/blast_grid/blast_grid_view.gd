@@ -31,6 +31,8 @@ var _powerups: Array = []
 var _flames_seen := {}
 ## Snapshot counter drives the fuse pulse without a local clock.
 var _ticks := 0
+## slot -> was alive last render, for the KO edge (#728).
+var _alive_seen := {}
 
 
 func _setup_3d() -> void:
@@ -79,6 +81,9 @@ func _update_blocks() -> void:
 		if node != null and kind != BlastGrid.Cell.SOLID and kind != BlastGrid.Cell.SOFT:
 			if kind == BlastGrid.Cell.EMPTY:
 				ArenaFX.dust(arena, to_arena(_cell_pos(cell), 0.3), SOFT_COLOR)
+				# Signature cue (#728, docs/AUDIO_GUIDE.md — Bombs & blasts): a
+				# soft wall giving way to a blast.
+				play_sfx(&"break_wood")
 			node.queue_free()
 			_blocks.erase(cell)
 		elif node == null and (kind == BlastGrid.Cell.SOLID or kind == BlastGrid.Cell.SOFT):
@@ -133,11 +138,17 @@ func _update_flames(flame_cells: Array) -> void:
 	var current := {}
 	for cell_v: Variant in flame_cells:
 		current[int(cell_v)] = true
+	var fresh := false
 	for cell: int in current:
 		if not _flames_seen.has(cell):
 			fx_burst(_cell_pos(cell), FLAME_COLOR, 0.6)
+			fresh = true
 	if current.size() > _flames_seen.size():
 		request_shake(4.0)
+	if fresh:
+		# One explosion per snapshot however many cells lit together (a chain
+		# detonation), matching the shared shake — avoids machine-gunning #728.
+		play_sfx(&"explosion")
 	_flames_seen = current
 	_flame_cells = flame_cells
 	sync_pool(_flame_nodes, flame_cells.size(), _make_flame, _place_flame)
@@ -187,6 +198,11 @@ func _update_players() -> void:
 			continue
 		var alive: bool = players.has(slot)
 		rig.visible = alive
+		# The shared elimination cue (#728) — down order = placement, terminal
+		# for the round.
+		if bool(_alive_seen.get(slot, true)) and not alive:
+			play_sfx(&"ko")
+		_alive_seen[slot] = alive
 		if not alive:
 			continue
 		var state: Array = players[slot]
