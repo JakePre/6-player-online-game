@@ -47,6 +47,8 @@ const EMOTE_REFILL_MS := 500.0
 ## (~67/s here — roughly double the real peak).
 const INPUT_BURST_MAX := 30.0
 const INPUT_REFILL_MS := 15.0
+## Rolling window size for the load-soak tick timer (#710).
+const TICK_SAMPLE_CAP := 600
 
 var is_server := false
 var room_manager: RoomManager
@@ -81,6 +83,11 @@ var _lag_queue: Array[Dictionary] = []
 var _snapshot_accum := 0.0
 var _server_tick := 0
 var _expiry_accum := 0.0
+## Server-tick wall-time samples (usec) for the multi-room load soak (#710),
+## a rolling window; p95/max printed every ~10 s under --debug-rpcs. Only the
+## broadcast frame is timed — that's the 30 Hz work (all rooms' sims + the
+## per-peer snapshot fan-out) that must fit the SNAPSHOT_INTERVAL budget.
+var _tick_samples: Array[int] = []
 ## Practice-bot input cadence (#577): brains keyed "code:slot" (M19, #684),
 ## pumped every BOT_INPUT_INTERVAL_SEC like a human client's send_match_input.
 ## Each entry is {"id": StringName, "brain": BotBrain}; the brain is rebuilt
@@ -659,9 +666,11 @@ func _rpc_emote(slot: int, emote: int) -> void:
 
 
 func _run_server_ticks(delta: float) -> void:
+	var started_us := Time.get_ticks_usec()
 	_tick_matches(delta)
 	_snapshot_accum += delta
-	if _snapshot_accum >= SNAPSHOT_INTERVAL:
+	var broadcast := _snapshot_accum >= SNAPSHOT_INTERVAL
+	if broadcast:
 		_snapshot_accum = fmod(_snapshot_accum, SNAPSHOT_INTERVAL)
 		_server_tick += 1
 		_broadcast_snapshots()
@@ -671,6 +680,42 @@ func _run_server_ticks(delta: float) -> void:
 		for code in room_manager.expire_rooms(Time.get_ticks_msec()):
 			match_controllers.erase(code)
 			print("[server] room %s expired" % code)
+	if broadcast and debug_rpcs_enabled:
+		_record_tick_time(Time.get_ticks_usec() - started_us)
+
+
+## Rolling server-tick timing for the load soak (#710). Prints p95/max/mean over
+## the window every ~10 s, tagged with the live room + member counts, so the
+## harness can chart the single-threaded tick cost against SNAPSHOT_INTERVAL as
+## rooms scale (the knee is where p95 approaches the 30 Hz budget).
+func _record_tick_time(elapsed_us: int) -> void:
+	_tick_samples.append(elapsed_us)
+	if _tick_samples.size() > TICK_SAMPLE_CAP:
+		_tick_samples.pop_front()
+	if _server_tick % (NetConfig.SNAPSHOT_HZ * 10) != 0:
+		return
+	var sorted := _tick_samples.duplicate()
+	sorted.sort()
+	var p95: int = sorted[mini(sorted.size() - 1, int(sorted.size() * 0.95))]
+	var total := 0
+	for sample: int in sorted:
+		total += sample
+	var members := 0
+	for room: Room in room_manager.rooms.values():
+		members += room.connected_count()
+	print(
+		(
+			"[server] tick_ms rooms=%d members=%d p95=%.2f max=%.2f mean=%.2f budget=%.2f"
+			% [
+				room_manager.rooms.size(),
+				members,
+				p95 / 1000.0,
+				sorted[-1] / 1000.0,
+				total / float(sorted.size()) / 1000.0,
+				SNAPSHOT_INTERVAL * 1000.0,
+			]
+		)
+	)
 
 
 func _tick_matches(delta: float) -> void:
