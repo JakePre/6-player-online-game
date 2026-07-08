@@ -159,17 +159,22 @@ func _play_event(event: Dictionary) -> void:
 		"hit":
 			rig.play(&"hit")
 			_hold_reaction(slot)
-			play_sfx(&"error")
+			# Signature cues (#728, docs/AUDIO_GUIDE.md — Brawlers): a landed jab
+			# is `hit`, replacing the generic UI `error`.
+			play_sfx(&"hit")
 			fx_sparkle(_event_ground(slot), Color(1.0, 0.8, 0.3), 0.8)
 		"ko":
 			rig.play(&"ko")
 			_hold_reaction(slot)
-			play_sfx(&"round_lose")
+			# The shared elimination cue, replacing the round-outcome stinger
+			# that used to stand in for a per-fighter KO.
+			play_sfx(&"ko")
 			fx_burst(_event_ground(slot), Color(1.0, 0.55, 0.2), 0.7)
 			request_shake(8.0)
 		"blocked":
-			# A guard held: spark off the block so a successful defence reads.
-			play_sfx(&"click")
+			# A guard held: `bump` (non-damaging contact) reads as a deflected
+			# hit better than the generic UI `click`.
+			play_sfx(&"bump")
 			fx_sparkle(_event_ground(slot), GUARD_TINT, 1.0)
 		"swing":
 			rig.play(&"interact")
@@ -179,7 +184,9 @@ func _play_event(event: Dictionary) -> void:
 			# swing matches that convention now.
 			play_sfx(&"click")
 		"smash":
-			play_sfx(&"confirm")
+			# The charged super: `hit_heavy` is the vocabulary's literal
+			# "charged smash, critical, big launch" entry.
+			play_sfx(&"hit_heavy")
 			_smash_shockwave(slot)
 			request_shake(10.0)
 

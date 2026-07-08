@@ -25,6 +25,9 @@ var sub_round := 0
 var _fx_layer: Control
 var _hud: Label
 var _alive_seen := {}
+## Last-seen shot count, for the fire edge (#728) — shots only grow between a
+## fire and its resolution, so a size increase is a fresh shot.
+var _shots_seen := 0
 var _seen_snapshot := false
 
 
@@ -72,6 +75,11 @@ func _render(game: Dictionary) -> void:
 	dais_states = game.get("daises", [])
 	phase = int(game.get("phase", LoadoutDuel.Phase.COUNTDOWN))
 	sub_round = int(game.get("sub_round", 0))
+	# Signature cue (#728, docs/AUDIO_GUIDE.md — Brawlers): any fresh shot
+	# (blaster, scatter, or a thrown boomer/hammer) reads as `laser`.
+	if _seen_snapshot and shots.size() > _shots_seen:
+		play_sfx(&"laser")
+	_shots_seen = shots.size()
 	render_side_scroll(players)
 	for slot: int in players:
 		_render_fighter(slot, players[slot])
@@ -90,12 +98,12 @@ func _render_fighter(slot: int, state: Array) -> void:
 	var flags := int(state[3])
 	var alive := flags & 1 > 0
 	rig.modulate = Color.WHITE if alive else KO_MODULATE
-	# KO edge: shake + a local KO sting, seeded so a rejoiner stays quiet.
+	# KO edge: shake + the shared elimination cue for everyone, seeded so a
+	# rejoiner stays quiet.
 	var was_alive: bool = _alive_seen.get(slot, true)
 	if _seen_snapshot and was_alive and not alive:
 		request_shake(7.0)
-		if slot == my_slot:
-			play_sfx(&"error")
+		play_sfx(&"ko")
 	_alive_seen[slot] = alive
 
 

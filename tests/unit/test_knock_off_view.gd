@@ -77,7 +77,7 @@ func test_ko_edge_shakes_and_stings_once_seeded() -> void:
 	assert_signal_not_emitted(view, "shake_requested", "seeding snapshot is calm")
 	view.render({"players": {0: _fighter(0.0, 0.5, 1, 0, 80, 0)}, "phase": KnockOff.Phase.FIGHT})
 	assert_signal_emitted(view, "shake_requested")
-	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"error"])
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"ko"])
 
 
 func test_hud_counts_the_survivors() -> void:
