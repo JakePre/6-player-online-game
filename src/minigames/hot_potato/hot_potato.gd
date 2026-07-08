@@ -19,6 +19,12 @@ const MAX_BLASTS := 3
 ## Hold times are compared snapped to this step so ties are meaningful.
 const HOLD_SNAP := 0.1
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_COUNT := 2
+
 var positions := {}
 var move_dirs := {}
 ## Seconds each slot has carried the bomb, accumulated per tick.

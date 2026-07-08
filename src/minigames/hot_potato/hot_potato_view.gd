@@ -105,7 +105,7 @@ func _render_3d(game: Dictionary) -> void:
 		for slot: int in players:
 			if slot not in alive and not _downed.has(slot):
 				var state: Array = players[slot]
-				var at := Vector2(state[0], state[1])
+				var at := Vector2(state[HotPotato.PS_X], state[HotPotato.PS_Y])
 				_spawn_blast(at)
 				# Debris + dust under the shockwave (M13-04).
 				fx_burst(at, BLAST_COLOR, 1.0)
@@ -120,14 +120,18 @@ func _render_3d(game: Dictionary) -> void:
 ## down - cadenced off snapshots so every client sees the same trail.
 func _trail_sparks() -> void:
 	var carrier_state: Array = players.get(carrier, [])
-	if carrier not in alive or carrier_state.size() < 2:
+	if carrier not in alive or carrier_state.size() < HotPotato.PS_COUNT:
 		return
 	_spark_left -= SNAPSHOT_INTERVAL
 	if _spark_left > 0.0:
 		return
 	var urgency := 1.0 - clampf(fuse / HotPotato.FUSE_MAX_SEC, 0.0, 1.0)
 	_spark_left = lerpf(0.6, 0.2, urgency)
-	fx_sparkle(Vector2(carrier_state[0], carrier_state[1]), BOMB_COLOR, BOMB_HEIGHT)
+	fx_sparkle(
+		Vector2(carrier_state[HotPotato.PS_X], carrier_state[HotPotato.PS_Y]),
+		BOMB_COLOR,
+		BOMB_HEIGHT
+	)
 
 
 ## Expanding, fading orange shockwave sphere at the blast spot.
@@ -158,13 +162,13 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		if slot in alive:
-			update_rig(slot, Vector2(state[0], state[1]))
+			update_rig(slot, Vector2(state[HotPotato.PS_X], state[HotPotato.PS_Y]))
 			var caption := player_name(slot)
 			if slot == carrier:
 				caption += "  %.1f" % fuse
 			rig.display_name = caption
 		else:
-			_down_rig(slot, rig, Vector2(state[0], state[1]))
+			_down_rig(slot, rig, Vector2(state[HotPotato.PS_X], state[HotPotato.PS_Y]))
 
 
 ## Eliminated players hold their last spot in the ko pose, dimmed gray; skip
@@ -181,7 +185,9 @@ func _down_rig(slot: int, rig: CharacterRig, world_pos: Vector2) -> void:
 
 func _update_bomb() -> void:
 	var carrier_state: Array = players.get(carrier, [])
-	_bomb_node.visible = carrier in alive and carrier_state.size() >= 2
+	_bomb_node.visible = carrier in alive and carrier_state.size() >= HotPotato.PS_COUNT
 	if not _bomb_node.visible:
 		return
-	_bomb_node.position = to_arena(Vector2(carrier_state[0], carrier_state[1]), BOMB_HEIGHT)
+	_bomb_node.position = to_arena(
+		Vector2(carrier_state[HotPotato.PS_X], carrier_state[HotPotato.PS_Y]), BOMB_HEIGHT
+	)

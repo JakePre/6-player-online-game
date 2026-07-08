@@ -246,7 +246,7 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		rig.visible = true
-		var pos := Vector2(state[0], state[1])
+		var pos := Vector2(state[ThinIce.PS_X], state[ThinIce.PS_Y])
 		_last_seen_pos[slot] = pos
 		update_rig(slot, pos)
 	for group: Array in fallen:

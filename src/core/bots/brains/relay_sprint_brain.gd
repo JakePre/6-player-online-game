@@ -10,6 +10,7 @@ extends BotBrain
 ##
 ## Snapshot: {lanes: {team_index: [team_slots, active_leg, progress, lateral,
 ## done]}, track_len, hazards: [[x, current_lateral], ...]}. Input: {mx, my}.
+## Indices named via RelaySprint.LN_*/HZ_* (#708).
 
 ## How far ahead (in progress units) an upcoming sweeper starts mattering.
 const LOOKAHEAD := 3.0
@@ -24,14 +25,14 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	if team_index == -1:
 		return {}
 	var lane: Array = lanes[team_index]
-	if bool(lane[4]):
+	if bool(lane[RelaySprint.LN_DONE]):
 		return {}  # team finished
-	var team_slots: Array = lane[0]
-	var active_leg := int(lane[1])
+	var team_slots: Array = lane[RelaySprint.LN_ROSTER]
+	var active_leg := int(lane[RelaySprint.LN_ACTIVE_LEG])
 	if active_leg < 0 or active_leg >= team_slots.size() or int(team_slots[active_leg]) != slot:
 		return {}  # benched: only the active runner's input matters
-	var progress := float(lane[2])
-	var lateral := float(lane[3])
+	var progress := float(lane[RelaySprint.LN_PROGRESS])
+	var lateral := float(lane[RelaySprint.LN_LATERAL])
 	# INF means "no imminent threat" — a sentinel float, not Variant/null, so
 	# the comparison below stays statically typed.
 	var threat_lateral := _imminent_threat(game.get("hazards", []), progress)
@@ -46,7 +47,7 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 func _find_team(lanes: Dictionary) -> int:
 	for team_index: Variant in lanes:
 		var lane: Array = lanes[team_index]
-		if slot in (lane[0] as Array):
+		if slot in (lane[RelaySprint.LN_ROSTER] as Array):
 			return int(team_index)
 	return -1
 
@@ -57,10 +58,10 @@ func _imminent_threat(hazards: Array, progress: float) -> float:
 	var best := INF
 	var best_dist := INF
 	for hazard: Array in hazards:
-		var dx := float(hazard[0]) - progress
+		var dx := float(hazard[RelaySprint.HZ_X]) - progress
 		if dx < -RelaySprint.HAZARD_RADIUS or dx > LOOKAHEAD:
 			continue
 		if dx < best_dist:
 			best_dist = dx
-			best = float(hazard[1])
+			best = float(hazard[RelaySprint.HZ_LATERAL])
 	return best

@@ -156,7 +156,7 @@ func test_snapshot_shape() -> void:
 	var game := _game()
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.lanes.size(), 3)
-	assert_eq(snapshot.lanes[0].size(), 5)
+	assert_eq(snapshot.lanes[0].size(), RelaySprint.LN_COUNT)
 	assert_eq(snapshot.track_len, RelaySprint.TRACK_LEN)
 	assert_eq(snapshot.hazards.size(), RelaySprint.HAZARD_POSITIONS.size())
 
@@ -192,4 +192,6 @@ func test_snapshot_shape_at_twelve_players() -> void:
 	var game := _game(player_slots)
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.lanes.size(), 6, "six lanes for six teams")
-	assert_eq(snapshot.lanes[0].size(), 5, "same per-lane shape as at six players")
+	assert_eq(
+		snapshot.lanes[0].size(), RelaySprint.LN_COUNT, "same per-lane shape as at six players"
+	)
