@@ -5,6 +5,16 @@ extends BotBrain
 ## before the fuse blows. Snapshot: {players: {slot: [x, y]}, carrier, fuse,
 ## alive: [slot, ...], holds: {slot: seconds}}. Input: {mx, my} only. Indices
 ## named via HotPotato.PS_* (#708).
+##
+## Wall-aware fleeing (#715): fleeing used to aim straight away from the
+## carrier with no regard for the arena edge, so a bot already near the
+## boundary — chased by a carrier 10% faster (CARRIER_SPEED_MULT) — could get
+## pinned in a corner with no escape vector. _flee_dir zeroes whichever axis
+## would drive further into a wall already at the boundary, so the bot slides
+## along it instead of pushing uselessly into it.
+
+## How close to the boundary counts as "against the wall".
+const WALL_MARGIN := 0.6
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -24,7 +34,28 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var carrier_pos := _pos_of(players, carrier)
 	if carrier_pos == Vector2.INF:
 		return {}
-	return move_away_from_point(me, carrier_pos)
+	var dir := _flee_dir(me, carrier_pos)
+	return {"mx": dir.x, "my": dir.y}
+
+
+## Direction away from the carrier, with wall-hugging axes zeroed so a bot
+## already pinned against the boundary slides along it instead of freezing
+## into the corner (#715).
+func _flee_dir(me: Vector2, carrier_pos: Vector2) -> Vector2:
+	var away := me - carrier_pos
+	var dir := Vector2.RIGHT if away.length() < 0.001 else away.normalized()
+	var bound := HotPotato.ARENA_HALF - WALL_MARGIN
+	if (dir.x > 0.0 and me.x >= bound) or (dir.x < 0.0 and me.x <= -bound):
+		dir.x = 0.0
+	if (dir.y > 0.0 and me.y >= bound) or (dir.y < 0.0 and me.y <= -bound):
+		dir.y = 0.0
+	if dir.length() < 0.001:
+		# Cornered on both axes: run perpendicular to the carrier bearing
+		# rather than freezing at (0, 0).
+		dir = Vector2(-away.y, away.x)
+		if dir.length() < 0.001:
+			dir = Vector2.RIGHT
+	return dir.normalized()
 
 
 ## Head straight for whoever's nearest — the carrier moves faster (#hot_potato

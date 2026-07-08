@@ -578,3 +578,85 @@ func test_turbo_lap_brain_uses_a_held_item_and_idles_when_finished() -> void:
 		brain.think(_play_state("turbo_lap", finished), {}).is_empty(),
 		"finished karts send nothing"
 	)
+
+
+func test_rumble_ring_brain_swings_when_ready_then_tracks_on_cooldown() -> void:
+	# #715: spamming "attack" every poll used to drop the movement/facing
+	# update for the whole cooldown window (rumble_ring.gd's _handle_input is
+	# an if/return chain) — a fresh brain still swings on first contact, but
+	# the very next poll (mid-cooldown) must track the rival instead of
+	# repeating a swing the sim would silently no-op.
+	var brain := BotBrains.brain_for(&"rumble_ring", 0, 1)
+	var game := {
+		"players": {0: [0.0, 0.0, 3, 0, 0, 0.0, 1.0, 0.0], 1: [1.0, 0.0, 3, 0, 0, 0.0, -1.0, 0.0]},
+		"coins": [],
+		"events": [],
+	}
+	var first := brain.think(_play_state("rumble_ring", game), {})
+	assert_true(first.get("attack", false), "fresh brain, in range, off cooldown -> swings")
+	var second := brain.think(_play_state("rumble_ring", game), {})
+	assert_false(second.get("attack", false), "still cooling down -> no repeat swing")
+	assert_gt(float(second.get("mx", 0.0)), 0.0, "keeps tracking the rival on cooldown polls")
+
+
+func test_nom_arena_brain_range_gates_and_cooldown_mirrors_the_lunge() -> void:
+	# #715: nom_arena.gd eats on plain proximity contact, so a lunge is only a
+	# LUNGE_MASS_COST-costing speed burst — firing from anywhere in
+	# REACT_RANGE (6.0) used to pay that cost long before the ~3.74u burst
+	# (LUNGE_SPEED * LUNGE_SEC) could possibly connect.
+	var in_reach := BotBrains.brain_for(&"nom_arena", 0, 1)
+	var near_game := {
+		"players": {0: [0.0, 0.0, 10.0, 0], 1: [3.0, 0.0, 5.0, 0]},
+		"dots": [],
+		"boundary": 12.0,
+	}
+	var near_intent := in_reach.think(_play_state("nom_arena", near_game), {})
+	assert_true(near_intent.get("lunge", false), "prey within the burst's real reach -> lunge")
+	assert_gt(float(near_intent.mx), 0.0, "still closes toward the prey")
+	# Same instance, same tick's cooldown: an immediate second lunge is denied
+	# by the local mirror even though the prey is still in range.
+	var repeat_intent := in_reach.think(_play_state("nom_arena", near_game), {})
+	assert_false(repeat_intent.get("lunge", false), "local cooldown mirror blocks a repeat lunge")
+
+	var out_of_reach := BotBrains.brain_for(&"nom_arena", 0, 2)
+	var far_game := {
+		"players": {0: [0.0, 0.0, 10.0, 0], 1: [5.0, 0.0, 5.0, 0]},
+		"dots": [],
+		"boundary": 12.0,
+	}
+	var far_intent := out_of_reach.think(_play_state("nom_arena", far_game), {})
+	assert_false(far_intent.get("lunge", false), "prey qualifies but is out of the burst's reach")
+	assert_gt(float(far_intent.mx), 0.0, "keeps closing the distance instead")
+
+
+func test_hot_potato_brain_flees_directly_then_slides_along_a_wall() -> void:
+	# #715: fleeing used to aim straight away from the carrier with no regard
+	# for the arena edge, so a bot already pinned at the boundary (chased by
+	# a 10%-faster carrier) could get cornered with no legal escape vector.
+	var in_open := BotBrains.brain_for(&"hot_potato", 0, 1)
+	var open_game := {
+		"players": {0: [0.0, 0.0], 1: [-3.0, 0.0]},
+		"carrier": 1,
+		"fuse": 5.0,
+		"alive": [0, 1],
+		"holds": {},
+	}
+	var open_intent := in_open.think(_play_state("hot_potato", open_game), {})
+	assert_almost_eq(float(open_intent.mx), 1.0, 0.01, "flees directly away from the carrier")
+	assert_almost_eq(float(open_intent.my), 0.0, 0.01)
+
+	var cornered := BotBrains.brain_for(&"hot_potato", 0, 2)
+	var corner_game := {
+		"players": {0: [8.5, 0.0], 1: [0.0, 0.0]},  # me pinned on the +x wall
+		"carrier": 1,
+		"fuse": 5.0,
+		"alive": [0, 1],
+		"holds": {},
+	}
+	var corner_intent := cornered.think(_play_state("hot_potato", corner_game), {})
+	assert_almost_eq(
+		float(corner_intent.get("mx", 0.0)), 0.0, 0.05, "the wall-hugging axis is zeroed"
+	)
+	assert_gt(
+		absf(float(corner_intent.get("my", 0.0))), 0.9, "slides tangentially instead of freezing"
+	)
