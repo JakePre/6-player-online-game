@@ -113,7 +113,7 @@ func test_snapshot_shape() -> void:
 	game.bullets.append({"pos": Vector2(1.0, 2.0), "vel": Vector2.RIGHT})
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.players.size(), 2)
-	assert_eq(snapshot.players[0].size(), 3)
+	assert_eq(snapshot.players[0].size(), BulletWaltz.PS_COUNT)
 	assert_eq(snapshot.bullets, [[1.0, 2.0]])
 	assert_eq(snapshot.out, [])
 

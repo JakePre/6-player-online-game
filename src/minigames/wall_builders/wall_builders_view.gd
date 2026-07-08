@@ -86,7 +86,10 @@ func _render_3d(game: Dictionary) -> void:
 		var node := _floor_pool[i]
 		if i < blocks.size():
 			var block: Array = blocks[i]
-			node.position = to_arena(Vector2(float(block[0]), float(block[1])), BLOCK_SIZE / 2.0)
+			node.position = to_arena(
+				Vector2(float(block[WallBuilders.BL_X]), float(block[WallBuilders.BL_Y])),
+				BLOCK_SIZE / 2.0
+			)
 			node.visible = true
 		else:
 			node.visible = false
@@ -106,13 +109,15 @@ func _render_3d(game: Dictionary) -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		var carrying := int(state[2]) == 1
+		update_rig(slot, Vector2(state[WallBuilders.PS_X], state[WallBuilders.PS_Y]))
+		var carrying := int(state[WallBuilders.PS_CARRYING]) == 1
 		var marker: MeshInstance3D = _carry_markers.get(slot)
 		if marker != null:
 			marker.visible = carrying
 			if carrying:
-				marker.position = to_arena(Vector2(state[0], state[1]), 2.4)
+				marker.position = to_arena(
+					Vector2(state[WallBuilders.PS_X], state[WallBuilders.PS_Y]), 2.4
+				)
 		rig.display_name = player_name(slot) + ("  🧱" if carrying else "")
 		if slot == my_slot and carrying and not bool(_carrying_seen.get(slot, false)):
 			# Picking up a floor block isn't currency (#728).

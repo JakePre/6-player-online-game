@@ -25,6 +25,21 @@ const SHOVE_COOLDOWN_SEC := 1.5
 ## otherwise the passer instantly re-grabs their own ball.
 const NO_CATCH_SEC := 0.25
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_HAS_BALL := 2
+const PS_COUNT := 3
+
+const BALL_X := 0
+const BALL_Y := 1
+const BALL_HOLDER := 2
+const BALL_COUNT := 3
+
+const HP_X := 0
+const HP_Y := 1
+
 var positions := {}
 var move_dirs := {}
 var shove_cooldowns := {}

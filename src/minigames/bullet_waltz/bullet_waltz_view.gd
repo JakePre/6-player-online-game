@@ -112,7 +112,7 @@ func _render_3d(game: Dictionary) -> void:
 		var node := _bullet_pool[i]
 		if i < bullets.size():
 			var bullet: Array = bullets[i]
-			var xz := Vector2(float(bullet[0]), float(bullet[1]))
+			var xz := Vector2(float(bullet[BulletWaltz.BU_X]), float(bullet[BulletWaltz.BU_Y]))
 			node.position = to_arena(xz, BULLET_HEIGHT)
 			node.visible = true
 			_streak_bullet(node, xz)
@@ -141,8 +141,8 @@ func _render_3d(game: Dictionary) -> void:
 			continue
 		rig.visible = true
 		var state: Array = players[slot]
-		update_rig(slot, Vector2(state[0], state[1]))
-		var grazes := int(state[2])
+		update_rig(slot, Vector2(state[BulletWaltz.PS_X], state[BulletWaltz.PS_Y]))
+		var grazes := int(state[BulletWaltz.PS_GRAZE])
 		# Graze shimmer: a spark when a bullet skims past for a fresh graze.
 		if grazes > int(_last_grazes.get(slot, 0)):
 			fx_sparkle(Vector2(rig.position.x, rig.position.z), GRAZE_COLOR, 1.0)

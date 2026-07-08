@@ -19,6 +19,20 @@ const DARK_SEC := 5.0
 ## One coin moves per this much continuous vault contact in the dark.
 const STEAL_SEC_PER_COIN := 0.5
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_COUNT := 2
+
+const VT_X := 0
+const VT_Y := 1
+const VT_COINS := 2
+const VT_COUNT := 3
+
+const CN_X := 0
+const CN_Y := 1
+
 var positions := {}
 var move_dirs := {}
 var vault_pos := {}

@@ -7,21 +7,22 @@ extends BotBrain
 ##
 ## Snapshot: {players: {slot: [x, y, carrying]}, blocks: [[x, y], ...],
 ## walls: [team0_height, team1_height], wall_x, teams: [[slot, ...],
-## [slot, ...]]} (WallBuilders). Input: {mx, my}.
+## [slot, ...]]} (WallBuilders). Input: {mx, my}. Indices named via
+## WallBuilders.PS_* (#708).
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var me_state: Array = players.get(slot, [])
-	if me_state.size() < 3:
+	if me_state.size() < WallBuilders.PS_COUNT:
 		return {}
-	var me := Vector2(float(me_state[0]), float(me_state[1]))
+	var me := Vector2(float(me_state[WallBuilders.PS_X]), float(me_state[WallBuilders.PS_Y]))
 	var teams: Array = game.get("teams", [])
 	var my_team := _team_of(slot, teams)
 	if my_team == -1:
 		return {}
-	if int(me_state[2]) == 1:
+	if int(me_state[WallBuilders.PS_CARRYING]) == 1:
 		return move_toward_point(me, _wall_pos(my_team, game), 0.4)
 	var block := nearest_point(me, game.get("blocks", []))
 	if block != Vector2.INF:

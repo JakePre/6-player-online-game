@@ -28,6 +28,16 @@ const BULLET_SPEED_MAX := 7.5
 const SPIRAL_ARMS := 4
 const RING_BULLETS := 10
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_GRAZE := 2
+const PS_COUNT := 3
+
+const BU_X := 0
+const BU_Y := 1
+
 var positions := {}
 var move_dirs := {}
 ## Active bullets, each {pos: Vector2, vel: Vector2}.
