@@ -197,7 +197,8 @@ func _render_kart(slot: int, state: Array) -> void:
 		fx_burst(world, OIL_COLOR, 0.6)
 		request_shake(5.0)
 		if slot == my_slot:
-			play_sfx(&"error")
+			# An oil-slick spin-out is a stagger debuff (#728).
+			play_sfx(&"powerdown")
 	_spin_seen[slot] = spinning
 	if bits & 2 > 0:
 		fx_dust(world)
@@ -205,7 +206,8 @@ func _render_kart(slot: int, state: Array) -> void:
 	if finished and not _finish_seen.get(slot, false) and _seen_snapshot:
 		fx_sparkle(world, START_COLOR, 1.0)
 		if slot == my_slot:
-			play_sfx(&"confirm")
+			# Crossing the line is a checkpoint (#728).
+			play_sfx(&"bell")
 	_finish_seen[slot] = finished
 	_label_kart(slot, rig, int(state[3]), finished)
 

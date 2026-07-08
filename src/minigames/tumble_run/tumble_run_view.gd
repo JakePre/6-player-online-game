@@ -24,6 +24,8 @@ var _hud: Label
 ## kept only for those that actually crumble (rest are static base platforms).
 var _crumble_nodes := {}
 var _summit_seen := {}
+## slot -> was stunned last render, for the boulder-hit cue (#728).
+var _stun_seen := {}
 var _seen_snapshot := false
 
 
@@ -137,8 +139,13 @@ func _render_climber(slot: int, state: Array) -> void:
 	if _seen_snapshot and summited and not _summit_seen.get(slot, false):
 		request_shake(5.0)
 		if slot == my_slot:
-			play_sfx(&"confirm")
+			# The reach-the-top checkpoint (#728), replacing generic UI confirm.
+			play_sfx(&"bell")
 	_summit_seen[slot] = summited
+	# Boulder-hit edge: `thud`'s vocabulary entry names "boulder" directly.
+	if _seen_snapshot and stunned and not _stun_seen.get(slot, false) and slot == my_slot:
+		play_sfx(&"thud")
+	_stun_seen[slot] = stunned
 
 
 func _update_hud() -> void:

@@ -84,7 +84,7 @@ func test_summit_edge_chimes_once_seeded() -> void:
 	var topped := base.duplicate()
 	topped["players"] = {0: _climber(0.0, TumbleRun.GOAL_HEIGHT, 1, 2)}
 	view.render(topped)
-	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"confirm"])
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"bell"])
 
 
 func test_render_tracks_boulders_and_leader_hud() -> void:
