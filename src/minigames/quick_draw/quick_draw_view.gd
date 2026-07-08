@@ -97,7 +97,8 @@ func _fire_transition_fx() -> void:
 ## moment the whole game hinges on.
 func _draw_flash() -> void:
 	_lamp_flare_until = _now() + LAMP_FLARE_SEC
-	play_sfx(&"confirm")
+	# Signature cue (#728): the go-signal snap, not a UI accept.
+	play_sfx(&"laser")
 	request_shake(9.0)
 	if _flash_rect != null:
 		_flash_rect.color = Color(0.7, 1.0, 0.75, 0.55)
@@ -112,7 +113,12 @@ func _resolve_fx() -> void:
 		return
 	_fanfare_round = _round
 	if _winner != -1:
-		play_sfx(&"round_win")
+		# `round_win`/`round_lose` are chrome's per-match-round stingers
+		# (docs/AUDIO_GUIDE.md) — a duel here is a sub-round inside one
+		# minigame session, so reusing them would double-fire the same jingle
+		# for a different meaning (the #591 collision class). `bell` is this
+		# batch's bright-positive signature cue instead.
+		play_sfx(&"bell")
 		var rig := rig_for_slot(_winner)
 		if rig != null:
 			_confetti_burst(rig.position)

@@ -74,6 +74,34 @@ func test_round_over_winner_cheers_and_tallies() -> void:
 	assert_string_contains(view.get_node("SignalLabel").text, "Alice wins")
 
 
+## Signature cues (#728): the go signal fires `laser`, and a duel win fires
+## `bell` — never the shared round_win/round_lose, which are chrome's
+## per-match-round stingers, not this per-duel sub-round's (the #591 class of
+## meaning collision).
+func test_go_signal_plays_laser() -> void:
+	watch_signals(view)
+	view.render({"phase": QuickDraw.Phase.WAITING, "round": 0, "wins": {0: 0, 1: 0}})
+	view.render({"phase": QuickDraw.Phase.LIVE, "round": 0, "wins": {0: 0, 1: 0}})
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"laser"], "the go signal")
+
+
+func test_duel_winner_plays_bell_not_the_shared_round_jingle() -> void:
+	watch_signals(view)
+	view.render(
+		{
+			"phase": QuickDraw.Phase.ROUND_OVER,
+			"round": 1,
+			"wins": {0: 2, 1: 0},
+			"false_started": {},
+			"winner": 0
+		}
+	)
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"bell"], "a duel win")
+	assert_signal_emit_count(
+		view, "sfx_requested", 1, "only the bell cue fires — not also the shared round_win jingle"
+	)
+
+
 func test_next_round_returns_everyone_to_idle() -> void:
 	view.render(
 		{

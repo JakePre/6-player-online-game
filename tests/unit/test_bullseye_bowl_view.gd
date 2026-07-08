@@ -69,6 +69,26 @@ func test_bullseye_jump_shakes_once() -> void:
 	assert_signal_emitted(view, "shake_requested", "a bullseye rattles the screen")
 
 
+## Signature cues (#728): bell for a bullseye, hit for a lesser ring, both
+## heard only by the roller (slot 0 is my_slot per before_each's setup call).
+func test_bullseye_plays_bell_and_outer_ring_plays_hit() -> void:
+	watch_signals(view)
+	view.render({"players": {0: [0, 8, -1.0, 0.0]}})
+	view.render({"players": {0: [1, 7, -1.0, 0.0]}})
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"hit"], "an outer point")
+	view.render({"players": {0: [6, 6, -1.0, 0.0]}})
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"bell"], "a bullseye")
+
+
+## A roll that lands beyond every ring (no score change) used to be silent.
+func test_a_clean_miss_plays_error() -> void:
+	watch_signals(view)
+	view.render({"players": {0: [0, 8, 0.5, 0.0]}})  # mid-flight
+	assert_signal_not_emitted(view, "sfx_requested", "still airborne, nothing to hear yet")
+	view.render({"players": {0: [0, 7, -1.0, 0.0]}})  # landed, same score
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"error"], "a clean miss")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)

@@ -84,3 +84,37 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.scores, [0, 0])
+
+
+## Signature cues (#728): a dunk is heard from your own team's perspective —
+## `bell` (docs/AUDIO_GUIDE.md's own worked example) for your team scoring,
+## `error` for the opposing team (slot 0 is my_slot, team 0, per before_each).
+func test_own_team_dunk_plays_bell_enemy_dunk_plays_error() -> void:
+	var base := {
+		"players": {},
+		"ball": [0.0, 0.0, -1],
+		"teams": [[0, 1], [2, 3]],
+		"hoops": [[-8.0, 0.0], [8.0, 0.0]],
+	}
+	watch_signals(view)
+	var seed := base.duplicate()
+	seed["scores"] = [0, 0]
+	view.render(seed)
+	var own_score := base.duplicate()
+	own_score["scores"] = [1, 0]
+	view.render(own_score)
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"bell"], "my team scored")
+	var enemy_score := base.duplicate()
+	enemy_score["scores"] = [1, 1]
+	view.render(enemy_score)
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"error"], "the enemy scored")
+
+
+## A shove popping the ball loose is heard by whoever lost it.
+func test_fumble_plays_bump_for_the_player_who_lost_the_ball() -> void:
+	watch_signals(view)
+	view.render({"players": {}, "ball": [0.0, 0.0, 0], "scores": [0, 0], "teams": [[0, 1], [2, 3]]})
+	view.render(
+		{"players": {}, "ball": [0.0, 0.0, -1], "scores": [0, 0], "teams": [[0, 1], [2, 3]]}
+	)
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"bump"], "my ball popped loose")
