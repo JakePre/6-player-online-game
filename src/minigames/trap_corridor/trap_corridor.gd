@@ -28,6 +28,12 @@ const TRAP_BUDGET := 6
 const CATCH_POINTS := 3
 const FINISH_POINTS: Array[int] = [3, 2, 1]
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array the view and brain read. Array SHAPE on the wire is unchanged.
+const PS_X := 0
+const PS_Y := 1
+const PS_COUNT := 2
+
 var phase := Phase.TRAPPING
 var phase_left := TRAP_PHASE_SEC
 ## Index into slots: whose turn it is to trap this sub-round.

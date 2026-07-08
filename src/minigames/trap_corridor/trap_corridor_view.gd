@@ -190,9 +190,9 @@ func _draw() -> void:
 		var pos := (
 			rect.position
 			+ Vector2(
-				float(state[0]) * px_per_unit,
+				float(state[TrapCorridor.PS_X]) * px_per_unit,
 				(
-					(float(state[1]) + TrapCorridor.CORRIDOR_HALF_WIDTH)
+					(float(state[TrapCorridor.PS_Y]) + TrapCorridor.CORRIDOR_HALF_WIDTH)
 					* rect.size.y
 					/ (TrapCorridor.CORRIDOR_HALF_WIDTH * 2.0)
 				)
