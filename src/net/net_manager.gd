@@ -804,25 +804,37 @@ static func snapshot_state_reaches_client(state: int) -> bool:
 	return state in CLIENT_CONSUMED_STATES
 
 
+## The M1-05 fake-lag/loss soak forces a room to IN_MATCH via a debug RPC
+## without ever starting a real match (no MatchController), purely to exercise
+## the snapshot RPC transport under adverse network conditions. That state is
+## reachable only on a --debug-rpcs server (a real IN_MATCH room always has a
+## controller; production never enables debug RPCs), so honouring it as a
+## header-only heartbeat keeps that required check measuring a live stream at
+## zero production cost.
+func _is_debug_heartbeat_room(room: Room, controller: MatchController) -> bool:
+	return debug_rpcs_enabled and controller == null and room.state == Room.State.IN_MATCH
+
+
 func _broadcast_snapshots() -> void:
 	for room: Room in room_manager.rooms.values():
 		var controller: MatchController = match_controllers.get(room.code)
-		# Idle / chrome states: the client discards the snapshot, so skip the
-		# whole room's fan-out and save the RPCs (#765).
-		if controller == null or not snapshot_state_reaches_client(controller.state):
+		var payload := {"tick": _server_tick, "server_ms": Time.get_ticks_msec()}
+		if controller != null and snapshot_state_reaches_client(controller.state):
+			payload["match"] = controller.get_snapshot()
+		elif not _is_debug_heartbeat_room(room, controller):
+			# Idle / chrome states: the client discards the snapshot, so skip the
+			# whole room's fan-out and save the RPCs (#765).
 			continue
-		var payload := {
-			"tick": _server_tick,
-			"server_ms": Time.get_ticks_msec(),
-			"match": controller.get_snapshot(),
-		}
 		for member: RoomMember in room.members:
 			if not _is_rpc_target(member):
 				continue
 			# Hidden-role data is computed per recipient so a player's secret
 			# role never reaches another player's client (#254). Games with no
-			# private state send the shared payload unchanged.
-			var private: Dictionary = controller.private_snapshot_for(member.slot)
+			# private state (and the controller-less heartbeat room) send the
+			# shared payload unchanged.
+			var private: Dictionary = (
+				{} if controller == null else controller.private_snapshot_for(member.slot)
+			)
 			if private.is_empty():
 				_rpc_snapshot.rpc_id(member.peer_id, payload)
 			else:
