@@ -8,7 +8,8 @@ extends BotBrain
 ##
 ## Snapshot: {players: {slot: [x, y, flags]} (bit0 carrying, bit1 staggered,
 ## bit2 shove-windup), cart, teams: [[slot,...], [slot,...]], ores: [[id,x,y],
-## ...]}. Input: {mx, my} + {"shove": true}.
+## ...]}. Input: {mx, my} + {"shove": true}. Indices named via
+## CartPush.PS_*/OR_* (#708).
 
 const FLAG_CARRYING := 1
 const FLAG_STAGGERED := 2
@@ -21,12 +22,12 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 3:
+	if state.size() < CartPush.PS_COUNT:
 		return {}
-	var flags := int(state[2])
+	var flags := int(state[CartPush.PS_FLAGS])
 	if flags & FLAG_STAGGERED:
 		return {}
-	var me := Vector2(float(state[0]), float(state[1]))
+	var me := Vector2(float(state[CartPush.PS_X]), float(state[CartPush.PS_Y]))
 	var teams: Array = game.get("teams", [])
 	var team_index := _team_of(teams)
 	if team_index == -1:
@@ -66,7 +67,7 @@ func _nearest_ore(ores: Array, me: Vector2) -> Vector2:
 	var best := Vector2.INF
 	var best_dist := INF
 	for ore: Array in ores:
-		var pos := Vector2(float(ore[1]), float(ore[2]))
+		var pos := Vector2(float(ore[CartPush.OR_X]), float(ore[CartPush.OR_Y]))
 		var dist := me.distance_squared_to(pos)
 		if dist < best_dist:
 			best_dist = dist
@@ -79,9 +80,9 @@ func _nearest_on_team(players: Dictionary, team: Array, me: Vector2) -> Vector2:
 	var best_dist := INF
 	for other: int in team:
 		var state: Array = players.get(other, [])
-		if state.size() < 2:
+		if state.size() <= CartPush.PS_Y:
 			continue
-		var pos := Vector2(float(state[0]), float(state[1]))
+		var pos := Vector2(float(state[CartPush.PS_X]), float(state[CartPush.PS_Y]))
 		var dist := me.distance_squared_to(pos)
 		if dist < best_dist:
 			best_dist = dist

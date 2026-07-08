@@ -89,8 +89,8 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		var flags := int(state[2])
+		update_rig(slot, Vector2(state[CartPush.PS_X], state[CartPush.PS_Y]))
+		var flags := int(state[CartPush.PS_FLAGS])
 		var caption := player_name(slot)
 		if flags & 1:
 			caption += "  [ORE]"
@@ -104,7 +104,7 @@ func _update_players() -> void:
 		# Shove landed (stagger rising edge): a dust puff kicks up (M13-23).
 		var staggered := flags & 2 == 2
 		if staggered and not _staggered.get(slot, false):
-			fx_dust(Vector2(state[0], state[1]))
+			fx_dust(Vector2(state[CartPush.PS_X], state[CartPush.PS_Y]))
 			if slot == my_slot:
 				# A non-damaging shove (#728) — the vocabulary's own "shove"
 				# example for bump.
@@ -136,14 +136,16 @@ func _update_carried_ore(slot: int, is_carrying: bool) -> void:
 func _update_ores(ore_list: Array) -> void:
 	var seen := {}
 	for entry: Array in ore_list:
-		var id := int(entry[0])
+		var id := int(entry[CartPush.OR_ID])
 		seen[id] = true
 		var node: MeshInstance3D = _ore_nodes.get(id)
 		if node == null:
 			node = _build_ore_mesh("Ore%d" % id)
 			arena.add_child(node)
 			_ore_nodes[id] = node
-		node.position = to_arena(Vector2(float(entry[1]), float(entry[2])), ORE_RADIUS)
+		node.position = to_arena(
+			Vector2(float(entry[CartPush.OR_X]), float(entry[CartPush.OR_Y])), ORE_RADIUS
+		)
 	for id: int in _ore_nodes.keys():
 		if not seen.has(id):
 			# An ore only leaves the list when scooped up: sparkle the pickup.

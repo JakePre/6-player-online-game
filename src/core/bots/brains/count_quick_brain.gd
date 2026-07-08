@@ -6,6 +6,7 @@ extends BotBrain
 ## run to the matching pad (ANSWER). Snapshot: {phase, players: {slot: [x, y,
 ## score, locked]}, swarm: [[x,y],...] (FLASH only), pads: [[x,y,value],...]
 ## (ANSWER only)}. Input: {mx, my} only — locking is walking onto the pad.
+## Indices named via CountQuick.PS_*/PD_* (#708).
 
 var _remembered_count := -1
 
@@ -14,7 +15,7 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 4:
+	if state.size() < CountQuick.PS_COUNT:
 		return {}
 	var phase := int(game.get("phase", CountQuick.Phase.FLASH))
 	if phase == CountQuick.Phase.FLASH:
@@ -22,10 +23,12 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 		if not swarm.is_empty():
 			_remembered_count = swarm.size()
 		return {}
-	if int(state[3]) == 1:
+	if int(state[CountQuick.PS_LOCKED]) == 1:
 		return {}  # already locked in: hold still
-	var me := Vector2(float(state[0]), float(state[1]))
+	var me := Vector2(float(state[CountQuick.PS_X]), float(state[CountQuick.PS_Y]))
 	for pad: Array in game.get("pads", []):
-		if int(pad[2]) == _remembered_count:
-			return move_toward_point(me, Vector2(float(pad[0]), float(pad[1])), 0.0)
+		if int(pad[CountQuick.PD_VALUE]) == _remembered_count:
+			return move_toward_point(
+				me, Vector2(float(pad[CountQuick.PD_X]), float(pad[CountQuick.PD_Y])), 0.0
+			)
 	return {}

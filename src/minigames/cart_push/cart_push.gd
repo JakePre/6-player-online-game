@@ -36,6 +36,17 @@ const ORE_PICKUP_RADIUS := 0.8
 const ORE_BONUS_MAX := 2
 const DEPOT_RADIUS := 1.6
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_FLAGS := 2
+const PS_COUNT := 3
+
+const OR_ID := 0
+const OR_X := 1
+const OR_Y := 2
+
 var positions := {}
 var move_dirs := {}
 ## Two randomly-drafted halves; teams[0] pushes +x, teams[1] pushes -x.

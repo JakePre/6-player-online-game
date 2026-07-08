@@ -9,6 +9,7 @@ extends BotBrain
 ##
 ## Snapshot: {phase, players: {slot: [x, y, alive, thrown]}, sudden_death,
 ## target_shape}. Input: {mx, my} to walk a pad, or {"vote": slot} once out.
+## Indices named via RoShamBo.PS_* (#708).
 
 var _chosen_shape := -1
 var _prev_thrown := false
@@ -18,12 +19,12 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 4:
+	if state.size() < RoShamBo.PS_COUNT:
 		return {}
-	var me := Vector2(float(state[0]), float(state[1]))
-	if int(state[2]) == 0:
+	var me := Vector2(float(state[RoShamBo.PS_X]), float(state[RoShamBo.PS_Y]))
+	if int(state[RoShamBo.PS_ALIVE]) == 0:
 		return _vote(players)
-	var thrown := int(state[3]) == 1
+	var thrown := int(state[RoShamBo.PS_THROWN]) == 1
 	if thrown:
 		_prev_thrown = true
 		return {}
@@ -60,7 +61,7 @@ func _vote(players: Dictionary) -> Dictionary:
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() >= 3 and int(state[2]) == 1:
+		if state.size() > RoShamBo.PS_ALIVE and int(state[RoShamBo.PS_ALIVE]) == 1:
 			alive.append(other)
 	if alive.is_empty():
 		return {}
