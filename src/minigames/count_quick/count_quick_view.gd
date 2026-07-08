@@ -155,5 +155,6 @@ func _update_players() -> void:
 		_locked_seen[slot] = locked_now
 		# A correct guess pays out (M12-02): only the scorer hears it.
 		if slot == my_slot and _scores_seen.has(slot) and score > int(_scores_seen[slot]):
-			play_sfx(&"confirm")
+			# A correct guess is a small satisfying consume (#728).
+			play_sfx(&"pop")
 		_scores_seen[slot] = score
