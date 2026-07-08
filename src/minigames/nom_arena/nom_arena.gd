@@ -32,6 +32,17 @@ const SHRINK_LAST_SEC := 20.0
 const SHRINK_END_RADIUS := 5.0
 const OUT_DAMAGE := 9.0
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_MASS := 2
+const PS_LUNGING := 3
+const PS_COUNT := 4
+
+const DT_X := 0
+const DT_Y := 1
+
 var positions := {}
 var move_dirs := {}
 var masses := {}

@@ -9,6 +9,7 @@ extends BotBrain
 ## Snapshot: {grid: [Cell...], players: {slot: [x, y, range, max_bombs]},
 ## bombs: [[cell, fuse], ...], flames: [cell, ...], powerups, fallen}
 ## (BlastGrid). Cell: 0 EMPTY, 1 SOLID, 2 SOFT. Input: {mx, my, bomb}.
+## Indices named via BlastGrid.PS_*/BM_* (#708).
 
 const GRID := BlastGrid.GRID
 const CELL := BlastGrid.CELL_SIZE
@@ -19,14 +20,14 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var players: Dictionary = game.get("players", {})
 	var me: Array = players.get(slot, [])
 	var grid: Array = game.get("grid", [])
-	if me.size() < 4 or grid.size() < GRID * GRID:
+	if me.size() < BlastGrid.PS_COUNT or grid.size() < GRID * GRID:
 		return {}
 	return _act(game, players, me, grid)
 
 
 ## Survival first, then a well-escaped bomb, then advance toward a target.
 func _act(game: Dictionary, players: Dictionary, me: Array, grid: Array) -> Dictionary:
-	var my_pos := Vector2(float(me[0]), float(me[1]))
+	var my_pos := Vector2(float(me[BlastGrid.PS_X]), float(me[BlastGrid.PS_Y]))
 	var my_cell := _cell_at(my_pos)
 	var danger := _danger_cells(game, grid)
 	# 1. Survival: if our cell is deadly, step to the safest neighbor (or hold
@@ -35,7 +36,10 @@ func _act(game: Dictionary, players: Dictionary, me: Array, grid: Array) -> Dict
 		var escape := _safest_neighbor(my_cell, grid, danger)
 		return _move_to_cell(my_pos, escape) if escape != -1 else {}
 	# 2. Offense: bomb a soft wall / rival in reach, but only with an escape.
-	if _worth_bombing(my_cell, grid, players) and _has_escape(my_cell, int(me[2]), grid, danger):
+	if (
+		_worth_bombing(my_cell, grid, players)
+		and _has_escape(my_cell, int(me[BlastGrid.PS_RANGE]), grid, danger)
+	):
 		return {"bomb": true, "mx": 0.0, "my": 0.0}
 	# 3. Seek: advance toward the nearest soft wall or rival.
 	var target := _nearest_target(my_pos, my_cell, grid, players)
@@ -61,9 +65,9 @@ func _danger_cells(game: Dictionary, grid: Array) -> Dictionary:
 	for cell: Variant in game.get("flames", []):
 		danger[int(cell)] = true
 	for bomb: Array in game.get("bombs", []):
-		if bomb.size() < 2:
+		if bomb.size() <= BlastGrid.BM_FUSE:
 			continue
-		for cell: int in _blast_cross(int(bomb[0]), BlastGrid.MAX_RANGE, grid):
+		for cell: int in _blast_cross(int(bomb[BlastGrid.BM_CELL]), BlastGrid.MAX_RANGE, grid):
 			danger[cell] = true
 	return danger
 
@@ -128,7 +132,12 @@ func _worth_bombing(cell: int, grid: Array, players: Dictionary) -> bool:
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() >= 2 and cross.has(_cell_at(Vector2(float(state[0]), float(state[1])))):
+		if (
+			state.size() > BlastGrid.PS_Y
+			and cross.has(
+				_cell_at(Vector2(float(state[BlastGrid.PS_X]), float(state[BlastGrid.PS_Y])))
+			)
+		):
 			return true
 	return false
 
@@ -165,12 +174,13 @@ func _nearest_target(from_pos: Vector2, from_cell: int, grid: Array, players: Di
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() < 2:
+		if state.size() <= BlastGrid.PS_Y:
 			continue
-		var distance := from_pos.distance_squared_to(Vector2(float(state[0]), float(state[1])))
+		var pos := Vector2(float(state[BlastGrid.PS_X]), float(state[BlastGrid.PS_Y]))
+		var distance := from_pos.distance_squared_to(pos)
 		if distance < best_distance:
 			best_distance = distance
-			best = _cell_at(Vector2(float(state[0]), float(state[1])))
+			best = _cell_at(pos)
 	return best if best != from_cell else -1
 
 

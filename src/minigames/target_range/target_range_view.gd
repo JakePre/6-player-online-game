@@ -134,12 +134,18 @@ func _screen_to_floor(point: Vector2) -> Vector2:
 func _update_targets(target_list: Array) -> void:
 	var seen := {}
 	for entry: Array in target_list:
-		var id := int(entry[0])
+		var id := int(entry[TargetRange.TL_ID])
 		seen[id] = true
 		var node: MeshInstance3D = _target_nodes.get(id)
 		if node == null:
-			node = _build_target(id, float(entry[3]), int(entry[4]))
-		node.position = Vector3(float(entry[1]), float(entry[3]), float(entry[2]))
+			node = _build_target(
+				id, float(entry[TargetRange.TL_RADIUS]), int(entry[TargetRange.TL_KIND])
+			)
+		node.position = Vector3(
+			float(entry[TargetRange.TL_X]),
+			float(entry[TargetRange.TL_RADIUS]),
+			float(entry[TargetRange.TL_Y])
+		)
 	for id: int in _target_nodes.keys():
 		if not seen.has(id):
 			var node := _target_nodes[id] as MeshInstance3D
@@ -161,7 +167,7 @@ func _update_crosshairs(aim_list: Dictionary) -> void:
 		var aim := _aim
 		if slot != my_slot:
 			var wire: Array = aim_list.get(slot, [0.0, 0.0])
-			aim = Vector2(float(wire[0]), float(wire[1]))
+			aim = Vector2(float(wire[TargetRange.AM_X]), float(wire[TargetRange.AM_Y]))
 		ring.position = to_arena(aim, CROSSHAIR_HEIGHT)
 		_update_aim_beam(slot, ring)
 		if slot == my_slot:

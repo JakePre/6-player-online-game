@@ -44,6 +44,17 @@ const WAYPOINT_REACHED := 0.5
 const ALARM_SEC := 1.0
 const DURATION_SEC := 60.0
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const CR_X := 0
+const CR_Y := 1
+
+const TH_X := 0
+const TH_Y := 1
+const TH_STUN := 2
+const TH_SUSPECT := 3
+const TH_COUNT := 4
+
 var guard := -1
 var thieves: Array[int] = []
 ## thief slot -> Vector2 (the guard has no thief avatar; they are a crowd body)
