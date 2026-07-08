@@ -1,10 +1,17 @@
 class_name PuttPanicBrain
 extends BotBrain
-## Physics-aim archetype (M19-02, #686): aim straight at the cup and pick a
-## power that carries the ball roughly the remaining distance without
-## overshooting so fast it can't sink (the cup only accepts a slow ball).
-## Only putts when at rest; the sim auto-putts a weak shot if we dawdle, so a
-## deliberate aimed stroke is a clear improvement.
+## Physics-aim archetype (M19-02, #686): aim at the cup and pick a power that
+## carries the ball roughly the remaining distance without overshooting so
+## fast it can't sink (the cup only accepts a slow ball). Only putts when at
+## rest; the sim auto-putts a weak shot if we dawdle, so a deliberate aimed
+## stroke is a clear improvement.
+##
+## Aim/power noise (#715, classified in #759): every bot instance computed
+## an identical, deterministic aim+power from remaining distance, so a whole
+## bot lobby's putts converged near-optimally and simultaneously — reading
+## as fast, heavily-tied rounds in the M12-01 telemetry. Not a sim bug (a
+## human's stroke has real variance); a small per-shot wobble, seeded per bot
+## like everything else here, spreads outcomes out instead.
 ##
 ## Snapshot: {players: {slot: [x, y, strokes, sunk, aim_x, aim_y, at_rest]},
 ## cup: [x, y], bar, shot_clock} (PuttPanic). Input: {ax, ay} to aim,
@@ -16,6 +23,11 @@ extends BotBrain
 const POWER_PER_UNIT := 0.052
 const POWER_MIN := 0.18
 const POWER_MAX := 0.75
+## Per-shot wobble (#715). CUP_RADIUS (0.55) still swallows a small miss on
+## short putts, so this mainly spreads out longer ones rather than making the
+## bot incompetent up close.
+const AIM_JITTER_RAD := 0.1
+const POWER_JITTER := 0.05
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -28,11 +40,15 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var cup_arr: Array = game.get("cup", [0.0, 6.5])
 	var cup := Vector2(float(cup_arr[0]), float(cup_arr[1]))
 	var to_cup := cup - me
-	var aim := to_cup.normalized()
+	var aim := to_cup.normalized().rotated(rng.randf_range(-AIM_JITTER_RAD, AIM_JITTER_RAD))
 	var intent := {"ax": aim.x, "ay": aim.y}
 	# Strike only when at rest; power scales with the distance left to the cup.
 	if int(state[PuttPanic.PS_AT_REST]) == 1:
-		var power := clampf(to_cup.length() * POWER_PER_UNIT, POWER_MIN, POWER_MAX)
+		var power := clampf(
+			to_cup.length() * POWER_PER_UNIT + rng.randf_range(-POWER_JITTER, POWER_JITTER),
+			POWER_MIN,
+			POWER_MAX
+		)
 		intent["putt"] = true
 		intent["power"] = power
 	return intent
