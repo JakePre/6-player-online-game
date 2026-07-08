@@ -169,7 +169,12 @@ func _process(delta: float) -> void:
 	if _send_inputs and _phase == Phase.IN_MATCH:
 		_input_accum += delta
 		if _input_accum >= INPUT_INTERVAL_SEC:
-			_input_accum = 0.0
+			# Carry the remainder rather than zeroing (#768): zeroing pinned the
+			# poll to a fixed tick-multiple that phase-locks against game
+			# constants like hurdle_dash STUN_SEC, trapping racer bots in a stun
+			# loop that never sampled the recovery window. Same fix as the
+			# server pump (NetManager._drive_bots).
+			_input_accum -= INPUT_INTERVAL_SEC
 			# The server drops intents outside PLAY/FINALE_PLAY, so pumping
 			# through intros/results is harmless; an empty brain intent (nothing
 			# worth doing this tick) is simply not sent.

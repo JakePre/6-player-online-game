@@ -758,7 +758,9 @@ func _drive_bots(delta: float) -> void:
 	_bot_input_accum += delta
 	if _bot_input_accum < BOT_INPUT_INTERVAL_SEC:
 		return
-	_bot_input_accum = 0.0
+	# Carry the remainder, don't zero (#768): zeroing pinned the poll to a fixed
+	# 8-tick period that phase-locked racer bots in an endless stun loop.
+	_bot_input_accum -= BOT_INPUT_INTERVAL_SEC
 	for code: String in match_controllers:
 		var controller: MatchController = match_controllers[code]
 		if controller.room == null:
