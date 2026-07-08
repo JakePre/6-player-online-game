@@ -3,7 +3,8 @@ extends BotBrain
 ## Shock Tag archetype (M19-02, #686): flee the zapped player to keep banking
 ## clean coins; when zapped, chase whoever's carrying the most coins — passing
 ## the zap onto a fat target drains the most value. Snapshot: {players:
-## {slot: [x, y, coins]}, zapped, immunity}. Input: {mx, my} only.
+## {slot: [x, y, coins]}, zapped, immunity}. Input: {mx, my} only. Indices
+## named via ShockTag.PS_* (#708).
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -30,12 +31,12 @@ func _chase_richest(players: Dictionary, me: Vector2) -> Dictionary:
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() < 3:
+		if state.size() < ShockTag.PS_COUNT:
 			continue
-		var coins := int(state[2])
+		var coins := int(state[ShockTag.PS_COINS])
 		if coins > best_coins:
 			best_coins = coins
-			best = Vector2(float(state[0]), float(state[1]))
+			best = Vector2(float(state[ShockTag.PS_X]), float(state[ShockTag.PS_Y]))
 	if best == Vector2.INF:
 		return {"mx": 0.0, "my": 0.0}
 	return move_toward_point(me, best, 0.0)
@@ -43,6 +44,6 @@ func _chase_richest(players: Dictionary, me: Vector2) -> Dictionary:
 
 func _pos_of(players: Dictionary, other: int) -> Vector2:
 	var state: Array = players.get(other, [])
-	if state.size() < 2:
+	if state.size() <= ShockTag.PS_Y:
 		return Vector2.INF
-	return Vector2(float(state[0]), float(state[1]))
+	return Vector2(float(state[ShockTag.PS_X]), float(state[ShockTag.PS_Y]))

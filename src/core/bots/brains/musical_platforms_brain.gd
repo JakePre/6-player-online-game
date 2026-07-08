@@ -4,6 +4,7 @@ extends BotBrain
 ## to react to — platforms don't exist yet), then race the nearest unclaimed
 ## platform the instant STOP hits. Snapshot: {players: {slot: [x, y]}, phase,
 ## platforms: [[x, y, claimed_by], ...], fallen}. Input: {mx, my} only.
+## Indices named via MusicalPlatforms.PT_* (#708).
 
 ## Re-picked whenever reached, so a MUSIC-phase bot drifts instead of
 ## standing dead still.
@@ -29,12 +30,14 @@ func _race_for_a_platform(platforms: Array, me: Vector2) -> Dictionary:
 	var best := Vector2.INF
 	var best_dist := INF
 	for platform: Array in platforms:
-		var claimed_by := int(platform[2])
+		var claimed_by := int(platform[MusicalPlatforms.PT_CLAIMED_BY])
 		if claimed_by == slot:
 			return {"mx": 0.0, "my": 0.0}
 		if claimed_by != -1:
 			continue
-		var pos := Vector2(float(platform[0]), float(platform[1]))
+		var pos := Vector2(
+			float(platform[MusicalPlatforms.PT_X]), float(platform[MusicalPlatforms.PT_Y])
+		)
 		var dist := me.distance_squared_to(pos)
 		if dist < best_dist:
 			best_dist = dist

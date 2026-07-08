@@ -23,6 +23,16 @@ const STOP_SEC := 4.0
 ## (200 attempts / 5 platforms at the 6-player baseline).
 const PLACEMENT_ATTEMPTS_PER_PLATFORM := 40
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+
+const PT_X := 0
+const PT_Y := 1
+const PT_CLAIMED_BY := 2
+const PT_COUNT := 3
+
 var positions := {}
 var move_dirs := {}
 var phase := Phase.MUSIC

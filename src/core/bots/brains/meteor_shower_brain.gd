@@ -3,6 +3,7 @@ extends BotBrain
 ## Telegraph-dodger archetype (M19): stay inside the safe zone, flee any
 ## meteor telegraph we're standing in. Snapshot: {players: {slot: [x, y]},
 ## zone: [x, y, radius], meteors: [[x, y, seconds_left], ...]} (MeteorShower).
+## Indices named via MeteorShower.MT_*/ZN_* (#708).
 
 ## Flee a telegraph when inside this multiple of a nominal blast radius.
 const DANGER_RADIUS := 2.2
@@ -17,15 +18,17 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var threat := Vector2.INF
 	var soonest := INF
 	for meteor: Array in game.get("meteors", []):
-		if meteor.size() < 3:
+		if meteor.size() < MeteorShower.MT_COUNT:
 			continue
-		var pos := Vector2(float(meteor[0]), float(meteor[1]))
-		var left := float(meteor[2])
+		var pos := Vector2(float(meteor[MeteorShower.MT_X]), float(meteor[MeteorShower.MT_Y]))
+		var left := float(meteor[MeteorShower.MT_LEFT])
 		if me.distance_to(pos) < DANGER_RADIUS and left < soonest:
 			soonest = left
 			threat = pos
 	var zone: Array = game.get("zone", [])
-	var zone_radius := float(zone[2]) if zone.size() >= 3 else INF
+	var zone_radius := (
+		float(zone[MeteorShower.ZN_RADIUS]) if zone.size() >= MeteorShower.ZN_COUNT else INF
+	)
 	if threat != Vector2.INF:
 		var flee := move_away_from_point(me, threat)
 		# Never dodge out of the shrinking zone: bias the flee back inward

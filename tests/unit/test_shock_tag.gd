@@ -124,4 +124,4 @@ func test_snapshot_shape() -> void:
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.players.size(), 3)
 	assert_eq(snapshot.zapped, 1)
-	assert_eq((snapshot.players[0] as Array).size(), 3, "[x, y, coins]")
+	assert_eq((snapshot.players[0] as Array).size(), ShockTag.PS_COUNT, "[x, y, coins]")

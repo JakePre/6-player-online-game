@@ -101,7 +101,7 @@ func _update_players() -> void:
 		var state: Array = players[slot]
 		if rig_for_slot(slot) == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		update_rig(slot, Vector2(state[FortSiege.PS_X], state[FortSiege.PS_Y]))
 
 
 func _update_gate() -> void:

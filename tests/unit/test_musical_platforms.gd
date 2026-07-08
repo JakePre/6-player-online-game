@@ -126,7 +126,9 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.players.size(), 3)
 	assert_eq(snapshot.phase, MusicalPlatforms.Phase.STOP)
 	assert_eq(snapshot.platforms.size(), 2)
-	assert_eq((snapshot.platforms[0] as Array).size(), 3, "[x, y, claimed_by]")
+	assert_eq(
+		(snapshot.platforms[0] as Array).size(), MusicalPlatforms.PT_COUNT, "[x, y, claimed_by]"
+	)
 	assert_eq(snapshot.fallen, [])
 
 
