@@ -38,9 +38,11 @@ const WEAPON_SWINGS := 3
 const SWING_RANGE := 1.9
 const SWING_COOLDOWN := 0.9
 ## Impulse magnitude and its exponential decay rate: total launch distance is
-## KNOCKBACK / IMPULSE_DECAY = 3u — lethal near the rim, never from center
-## (the platform starts at 10u+).
-const SWING_KNOCKBACK := 18.0
+## KNOCKBACK / IMPULSE_DECAY = 5u — lethal near the rim, never from center
+## (the platform starts at 10u+). Tuned 18 -> 30 (M12-01, #760): at 3u the axe
+## converted ~2% of KOs across a 240-finale sim sweep; 5u lands ~9% without
+## moving match durations.
+const SWING_KNOCKBACK := 30.0
 const IMPULSE_DECAY := 6.0
 ## Fraction of the live radius weapons may spawn within, so a fresh axe never
 ## sits on a rim about to be shed.
