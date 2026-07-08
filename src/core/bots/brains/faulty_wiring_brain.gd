@@ -8,6 +8,7 @@ extends BotBrain
 ## Snapshot: {phase, players: {slot: [x, y]}, nodes: [[x, y, value, spark], ...]}.
 ## Private: {"role": "saboteur", "cut_cd": seconds} for the saboteur, WORK only
 ## (FaultyWiring, #254). Input: {mx, my} + {cut: true} (saboteur, in range).
+## Indices named via FaultyWiring.PS_*/ND_* (#708).
 
 
 func think(match_state: Dictionary, private: Dictionary) -> Dictionary:
@@ -45,8 +46,8 @@ func _repair(me: Vector2, nodes: Array) -> Dictionary:
 	var preferred := slot % nodes.size()
 	var pref_node: Array = nodes[preferred]
 	var target := Vector2.INF
-	if float(pref_node[2]) < 1.0:
-		target = Vector2(float(pref_node[0]), float(pref_node[1]))
+	if float(pref_node[FaultyWiring.ND_VALUE]) < 1.0:
+		target = Vector2(float(pref_node[FaultyWiring.ND_X]), float(pref_node[FaultyWiring.ND_Y]))
 	else:
 		target = _pick_node(nodes, false)
 	if target == Vector2.INF:
@@ -61,10 +62,10 @@ func _pick_node(nodes: Array, want_high: bool) -> Vector2:
 	var best := Vector2.INF
 	var best_value := -1.0 if want_high else 2.0
 	for node: Array in nodes:
-		var value := float(node[2])
+		var value := float(node[FaultyWiring.ND_VALUE])
 		if value >= 1.0:
 			continue
 		if (want_high and value > best_value) or (not want_high and value < best_value):
 			best_value = value
-			best = Vector2(float(node[0]), float(node[1]))
+			best = Vector2(float(node[FaultyWiring.ND_X]), float(node[FaultyWiring.ND_Y]))
 	return best

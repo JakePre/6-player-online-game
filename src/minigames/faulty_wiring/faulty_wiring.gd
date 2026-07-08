@@ -37,6 +37,18 @@ const CUT_POINTS := 3
 const CREW_WIN_BONUS := 8
 const SABO_WIN_BONUS := 14
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_COUNT := 2
+
+const ND_X := 0
+const ND_Y := 1
+const ND_VALUE := 2
+const ND_SPARK := 3
+const ND_COUNT := 4
+
 var phase: int = Phase.WORK
 var positions := {}
 var move_dirs := {}

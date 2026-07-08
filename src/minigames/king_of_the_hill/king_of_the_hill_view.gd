@@ -96,15 +96,18 @@ func _build_pillars(pillar_list: Array) -> void:
 	_pillars_built = true
 	for pillar: Array in pillar_list:
 		var mesh := CylinderMesh.new()
-		mesh.top_radius = float(pillar[2])
-		mesh.bottom_radius = float(pillar[2]) * 1.15
+		mesh.top_radius = float(pillar[KingOfTheHill.PL_RADIUS])
+		mesh.bottom_radius = float(pillar[KingOfTheHill.PL_RADIUS]) * 1.15
 		mesh.height = PILLAR_HEIGHT
 		var material := StandardMaterial3D.new()
 		material.albedo_color = PILLAR_COLOR
 		mesh.material = material
 		var node := MeshInstance3D.new()
 		node.mesh = mesh
-		node.position = to_arena(Vector2(float(pillar[0]), float(pillar[1])), PILLAR_HEIGHT / 2.0)
+		node.position = to_arena(
+			Vector2(float(pillar[KingOfTheHill.PL_X]), float(pillar[KingOfTheHill.PL_Y])),
+			PILLAR_HEIGHT / 2.0
+		)
 		arena.add_child(node)
 
 
@@ -143,10 +146,12 @@ func _make_item() -> Node3D:
 
 func _place_item(node: Node3D, index: int) -> void:
 	var item: Array = _items[index]
-	var color: Color = ITEM_COLORS[clampi(int(item[2]), 0, 1)]
+	var color: Color = ITEM_COLORS[clampi(int(item[KingOfTheHill.IT_TYPE]), 0, 1)]
 	_item_materials[index].albedo_color = color
 	_item_materials[index].emission = color
-	node.position = to_arena(Vector2(float(item[0]), float(item[1])), 0.4)
+	node.position = to_arena(
+		Vector2(float(item[KingOfTheHill.IT_X]), float(item[KingOfTheHill.IT_Y])), 0.4
+	)
 
 
 ## Pickup flash + sound so grabbing reads (#260), plus a shove animation on
@@ -191,15 +196,17 @@ func _update_players() -> void:
 		if Time.get_ticks_msec() < int(_shove_hold.get(slot, 0)):
 			# The shove animation owns the rig for a moment (#587): move it,
 			# don't re-animate it — mirrors rumble_ring's hit/ko reaction hold.
-			rig.position = to_arena(Vector2(state[0], state[1]))
+			rig.position = to_arena(Vector2(state[KingOfTheHill.PS_X], state[KingOfTheHill.PS_Y]))
 		else:
-			update_rig(slot, Vector2(state[0], state[1]))
-		rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
+			update_rig(slot, Vector2(state[KingOfTheHill.PS_X], state[KingOfTheHill.PS_Y]))
+		rig.display_name = "%s  %d" % [player_name(slot), int(state[KingOfTheHill.PS_POINTS])]
 		# Scoring sparkles (M13-03): points ticking up while holding the hill
 		# shed a sparkle in the scorer's color. Seeded via _points_seen.
-		var points := int(state[2])
+		var points := int(state[KingOfTheHill.PS_POINTS])
 		if _points_seen.has(slot) and points > int(_points_seen[slot]):
-			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+			fx_sparkle(
+				Vector2(state[KingOfTheHill.PS_X], state[KingOfTheHill.PS_Y]), player_color(slot)
+			)
 			# A tick-up while holding the hill (POINTS_PER_SEC=2, so at most
 			# 2 Hz — never a machine-gun) — a small satisfying consume (#728).
 			if slot == my_slot:
@@ -208,7 +215,7 @@ func _update_players() -> void:
 
 
 func _update_zone() -> void:
-	_zone_node.visible = zone.size() == 3
+	_zone_node.visible = zone.size() == KingOfTheHill.ZN_COUNT
 	if not _zone_node.visible:
 		return
 	# Shimmer throb + relocation FX (M13-03): the disc breathes on a snapshot
@@ -216,13 +223,15 @@ func _update_zone() -> void:
 	# lands (seeded on the first sighting).
 	_pulse_ticks += 1
 	_zone_material.emission_energy_multiplier = 0.3 + 0.15 * sin(_pulse_ticks * TAU / 16.0)
-	var center := Vector2(zone[0], zone[1])
+	var center := Vector2(zone[KingOfTheHill.ZN_X], zone[KingOfTheHill.ZN_Y])
 	if _zone_center_seen != Vector2.INF and _zone_center_seen.distance_to(center) > 0.5:
 		fx_burst(_zone_center_seen, ZONE_COLOR, 0.3)
 		fx_dust(center)
 	_zone_center_seen = center
-	_zone_node.position = to_arena(Vector2(zone[0], zone[1]), ZONE_DISC_HEIGHT / 2.0)
+	_zone_node.position = to_arena(
+		Vector2(zone[KingOfTheHill.ZN_X], zone[KingOfTheHill.ZN_Y]), ZONE_DISC_HEIGHT / 2.0
+	)
 	# The sim never shrinks below ZONE_MIN_RADIUS; the floor only guards a
 	# malformed snapshot from producing a degenerate (zero-scale) basis.
-	var radius := maxf(float(zone[2]), 0.001)
+	var radius := maxf(float(zone[KingOfTheHill.ZN_RADIUS]), 0.001)
 	_zone_node.scale = Vector3(radius, 1.0, radius)

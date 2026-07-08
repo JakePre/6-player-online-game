@@ -146,9 +146,9 @@ func _build_labels() -> void:
 func _update_players() -> void:
 	for slot: int in players:
 		var state: Array = players[slot]
-		if state.size() < 2:
+		if state.size() < FaultyWiring.PS_COUNT:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		update_rig(slot, Vector2(state[FaultyWiring.PS_X], state[FaultyWiring.PS_Y]))
 		var rig := rig_for_slot(slot)
 		if rig != null:
 			rig.display_name = player_name(slot)
@@ -160,16 +160,16 @@ func _update_players() -> void:
 func _update_nodes() -> void:
 	for i in mini(nodes.size(), _node_pylons.size()):
 		var state: Array = nodes[i]
-		var progress := float(state[2])
+		var progress := float(state[FaultyWiring.ND_VALUE])
 		var color := BROKEN_COLOR.lerp(FIXED_COLOR, progress)
 		_node_materials[i].albedo_color = color
 		_node_materials[i].emission = color
 		_node_materials[i].emission_energy_multiplier = 0.4 + progress * 1.6
 		_node_lights[i].light_color = color
 		_node_lights[i].light_energy = 0.6 + progress * 2.2
-		var pulse := int(state[3])
+		var pulse := int(state[FaultyWiring.ND_SPARK])
 		if pulse > _spark_seen[i]:
-			var at := Vector2(float(state[0]), float(state[1]))
+			var at := Vector2(float(state[FaultyWiring.ND_X]), float(state[FaultyWiring.ND_Y]))
 			fx_burst(at, Color(1.0, 0.85, 0.3), NODE_HEIGHT)
 			request_shake(5.0)
 			# `zap` (#728, docs/AUDIO_GUIDE.md) names "live wire" as its own

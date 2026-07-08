@@ -37,6 +37,17 @@ const MOLE_FAIL_POINTS := 5
 const CORRECT_VOTE_POINTS := 2
 const MOLE_UNCAUGHT_POINTS := 3
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_CARRYING := 2
+const PS_COUNT := 3
+
+const CL_X := 0
+const CL_Y := 1
+const CL_COUNT := 2
+
 var phase := Phase.WORK
 var phase_elapsed := 0.0
 var mole := -1

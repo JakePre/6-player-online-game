@@ -24,6 +24,17 @@ const UNPAINTED := -1
 ## the 30 Hz snapshot rate). Between keyframes only changed tiles are sent.
 const KEYFRAME_EVERY := 30
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_FACTION := 2
+const PS_COUNT := 3
+
+## grid_changes entries: [index, owner], not a per-slot array like PS_* above.
+const GC_INDEX := 0
+const GC_OWNER := 1
+
 var positions := {}
 var move_dirs := {}
 ## faction id per slot: the slot itself in FFA, else the team index.

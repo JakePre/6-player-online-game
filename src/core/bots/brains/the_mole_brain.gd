@@ -8,7 +8,8 @@ extends BotBrain
 ## Snapshot: {phase, progress, target, sparked, players: {slot: [x, y, carrying]},
 ## cells: [[x, y], ...]}. Private: {"role": "mole"} for the mole only, WORK
 ## phase only (TheMole, #254). Input: {mx, my} + {act: true} (mole sabotage in
-## range) during WORK; {vote: slot} during VOTE.
+## range) during WORK; {vote: slot} during VOTE. Indices named via
+## TheMole.PS_*/CL_* (#708).
 
 ## Per-rival suspicion, accrued when a spark fires while they stand at the
 ## machine — the only tell the crew ever gets.
@@ -49,7 +50,7 @@ func _track_suspicion(game: Dictionary, players: Dictionary, _me: Vector2) -> vo
 
 
 func _work(game: Dictionary, players: Dictionary, me: Vector2, is_mole: bool) -> Dictionary:
-	var carrying := int((players[slot] as Array)[2]) == 1
+	var carrying := int((players[slot] as Array)[TheMole.PS_CARRYING]) == 1
 	if is_mole:
 		# Worth draining once there's progress banked; otherwise haul to blend
 		# (and a carried cell delivered is perfect cover early on).
@@ -107,4 +108,4 @@ func _any_other(players: Dictionary) -> int:
 
 
 func _player_pos(state: Array) -> Vector2:
-	return Vector2(float(state[0]), float(state[1]))
+	return Vector2(float(state[TheMole.PS_X]), float(state[TheMole.PS_Y]))

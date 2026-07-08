@@ -134,7 +134,7 @@ func _update_players() -> void:
 		var state: Array = players[slot]
 		if rig_for_slot(slot) == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		update_rig(slot, Vector2(state[TheMole.PS_X], state[TheMole.PS_Y]))
 
 
 func _update_cells() -> void:
@@ -149,7 +149,9 @@ func _make_cell() -> Node3D:
 
 func _place_cell(node: Node3D, index: int) -> void:
 	var cell: Array = cells[index]
-	node.position = to_arena(Vector2(float(cell[0]), float(cell[1])), CELL_SIZE / 2.0)
+	node.position = to_arena(
+		Vector2(float(cell[TheMole.CL_X]), float(cell[TheMole.CL_Y])), CELL_SIZE / 2.0
+	)
 
 
 func _update_machine() -> void:
@@ -184,7 +186,7 @@ func _update_reveal_fx() -> void:
 	var mole_slot := int(reveal.get("mole", -1))
 	var state: Array = players.get(mole_slot, [])
 	if state.size() >= 2:
-		fx_burst(Vector2(float(state[0]), float(state[1])), MOLE_COLOR)
+		fx_burst(Vector2(float(state[TheMole.PS_X]), float(state[TheMole.PS_Y])), MOLE_COLOR)
 
 
 func _update_banner() -> void:
