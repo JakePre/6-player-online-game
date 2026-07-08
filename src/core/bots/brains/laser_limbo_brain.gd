@@ -8,7 +8,8 @@ extends BotBrain
 ##
 ## Snapshot: {players: {slot: [x, y, lives, airborne, ducking]}, walls: [[x,
 ## dir, kind, gap_y], ...], fallen} (LaserLimbo). WallKind: 0 LOW, 1 HIGH,
-## 2 GAP. Input: {mx, my, jump, duck}.
+## 2 GAP. Input: {mx, my, jump, duck}. Indices named via
+## LaserLimbo.PS_*/WL_* (#708).
 
 ## Jump this far out for a LOW wall so the 0.5 s airtime spans the crossing.
 const JUMP_DISTANCE := 2.6
@@ -22,10 +23,10 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var me: Array = players.get(slot, [])
-	if me.size() < 5:
+	if me.size() < LaserLimbo.PS_COUNT:
 		return {}
-	var my_pos := Vector2(float(me[0]), float(me[1]))
-	var airborne := int(me[3]) == 1
+	var my_pos := Vector2(float(me[LaserLimbo.PS_X]), float(me[LaserLimbo.PS_Y]))
+	var airborne := int(me[LaserLimbo.PS_AIRBORNE]) == 1
 	var wall := _incoming_wall(game.get("walls", []), my_pos.x)
 	if wall.is_empty():
 		return {}  # nothing bearing down — hold and stay ready to jump
@@ -54,8 +55,8 @@ func _incoming_wall(walls: Array, px: float) -> Dictionary:
 	for wall: Array in walls:
 		if wall.size() < 4:
 			continue
-		var wx := float(wall[0])
-		var dir := float(wall[1])
+		var wx := float(wall[LaserLimbo.WL_X])
+		var dir := float(wall[LaserLimbo.WL_DIR])
 		# Approaching iff the wall moves toward our x (sign of the gap matches
 		# the sweep direction) — a wall past us is moving away.
 		if signf(px - wx) != signf(dir):
@@ -63,5 +64,9 @@ func _incoming_wall(walls: Array, px: float) -> Dictionary:
 		var distance := absf(wx - px)
 		if distance < best_distance:
 			best_distance = distance
-			best = {"distance": distance, "kind": int(wall[2]), "gap_y": float(wall[3])}
+			best = {
+				"distance": distance,
+				"kind": int(wall[LaserLimbo.WL_KIND]),
+				"gap_y": float(wall[LaserLimbo.WL_GAP_Y]),
+			}
 	return best

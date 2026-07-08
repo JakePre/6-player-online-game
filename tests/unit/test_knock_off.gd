@@ -141,5 +141,5 @@ func test_snapshot_shape_and_junk_input() -> void:
 	game.tick(TICK)
 	var snap := game.get_snapshot()
 	assert_true(snap.has("players") and snap.has("phase") and snap.has("phase_left"))
-	assert_eq((snap.players[0] as Array).size(), 6)
-	assert_true(int(snap.players[0][3]) == 1, "alive bit set")
+	assert_eq((snap.players[0] as Array).size(), KnockOff.PS_COUNT)
+	assert_true(int(snap.players[0][KnockOff.PS_ALIVE]) == 1, "alive bit set")

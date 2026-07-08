@@ -24,6 +24,20 @@ const WALL_SPEED_MAX := 9.0
 const WALL_INTERVAL_START := 2.2
 const WALL_INTERVAL_MIN := 1.0
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_LIVES := 2
+const PS_AIRBORNE := 3
+const PS_DUCKING := 4
+const PS_COUNT := 5
+
+const WL_X := 0
+const WL_DIR := 1
+const WL_KIND := 2
+const WL_GAP_Y := 3
+
 var positions := {}
 var move_dirs := {}
 var lives := {}

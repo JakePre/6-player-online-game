@@ -71,11 +71,11 @@ func _render_3d(game: Dictionary) -> void:
 			continue
 		rig.visible = true
 		var state: Array = players[slot]
-		var at := Vector2(state[0], state[1])
+		var at := Vector2(state[SumoSmash.PS_X], state[SumoSmash.PS_Y])
 		# Height rides update_rig (M12-04's interpolator owns position; setting
 		# rig.position.y directly after this call would flicker every frame).
 		update_rig(slot, at, PLATFORM_THICKNESS)
-		var dashing := int(state[3]) == 1
+		var dashing := int(state[SumoSmash.PS_DASHING]) == 1
 		if dashing and rig.current_action() != &"run":
 			rig.play(&"run")
 			# Signature cue (#728, docs/AUDIO_GUIDE.md — Brawlers): the dash
@@ -92,7 +92,7 @@ func _render_3d(game: Dictionary) -> void:
 			# Non-damaging body contact — the shove that just landed.
 			play_sfx(&"bump")
 		_last_pos[slot] = at
-		var cooldown := float(state[2])
+		var cooldown := float(state[SumoSmash.PS_COOLDOWN])
 		var caption := player_name(slot)
 		if cooldown > 0.0:
 			caption += "  %.1f" % cooldown

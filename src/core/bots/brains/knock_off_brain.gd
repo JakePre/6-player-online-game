@@ -8,6 +8,7 @@ extends BotBrain
 ## Snapshot: {players: {slot: [x, y, facing, alive, percent, attack]}, phase,
 ## phase_left} (KnockOff). Phase: 0 COUNTDOWN, 1 FIGHT, 2 DONE. Input:
 ## {mx} (also sets facing), {jump}, {jab}, {smash}. Stage geometry is static.
+## Indices named via KnockOff.PS_* (#708).
 
 ## Stay this far inside the platform edge so a nudge never walks us off.
 const EDGE_MARGIN := 0.8
@@ -24,9 +25,9 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 		return {}
 	var players: Dictionary = game.get("players", {})
 	var me: Array = players.get(slot, [])
-	if me.size() < 5 or int(me[3]) == 0:
+	if me.size() < 5 or int(me[KnockOff.PS_ALIVE]) == 0:
 		return {}
-	var my_pos := Vector2(float(me[0]), float(me[1]))
+	var my_pos := Vector2(float(me[KnockOff.PS_X]), float(me[KnockOff.PS_Y]))
 	var edge := KnockOff.STAGE_HALF_WIDTH - EDGE_MARGIN
 	# Recovery: knocked off the side or falling below — get back over center.
 	if absf(my_pos.x) > KnockOff.STAGE_HALF_WIDTH or my_pos.y < FELL_BELOW:
@@ -35,14 +36,14 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var rival := _nearest_rival(players, my_pos)
 	if rival.is_empty():
 		return {"mx": -signf(my_pos.x) * 0.3}  # ease toward center, keep safe
-	var rival_pos := Vector2(float(rival[0]), float(rival[1]))
+	var rival_pos := Vector2(float(rival[KnockOff.PS_X]), float(rival[KnockOff.PS_Y]))
 	var dx := rival_pos.x - my_pos.x
 	var dy := rival_pos.y - my_pos.y
 	var facing_dir := signf(dx) if absf(dx) > 0.01 else 1.0
 	# In striking range and roughly level: face the rival and attack.
 	if absf(dx) <= KnockOff.ATTACK_RANGE and absf(dy) <= KnockOff.ATTACK_HALF_HEIGHT:
 		var intent := {"mx": facing_dir * 0.4}  # nudge to set facing, hold ground
-		if int(rival[4]) >= int(SMASH_PERCENT):
+		if int(rival[KnockOff.PS_PERCENT]) >= int(SMASH_PERCENT):
 			intent["smash"] = true
 		else:
 			intent["jab"] = true
@@ -63,9 +64,11 @@ func _nearest_rival(players: Dictionary, from: Vector2) -> Array:
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() < 5 or int(state[3]) == 0:
+		if state.size() < 5 or int(state[KnockOff.PS_ALIVE]) == 0:
 			continue
-		var distance := from.distance_squared_to(Vector2(float(state[0]), float(state[1])))
+		var distance := from.distance_squared_to(
+			Vector2(float(state[KnockOff.PS_X]), float(state[KnockOff.PS_Y]))
+		)
 		if distance < best_distance:
 			best_distance = distance
 			best = state

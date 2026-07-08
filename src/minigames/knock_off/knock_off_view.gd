@@ -85,15 +85,15 @@ func _render(game: Dictionary) -> void:
 
 
 func _render_fighter(slot: int, state: Array) -> void:
-	if state.size() < 6:
+	if state.size() < KnockOff.PS_COUNT:
 		return
 	var rig := rig_for_slot(slot)
 	if rig == null:
 		return
-	var alive := int(state[3]) == 1
+	var alive := int(state[KnockOff.PS_ALIVE]) == 1
 	rig.modulate = Color.WHITE if alive else KO_MODULATE
 	var plate: Label = rig.get_node("Plate")
-	var percent := int(state[4])
+	var percent := int(state[KnockOff.PS_PERCENT])
 	plate.text = "%s  %d%%" % [player_name(slot), percent]
 	# Nameplate reddens with damage — the at-a-glance danger read.
 	plate.add_theme_color_override(
@@ -108,14 +108,14 @@ func _render_fighter(slot: int, state: Array) -> void:
 	if _seen_snapshot and percent > prev_percent:
 		play_sfx(&"hit_heavy" if percent - prev_percent >= 12 else &"hit")
 	_percent_seen[slot] = percent
-	var attack := int(state[5])
+	var attack := int(state[KnockOff.PS_ATTACK])
 	if attack > 0:
 		(
 			_swings
 			. append(
 				{
-					"pos": Vector2(float(state[0]), float(state[1])),
-					"facing": int(state[2]),
+					"pos": Vector2(float(state[KnockOff.PS_X]), float(state[KnockOff.PS_Y])),
+					"facing": int(state[KnockOff.PS_FACING]),
 					"color": SMASH_COLOR if attack == 2 else SWING_COLOR,
 					"age": 0.0,
 				}

@@ -111,7 +111,7 @@ func test_snapshot_shape() -> void:
 	var game := _game()
 	game.trails[0] = [Vector2(1.0, 1.0)]
 	var snapshot := game.get_snapshot()
-	assert_eq(snapshot.players[0].size(), 4)
+	assert_eq(snapshot.players[0].size(), SnakeChain.PS_COUNT)
 	assert_eq(snapshot.trails[0], [[1.0, 1.0]])
 	assert_gt(snapshot.pellets.size(), 0)
 	assert_eq(snapshot.teams, [])

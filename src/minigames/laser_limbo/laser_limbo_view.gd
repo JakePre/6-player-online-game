@@ -105,17 +105,21 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		var is_airborne := int(state[3]) == 1
-		var is_ducking := int(state[4]) == 1
-		update_rig(slot, Vector2(state[0], state[1]), JUMP_HEIGHT if is_airborne else 0.0)
+		var is_airborne := int(state[LaserLimbo.PS_AIRBORNE]) == 1
+		var is_ducking := int(state[LaserLimbo.PS_DUCKING]) == 1
+		update_rig(
+			slot,
+			Vector2(state[LaserLimbo.PS_X], state[LaserLimbo.PS_Y]),
+			JUMP_HEIGHT if is_airborne else 0.0
+		)
 		rig.scale.y = DUCK_SCALE if is_ducking else 1.0
-		var current_lives := int(state[2])
+		var current_lives := int(state[LaserLimbo.PS_LIVES])
 		rig.display_name = "%s  %s" % [player_name(slot), "+".repeat(current_lives)]
 		if _lives_seen.has(slot) and current_lives < int(_lives_seen[slot]):
 			rig.play(&"hit")
 			request_shake(7.0)
 			# The laser bites (M13-13): electric burst at the hit.
-			fx_burst(Vector2(state[0], state[1]), LASER_COLOR, 1.0)
+			fx_burst(Vector2(state[LaserLimbo.PS_X], state[LaserLimbo.PS_Y]), LASER_COLOR, 1.0)
 			if slot == my_slot:
 				# This game's own namesake in the vocabulary (#728).
 				play_sfx(&"laser")
@@ -145,9 +149,9 @@ func _update_walls() -> void:
 		if not root.visible:
 			continue
 		var state: Array = walls[i]
-		var kind := int(state[2])
-		var gap_y := float(state[3])
-		root.position = Vector3(float(state[0]), 0.0, 0.0)
+		var kind := int(state[LaserLimbo.WL_KIND])
+		var gap_y := float(state[LaserLimbo.WL_GAP_Y])
+		root.position = Vector3(float(state[LaserLimbo.WL_X]), 0.0, 0.0)
 		var low: MeshInstance3D = root.get_node("Low")
 		var high: MeshInstance3D = root.get_node("High")
 		var near: MeshInstance3D = root.get_node("GapNear")
