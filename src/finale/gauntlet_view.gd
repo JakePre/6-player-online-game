@@ -346,6 +346,10 @@ func _update_players() -> void:
 			fx_burst(
 				Vector2(rig.position.x, rig.position.z), HAZARD_FX_COLOR, PLATFORM_THICKNESS + 0.5
 			)
+			# The shared life-loss cue (#728) — hazard, rim, or axe_launch (the
+			# axe hit itself already sounded above via thud), same convention
+			# every other game's KO uses.
+			play_sfx(&"ko")
 			# Losing the last life is a finale elimination — call it out (M16-11).
 			if lives == 0:
 				_show_event("%s ELIMINATED" % player_name(slot), PartyTheme.DANGER)
@@ -383,7 +387,8 @@ func _update_weapon_state(slot: int, state: Array, rig: CharacterRig) -> void:
 			rig.set_held_weapon(
 				_axe_mesh, AXE_BONE, Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, 0.033, 0.0))
 			)
-		play_sfx(&"confirm")
+		# A weapon gained (#728, docs/AUDIO_GUIDE.md — Finale).
+		play_sfx(&"powerup")
 		fx_sparkle(Vector2(rig.position.x, rig.position.z), WEAPON_COLOR, FX_LIFT + 0.6)
 		if slot == my_slot and not _axe_hint_shown:
 			_axe_hint_shown = true
@@ -403,7 +408,9 @@ func _update_weapon_state(slot: int, state: Array, rig: CharacterRig) -> void:
 		fx_burst(Vector2(rig.position.x, rig.position.z), WEAPON_COLOR, FX_LIFT + 0.5)
 		if slot == my_slot:
 			request_shake(8.0)
-			play_sfx(&"error")
+			# An axe hit lands (#728) — the vocabulary's own "axe" example for
+			# thud, matching the Finale batch's KO-source naming.
+			play_sfx(&"thud")
 	elif swing > swing_seen:
 		rig.play(&"attack")
 		_reaction_hold[slot] = Time.get_ticks_msec() + int(REACTION_HOLD_SEC * 1000.0)
@@ -454,6 +461,7 @@ func _update_hazards() -> void:
 		node.queue_free()
 	_hazard_nodes.clear()
 	var current_keys := {}
+	var any_armed := false
 	for hazard: Array in hazards:
 		var pos := Vector2(float(hazard[Gauntlet.HZ_X]), float(hazard[Gauntlet.HZ_Y]))
 		var mesh := CylinderMesh.new()
@@ -477,10 +485,20 @@ func _update_hazards() -> void:
 		# Telegraph: a warning spark the moment a fresh hazard is armed.
 		if not _last_hazard_keys.has(key):
 			fx_sparkle(pos, HAZARD_FX_COLOR, FX_LIFT)
+			any_armed = true
 	# Detonation: a burst where a telegraphed hazard just fired and vanished.
+	var any_detonated := false
 	for key: String in _last_hazard_keys:
 		if not current_keys.has(key):
 			fx_burst(_last_hazard_keys[key], HAZARD_FX_COLOR, FX_LIFT)
+			any_detonated = true
+	# One cue per snapshot however many hazards armed/detonated together
+	# (#728) — `alarm` is the vocabulary's own danger-telegraph meaning,
+	# `explosion` its blast-impact meaning; avoids a multi-hazard chord.
+	if any_armed:
+		play_sfx(&"alarm")
+	if any_detonated:
+		play_sfx(&"explosion")
 	_last_hazard_keys = current_keys
 
 
