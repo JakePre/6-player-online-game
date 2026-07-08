@@ -182,7 +182,7 @@ func test_full_lap_finishes_in_order() -> void:
 	assert_eq(game.finish_order.size(), 1)
 	assert_eq(game.finish_order[0], [0])
 	var snap := game.get_snapshot()
-	assert_true(int(snap.players[0][4]) & 8 > 0, "the finished bit replicates")
+	assert_true(int(snap.players[0][TurboLap.PS_BITS]) & 8 > 0, "the finished bit replicates")
 	assert_eq(int(snap.standings[0]), 0, "the finisher tops the standings")
 
 
@@ -218,6 +218,6 @@ func test_snapshot_shape_and_junk_input() -> void:
 	var snap := game.get_snapshot()
 	for key in ["players", "shells", "oils", "pads", "standings"]:
 		assert_true(snap.has(key), "%s replicates" % key)
-	assert_eq((snap.players[0] as Array).size(), 5)
+	assert_eq((snap.players[0] as Array).size(), TurboLap.PS_COUNT)
 	assert_eq((snap.pads as Array).size(), 3)
 	assert_eq((snap.standings as Array).size(), 2)

@@ -145,5 +145,5 @@ func test_snapshot_shape_and_junk_input() -> void:
 	var snap := game.get_snapshot()
 	for key in ["players", "boulders", "crumble", "phase", "standings"]:
 		assert_true(snap.has(key), "%s replicates" % key)
-	assert_eq((snap.players[0] as Array).size(), 4)
+	assert_eq((snap.players[0] as Array).size(), TumbleRun.PS_COUNT)
 	assert_eq((snap.crumble as Array).size(), TumbleRun.LEDGE_COUNT)

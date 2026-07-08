@@ -39,6 +39,20 @@ const BOULDER_HIT_RADIUS := 0.9
 const KNOCKDOWN := Vector2(5.0, 4.0)
 const STUN_SEC := 0.5
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+## players[0..2] (x, y, facing) match SideScrollView's shared render_side_scroll()
+## contract; PS_FLAGS is this game's own addition (bit0 stun, bit1 summit,
+## bit2 grounded).
+const PS_X := 0
+const PS_Y := 1
+const PS_FACING := 2
+const PS_FLAGS := 3
+const PS_COUNT := 4
+
+const BL_X := 0
+const BL_Y := 1
+
 var sim: SideScrollSim
 var phase: Phase = Phase.COUNTDOWN
 var phase_left := COUNTDOWN_SEC

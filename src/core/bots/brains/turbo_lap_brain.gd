@@ -10,6 +10,7 @@ extends BotBrain
 ## Snapshot: {players: {slot: [x, y, heading, item, bits]}, shells, oils,
 ## pads, standings} (TurboLap). bits: 1 spun-out, 2 boosting, 4 drifting,
 ## 8 finished. Input: {mx: steer, my: -throttle, drift: bool, use: bool}.
+## Indices named via TurboLap.PS_* (#708).
 
 ## How far ahead on the ellipse to aim, in radians (~1.5 waypoints of the 16).
 const LOOKAHEAD_RAD := 0.6
@@ -24,11 +25,11 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 5 or (int(state[4]) & 8) != 0:
+	if state.size() < TurboLap.PS_COUNT or (int(state[TurboLap.PS_BITS]) & 8) != 0:
 		return {}  # not racing, or already finished
-	var pos := Vector2(float(state[0]), float(state[1]))
-	var heading := float(state[2])
-	var has_item := int(state[3]) != 0
+	var pos := Vector2(float(state[TurboLap.PS_X]), float(state[TurboLap.PS_Y]))
+	var heading := float(state[TurboLap.PS_HEADING])
+	var has_item := int(state[TurboLap.PS_ITEM]) != 0
 	# Aim a look-ahead point along the centerline ellipse (raced CCW).
 	var track_angle := atan2(pos.y / TurboLap.TRACK_RY, pos.x / TurboLap.TRACK_RX)
 	var aim_angle := track_angle + LOOKAHEAD_RAD

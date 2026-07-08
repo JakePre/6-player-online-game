@@ -7,7 +7,8 @@ extends BotBrain
 ## once the ball arrives.
 ##
 ## Snapshot: {players: {slot: [score, balls_left, flight_t, target_offset]}}
-## (BullseyeBowl). Input: {roll: true}.
+## (BullseyeBowl). Input: {roll: true}. Indices named via
+## BullseyeBowl.PS_* (#708).
 
 ## Mirror the sim's oscillation + flight so the prediction matches.
 const AMPLITUDE := BullseyeBowl.TARGET_AMPLITUDE
@@ -25,11 +26,11 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 4:
+	if state.size() < BullseyeBowl.PS_COUNT:
 		return {}
-	var balls_left := int(state[1])
-	var in_flight := float(state[2]) >= 0.0
-	var offset := float(state[3])
+	var balls_left := int(state[BullseyeBowl.PS_BALLS_LEFT])
+	var in_flight := float(state[BullseyeBowl.PS_FLIGHT_T]) >= 0.0
+	var offset := float(state[BullseyeBowl.PS_TARGET_OFFSET])
 	var previous := _last_offset
 	_last_offset = offset
 	if balls_left <= 0 or in_flight or previous == INF:

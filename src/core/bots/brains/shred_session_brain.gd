@@ -6,7 +6,8 @@ extends BotBrain
 ## never re-presses a lane it already cleared and whiffs into empty air.
 ##
 ## Snapshot: {elapsed, notes: [[time, lane], ...] (upcoming, not filtered per
-## player), players: {...}}. Input: {"lane": 0..LANES-1} only.
+## player), players: {...}}. Input: {"lane": 0..LANES-1} only. Indices named
+## via ShredSession.NT_* (#708).
 
 ## Notes ("time:lane" keys) this bot has already pressed, so a note that
 ## lingers in the upcoming list after we've hit it is never pressed twice.
@@ -20,16 +21,16 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var best_key := ""
 	var best_dt := ShredSession.GOOD_SEC + 1.0
 	for note: Array in game.get("notes", []):
-		var time := float(note[0])
+		var time := float(note[ShredSession.NT_TIME])
 		var dt := absf(time - elapsed)
 		if dt > ShredSession.GOOD_SEC:
 			continue
-		var key := "%.2f:%d" % [time, int(note[1])]
+		var key := "%.2f:%d" % [time, int(note[ShredSession.NT_LANE])]
 		if _attempted.has(key):
 			continue
 		if dt < best_dt:
 			best_dt = dt
-			best_lane = int(note[1])
+			best_lane = int(note[ShredSession.NT_LANE])
 			best_key = key
 	if best_lane == -1:
 		return {}

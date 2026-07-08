@@ -34,6 +34,19 @@ const STREAK_X3 := 16
 ## How far ahead the snapshot advertises upcoming notes (the visible highway).
 const LOOKAHEAD_SEC := 4.0
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_SCORE := 0
+const PS_STREAK := 1
+const PS_LAST_JUDGMENT := 2
+const PS_LAST_LANE := 3
+const PS_EVENT_COUNT := 4
+const PS_COUNT := 5
+
+## "notes" (upcoming chart) entries: [time, lane].
+const NT_TIME := 0
+const NT_LANE := 1
+
 ## The chart: time-sorted array of {time: float, lane: int}. Seeded, so identical
 ## on every peer.
 var chart: Array = []

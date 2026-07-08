@@ -125,8 +125,8 @@ func _render_3d(game: Dictionary) -> void:
 		if lane.is_empty():
 			continue
 		var center_x: float = lane.center_x
-		(lane.target as Node3D).position.x = center_x + float(state[3])
-		var flight_t := float(state[2])
+		(lane.target as Node3D).position.x = center_x + float(state[BullseyeBowl.PS_TARGET_OFFSET])
+		var flight_t := float(state[BullseyeBowl.PS_FLIGHT_T])
 		var ball: MeshInstance3D = lane.ball
 		var was_flying := ball.visible
 		ball.visible = flight_t >= 0.0
@@ -145,9 +145,14 @@ func _render_3d(game: Dictionary) -> void:
 			# a disconnected member never appears, leaving no ghost (#601).
 			reveal_rig(slot)
 			rig.display_name = (
-				"%s  %d pts  (%d balls)" % [player_name(slot), int(state[0]), int(state[1])]
+				"%s  %d pts  (%d balls)"
+				% [
+					player_name(slot),
+					int(state[BullseyeBowl.PS_SCORE]),
+					int(state[BullseyeBowl.PS_BALLS_LEFT]),
+				]
 			)
-		var score := int(state[0])
+		var score := int(state[BullseyeBowl.PS_SCORE])
 		var seen := int(_scores_seen.get(slot, score))
 		var gained := score - seen
 		if gained > 0:
@@ -155,7 +160,10 @@ func _render_3d(game: Dictionary) -> void:
 			# ring value - bullseyes burst, outers twinkle. Signature cues
 			# (#728): `bell` for the bullseye (docs/AUDIO_GUIDE.md calls out
 			# "basket, bullseye" by name), `hit` for a lesser ring.
-			var target_at := Vector2(center_x + float(state[3]), -BullseyeBowl.LANE_LENGTH / 2.0)
+			var target_at := Vector2(
+				center_x + float(state[BullseyeBowl.PS_TARGET_OFFSET]),
+				-BullseyeBowl.LANE_LENGTH / 2.0
+			)
 			if gained >= BullseyeBowl.SCORE_BULLSEYE:
 				fx_burst(target_at, player_color(slot), 0.4)
 				request_shake(7.0)  # a bullseye just landed

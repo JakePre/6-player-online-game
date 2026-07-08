@@ -8,6 +8,7 @@ extends BotBrain
 ## Snapshot: {players: {slot: [x, y, facing, flags]}, boulders: [[x, y], ...],
 ## crumble, phase, standings} (TumbleRun). flags: 1 stun, 2 summit, 4 grounded.
 ## Phase: 0 COUNTDOWN, 1 CLIMB, 2 DONE. Input: {mx} (sets facing), {jump}.
+## Indices named via TumbleRun.PS_*/BL_* (#708).
 
 ## Sidestep a boulder within this radius that's above and dropping toward us.
 const BOULDER_DODGE_RADIUS := 2.4
@@ -24,9 +25,13 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var players: Dictionary = game.get("players", {})
 	var me: Array = players.get(slot, [])
 	# flags: stunned (1) can't act; summited (2) is done.
-	if me.size() < 4 or (int(me[3]) & 1) != 0 or (int(me[3]) & 2) != 0:
+	if (
+		me.size() < TumbleRun.PS_COUNT
+		or (int(me[TumbleRun.PS_FLAGS]) & 1) != 0
+		or (int(me[TumbleRun.PS_FLAGS]) & 2) != 0
+	):
 		return {}
-	var my_pos := Vector2(float(me[0]), float(me[1]))
+	var my_pos := Vector2(float(me[TumbleRun.PS_X]), float(me[TumbleRun.PS_Y]))
 	# Dodge a boulder dropping onto us first.
 	var dodge := _dodge_boulder(game.get("boulders", []), my_pos)
 	if not dodge.is_empty():
@@ -54,9 +59,9 @@ func _next_ledge_above(y: float) -> Vector2:
 
 func _dodge_boulder(boulders: Array, from: Vector2) -> Dictionary:
 	for boulder: Array in boulders:
-		if boulder.size() < 2:
+		if boulder.size() <= TumbleRun.BL_Y:
 			continue
-		var pos := Vector2(float(boulder[0]), float(boulder[1]))
+		var pos := Vector2(float(boulder[TumbleRun.BL_X]), float(boulder[TumbleRun.BL_Y]))
 		# Above us and horizontally close — step out from under it.
 		if pos.y > from.y and from.distance_to(pos) <= BOULDER_DODGE_RADIUS:
 			var away := signf(from.x - pos.x)
