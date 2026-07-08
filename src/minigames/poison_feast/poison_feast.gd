@@ -38,6 +38,19 @@ const TIER_STATS := {
 	Tier.DELICACY: {"points": 6, "poison_chance": 0.5, "weight": 1},
 }
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_SCORE := 2
+const PS_STAGGERED := 3
+const PS_COUNT := 4
+
+const DL_ID := 0
+const DL_X := 1
+const DL_Y := 2
+const DL_TIER := 3
+
 var positions := {}
 var move_dirs := {}
 var score := {}

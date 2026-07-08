@@ -62,17 +62,17 @@ func _render(game: Dictionary) -> void:
 	# first snapshot seeds silently.
 	for slot: int in players:
 		var state: Array = players[slot]
-		var stun := float(state[2])
+		var stun := float(state[HurdleDash.PS_STUN])
 		if _seen_snapshot and stun > 0.0 and float(_stun_seen.get(slot, 0.0)) <= 0.0:
 			_sparks.append({"slot": slot, "age": 0.0})
 			if slot == my_slot:
 				# A non-damaging stumble, not a hurt-generic (#728).
 				play_sfx(&"bump")
 		_stun_seen[slot] = stun
-		var progress := float(state[0])
+		var progress := float(state[HurdleDash.PS_PROGRESS])
 		_speeds[slot] = maxf(progress - float(_progress_seen.get(slot, progress)), 0.0)
 		_progress_seen[slot] = progress
-		var finished := bool(state[3])
+		var finished := bool(state[HurdleDash.PS_FINISHED])
 		if _seen_snapshot and finished and not bool(_finished_seen.get(slot, false)):
 			if slot == my_slot:
 				# Crossing the finish line is a checkpoint (#728).
@@ -115,14 +115,14 @@ func _draw() -> void:
 			FINISH_COLOR,
 			3.0
 		)
-		var x_pos := left + float(state[0]) * px_per_unit
-		var airborne := int(state[1]) == 1
-		var stunned := float(state[2]) > 0.0
+		var x_pos := left + float(state[HurdleDash.PS_PROGRESS]) * px_per_unit
+		var airborne := int(state[HurdleDash.PS_AIRBORNE]) == 1
+		var stunned := float(state[HurdleDash.PS_STUN]) > 0.0
 		var y_pos := ground - (JUMP_LIFT * fit if airborne else 0.0)
 		var color := STUN_COLOR if stunned else player_color(slot)
 		# Speed lines (M13-30): trailing streaks scaled by snapshot speed.
 		var speed: float = _speeds.get(slot, 0.0)
-		if speed > 0.01 and not stunned and not bool(state[3]):
+		if speed > 0.01 and not stunned and not bool(state[HurdleDash.PS_FINISHED]):
 			var line_len := clampf(speed * px_per_unit * 3.0, 8.0, 30.0)
 			for i in 3:
 				var line_y := y_pos - (12.0 - float(i) * 5.0) * fit
@@ -148,7 +148,7 @@ func _draw() -> void:
 				draw_line(
 					center + direction * reach * 0.5, center + direction * reach, ray_color, 2.0
 				)
-		var caption := player_name(slot) + ("  🏁" if bool(state[3]) else "")
+		var caption := player_name(slot) + ("  🏁" if bool(state[HurdleDash.PS_FINISHED]) else "")
 		draw_string(
 			font,
 			Vector2(left + 4.0, lane_top + maxf(10.0, 14.0 * fit)),

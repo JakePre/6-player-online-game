@@ -4,6 +4,7 @@ extends BotBrain
 ## Snapshot: {players: {slot: [progress, airborne, stun_left, done]},
 ## hurdles: [progress, ...], course_len} (HurdleDash). Input: {"mx": > 0.1}
 ## keeps running; {"jump": true} jumps (sim gates cooldown/stun/air itself).
+## Indices named via HurdleDash.PS_* (#708).
 
 ## Jump when the next hurdle is within this much progress ahead.
 const JUMP_LEAD := 1.4
@@ -13,10 +14,10 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 4 or bool(state[3]):
+	if state.size() < HurdleDash.PS_COUNT or bool(state[HurdleDash.PS_FINISHED]):
 		return {}
-	var progress := float(state[0])
-	var airborne := int(state[1]) == 1
+	var progress := float(state[HurdleDash.PS_PROGRESS])
+	var airborne := int(state[HurdleDash.PS_AIRBORNE]) == 1
 	if not airborne:
 		for hurdle: Variant in game.get("hurdles", []):
 			var ahead := float(hurdle) - progress

@@ -34,6 +34,17 @@ const BAR_Y := 3.6
 const BAR_RANGE := 4.0
 const BAR_SPEED := 1.1
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_STROKES := 2
+const PS_SUNK := 3
+const PS_AIM_X := 4
+const PS_AIM_Y := 5
+const PS_AT_REST := 6
+const PS_COUNT := 7
+
 var positions := {}
 var velocities := {}
 var aims := {}

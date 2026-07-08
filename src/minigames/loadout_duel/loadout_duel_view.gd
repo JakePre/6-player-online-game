@@ -90,12 +90,12 @@ func _render(game: Dictionary) -> void:
 
 
 func _render_fighter(slot: int, state: Array) -> void:
-	if state.size() < 5:
+	if state.size() < LoadoutDuel.PS_COUNT:
 		return
 	var rig := rig_for_slot(slot)
 	if rig == null:
 		return
-	var flags := int(state[3])
+	var flags := int(state[LoadoutDuel.PS_FLAGS])
 	var alive := flags & 1 > 0
 	rig.modulate = Color.WHITE if alive else KO_MODULATE
 	# KO edge: shake + the shared elimination cue for everyone, seeded so a
@@ -128,8 +128,10 @@ func _update_hud(scores: Dictionary) -> void:
 ## and per-fighter held/shield markers — all in world→screen space.
 func _draw_fx() -> void:
 	for dais in dais_states:
-		var kind := int(dais[2])
-		var at := world_to_screen(Vector2(float(dais[0]), float(dais[1])))
+		var kind := int(dais[LoadoutDuel.DS_KIND])
+		var at := world_to_screen(
+			Vector2(float(dais[LoadoutDuel.DS_X]), float(dais[LoadoutDuel.DS_Y]))
+		)
 		var color: Color = KIND_COLORS.get(kind, PartyTheme.BG_RAISED)
 		if kind == LoadoutDuel.Kind.NONE:
 			color = PartyTheme.BG_RAISED
@@ -138,8 +140,10 @@ func _draw_fx() -> void:
 			at, radius, Color(color, 0.9 if kind != LoadoutDuel.Kind.NONE else 0.4)
 		)
 	for shot in shots:
-		var at := world_to_screen(Vector2(float(shot[0]), float(shot[1])))
-		var shot_kind := int(shot[2])
+		var at := world_to_screen(
+			Vector2(float(shot[LoadoutDuel.SH_X]), float(shot[LoadoutDuel.SH_Y]))
+		)
+		var shot_kind := int(shot[LoadoutDuel.SH_KIND])
 		if shot_kind == LoadoutDuel.Shot.THROWN:
 			_fx_layer.draw_rect(Rect2(at - Vector2(5, 5), Vector2(10, 10)), PartyTheme.TEXT)
 		elif shot_kind == LoadoutDuel.Shot.LOB:
@@ -151,13 +155,15 @@ func _draw_fx() -> void:
 
 
 func _draw_fighter_markers(state: Array) -> void:
-	if state.size() < 5 or int(state[3]) & 1 == 0:
+	if state.size() < LoadoutDuel.PS_COUNT or int(state[LoadoutDuel.PS_FLAGS]) & 1 == 0:
 		return
-	var center := world_to_screen(Vector2(float(state[0]), float(state[1])))
-	var facing := int(state[2])
-	var held := int(state[4])
+	var center := world_to_screen(
+		Vector2(float(state[LoadoutDuel.PS_X]), float(state[LoadoutDuel.PS_Y]))
+	)
+	var facing := int(state[LoadoutDuel.PS_FACING])
+	var held := int(state[LoadoutDuel.PS_HELD])
 	if held != LoadoutDuel.Kind.NONE:
 		var muzzle := center + Vector2(float(facing) * 18.0, -2.0)
 		_fx_layer.draw_circle(muzzle, 5.0, KIND_COLORS.get(held, PartyTheme.TEXT))
-	if int(state[3]) & 2 > 0:
+	if int(state[LoadoutDuel.PS_FLAGS]) & 2 > 0:
 		_fx_layer.draw_arc(center, 22.0, 0.0, TAU, 20, KIND_COLORS[LoadoutDuel.Kind.SHIELD], 3.0)

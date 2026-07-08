@@ -42,7 +42,11 @@ func _setup_3d() -> void:
 
 func _process(delta: float) -> void:
 	var state: Array = players.get(my_slot, [])
-	var can_putt := state.size() >= 7 and int(state[3]) == 0 and int(state[6]) == 1
+	var can_putt := (
+		state.size() >= PuttPanic.PS_COUNT
+		and int(state[PuttPanic.PS_SUNK]) == 0
+		and int(state[PuttPanic.PS_AT_REST]) == 1
+	)
 	if not can_putt:
 		_charging = false
 		_charge = 0.0
@@ -73,8 +77,11 @@ func _render_3d(game: Dictionary) -> void:
 		var ball: MeshInstance3D = _balls.get(slot)
 		if ball == null:
 			continue
-		ball.position = to_arena(Vector2(float(state[0]), float(state[1])), PuttPanic.BALL_RADIUS)
-		var just_sunk := int(state[3]) == 1
+		ball.position = to_arena(
+			Vector2(float(state[PuttPanic.PS_X]), float(state[PuttPanic.PS_Y])),
+			PuttPanic.BALL_RADIUS
+		)
+		var just_sunk := int(state[PuttPanic.PS_SUNK]) == 1
 		if just_sunk and not bool(_sunk_seen.get(slot, false)):
 			fx_burst(PuttPanic.CUP_POS, CUP_RING_COLOR, 0.6)
 			# Signature cue (#728, docs/AUDIO_GUIDE.md — Water): a sunk putt is
@@ -83,8 +90,8 @@ func _render_3d(game: Dictionary) -> void:
 		_sunk_seen[slot] = just_sunk
 		var rig := rig_for_slot(slot)
 		if rig != null:
-			update_rig(slot, Vector2(float(state[0]), -8.5))  # rigs watch from the tee edge
-			rig.display_name = "%s  %d" % [player_name(slot), int(state[2])]
+			update_rig(slot, Vector2(float(state[PuttPanic.PS_X]), -8.5))  # rigs watch from the tee edge
+			rig.display_name = "%s  %d" % [player_name(slot), int(state[PuttPanic.PS_STROKES])]
 
 
 func _build_cup() -> void:
@@ -180,12 +187,12 @@ func _update_aim_visual(active: bool) -> void:
 	if _aim_line == null:
 		return
 	var state: Array = players.get(my_slot, [])
-	if not active or state.size() < 7:
+	if not active or state.size() < PuttPanic.PS_COUNT:
 		_aim_line.visible = false
 		_power_bar.visible = false
 		return
-	var ball := Vector2(float(state[0]), float(state[1]))
-	var aim := Vector2(float(state[4]), float(state[5]))
+	var ball := Vector2(float(state[PuttPanic.PS_X]), float(state[PuttPanic.PS_Y]))
+	var aim := Vector2(float(state[PuttPanic.PS_AIM_X]), float(state[PuttPanic.PS_AIM_Y]))
 	var length := 1.0 + _charge * 3.0
 	_aim_line.visible = true
 	_aim_line.mesh.size = Vector3(0.08, 0.08, length)

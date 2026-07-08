@@ -81,38 +81,44 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		var caption := "%s  %d" % [player_name(slot), int(state[2])]
-		var staggered := int(state[3]) == 1
+		update_rig(slot, Vector2(state[PoisonFeast.PS_X], state[PoisonFeast.PS_Y]))
+		var caption := "%s  %d" % [player_name(slot), int(state[PoisonFeast.PS_SCORE])]
+		var staggered := int(state[PoisonFeast.PS_STAGGERED]) == 1
 		if staggered:
 			caption += "  (poisoned!)"
 			if not _staggered.get(slot, false):
 				rig.play(&"hit")
 				# A sick green puff over whoever just bit poison (M13-25).
-				fx_burst(Vector2(state[0], state[1]), POISON_PUFF_COLOR, 1.1)
+				fx_burst(
+					Vector2(state[PoisonFeast.PS_X], state[PoisonFeast.PS_Y]),
+					POISON_PUFF_COLOR,
+					1.1
+				)
 				# Signature cue (#728): poison is a debuff/stagger, not a
 				# generic error — docs/AUDIO_GUIDE.md's `powerdown` names it.
 				if slot == my_slot:
 					play_sfx(&"powerdown")
 					request_shake(6.0)
-		elif slot == my_slot and int(state[2]) > _my_score:
+		elif slot == my_slot and int(state[PoisonFeast.PS_SCORE]) > _my_score:
 			play_sfx(&"coin")
 		_staggered[slot] = staggered
 		if slot == my_slot:
-			_my_score = int(state[2])
+			_my_score = int(state[PoisonFeast.PS_SCORE])
 		rig.display_name = caption
 
 
 func _update_dishes() -> void:
 	var seen := {}
 	for entry: Array in dishes:
-		var id := int(entry[0])
+		var id := int(entry[PoisonFeast.DL_ID])
 		seen[id] = true
 		var node: Node3D = _dish_nodes.get(id)
 		if node == null:
-			node = _build_dish(id, int(entry[3]))
-			_dish_tiers[id] = int(entry[3])
-		node.position = to_arena(Vector2(float(entry[1]), float(entry[2])))
+			node = _build_dish(id, int(entry[PoisonFeast.DL_TIER]))
+			_dish_tiers[id] = int(entry[PoisonFeast.DL_TIER])
+		node.position = to_arena(
+			Vector2(float(entry[PoisonFeast.DL_X]), float(entry[PoisonFeast.DL_Y]))
+		)
 	for id: int in _dish_nodes.keys():
 		if not seen.has(id):
 			var node := _dish_nodes[id] as Node3D
