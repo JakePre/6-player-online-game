@@ -74,7 +74,7 @@ func test_spin_fires_fx_and_sfx_once_seeded() -> void:
 	view.render({"players": {0: _kart(0.0, 0.0, 0.0, 0, 0)}, "standings": []})
 	view.render({"players": {0: _kart(0.0, 0.0, 0.0, 0, 1)}, "standings": []})
 	assert_signal_emitted(view, "shake_requested")
-	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"error"])
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"powerdown"])
 
 
 func test_shell_and_oil_pools_track_snapshot() -> void:

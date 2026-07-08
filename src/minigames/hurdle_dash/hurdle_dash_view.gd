@@ -66,7 +66,8 @@ func _render(game: Dictionary) -> void:
 		if _seen_snapshot and stun > 0.0 and float(_stun_seen.get(slot, 0.0)) <= 0.0:
 			_sparks.append({"slot": slot, "age": 0.0})
 			if slot == my_slot:
-				play_sfx(&"error")
+				# A non-damaging stumble, not a hurt-generic (#728).
+				play_sfx(&"bump")
 		_stun_seen[slot] = stun
 		var progress := float(state[0])
 		_speeds[slot] = maxf(progress - float(_progress_seen.get(slot, progress)), 0.0)
@@ -74,7 +75,8 @@ func _render(game: Dictionary) -> void:
 		var finished := bool(state[3])
 		if _seen_snapshot and finished and not bool(_finished_seen.get(slot, false)):
 			if slot == my_slot:
-				play_sfx(&"confirm")
+				# Crossing the finish line is a checkpoint (#728).
+				play_sfx(&"bell")
 		_finished_seen[slot] = finished
 	_seen_snapshot = true
 	queue_redraw()
