@@ -102,7 +102,8 @@ func _render_3d(game: Dictionary) -> void:
 		if slot == my_slot:
 			# Pickup ping and a personal note when a crash grants fresh invuln.
 			if _counts_seen.has(slot) and count > int(_counts_seen[slot]):
-				play_sfx(&"coin")
+				# A growth pickup (#728, docs/AUDIO_GUIDE.md — Survival & chase).
+				play_sfx(&"powerup")
 			if invulnerable and not bool(_invuln_seen.get(slot, false)):
 				play_sfx(&"error")
 		_counts_seen[slot] = count

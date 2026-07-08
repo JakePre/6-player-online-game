@@ -156,7 +156,8 @@ func _place_item(node: Node3D, index: int) -> void:
 func _update_held_feedback() -> void:
 	for slot: int in held:
 		if not _last_held.has(slot) and slot == my_slot:
-			play_sfx(&"coin")
+			# A weapon/buff pickup (#728, docs/AUDIO_GUIDE.md), not currency.
+			play_sfx(&"powerup")
 	for slot: int in _last_held:
 		if held.has(slot):
 			continue
@@ -199,6 +200,10 @@ func _update_players() -> void:
 		var points := int(state[2])
 		if _points_seen.has(slot) and points > int(_points_seen[slot]):
 			fx_sparkle(Vector2(state[0], state[1]), player_color(slot))
+			# A tick-up while holding the hill (POINTS_PER_SEC=2, so at most
+			# 2 Hz — never a machine-gun) — a small satisfying consume (#728).
+			if slot == my_slot:
+				play_sfx(&"pop")
 		_points_seen[slot] = points
 
 

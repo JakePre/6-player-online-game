@@ -100,7 +100,8 @@ func _render_3d(game: Dictionary) -> void:
 	# _update_players marks them downed.
 	if _alive_seen >= 0 and alive.size() < _alive_seen:
 		request_shake(12.0)
-		play_sfx(&"error")
+		# A bomb going off is this vocabulary's textbook explosion (#728).
+		play_sfx(&"explosion")
 		for slot: int in players:
 			if slot not in alive and not _downed.has(slot):
 				var state: Array = players[slot]
