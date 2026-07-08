@@ -190,7 +190,12 @@ func _fire_pull_fx() -> void:
 		_scuff_dust(-1.0 if delta < 0.0 else 1.0)
 	if not _win_fired and absf(rope) >= win_offset - 0.001 and not (team_a + team_b).is_empty():
 		_win_fired = true
-		play_sfx(&"round_win")
+		# `round_win` is chrome-exclusive (docs/AUDIO_GUIDE.md rule 1 — the
+		# match_screen fires it, games don't); this was reusing the shared
+		# stinger for tug_of_war's own pull-to-the-line, the same meaning
+		# collision the Aim & targets batch found in quick_draw (#728). The
+		# delivery cue is the correct fit here.
+		play_sfx(&"bell")
 		request_shake(10.0)
 		_win_burst(-1.0 if rope < 0.0 else 1.0)
 
