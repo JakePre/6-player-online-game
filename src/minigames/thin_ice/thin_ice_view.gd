@@ -151,7 +151,10 @@ func _shake_on_new_falls() -> void:
 		fallen_count += group.size()
 	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
 		request_shake(10.0)
-		play_sfx(&"error")
+		# Signature cues (#711 pilot): the body hitting the water plus the
+		# shared elimination cue, replacing the generic UI `error`.
+		play_sfx(&"splash")
+		play_sfx(&"ko")
 		for group: Array in fallen:
 			for slot: int in group:
 				if _last_seen_pos.has(slot):
@@ -186,12 +189,14 @@ func _spawn_splash(world_pos: Vector2) -> void:
 func _update_tiles() -> void:
 	var cracked_now := false
 	var breaking_now := false
+	var gone_now := false
 	for idx in _tile_nodes.size():
 		var state: int = tiles[idx] if idx < tiles.size() else ThinIce.TileState.INTACT
 		var prev: int = _prev_tiles[idx] if idx < _prev_tiles.size() else ThinIce.TileState.INTACT
 		if state != prev:
 			cracked_now = cracked_now or state == ThinIce.TileState.CRACKED
 			breaking_now = breaking_now or state == ThinIce.TileState.BREAKING
+			gone_now = gone_now or state == ThinIce.TileState.GONE
 			# Ice chips as it cracks, splashes as it gives way (M13-05); the
 			# seeding snapshot stays silent like the sounds below.
 			if not _prev_tiles.is_empty():
@@ -209,11 +214,17 @@ func _update_tiles() -> void:
 			)
 	# One sound per snapshot, however many tiles changed together; the seeding
 	# snapshot stays silent so mid-match rejoiners aren't greeted with cracks.
+	# Signature cues (#711 pilot, docs/AUDIO_GUIDE.md): the fracture escalation
+	# ladder — `crack` (first warning) -> `alarm` (about to give, the shared
+	# danger telegraph) -> `shatter` (the tile drops) — replacing the UI
+	# `tick`/`click` that used to stand in for ice.
 	if not _prev_tiles.is_empty():
 		if cracked_now:
-			play_sfx(&"tick")
+			play_sfx(&"crack")
 		if breaking_now:
-			play_sfx(&"click")
+			play_sfx(&"alarm")
+		if gone_now:
+			play_sfx(&"shatter")
 	_prev_tiles = tiles.duplicate()
 
 

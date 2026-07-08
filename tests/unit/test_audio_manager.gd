@@ -4,8 +4,10 @@ extends GutTest
 
 
 func test_every_registered_stream_exists() -> void:
+	# Music channels are pools since M20-01 (#711): every loop in every pool.
 	for name: StringName in AudioManager.MUSIC:
-		assert_true(ResourceLoader.exists(AudioManager.MUSIC[name]), "music %s must exist" % name)
+		for path: String in AudioManager.MUSIC[name]:
+			assert_true(ResourceLoader.exists(path), "music %s -> %s must exist" % [name, path])
 	for name: StringName in AudioManager.SFX:
 		assert_true(ResourceLoader.exists(AudioManager.SFX[name]), "sfx %s must exist" % name)
 
