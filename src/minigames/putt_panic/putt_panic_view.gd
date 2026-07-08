@@ -77,7 +77,9 @@ func _render_3d(game: Dictionary) -> void:
 		var just_sunk := int(state[3]) == 1
 		if just_sunk and not bool(_sunk_seen.get(slot, false)):
 			fx_burst(PuttPanic.CUP_POS, CUP_RING_COLOR, 0.6)
-			play_sfx(&"coin")
+			# Signature cue (#728, docs/AUDIO_GUIDE.md — Water): a sunk putt is
+			# a target hit, not currency — `bell`'s literal meaning.
+			play_sfx(&"bell")
 		_sunk_seen[slot] = just_sunk
 		var rig := rig_for_slot(slot)
 		if rig != null:
