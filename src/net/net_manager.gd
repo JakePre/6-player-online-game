@@ -49,6 +49,23 @@ const INPUT_BURST_MAX := 30.0
 const INPUT_REFILL_MS := 15.0
 ## Rolling window size for the load-soak tick timer (#710).
 const TICK_SAMPLE_CAP := 600
+## The only MatchController states whose per-tick snapshot the client acts on:
+## MatchScreen._on_snapshot renders COUNTDOWN/PLAY/FINALE_PLAY/FINALE_SHOP and
+## early-returns on every other state. Broadcasting outside this set (a LOBBY
+## with no controller, or the INTRO/RESULTS/LEADERBOARD/PODIUM/DONE chrome
+## states) ships a 30 Hz snapshot the client discards — pure idle/between-round
+## bandwidth a 24-player room pays 30x per member per second (#765, the #710
+## deferred follow-up). State and phase still sync over the reliable
+## _broadcast_room_state + match-event channels, and the client interpolation
+## clock is wall-clock paced and re-bases on the next changed sample, so the
+## skip is invisible to clients, rejoin, and the soak bots (which detect phase
+## from events, not snapshot arrival).
+const CLIENT_CONSUMED_STATES := [
+	MatchController.State.COUNTDOWN,
+	MatchController.State.PLAY,
+	MatchController.State.FINALE_PLAY,
+	MatchController.State.FINALE_SHOP,
+]
 
 var is_server := false
 var room_manager: RoomManager
@@ -781,18 +798,40 @@ func _drive_bots(delta: float) -> void:
 				controller.handle_input(member.slot, intent)
 
 
+## True when a room in `state` (with a live controller) produces a snapshot the
+## client renders; see CLIENT_CONSUMED_STATES. Pure so the skip is unit-tested.
+static func snapshot_state_reaches_client(state: int) -> bool:
+	return state in CLIENT_CONSUMED_STATES
+
+
+## The M1-05 fake-lag/loss soak forces a room to IN_MATCH via a debug RPC
+## without ever starting a real match (no MatchController), purely to exercise
+## the snapshot RPC transport under adverse network conditions. That state is
+## reachable only on a --debug-rpcs server (a real IN_MATCH room always has a
+## controller; production never enables debug RPCs), so honouring it as a
+## header-only heartbeat keeps that required check measuring a live stream at
+## zero production cost.
+func _is_debug_heartbeat_room(room: Room, controller: MatchController) -> bool:
+	return debug_rpcs_enabled and controller == null and room.state == Room.State.IN_MATCH
+
+
 func _broadcast_snapshots() -> void:
 	for room: Room in room_manager.rooms.values():
-		var payload := {"tick": _server_tick, "server_ms": Time.get_ticks_msec()}
 		var controller: MatchController = match_controllers.get(room.code)
-		if controller != null:
+		var payload := {"tick": _server_tick, "server_ms": Time.get_ticks_msec()}
+		if controller != null and snapshot_state_reaches_client(controller.state):
 			payload["match"] = controller.get_snapshot()
+		elif not _is_debug_heartbeat_room(room, controller):
+			# Idle / chrome states: the client discards the snapshot, so skip the
+			# whole room's fan-out and save the RPCs (#765).
+			continue
 		for member: RoomMember in room.members:
 			if not _is_rpc_target(member):
 				continue
 			# Hidden-role data is computed per recipient so a player's secret
 			# role never reaches another player's client (#254). Games with no
-			# private state send the shared payload unchanged.
+			# private state (and the controller-less heartbeat room) send the
+			# shared payload unchanged.
 			var private: Dictionary = (
 				{} if controller == null else controller.private_snapshot_for(member.slot)
 			)
