@@ -33,6 +33,16 @@ const KB_PER_PERCENT := 0.09
 ## Upward share of the launch, so hits pop victims up and off, not just sideways.
 const KB_LIFT_RATIO := 0.7
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_FACING := 2
+const PS_ALIVE := 3
+const PS_PERCENT := 4
+const PS_ATTACK := 5
+const PS_COUNT := 6
+
 var sim: SideScrollSim
 var phase: Phase = Phase.COUNTDOWN
 var phase_left := COUNTDOWN_SEC

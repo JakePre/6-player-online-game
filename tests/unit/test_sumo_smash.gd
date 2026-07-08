@@ -155,5 +155,5 @@ func test_snapshot_shape() -> void:
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.radius, SumoSmash.PLATFORM_RADIUS)
 	assert_eq(snapshot.players.size(), 2)
-	assert_eq(snapshot.players[0].size(), 4)
+	assert_eq(snapshot.players[0].size(), SumoSmash.PS_COUNT)
 	assert_eq(snapshot.out, [])

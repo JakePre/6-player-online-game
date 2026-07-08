@@ -5,7 +5,8 @@ extends BotBrain
 ## the nearest rival and dash into them once close and off cooldown — a dash
 ## shove is 3x stronger (DASH_SHOVE_MULT) and is the only way to ring someone
 ## out from mid-platform. Snapshot: {radius, players: {slot: [x, y, cooldown,
-## dashing]}}. Input: {mx, my} + {dash: true}.
+## dashing]}}. Input: {mx, my} + {dash: true}. Indices named via
+## SumoSmash.PS_* (#708).
 
 ## Distance from the rim at which self-preservation overrides the hunt.
 const EDGE_MARGIN := 1.5
@@ -17,9 +18,9 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var state: Array = players.get(slot, [])
-	if state.size() < 4:
+	if state.size() < SumoSmash.PS_COUNT:
 		return {}
-	var me := Vector2(float(state[0]), float(state[1]))
+	var me := Vector2(float(state[SumoSmash.PS_X]), float(state[SumoSmash.PS_Y]))
 	var radius := float(game.get("radius", SumoSmash.PLATFORM_RADIUS))
 	if me.length() > radius - EDGE_MARGIN:
 		# Too close to the rim: retreat toward center outranks the hunt.
@@ -27,7 +28,7 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var rival := _nearest_rival(players, me)
 	if rival == Vector2.INF:
 		return {"mx": 0.0, "my": 0.0}
-	var cooldown := float(state[2])
+	var cooldown := float(state[SumoSmash.PS_COOLDOWN])
 	var intent := move_toward_point(me, rival, 0.0)
 	if cooldown <= 0.0 and me.distance_to(rival) <= DASH_RANGE:
 		intent["dash"] = true
@@ -41,9 +42,9 @@ func _nearest_rival(players: Dictionary, me: Vector2) -> Vector2:
 		if other == slot:
 			continue
 		var state: Array = players[other]
-		if state.size() < 2:
+		if state.size() <= SumoSmash.PS_Y:
 			continue
-		var pos := Vector2(float(state[0]), float(state[1]))
+		var pos := Vector2(float(state[SumoSmash.PS_X]), float(state[SumoSmash.PS_Y]))
 		var dist := me.distance_squared_to(pos)
 		if dist < best_dist:
 			best_dist = dist

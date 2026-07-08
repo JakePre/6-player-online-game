@@ -7,7 +7,8 @@ extends BotBrain
 ##
 ## Snapshot: {players: {slot: [x, y, pellets_eaten, invuln_left]},
 ## trails: {slot: [[x, y], ...]}, pellets: [[x, y], ...]}. Input: {mx, my}
-## only — this is a steering wheel, not a stop/go throttle.
+## only — this is a steering wheel, not a stop/go throttle. Indices named
+## via SnakeChain.PS_*/TR_* (#708).
 
 ## Candidate headings sampled around the pellet-seeking direction.
 const CANDIDATE_COUNT := 8
@@ -23,7 +24,7 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var state: Array = players.get(slot, [])
 	if state.is_empty():
 		return {}
-	var me := Vector2(float(state[0]), float(state[1]))
+	var me := Vector2(float(state[SnakeChain.PS_X]), float(state[SnakeChain.PS_Y]))
 	var trails: Dictionary = game.get("trails", {})
 	var goal := nearest_point(me, game.get("pellets", []))
 	var best_dir := Vector2.ZERO
@@ -58,6 +59,7 @@ func _hits_a_body(point: Vector2, trails: Dictionary) -> bool:
 		var start := SnakeChain.SELF_GRACE_SEGMENTS if int(other) == slot else 0
 		for i in range(start, trail.size()):
 			var seg: Array = trail[i]
-			if point.distance_to(Vector2(float(seg[0]), float(seg[1]))) <= HIT_RADIUS:
+			var seg_pos := Vector2(float(seg[SnakeChain.TR_X]), float(seg[SnakeChain.TR_Y]))
+			if point.distance_to(seg_pos) <= HIT_RADIUS:
 				return true
 	return false

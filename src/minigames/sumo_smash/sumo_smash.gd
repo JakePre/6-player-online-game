@@ -14,6 +14,14 @@ const DASH_COOLDOWN_SEC := 2.0
 const DASH_SHOVE_MULT := 3.0
 const KNOCK_DECAY := 6.0
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_COOLDOWN := 2
+const PS_DASHING := 3
+const PS_COUNT := 4
+
 var positions := {}
 var move_dirs := {}
 ## Knockback/dash velocity per slot, decaying toward zero.

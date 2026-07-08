@@ -30,6 +30,17 @@ const SPILL_HEADROOM := 6
 const CRASH_INVULN_SEC := 2.0
 const TEAM_THRESHOLD := 4
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_COUNT_EATEN := 2
+const PS_INVULN := 3
+const PS_COUNT := 4
+
+const TR_X := 0
+const TR_Y := 1
+
 var positions := {}
 var headings := {}
 ## slot -> Array of Vector2 body points, newest first.

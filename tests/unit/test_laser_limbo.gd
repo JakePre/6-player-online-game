@@ -124,7 +124,11 @@ func test_snapshot_shape() -> void:
 	var game := _game_with(2)
 	game.walls = [_wall(LaserLimbo.WallKind.GAP, 1.0, -2.0)]
 	var snapshot := game.get_snapshot()
-	assert_eq((snapshot.players[0] as Array).size(), 5, "[x, y, lives, airborne, ducking]")
+	assert_eq(
+		(snapshot.players[0] as Array).size(),
+		LaserLimbo.PS_COUNT,
+		"[x, y, lives, airborne, ducking]"
+	)
 	assert_eq(snapshot.walls, [[1.0, 1, LaserLimbo.WallKind.GAP, -2.0]])
 	assert_eq(snapshot.fallen, [])
 

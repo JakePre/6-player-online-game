@@ -89,12 +89,12 @@ func _render_3d(game: Dictionary) -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		var invulnerable := float(state[3]) > 0.0
+		update_rig(slot, Vector2(state[SnakeChain.PS_X], state[SnakeChain.PS_Y]))
+		var invulnerable := float(state[SnakeChain.PS_INVULN]) > 0.0
 		rig.player_color = (
 			player_color(slot).lightened(0.5) if invulnerable else player_color(slot)
 		)
-		var count := int(state[2])
+		var count := int(state[SnakeChain.PS_COUNT_EATEN])
 		var caption := "%s  ●%d" % [player_name(slot), count]
 		if invulnerable:
 			caption += "  ✨"
@@ -115,7 +115,8 @@ func _render_3d(game: Dictionary) -> void:
 			if i < trail.size():
 				var point: Array = trail[i]
 				segment.position = to_arena(
-					Vector2(float(point[0]), float(point[1])), SEGMENT_HEIGHT
+					Vector2(float(point[SnakeChain.TR_X]), float(point[SnakeChain.TR_Y])),
+					SEGMENT_HEIGHT
 				)
 				segment.visible = true
 			else:
