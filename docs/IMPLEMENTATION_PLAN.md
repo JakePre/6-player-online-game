@@ -270,7 +270,7 @@ contract, chase the actual win condition, use its abilities; GUT-test pure
 
 - [x] **M19-01** (L, Fable) Brain framework + registry + pump wiring + seven archetype brains: coin_scramble (collector), king_of_the_hill (zone-holder + item use), thin_ice (surface avoider), meteor_shower (telegraph dodger), hurdle_dash (racer), tug_of_war (masher), gauntlet (finale shop priorities + survival) ⛓ none
 - [x] **M19-02..** per-game brains for the remaining roster — ✅ complete 2026-07-07: all 45 catalog games covered across eight batches (#686 closed); `RandomBrain` remains only as the fallback for future games. Known follow-ups: the client-side playtest bots still run random input (#705 — the milestone's telemetry payoff), and a data-driven brain quality pass (#715, blocked on #705)
-- [ ] **M19-03** (S-M, Opus) Wire `BotBrains` into the client-side playtest bots so the nightly balance telemetry measures real play — the milestone's whole strategic payoff; unblocks M12-01 (#705) ⛓ M19-02
+- [x] **M19-03** (S-M, Opus) Wire `BotBrains` into the client-side playtest bots so the nightly balance telemetry measures real play — the milestone's whole strategic payoff; unblocks M12-01 (#705) ⛓ M19-02
 
 ### M20 — Audio identity pass (owner-directed 2026-07-07 via project review; see PROJECT_REVIEW.md)
 
@@ -279,8 +279,8 @@ games (five UI cues, five jingles, two music loops, shred drums) — every
 game shares the same click/confirm/error vocabulary. Mirrors the M13 FX
 fan-out shape.
 
-- [ ] **M20-01** (M, Opus) Foundation: CC0 SFX bank import (Kenney audio packs; CREDITS.md rows) + `AudioManager` new cue names + a music channel rotating 2-3 additional CC0 round loops; settings volume sliders stay authoritative (#711) ⛓ none
-- [ ] **M20-02..** (S each, Sonnet) Per-game signature-sound adoption fan-out — one game = one claim, re-pointing the existing M12-02 `play_sfx` call sites at 2-3 signature cues per game while keeping the shared vocabulary for shared meanings (KO, countdown, win); roster issue filed when M20-01 lands ⛓ M20-01
+- [x] **M20-01** (M, Opus) Foundation: CC0 SFX bank import (Kenney audio packs; CREDITS.md rows) + `AudioManager` new cue names + a music channel rotating 2-3 additional CC0 round loops; settings volume sliders stay authoritative (#711) ⛓ none
+- [x] **M20-02..** (S each, Sonnet) Per-game signature-sound adoption fan-out — one game = one claim, re-pointing the existing M12-02 `play_sfx` call sites at 2-3 signature cues per game while keeping the shared vocabulary for shared meanings (KO, countdown, win); roster issue filed when M20-01 lands ⛓ M20-01
 
 ## 6. Suggested build order / critical path
 
