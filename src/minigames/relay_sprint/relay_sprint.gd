@@ -20,6 +20,18 @@ const LANE_HALF := 2.0
 const RUNNER_RADIUS := 0.45
 const TEAM_SIZE := 2
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const LN_ROSTER := 0
+const LN_ACTIVE_LEG := 1
+const LN_PROGRESS := 2
+const LN_LATERAL := 3
+const LN_DONE := 4
+const LN_COUNT := 5
+
+const HZ_X := 0
+const HZ_LATERAL := 1
+
 ## Ordered runner slots per team.
 var teams: Array = []
 ## Per team: index of the runner currently on the track.

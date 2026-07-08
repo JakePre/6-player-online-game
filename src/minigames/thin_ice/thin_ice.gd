@@ -23,6 +23,12 @@ const TILE_SIZE := 2.0
 const MOVE_SPEED := 5.0
 const PLAYER_RADIUS := 0.4
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_COUNT := 2
+
 var positions := {}
 var move_dirs := {}
 ## Row-major _grid_size * _grid_size array of TileState.

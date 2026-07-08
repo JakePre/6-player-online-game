@@ -194,7 +194,7 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.tile_size, ThinIce.TILE_SIZE)
 	assert_eq(snapshot.tiles.size(), ThinIce.GRID_SIZE * ThinIce.GRID_SIZE)
 	assert_eq(snapshot.players.size(), 2)
-	assert_eq(snapshot.players[0].size(), 2)
+	assert_eq(snapshot.players[0].size(), ThinIce.PS_COUNT)
 	assert_eq(snapshot.fallen, [])
 
 

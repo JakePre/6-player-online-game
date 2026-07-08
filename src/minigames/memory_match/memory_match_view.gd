@@ -172,7 +172,7 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		update_rig(slot, Vector2(state[MemoryMatch.PS_X], state[MemoryMatch.PS_Y]))
 	for group: Array in fallen:
 		for slot: int in group:
 			_down_rig(slot)

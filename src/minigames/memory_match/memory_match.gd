@@ -20,6 +20,11 @@ const SAFE_START_FRACTION := 0.5
 const SAFE_SHRINK := 0.75
 const SAFE_MIN := 3
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+
 var positions := {}
 var move_dirs := {}
 var phase := Phase.SHOW

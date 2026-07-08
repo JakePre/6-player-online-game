@@ -3,7 +3,8 @@ extends BotBrain
 ## Hot Potato archetype (M19-02, #686): flee the carrier when someone else
 ## has the bomb; when you're holding it, hunt the nearest rival to pass it off
 ## before the fuse blows. Snapshot: {players: {slot: [x, y]}, carrier, fuse,
-## alive: [slot, ...], holds: {slot: seconds}}. Input: {mx, my} only.
+## alive: [slot, ...], holds: {slot: seconds}}. Input: {mx, my} only. Indices
+## named via HotPotato.PS_* (#708).
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -49,6 +50,6 @@ func _hunt(players: Dictionary, me: Vector2, alive: Array) -> Dictionary:
 
 func _pos_of(players: Dictionary, other: int) -> Vector2:
 	var state: Array = players.get(other, [])
-	if state.size() < 2:
+	if state.size() < HotPotato.PS_COUNT:
 		return Vector2.INF
-	return Vector2(float(state[0]), float(state[1]))
+	return Vector2(float(state[HotPotato.PS_X]), float(state[HotPotato.PS_Y]))

@@ -57,20 +57,24 @@ func _render(game: Dictionary) -> void:
 	# speed. The first snapshot seeds silently.
 	for lane_index: int in lanes:
 		var state: Array = lanes[lane_index]
-		var leg := int(state[1])
-		var progress := float(state[2])
+		var leg := int(state[RelaySprint.LN_ACTIVE_LEG])
+		var progress := float(state[RelaySprint.LN_PROGRESS])
 		var prev_leg := int(_legs_seen.get(lane_index, leg))
-		if _seen_snapshot and leg > prev_leg and not bool(state[4]):
+		if _seen_snapshot and leg > prev_leg and not bool(state[RelaySprint.LN_DONE]):
 			_flashes.append({"lane": lane_index, "age": 0.0})
 			# Only your own team's handoff pings (M12-02) — the baton pass is a
 			# checkpoint (#728), replacing generic UI confirm.
-			if my_slot in (state[0] as Array):
+			if my_slot in (state[RelaySprint.LN_ROSTER] as Array):
 				play_sfx(&"bell")
 		if leg == prev_leg:
 			var prev := float(_progress_seen.get(lane_index, progress))
 			# A hazard hit resets progress to 0 (RelaySprint._hit_hazard) — the
 			# setback debuff, personal to your own team (#728).
-			if _seen_snapshot and progress < prev and my_slot in (state[0] as Array):
+			if (
+				_seen_snapshot
+				and progress < prev
+				and my_slot in (state[RelaySprint.LN_ROSTER] as Array)
+			):
 				play_sfx(&"powerdown")
 			_speeds[lane_index] = maxf(progress - prev, 0.0)
 		else:
@@ -113,17 +117,17 @@ func _draw() -> void:
 		)
 		var mid_y := lane_top + lane_height / 2.0
 		var lat_scale := (lane_height / 2.0 - 8.0 * fit) / RelaySprint.LANE_HALF
-		var team: Array = state[0]
-		var leg := int(state[1])
-		var done: bool = state[4]
+		var team: Array = state[RelaySprint.LN_ROSTER]
+		var leg := int(state[RelaySprint.LN_ACTIVE_LEG])
+		var done: bool = state[RelaySprint.LN_DONE]
 		var runner := -1
 		var runner_y := mid_y
 		if not done:
 			runner = team[mini(leg, team.size() - 1)]
-			runner_y = mid_y + float(state[3]) * lat_scale
+			runner_y = mid_y + float(state[RelaySprint.LN_LATERAL]) * lat_scale
 		for hazard: Array in hazards:
-			var hx := left + float(hazard[0]) * px_per_unit
-			var hy := mid_y + float(hazard[1]) * lat_scale
+			var hx := left + float(hazard[RelaySprint.HZ_X]) * px_per_unit
+			var hy := mid_y + float(hazard[RelaySprint.HZ_LATERAL]) * lat_scale
 			# Warn when the sweep is closing on the runner's row (#213).
 			var closing := runner >= 0 and absf(hy - runner_y) < lane_height * 0.25
 			draw_circle(
@@ -132,7 +136,7 @@ func _draw() -> void:
 				HAZARD_WARN_COLOR if closing else HAZARD_COLOR
 			)
 		if not done:
-			var rx := left + float(state[2]) * px_per_unit
+			var rx := left + float(state[RelaySprint.LN_PROGRESS]) * px_per_unit
 			var color := player_color(runner)
 			# Speed lines (M13-22): trailing streaks scaled by snapshot speed.
 			var speed: float = _speeds.get(lane_index, 0.0)
