@@ -491,10 +491,34 @@ func test_putt_panic_brain_aims_at_the_cup_and_putts_at_rest() -> void:
 		"shot_clock": 5.0,
 	}
 	var intent := brain.think(_play_state("putt_panic", game), {})
-	assert_almost_eq(float(intent.ay), 1.0, 0.01, "aim straight up the green at the cup")
-	assert_almost_eq(float(intent.ax), 0.0, 0.01)
+	# #715: a seeded per-shot wobble (AIM_JITTER_RAD) now perturbs the once-exact
+	# aim, so the tolerance covers the worst case instead of pixel-perfect.
+	assert_almost_eq(float(intent.ay), 1.0, 0.02, "aims up the green at the cup, plus wobble")
+	assert_almost_eq(float(intent.ax), 0.0, 0.11)
 	assert_true(intent.get("putt", false), "at rest -> take the stroke")
 	assert_gt(float(intent.power), 0.0, "with real power")
+
+
+func test_putt_panic_brain_wobbles_aim_and_power_per_seed() -> void:
+	# #715 (classified in #759): every bot instance used to compute identical
+	# aim+power from the same remaining distance, so a whole lobby's putts
+	# converged near-optimally and simultaneously. Two different seeds facing
+	# the same shot must now diverge.
+	var game := {
+		"players": {0: [0.0, -7.0, 0, 0, 0.0, 1.0, 1]},
+		"cup": [0.0, 6.5],
+		"bar": [0.0, 0.0],
+		"shot_clock": 5.0,
+	}
+	var a := BotBrains.brain_for(&"putt_panic", 0, 1).think(_play_state("putt_panic", game), {})
+	var b := BotBrains.brain_for(&"putt_panic", 0, 99).think(_play_state("putt_panic", game), {})
+	assert_true(
+		(
+			not is_equal_approx(float(a.ax), float(b.ax))
+			or not is_equal_approx(float(a.power), float(b.power))
+		),
+		"different seeds facing an identical shot wobble to different aim/power"
+	)
 
 
 func test_putt_panic_brain_does_not_putt_while_rolling() -> void:
