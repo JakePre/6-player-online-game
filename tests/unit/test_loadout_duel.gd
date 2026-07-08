@@ -211,6 +211,6 @@ func test_snapshot_shape_and_junk_input() -> void:
 	var snap := game.get_snapshot()
 	for key in ["players", "shots", "daises", "phase", "sub_round", "scores"]:
 		assert_true(snap.has(key), "%s replicates" % key)
-	assert_eq((snap.players[0] as Array).size(), 5)
+	assert_eq((snap.players[0] as Array).size(), LoadoutDuel.PS_COUNT)
 	assert_eq((snap.daises as Array).size(), LoadoutDuel.dais_positions().size())
 	assert_true(int(snap.players[0][3]) & 1 > 0, "the alive bit is set")

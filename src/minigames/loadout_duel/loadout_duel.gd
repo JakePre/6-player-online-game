@@ -51,6 +51,23 @@ const THROW_LIFE := 1.6
 const KO_KNOCKBACK := Vector2(9.0, 5.0)
 const SHIELD_KNOCKBACK := Vector2(6.0, 3.0)
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+const PS_FACING := 2
+const PS_FLAGS := 3
+const PS_HELD := 4
+const PS_COUNT := 5
+
+const SH_X := 0
+const SH_Y := 1
+const SH_KIND := 2
+
+const DS_X := 0
+const DS_Y := 1
+const DS_KIND := 2
+
 var sim: SideScrollSim
 var phase: Phase = Phase.COUNTDOWN
 var sub_round := 0

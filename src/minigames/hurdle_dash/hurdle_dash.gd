@@ -17,6 +17,16 @@ const HURDLE_HALF_DEPTH := 0.3
 const STUN_SEC := 0.8
 const KNOCKBACK := 1.5
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only. Note this
+## array leads with `progress` (a lane-relative scalar), not x/y — a 1D racer,
+## unlike most games' [x, y, ...] convention.
+const PS_PROGRESS := 0
+const PS_AIRBORNE := 1
+const PS_STUN := 2
+const PS_FINISHED := 3
+const PS_COUNT := 4
+
 ## Same hurdle x positions for every lane (fair course).
 var hurdles: Array[float] = []
 var progress := {}

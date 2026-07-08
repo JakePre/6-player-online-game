@@ -138,7 +138,7 @@ func test_snapshot_shape() -> void:
 	var game := _game()
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.players.size(), 2)
-	assert_eq(snapshot.players[0].size(), 4)
+	assert_eq(snapshot.players[0].size(), HurdleDash.PS_COUNT)
 	assert_eq(snapshot.hurdles.size(), HurdleDash.HURDLE_COUNT)
 	assert_eq(snapshot.course_len, HurdleDash.COURSE_LEN)
 

@@ -10,7 +10,8 @@ extends BotBrain
 ##
 ## Snapshot: {players: {slot: [x, y, score, staggered]}, dishes: [[id, x, y,
 ## tier], ...], pot} (PoisonFeast). Tier: 0 CLEAN, 1 SPICED, 2 DELICACY,
-## 3 GOLDEN. Input: {mx, my} (eat by touch).
+## 3 GOLDEN. Input: {mx, my} (eat by touch). Indices named via
+## PoisonFeast.PS_*/DL_* (#708).
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -42,9 +43,9 @@ func _nearest_dish(dishes: Array, from: Vector2, tiers: Array) -> Vector2:
 	var best := Vector2.INF
 	var best_distance := INF
 	for dish: Array in dishes:
-		if dish.size() < 4 or int(dish[3]) not in tiers:
+		if dish.size() < 4 or int(dish[PoisonFeast.DL_TIER]) not in tiers:
 			continue
-		var pos := Vector2(float(dish[1]), float(dish[2]))
+		var pos := Vector2(float(dish[PoisonFeast.DL_X]), float(dish[PoisonFeast.DL_Y]))
 		var distance := from.distance_squared_to(pos)
 		if distance < best_distance:
 			best_distance = distance
