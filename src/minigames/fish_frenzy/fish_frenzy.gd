@@ -19,6 +19,17 @@ const SWIM_SEC := 1.8
 const STREAK_EVERY := 5
 const STREAK_BONUS := 1
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_LANE := 0
+const PS_CAUGHT := 1
+const PS_STREAK := 2
+const PS_COUNT := 3
+
+const FL_LANE := 0
+const FL_ARRIVES := 1
+const FL_COUNT := 2
+
 var lane := {}
 var caught := {}
 var streak := {}

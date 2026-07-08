@@ -139,14 +139,14 @@ func _render_3d(game: Dictionary) -> void:
 		var node := _fish_pool[i]
 		if i < fish.size():
 			var entry: Array = fish[i]
-			var progress := 1.0 - clampf(float(entry[1]) / swim_sec, 0.0, 1.0)
+			var progress := 1.0 - clampf(float(entry[FishFrenzy.FL_ARRIVES]) / swim_sec, 0.0, 1.0)
 			# Swim motion rides the replicated progress (M13-19): every client
 			# sees the same wag at the same point of the run.
 			var wag := sin(progress * WAG_CYCLES * TAU)
 			node.position = Vector3(
 				lerpf(RUNWAY_LEN, 0.0, progress),
 				0.3 + sin(progress * TAU * 2.0) * BOB_HEIGHT,
-				_lane_z(int(entry[0]))
+				_lane_z(int(entry[FishFrenzy.FL_LANE]))
 			)
 			node.rotation.y = wag * BODY_WAG_RAD
 			(node.get_node("Tail") as MeshInstance3D).rotation.y = -wag * TAIL_WAG_RAD
@@ -163,18 +163,18 @@ func _render_3d(game: Dictionary) -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		var player_lane := int(state[0])
+		var player_lane := int(state[FishFrenzy.PS_LANE])
 		var queue_index := int(lane_queues.get(player_lane, 0))
 		lane_queues[player_lane] = queue_index + 1
 		update_rig(slot, Vector2(STAND_X - queue_index * QUEUE_SPACING, _lane_z(player_lane)))
-		var caption := "%s  🐟%d" % [player_name(slot), int(state[1])]
-		if int(state[2]) >= FishFrenzy.STREAK_EVERY:
-			caption += "  🔥%d" % int(state[2])
+		var caption := "%s  🐟%d" % [player_name(slot), int(state[FishFrenzy.PS_CAUGHT])]
+		if int(state[FishFrenzy.PS_STREAK]) >= FishFrenzy.STREAK_EVERY:
+			caption += "  🔥%d" % int(state[FishFrenzy.PS_STREAK])
 		rig.display_name = caption
 		# Catch FX (M13-19): a catch is the count ticking up — splash + sparkle
 		# at the line in that lane. Seeded so a rejoiner's first snapshot stays
 		# calm.
-		var catches := int(state[1])
+		var catches := int(state[FishFrenzy.PS_CAUGHT])
 		if _catches_seen.has(slot) and catches > int(_catches_seen[slot]):
 			var at := Vector2(0.0, _lane_z(player_lane))
 			fx_splash(at)

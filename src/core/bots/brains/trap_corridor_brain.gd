@@ -9,7 +9,8 @@ extends BotBrain
 ## Snapshot: {phase, trapper, players: {slot: [x, y]} (excludes trapper +
 ## caught), revealed: [tile], caught: [slot], traps_left, corridor: [len,
 ## half_width]}. Input: {trap: [col, row]} (trapper, TRAPPING); {mx, my}
-## (runner, RUNNING).
+## (runner, RUNNING). Indices named via TrapCorridor.PS_* (#708); read here via
+## the shared BotBrain.my_position() helper (every game's [x, y, ...] convention).
 
 ## Trap tiles placed this sub-round, [col, row]; reset when a fresh budget
 ## appears. Kept so placements spread instead of stacking on one tile.
