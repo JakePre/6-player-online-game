@@ -49,6 +49,11 @@ var _names := {}
 var _totals := {}
 var _minigame_id := ""
 var _minigame_name := ""
+## This client's rank per ordinary round completed this match (#712): {
+## game_id, placement}, in play order. Recorded to StatsStore at match_ended;
+## the finale is out of v1 scope. A fresh match_screen per match, so this
+## never needs an explicit reset.
+var _round_history: Array[Dictionary] = []
 ## Current intro card's device-aware hint segments (#608) and the plain-prose
 ## fallback, kept so a live device change can re-render without the event.
 var _intro_hint_segments: Array = []
@@ -169,6 +174,7 @@ func _on_match_event(event: Dictionary) -> void:
 				_minigame_view.celebrate(event.placements)
 			AudioManager.play_sfx(_result_sfx(event))
 			_show_results(event)
+			_record_round_history(event.placements)
 		"leaderboard":
 			AudioManager.play_sfx(&"leaderboard")
 			_unmount_view()
@@ -192,6 +198,7 @@ func _on_match_event(event: Dictionary) -> void:
 			AudioManager.play_sfx(&"podium")
 			_unmount_view()
 			_show_podium(event.standings, event.get("series", {}))
+			_record_match_stats(event.standings)
 
 
 func _on_snapshot(snapshot: Dictionary) -> void:
@@ -474,6 +481,43 @@ func _result_sfx(event: Dictionary) -> StringName:
 	if not placements.is_empty() and NetManager.my_slot in placements[0]:
 		return &"round_win"
 	return &"round_lose"
+
+
+## This client's 1-based rank in a round's tie-grouped placements, or 0 if
+## our slot isn't in any group (a mid-round rejoin, say) — #712's standout-
+## round math skips those rather than guessing.
+func _my_round_rank(placements: Array) -> int:
+	for i in placements.size():
+		if NetManager.my_slot in (placements[i] as Array):
+			return i + 1
+	return 0
+
+
+func _record_round_history(placements: Array) -> void:
+	var rank := _my_round_rank(placements)
+	if rank > 0 and not _minigame_id.is_empty():
+		_round_history.append({"game_id": _minigame_id, "placement": rank})
+
+
+## Records this match's outcome locally (#712) — client-side only, from the
+## podium standings the client already receives plus this session's own round
+## history. Zero protocol change; skipped if our slot never lands in
+## `standings` (e.g. a very late join that never got tracked server-side).
+func _record_match_stats(standings: Array) -> void:
+	var placement := 0
+	for i in standings.size():
+		if int(standings[i].slot) == NetManager.my_slot:
+			placement = i + 1
+			break
+	if placement == 0:
+		return
+	var result := {
+		"date": Time.get_unix_time_from_system(),
+		"placement": placement,
+		"player_count": standings.size(),
+		"rounds": _round_history,
+	}
+	StatsStore.save_stats(StatsStore.record_match(StatsStore.load_stats(), result))
 
 
 func _show_results(event: Dictionary) -> void:

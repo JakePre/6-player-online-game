@@ -34,6 +34,7 @@ var _updater: Updater
 @onready var _join_button: Button = %JoinButton
 @onready var _rejoin_button: Button = %RejoinButton
 @onready var _settings_button: Button = %SettingsButton
+@onready var _stats_button: Button = %StatsButton
 @onready var _credits_button: Button = %CreditsButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _advanced_toggle: CheckButton = %AdvancedToggle
@@ -55,6 +56,7 @@ func _ready() -> void:
 	_join_button.pressed.connect(_on_join_pressed)
 	_rejoin_button.pressed.connect(_on_rejoin_pressed)
 	_settings_button.pressed.connect(func() -> void: navigate.emit(&"settings"))
+	_stats_button.pressed.connect(func() -> void: navigate.emit(&"stats"))
 	_credits_button.pressed.connect(func() -> void: navigate.emit(&"credits"))
 	_quit_button.pressed.connect(func() -> void: get_tree().quit())
 	_advanced_toggle.toggled.connect(func(on: bool) -> void: _advanced_box.visible = on)
@@ -96,6 +98,7 @@ func _apply_button_motion() -> void:
 		_join_button,
 		_rejoin_button,
 		_settings_button,
+		_stats_button,
 		_credits_button,
 		_quit_button,
 		_update_button,
