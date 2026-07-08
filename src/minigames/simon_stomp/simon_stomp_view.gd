@@ -116,7 +116,8 @@ func _render_3d(game: Dictionary) -> void:
 	var cleared_now := bool(game.get("round_cleared", {}).get(my_slot, false))
 	var failed_now := bool(game.get("round_failed", {}).get(my_slot, false))
 	if cleared_now and not _was_cleared:
-		play_sfx(&"confirm")
+		# Clearing the round is a checkpoint (#728, docs/AUDIO_GUIDE.md).
+		play_sfx(&"bell")
 		_round_clear_pop()
 	if failed_now and not _was_failed:
 		play_sfx(&"error")

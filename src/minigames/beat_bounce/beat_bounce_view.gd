@@ -124,7 +124,9 @@ func _render_3d(game: Dictionary) -> void:
 	# "Your turn" chime the moment REPEAT opens; all pads ripple an invitation.
 	var repeat_now := _phase == BeatBounce.Phase.REPEAT
 	if repeat_now and not _was_repeat:
-		play_sfx(&"coin")
+		# "Your turn" checkpoint (#728, docs/AUDIO_GUIDE.md — Timing & pads),
+		# not currency.
+		play_sfx(&"bell")
 		for pad in PAD_COLORS.size():
 			_floor_ripple(PAD_OFFSETS[pad] * PAD_SPREAD, PAD_COLORS[pad], RIPPLE_REACH * 0.6)
 	_was_repeat = repeat_now
@@ -137,7 +139,9 @@ func _render_3d(game: Dictionary) -> void:
 	# Local hit / miss stings, from your own progress and strike deltas.
 	var my_progress := int(_progress.get(my_slot, 0))
 	if my_progress > _my_last_progress:
-		play_sfx(&"confirm")
+		# A correct step is a small satisfying consume (#728), per the
+		# archetype's own pop/bell/error suggestion.
+		play_sfx(&"pop")
 		_rig_sparkle(my_slot)
 	_my_last_progress = my_progress
 	var my_strikes := int(_strikes.get(my_slot, 0))

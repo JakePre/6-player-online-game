@@ -334,11 +334,14 @@ func _show_judgment(judgment: int) -> void:
 		ShredSession.Judgment.PERFECT:
 			_judgment_label.text = "PERFECT!"
 			_judgment_label.add_theme_color_override(&"font_color", PartyTheme.ACCENT_BRIGHT)
-			play_sfx(&"confirm")
+			# The lane drum (#585) already carries the beat; these judgment
+			# stingers are separate feedback on the shared pool (#728) — a
+			# perfect hit is the bigger checkpoint, good is the smaller one.
+			play_sfx(&"bell")
 		ShredSession.Judgment.GOOD:
 			_judgment_label.text = "GOOD"
 			_judgment_label.add_theme_color_override(&"font_color", PartyTheme.INFO)
-			play_sfx(&"confirm")
+			play_sfx(&"pop")
 		ShredSession.Judgment.MISS:
 			_judgment_label.text = "MISS"
 			_judgment_label.add_theme_color_override(&"font_color", PartyTheme.DANGER)
