@@ -152,9 +152,15 @@ func _update_blob(slot: int) -> void:
 	if mass < last_mass * 0.6:
 		fx_burst(pos, player_color(slot), 0.5)
 		request_shake(3.0)
+		# Signature cue (#728): heard only by the swallowed blob.
+		if slot == my_slot:
+			play_sfx(&"powerdown")
 	_mass_seen[slot] = mass
 	# Lunge onset sparkles.
 	var lunging := int(state[3]) == 1
 	if lunging and not bool(_lunge_seen.get(slot, false)):
 		fx_sparkle(pos, LUNGE_COLOR, 0.4)
+		# Signature cue (#728): heard only by the lunging player.
+		if slot == my_slot:
+			play_sfx(&"dash")
 	_lunge_seen[slot] = lunging

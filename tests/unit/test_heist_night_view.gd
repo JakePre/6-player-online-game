@@ -56,15 +56,22 @@ func test_render_tolerates_missing_keys() -> void:
 func test_vault_drop_fires_steal_pulse() -> void:
 	view.render({"vaults": {0: [3.0, 3.0, 5], 1: [-3.0, -3.0, 2]}})
 	assert_eq(view._pulses.size(), 0, "first sighting seeds silently")
+	watch_signals(view)
 	view.render({"vaults": {0: [3.0, 3.0, 3], 1: [-3.0, -3.0, 2]}})
 	assert_eq(view._pulses.size(), 1, "only the robbed vault pulses")
 	assert_eq(int(view._pulses[0].slot), 0)
+	# Signature cue (#728): exposure/suspicion — matches the FX's own "alarm
+	# ring" name (M13-27), not a generic error.
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"alarm"], "robbed")
 
 
 func test_vault_gain_does_not_pulse() -> void:
 	view.render({"vaults": {0: [3.0, 3.0, 5]}})
+	watch_signals(view)
 	view.render({"vaults": {0: [3.0, 3.0, 9]}})
 	assert_eq(view._pulses.size(), 0, "banking coins is not a robbery")
+	# Signature cue (#728): banking a pickup plays coin, heard only by us.
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"coin"], "banked a pickup")
 
 
 func test_steal_pulses_expire() -> void:

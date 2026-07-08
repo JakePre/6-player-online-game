@@ -84,12 +84,24 @@ func test_poison_bite_puffs() -> void:
 	assert_gt(_burst_count(), 0, "a poisoned bite puffs")
 
 
+## Signature cue (#728): a debuff/stagger, not a generic error — and, per the
+## "my_slot louder than the room" rule, only the local eater hears it.
+func test_poison_bite_plays_powerdown_for_the_local_player() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0, 0]}, "dishes": []})
+	watch_signals(view)
+	view.render({"players": {0: [0.0, 0.0, -3, 1]}, "dishes": []})
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"powerdown"], "poisoned")
+
+
 ## The pot emptying (a clean bite claimed it) pops a burst on the table.
 func test_pot_claim_bursts() -> void:
 	view.render({"players": {}, "dishes": [], "pot": 5})
 	assert_eq(_burst_count(), 0, "no burst while the pot is building")
+	watch_signals(view)
 	view.render({"players": {}, "dishes": [], "pot": 0})
 	assert_gt(_burst_count(), 0, "claiming the pot pops a burst")
+	# Signature cue (#728): the whole table hears the pot claim.
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"pop"], "pot claimed")
 
 
 func test_render_tolerates_missing_keys() -> void:

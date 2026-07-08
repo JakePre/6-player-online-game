@@ -75,7 +75,9 @@ func _render(game: Dictionary) -> void:
 		var body := _guard_body_index()
 		if body >= 0 and body < crowd.size():
 			_pulses.append({"pos": _vec(crowd[body]), "age": 0.0})
-		play_sfx(&"error")
+		# Signature cue (#728): an arrest is exposure/suspicion — exactly
+		# docs/AUDIO_GUIDE.md's shared `alarm` meaning, not a generic error.
+		play_sfx(&"alarm")
 	_alarm_seen = alarm
 	# A successful lift is heard only by the thief who made it (M12-02).
 	var my_loot := int(scores.get(my_slot, -1))
