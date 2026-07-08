@@ -238,7 +238,7 @@ after M12-05. Recommended model tiers are designated per task in
 - [x] **M17-03** (M, Opus) Controller rebinding: extend the M12-03 remap UI to capture `InputEventJoypadButton`/`JoypadMotion` alongside keys (per-action pad column, persisted in SettingsStore like keybinds) ⛓ none
 - [x] **M17-04** (M, Opus) Full menu/chrome controller navigation: focus chains + initial focus on every screen (menu, lobby incl. Round/Series dropdowns + mutator toggles, character select, settings, shop panel, results/podium, credits), `ui_cancel` as universal back, visible focus ring already themed (M16-01) ⛓ none
 - [x] **M17-05** (S, Sonnet) Regression guards: GUT tests asserting every input-map action keeps ≥1 joypad and ≥1 keyboard event, every registered game's `controls` hint names a pad binding, and the remap UI round-trips pad bindings ⛓ M17-03
-- [ ] **M17-06** (M, Fable) Closing verification sweep: gamepad-only end-to-end pass — menu → lobby → all 35 games → finale → podium — on at least Xbox- and PS-layout pads plus one generic/DB-mapped pad; findings fixed on sight or filed; README gains a supported-controllers note ⛓ M17-01..05
+- [ ] **M17-06** (Owner + Sonnet, #713) Closing verification sweep: no agent can press physical buttons, so this is an **owner-run** pass using `docs/CONTROLLER_CHECKLIST.md` (menu → lobby → 10 representative games covering every input archetype → finale → podium, on Xbox/PS/generic pads); findings become individually-claimable fix issues (Sonnet/Opus on sight); box closes when a checklist run comes back clean ⛓ M17-01..05
 
 ### M18 — Cohesion & foundations (owner directives 2026-07-06: "one cohesive game with a solid foundation" · settings 2.0 · choices survive updates · reset-to-defaults · default server celestrum.com)
 
