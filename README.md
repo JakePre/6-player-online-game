@@ -18,6 +18,7 @@ A 2–6 player online party game in the style of Mario Party's minigame mode: jo
 | Players | 2–6, mid-match rejoin supported |
 | Content | 17 minigames across 4 categories + "The Gauntlet" finale |
 | Assets | CC0/CC-BY only (KayKit + Kenney), tracked in `assets/CREDITS.md` |
+| Controllers | Keyboard/mouse or gamepad, full parity — Xbox, PlayStation, Nintendo, and generic SDL-mapped pads (community `gamecontrollerdb.txt`), hot-plug, rebindable. See [docs/CONTROLLER_CHECKLIST.md](docs/CONTROLLER_CHECKLIST.md) for the verification pass. |
 
 ## Run it locally (dev)
 
