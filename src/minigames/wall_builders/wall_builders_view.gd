@@ -98,7 +98,8 @@ func _render_3d(game: Dictionary) -> void:
 		# Your own team's wall rising a row pays off (M12-02).
 		if height > int(_walls_seen[team_index]) and team_index < teams.size():
 			if my_slot in (teams[team_index] as Array):
-				play_sfx(&"confirm")
+				# The delivery cue (#728, docs/AUDIO_GUIDE.md — Team objects).
+				play_sfx(&"bell")
 		_walls_seen[team_index] = height
 	for slot: int in players:
 		var state: Array = players[slot]
@@ -114,5 +115,6 @@ func _render_3d(game: Dictionary) -> void:
 				marker.position = to_arena(Vector2(state[0], state[1]), 2.4)
 		rig.display_name = player_name(slot) + ("  🧱" if carrying else "")
 		if slot == my_slot and carrying and not bool(_carrying_seen.get(slot, false)):
-			play_sfx(&"coin")
+			# Picking up a floor block isn't currency (#728).
+			play_sfx(&"pop")
 		_carrying_seen[slot] = carrying

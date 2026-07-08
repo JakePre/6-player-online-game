@@ -106,7 +106,9 @@ func _update_players() -> void:
 		if staggered and not _staggered.get(slot, false):
 			fx_dust(Vector2(state[0], state[1]))
 			if slot == my_slot:
-				play_sfx(&"error")
+				# A non-damaging shove (#728) — the vocabulary's own "shove"
+				# example for bump.
+				play_sfx(&"bump")
 		_staggered[slot] = staggered
 		rig.display_name = caption
 		var carrying := flags & 1 == 1
