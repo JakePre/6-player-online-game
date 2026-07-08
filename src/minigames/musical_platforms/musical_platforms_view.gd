@@ -28,6 +28,8 @@ var _platforms_were_empty := true
 var _rendered_once := false
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
+## -1 = unseeded, for the MUSIC -> STOP danger-telegraph edge (#728).
+var _phase_seen := -1
 
 
 func _physics_process(_delta: float) -> void:
@@ -81,6 +83,11 @@ func _render_3d(game: Dictionary) -> void:
 	platforms = game.get("platforms", [])
 	fallen = game.get("fallen", [])
 	_phase_label.text = STOP_TEXT if phase == MusicalPlatforms.Phase.STOP else MUSIC_TEXT
+	# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): the music
+	# stopping is the danger telegraph — scramble now.
+	if _phase_seen == MusicalPlatforms.Phase.MUSIC and phase == MusicalPlatforms.Phase.STOP:
+		play_sfx(&"alarm")
+	_phase_seen = phase
 	_update_players()
 	_update_platforms()
 	_shake_on_new_downs()
@@ -139,7 +146,9 @@ func _update_platforms() -> void:
 		if int(_claims_seen.get(i, -1)) == -1 and claimant != -1:
 			fx_sparkle(at, player_color(claimant))
 			if claimant == my_slot:
-				play_sfx(&"confirm")
+				# Landing a platform is a positive checkpoint, not a generic
+				# UI accept.
+				play_sfx(&"bell")
 		_claims_seen[i] = claimant
 	_platforms_were_empty = platforms.is_empty()
 	_rendered_once = true
@@ -154,5 +163,5 @@ func _shake_on_new_downs() -> void:
 		fallen_count += group.size()
 	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
 		request_shake(9.0)
-		play_sfx(&"error")
+		play_sfx(&"ko")
 	_fallen_seen = fallen_count
