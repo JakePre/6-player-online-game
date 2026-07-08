@@ -137,7 +137,7 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		update_rig(slot, Vector2(state[MeteorShower.PS_X], state[MeteorShower.PS_Y]))
 	for group: Array in fallen:
 		for slot: int in group:
 			_down_rig(slot)
@@ -167,26 +167,31 @@ func _update_falling_meteors() -> void:
 		if not rock.visible:
 			continue
 		var state: Array = meteors[i]
-		var progress := clampf(float(state[2]) / MeteorShower.METEOR_TELEGRAPH_SEC, 0.0, 1.0)
-		rock.position = to_arena(Vector2(state[0], state[1]), METEOR_DROP_HEIGHT * progress + 0.5)
+		var progress := clampf(
+			float(state[MeteorShower.MT_LEFT]) / MeteorShower.METEOR_TELEGRAPH_SEC, 0.0, 1.0
+		)
+		rock.position = to_arena(
+			Vector2(state[MeteorShower.MT_X], state[MeteorShower.MT_Y]),
+			METEOR_DROP_HEIGHT * progress + 0.5
+		)
 
 
 ## A meteor that left the snapshot with its timer nearly spent just landed:
 ## impact burst + dust at its last position (M13-07).
 func _burst_on_landings() -> void:
 	for old: Array in _meteors_seen:
-		if float(old[2]) > 0.2:
+		if float(old[MeteorShower.MT_LEFT]) > 0.2:
 			continue
 		var still_falling := false
 		for current: Array in meteors:
 			if (
-				absf(float(current[0]) - float(old[0])) < 0.01
-				and absf(float(current[1]) - float(old[1])) < 0.01
+				absf(float(current[MeteorShower.MT_X]) - float(old[MeteorShower.MT_X])) < 0.01
+				and absf(float(current[MeteorShower.MT_Y]) - float(old[MeteorShower.MT_Y])) < 0.01
 			):
 				still_falling = true
 				break
 		if not still_falling:
-			var at := Vector2(float(old[0]), float(old[1]))
+			var at := Vector2(float(old[MeteorShower.MT_X]), float(old[MeteorShower.MT_Y]))
 			fx_burst(at, IMPACT_BURST_COLOR)
 			fx_dust(at)
 			# Signature cue (#728, docs/AUDIO_GUIDE.md — Bombs & blasts): a
@@ -196,11 +201,13 @@ func _burst_on_landings() -> void:
 
 
 func _update_zone() -> void:
-	_zone_node.visible = zone.size() == 3
+	_zone_node.visible = zone.size() == MeteorShower.ZN_COUNT
 	if not _zone_node.visible:
 		return
-	_zone_node.position = to_arena(Vector2(zone[0], zone[1]), ZONE_DISC_HEIGHT / 2.0)
-	var radius := maxf(float(zone[2]), 0.001)
+	_zone_node.position = to_arena(
+		Vector2(zone[MeteorShower.ZN_X], zone[MeteorShower.ZN_Y]), ZONE_DISC_HEIGHT / 2.0
+	)
+	var radius := maxf(float(zone[MeteorShower.ZN_RADIUS]), 0.001)
 	_zone_node.scale = Vector3(radius, 1.0, radius)
 
 
@@ -213,9 +220,16 @@ func _update_telegraphs() -> void:
 		if not marker.visible:
 			continue
 		var state: Array = meteors[i]
-		var urgency := 1.0 - clampf(float(state[2]) / MeteorShower.METEOR_TELEGRAPH_SEC, 0.0, 1.0)
+		var urgency := (
+			1.0
+			- clampf(
+				float(state[MeteorShower.MT_LEFT]) / MeteorShower.METEOR_TELEGRAPH_SEC, 0.0, 1.0
+			)
+		)
 		var radius := MeteorShower.METEOR_RADIUS * lerpf(0.5, 1.0, urgency)
-		marker.position = to_arena(Vector2(state[0], state[1]), ZONE_DISC_HEIGHT)
+		marker.position = to_arena(
+			Vector2(state[MeteorShower.MT_X], state[MeteorShower.MT_Y]), ZONE_DISC_HEIGHT
+		)
 		marker.scale = Vector3(radius, 1.0, radius)
 
 

@@ -99,7 +99,7 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
+		update_rig(slot, Vector2(state[MusicalPlatforms.PS_X], state[MusicalPlatforms.PS_Y]))
 	for group: Array in fallen:
 		for slot: int in group:
 			_down_rig(slot)
@@ -127,8 +127,11 @@ func _update_platforms() -> void:
 		if not node.visible:
 			continue
 		var state: Array = platforms[i]
-		node.position = to_arena(Vector2(state[0], state[1]), PLATFORM_DISC_HEIGHT / 2.0)
-		var claimant := int(state[2])
+		node.position = to_arena(
+			Vector2(state[MusicalPlatforms.PT_X], state[MusicalPlatforms.PT_Y]),
+			PLATFORM_DISC_HEIGHT / 2.0
+		)
+		var claimant := int(state[MusicalPlatforms.PT_CLAIMED_BY])
 		var material: StandardMaterial3D = (node.mesh as CylinderMesh).material
 		if claimant == -1:
 			material.albedo_color = PLATFORM_FREE_COLOR
@@ -140,7 +143,7 @@ func _update_platforms() -> void:
 		# sparkle in the claimant's color; a fresh wave of platforms puffs
 		# dust as it drops in (skipped on the client's very first render, so
 		# rejoiners aren't greeted with a dust storm).
-		var at := Vector2(state[0], state[1])
+		var at := Vector2(state[MusicalPlatforms.PT_X], state[MusicalPlatforms.PT_Y])
 		if _platforms_were_empty and _rendered_once:
 			fx_dust(at)
 		if int(_claims_seen.get(i, -1)) == -1 and claimant != -1:

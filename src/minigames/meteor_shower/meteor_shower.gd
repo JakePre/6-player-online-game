@@ -19,6 +19,21 @@ const METEOR_RADIUS := 1.6
 const METEOR_INTERVAL_START := 1.4
 const METEOR_INTERVAL_MIN := 0.5
 
+## get_snapshot() wire shapes (#708): named indices for the positional arrays
+## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+const PS_X := 0
+const PS_Y := 1
+
+const MT_X := 0
+const MT_Y := 1
+const MT_LEFT := 2
+const MT_COUNT := 3
+
+const ZN_X := 0
+const ZN_Y := 1
+const ZN_RADIUS := 2
+const ZN_COUNT := 3
+
 var positions := {}
 var move_dirs := {}
 ## Telegraphed meteors: {pos: Vector2, left: float} — impact when left hits 0.

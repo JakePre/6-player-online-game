@@ -19,6 +19,13 @@ const CLEAN_COINS_PER_SEC := 1.0
 ## never ping-pongs inside one collision.
 const IMMUNITY_SEC := 1.5
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_COINS := 2
+const PS_COUNT := 3
+
 var positions := {}
 var move_dirs := {}
 var coins := {}

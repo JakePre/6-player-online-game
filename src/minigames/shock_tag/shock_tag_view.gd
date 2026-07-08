@@ -73,8 +73,8 @@ func _render_3d(game: Dictionary) -> void:
 func _zap_arc(from_slot: int, to_slot: int) -> void:
 	for slot in [from_slot, to_slot]:
 		var state: Array = players.get(slot, [])
-		if state.size() >= 2:
-			fx_burst(Vector2(state[0], state[1]), RING_COLOR, 1.0)
+		if state.size() > ShockTag.PS_Y:
+			fx_burst(Vector2(state[ShockTag.PS_X], state[ShockTag.PS_Y]), RING_COLOR, 1.0)
 
 
 func _update_players() -> void:
@@ -83,8 +83,8 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[0], state[1]))
-		var caption := "%s  %d" % [player_name(slot), int(state[2])]
+		update_rig(slot, Vector2(state[ShockTag.PS_X], state[ShockTag.PS_Y]))
+		var caption := "%s  %d" % [player_name(slot), int(state[ShockTag.PS_COINS])]
 		if slot == zapped:
 			caption += "  ZAP!"
 		rig.display_name = caption
@@ -92,9 +92,9 @@ func _update_players() -> void:
 
 func _update_ring() -> void:
 	var state: Array = players.get(zapped, [])
-	_ring.visible = state.size() >= 2
+	_ring.visible = state.size() > ShockTag.PS_Y
 	if _ring.visible:
-		_ring.position = to_arena(Vector2(state[0], state[1]), RING_HEIGHT)
+		_ring.position = to_arena(Vector2(state[ShockTag.PS_X], state[ShockTag.PS_Y]), RING_HEIGHT)
 		# Crackle pulse (M13-09): a throb every few snapshots, so it animates
 		# identically on every client.
 		_pulse_ticks += 1

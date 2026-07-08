@@ -34,6 +34,12 @@ const SHOVE_KNOCK := 9.0
 const SHOVE_COOLDOWN_SEC := 1.5
 const KNOCK_DECAY := 6.0
 
+## get_snapshot() wire shape (#708): named indices for the players positional
+## array. Array SHAPE on the wire is unchanged — additive only.
+const PS_X := 0
+const PS_Y := 1
+const PS_COUNT := 2
+
 var teams: Array = []
 var phase := Phase.SIEGE
 ## Index of the team currently (or last) attacking.

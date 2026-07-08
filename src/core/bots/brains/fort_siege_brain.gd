@@ -11,6 +11,7 @@ extends BotBrain
 ## Snapshot: {phase (0 SIEGE, 1 SWAP), attacking (team index), phase_left,
 ## gate (0..1 hp fraction), capture (0..1), players: {slot: [x, y]}, teams:
 ## [[slot, ...], [slot, ...]], times} (FortSiege). Input: {mx, my, act}.
+## Indices named via FortSiege.PS_* (#708).
 
 ## Where defenders camp while the gate still stands — just behind it, so they
 ## naturally collide with attackers battering the wall.
@@ -67,9 +68,9 @@ func _nearest_of(players: Dictionary, roster: Array, from: Vector2) -> Vector2:
 	var best_distance := INF
 	for other: int in roster:
 		var state: Array = players.get(other, [])
-		if state.size() < 2:
+		if state.size() <= FortSiege.PS_Y:
 			continue
-		var pos := Vector2(float(state[0]), float(state[1]))
+		var pos := Vector2(float(state[FortSiege.PS_X]), float(state[FortSiege.PS_Y]))
 		var distance := from.distance_squared_to(pos)
 		if distance < best_distance:
 			best_distance = distance
