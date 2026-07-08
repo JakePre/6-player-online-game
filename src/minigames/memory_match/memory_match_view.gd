@@ -142,6 +142,10 @@ func _reveal_wave_fx() -> void:
 	):
 		for index in safe_tiles:
 			fx_sparkle(_tile_world(int(index)), TILE_SAFE_COLOR, 0.4)
+	elif _phase_seen == MemoryMatch.Phase.SHOW and phase == MemoryMatch.Phase.DARK:
+		# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): the lights
+		# going out is the danger telegraph — go now.
+		play_sfx(&"alarm")
 	_phase_seen = phase
 
 
@@ -193,5 +197,7 @@ func _shake_on_new_downs() -> void:
 		fallen_count += group.size()
 	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
 		request_shake(10.0)
-		play_sfx(&"error")
+		# The pit-fall + elimination cues, same pattern as thin_ice's #727 pilot.
+		play_sfx(&"splash")
+		play_sfx(&"ko")
 	_fallen_seen = fallen_count

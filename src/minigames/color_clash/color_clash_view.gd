@@ -35,6 +35,8 @@ var _half := ColorClash.ARENA_HALF
 var _grid_seen: Array = []
 var _counts := {}
 var _pulse_ticks := 0
+## Last-seen leading faction, for the take-the-lead cue (#728).
+var _leading_seen := ColorClash.UNPAINTED
 
 
 func _physics_process(_delta: float) -> void:
@@ -136,6 +138,12 @@ func _render_3d(game: Dictionary) -> void:
 	_pulse_ticks += 1
 	_update_tiles()
 	_update_players()
+	# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): taking the lead
+	# is a positive checkpoint, same spirit as musical_platforms' claim bell.
+	var leading := leading_faction()
+	if leading != _leading_seen and leading != ColorClash.UNPAINTED and leading == _my_faction():
+		play_sfx(&"bell")
+	_leading_seen = leading
 
 
 func _update_tiles() -> void:
@@ -165,9 +173,11 @@ func _update_tiles() -> void:
 		var shown := color.lightened(boost) if is_leading else color
 		multimesh.set_instance_color(i, shown)
 	_grid_seen = grid.duplicate()
-	# One ping per snapshot, not per tile, so a mass repaint isn't a chord (M12-02).
+	# One ping per snapshot, not per tile, so a mass repaint isn't a chord
+	# (M12-02). `pop` (#728, docs/AUDIO_GUIDE.md) — a tile claim isn't currency,
+	# so this no longer repurposes the shared `coin` meaning (rule 1).
 	if my_faction_painted:
-		play_sfx(&"coin")
+		play_sfx(&"pop")
 
 
 ## This client's own faction index, or -1 before teams are known.
