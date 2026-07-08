@@ -18,6 +18,9 @@ const HOT_COLOR := Color(0.95, 0.2, 0.15)
 const SPARK_INTERVAL := 0.12
 const HANDOFF_FX_COLOR := Color(1.0, 0.85, 0.4)
 const BLAST_COLOR := Color(0.95, 0.35, 0.15)
+## Fuse-critical warning (#728): matches BombCourierBrain.DUMP_THRESHOLD, the
+## same "worth dumping instead of risking it" point the bots already play to.
+const ALARM_FUSE_SEC := 1.5
 
 var players := {}
 var pile: Array = []
@@ -28,6 +31,9 @@ var _staggered := {}  # slot (int) -> bool
 var _holding := {}  # slot (int) -> bool (last-seen carry state, for handoff FX)
 var _spark_accum := 0.0
 var _my_score := 0
+## Whether the local player's current package has already sounded the
+## critical-fuse alarm, so it fires once per carry (#728).
+var _fuse_alarmed := false
 var _score_label: Label
 
 
@@ -83,11 +89,15 @@ func _update_players() -> void:
 		var staggered := int(state[BombCourier.PS_STAGGERED]) == 1
 		var newly_staggered: bool = staggered and not _staggered.get(slot, false)
 		var caption := "%s  %d" % [player_name(slot), int(state[BombCourier.PS_SCORE])]
-		if slot == my_slot:
-			if newly_staggered:
-				play_sfx(&"error")
+		# Signature cue (#728, docs/AUDIO_GUIDE.md — Bombs & blasts): the
+		# detonation reads for everyone, screen-shake stays local to the
+		# courier it happened to.
+		if newly_staggered:
+			play_sfx(&"explosion")
+			if slot == my_slot:
 				request_shake(7.0)
-			elif int(state[BombCourier.PS_SCORE]) > _my_score:
+		if slot == my_slot:
+			if not newly_staggered and int(state[BombCourier.PS_SCORE]) > _my_score:
 				play_sfx(&"coin")
 			_my_score = int(state[BombCourier.PS_SCORE])
 		# Handoff flash: a burst the instant a courier takes possession — pickup,
@@ -95,6 +105,11 @@ func _update_players() -> void:
 		var holding := fuse >= 0.0
 		if holding and not _holding.get(slot, false):
 			fx_burst(Vector2(rig.position.x, rig.position.z), HANDOFF_FX_COLOR, 1.2)
+			if slot == my_slot:
+				_fuse_alarmed = false
+		if slot == my_slot and holding and fuse < ALARM_FUSE_SEC and not _fuse_alarmed:
+			_fuse_alarmed = true
+			play_sfx(&"alarm")
 		_holding[slot] = holding
 		# Detonation blast where a bomb goes off in someone's hands.
 		if newly_staggered:

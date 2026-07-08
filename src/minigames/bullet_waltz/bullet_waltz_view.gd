@@ -132,8 +132,9 @@ func _render_3d(game: Dictionary) -> void:
 		var is_out: bool = out_set.has(slot)
 		if is_out and not _was_out.get(slot, false):
 			fx_burst(Vector2(rig.position.x, rig.position.z), BULLET_COLOR, 1.0)
-			if slot == my_slot:
-				play_sfx(&"error")
+			# The shared elimination cue (#728), replacing the local-only
+			# generic `error`.
+			play_sfx(&"ko")
 		_was_out[slot] = is_out
 		if not players.has(slot):
 			rig.visible = false
@@ -146,7 +147,8 @@ func _render_3d(game: Dictionary) -> void:
 		if grazes > int(_last_grazes.get(slot, 0)):
 			fx_sparkle(Vector2(rig.position.x, rig.position.z), GRAZE_COLOR, 1.0)
 			if slot == my_slot:
-				play_sfx(&"coin")
+				# `pop`'s vocabulary entry names "graze coin" as its example use.
+				play_sfx(&"pop")
 		_last_grazes[slot] = grazes
 		rig.display_name = (
 			"%s  ✦%d" % [player_name(slot), grazes] if grazes > 0 else player_name(slot)
