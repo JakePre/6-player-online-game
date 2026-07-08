@@ -77,10 +77,17 @@ func test_alarm_rising_edge_pulses_once() -> void:
 	view.private_state = {"role": "guard", "body": 0}
 	view.render({"crowd": [[0.0, 0.0]], "alarm": false})
 	assert_eq(view._pulses.size(), 0)
+	watch_signals(view)
 	view.render({"crowd": [[0.0, 0.0]], "alarm": true})
 	assert_eq(view._pulses.size(), 1, "the commotion pulses once")
+	# Signature cue (#728): exposure/suspicion — the shared `alarm` meaning,
+	# not a generic error.
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"alarm"], "an arrest")
 	view.render({"crowd": [[0.0, 0.0]], "alarm": true})
 	assert_eq(view._pulses.size(), 1, "a held alarm stays quiet")
+	assert_signal_emit_count(
+		view, "sfx_requested", 1, "still just the one cue — a held alarm plays nothing new"
+	)
 
 
 func test_pulses_expire() -> void:

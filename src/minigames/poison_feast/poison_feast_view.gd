@@ -68,6 +68,8 @@ func _render_3d(game: Dictionary) -> void:
 	# A clean bite emptied the pot (M13-25): pop a gold burst on the table.
 	if _prev_pot > 0 and pot == 0:
 		fx_burst(Vector2.ZERO, TIER_COLORS[PoisonFeast.Tier.GOLDEN], 1.0)
+		# Signature cue (#728): the whole table hears the pot get claimed.
+		play_sfx(&"pop")
 	_prev_pot = pot
 	_update_players()
 	_update_dishes()
@@ -88,8 +90,10 @@ func _update_players() -> void:
 				rig.play(&"hit")
 				# A sick green puff over whoever just bit poison (M13-25).
 				fx_burst(Vector2(state[0], state[1]), POISON_PUFF_COLOR, 1.1)
+				# Signature cue (#728): poison is a debuff/stagger, not a
+				# generic error — docs/AUDIO_GUIDE.md's `powerdown` names it.
 				if slot == my_slot:
-					play_sfx(&"error")
+					play_sfx(&"powerdown")
 					request_shake(6.0)
 		elif slot == my_slot and int(state[2]) > _my_score:
 			play_sfx(&"coin")

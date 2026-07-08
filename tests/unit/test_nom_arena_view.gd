@@ -60,6 +60,7 @@ func test_getting_eaten_puffs() -> void:
 	for child in view.arena.get_children():
 		if child is CPUParticles3D:
 			before += 1
+	watch_signals(view)
 	# A sharp mass drop = swallowed and respawned small.
 	view.render(_snapshot({0: [5.0, 5.0, NomArena.MIN_MASS, 0]}))
 	var after := 0
@@ -67,6 +68,16 @@ func test_getting_eaten_puffs() -> void:
 		if child is CPUParticles3D:
 			after += 1
 	assert_gt(after, before, "being eaten pops a puff")
+	# Signature cue (#728): a debuff/stagger cue, heard by the swallowed blob.
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"powerdown"], "swallowed")
+
+
+## Signature cue (#728): starting a lunge, heard only by the lunging player.
+func test_lunge_onset_plays_dash() -> void:
+	view.render(_snapshot({0: [0.0, 0.0, 20.0, 0]}))
+	watch_signals(view)
+	view.render(_snapshot({0: [0.0, 0.0, 20.0, 1]}))
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"dash"], "lunge onset")
 
 
 func test_render_tolerates_missing_keys() -> void:

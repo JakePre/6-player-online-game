@@ -64,11 +64,18 @@ func _render(game: Dictionary) -> void:
 	if _seen_snapshot:
 		for slot: int in vaults:
 			var total := int(vaults[slot][2])
-			if _totals_seen.has(slot) and total < int(_totals_seen[slot]):
+			var before := int(_totals_seen.get(slot, total))
+			if _totals_seen.has(slot) and total < before:
 				_pulses.append({"slot": slot, "age": 0.0})
-				# Getting robbed is heard only by the victim (M12-02).
+				# Getting robbed is heard only by the victim (M12-02). Signature
+				# cue (#728): `alarm` — the FX above is already called the
+				# "alarm ring" (M13-27); the sound now matches, and the shared
+				# meaning ("exposure, suspicion") fits a robbery in progress.
 				if slot == my_slot:
-					play_sfx(&"error")
+					play_sfx(&"alarm")
+			elif _totals_seen.has(slot) and total > before and slot == my_slot:
+				# Signature cue (#728): banking a pickup, heard only by us.
+				play_sfx(&"coin")
 	_seen_snapshot = true
 	_totals_seen = {}
 	for slot: int in vaults:

@@ -60,8 +60,11 @@ func test_render_tolerates_missing_keys() -> void:
 func test_pickup_sparkles_once_seeded() -> void:
 	view.render({"players": {0: [0.0, 0.0, 2]}, "coins": []})
 	var before: int = view.arena.get_child_count()
+	watch_signals(view)
 	view.render({"players": {0: [0.0, 0.0, 3]}, "coins": []})
 	assert_eq(view.arena.get_child_count(), before + 1, "count up = one sparkle")
+	# Shared meaning kept (#728): a pickup is currency gained, still `coin`.
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"coin"], "a pickup")
 
 
 ## #587: a bumped player's count drops (the sim scatters 20% of their haul) —
@@ -69,8 +72,11 @@ func test_pickup_sparkles_once_seeded() -> void:
 func test_bump_scatter_bursts_when_count_drops() -> void:
 	view.render({"players": {0: [0.0, 0.0, 5]}, "coins": []})
 	var before: int = view.arena.get_child_count()
+	watch_signals(view)
 	view.render({"players": {0: [0.0, 0.0, 4]}, "coins": []})
 	assert_eq(view.arena.get_child_count(), before + 1, "count down = one burst")
+	# Signature cue (#728): a bump scatter, not a generic error.
+	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"bump"], "a bump scatter")
 
 
 func test_fresh_coins_dust_in_after_seeding() -> void:

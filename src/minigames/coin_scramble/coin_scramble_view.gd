@@ -99,8 +99,10 @@ func _update_players() -> void:
 					play_sfx(&"coin")
 			elif count < before:
 				fx_burst(Vector2(state[0], state[1]), player_color(slot))
+				# Signature cue (#728): a bump scatter, not an error/rejection —
+				# docs/AUDIO_GUIDE.md's `bump` meaning names this exact event.
 				if slot == my_slot:
-					play_sfx(&"error")
+					play_sfx(&"bump")
 		_counts_seen[slot] = count
 
 
