@@ -61,6 +61,7 @@ Live (M17, owner directive 2026-07-05 — full controller support):
 | **#577** practice mode: lobby bots (owner HIGH) | Real feature: host adds headless-bot members to a live room — the playtest-bot input pump (#560) is most of the brain; the work is room/lobby plumbing. |
 | **#565** release self-heal vs branch protection (S) | Pick + implement one of the three listed mechanisms (PR-based sync is the likely winner). |
 | **#577–#592 playtest wave** | Individually claimable; mostly Opus/Sonnet-sized — classify per issue when claiming. #584 is the exception (Fable, design-first). |
+| **#770** split net_manager.gd (S-M) | File is at gdlint's 1000-line ceiling (hit while landing #768). Composition/facade extraction with clear precedent, but it's the single owner of the ENet transport + RPC protocol — a wrong seam is expensive, so Opus over Sonnet. |
 
 Everything else in this tier is **done** — the M10/M14 roster, M12
 feel-and-fairness pieces (except data-blocked M12-01), every M15 cap, and all
