@@ -220,8 +220,11 @@ func _deal_round() -> void:
 	_first_correct_taken = false
 
 
+## #819: only the humans need to lock in — a bot that never finds its pad
+## (miscounted, or its brain stalls) shouldn't hold the room to the full
+## ANSWER_SEC timer.
 func _all_locked() -> bool:
-	for slot: int in slots:
+	for slot: int in _human_slots():
 		if locked[slot] == -1:
 			return false
 	return true

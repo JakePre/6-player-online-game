@@ -174,7 +174,8 @@ func handle_input(slot: int, data: Dictionary) -> void:
 
 
 ## Intro ready-skip (SPEC $4): the round starts early once every connected
-## player has voted. Votes reset with each intro card.
+## HUMAN player has voted (#819) — a server-owned bot never presses the skip
+## button, so it no longer counts toward "needed". Votes reset each intro card.
 func handle_skip(slot: int) -> void:
 	if state != State.INTRO:
 		return
@@ -182,13 +183,28 @@ func handle_skip(slot: int) -> void:
 	if slot not in voters or _skip_votes.has(slot):
 		return
 	_skip_votes[slot] = true
+	var needed := _human_voters()
 	var votes := 0
-	for voter in voters:
+	for voter in needed:
 		if _skip_votes.has(voter):
 			votes += 1
-	event_emitted.emit({"type": "skip_votes", "votes": votes, "needed": voters.size()})
-	if votes >= voters.size():
+	event_emitted.emit({"type": "skip_votes", "votes": votes, "needed": needed.size()})
+	if votes >= needed.size():
 		_enter_countdown()
+
+
+## Connected slots that should be waited on for a "did everyone act" gate
+## (#819) — see BotGate.humans_or_everyone().
+func _human_voters() -> Array[int]:
+	return BotGate.humans_or_everyone(_connected_slots(), _bot_slots())
+
+
+func _bot_slots() -> Array[int]:
+	var bots: Array[int] = []
+	for member in room.members:
+		if member.is_bot:
+			bots.append(member.slot)
+	return bots
 
 
 func is_done() -> bool:
@@ -292,7 +308,7 @@ func _enter_countdown() -> void:
 			else MinigameCatalog.meta_of(playlist[round_index]).duration_sec
 		)
 		game.duration_override = current_mutator.scaled_duration(base)
-	game.setup(_round_slots, _rng.randi())
+	game.setup(_round_slots, _rng.randi(), _bot_slots())
 	event_emitted.emit({"type": "round_countdown", "round": round_index + 1})
 
 
@@ -437,7 +453,7 @@ func _enter_finale_play() -> void:
 	game = Gauntlet.new()
 	game.meta = Gauntlet.make_meta()
 	game.duration_override = _duration_override
-	game.setup(_round_slots, _rng.randi())
+	game.setup(_round_slots, _rng.randi(), _bot_slots())
 	(game as Gauntlet).apply_loadouts(shop.loadouts())
 	event_emitted.emit({"type": "finale_started", "minigame": game.meta.to_dict()})
 

@@ -97,6 +97,37 @@ func test_all_resolved_ends_round_before_timeout() -> void:
 	assert_eq(game.phase, SimonStomp.Phase.RESULT)
 
 
+## #819: a bot that never presses a pad (a desynced captured sequence, or a
+## brain that simply doesn't run that tick) shouldn't hold the round open for
+## the humans who already finished.
+func test_a_bot_slot_does_not_block_the_round_from_ending_early() -> void:
+	var game := SimonStomp.new()
+	game.meta = SimonStomp.make_meta()
+	var player_slots: Array[int] = [0, 1]
+	game.setup(player_slots, 42, [1])  # slot 1 is the bot
+	_enter_input(game)
+	_stomp_full_sequence(game, 0)
+	assert_eq(
+		game.phase, SimonStomp.Phase.RESULT, "the lone human resolved — the bot never holds it up"
+	)
+	assert_false(game.round_cleared.get(1, false), "the bot itself never actually resolved")
+	assert_false(game.round_failed.get(1, false))
+
+
+## A solo bot-only game (a debug/render harness) has nobody to wait FOR — it
+## keeps requiring everyone, same as before #819.
+func test_an_all_bot_game_still_waits_for_everyone() -> void:
+	var game := SimonStomp.new()
+	game.meta = SimonStomp.make_meta()
+	var player_slots: Array[int] = [0, 1]
+	game.setup(player_slots, 42, [0, 1])  # both slots are bots
+	_enter_input(game)
+	_stomp_full_sequence(game, 0)
+	assert_eq(
+		game.phase, SimonStomp.Phase.INPUT, "one of two bots resolved — the round still waits"
+	)
+
+
 func test_sequence_grows_next_round() -> void:
 	var game := _make_game(3)
 	var first_length := game.sequence.size()

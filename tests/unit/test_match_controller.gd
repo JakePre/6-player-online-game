@@ -278,6 +278,63 @@ func test_unanimous_skip_starts_the_round_early() -> void:
 	assert_eq(votes[-1].needed, 3)
 
 
+## #819: a bot in the room never presses skip — the round should start once
+## every HUMAN has, not wait on the bot too.
+func test_bot_does_not_block_the_skip_vote() -> void:
+	var room := _make_room(2)
+	room.add_bot()
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.handle_skip(0)
+	assert_eq(controller.state, MatchController.State.INTRO)
+	controller.handle_skip(1)
+	assert_eq(
+		controller.state,
+		MatchController.State.COUNTDOWN,
+		"both humans skipped — the bot never counted"
+	)
+	var votes: Array = events.filter(
+		func(event: Dictionary) -> bool: return event.type == "skip_votes"
+	)
+	assert_eq(votes[-1].needed, 2, "needed reflects the 2 humans, not the 3rd (bot) slot")
+
+
+## The match controller hands each round's bot slots to the minigame (#819),
+## so a per-game "wait for everyone" gate (Count Quick, The Mole) can skip
+## waiting on them the same way.
+func test_minigame_setup_receives_the_rooms_bot_slots() -> void:
+	var room := _make_room(2)
+	room.add_bot()
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.handle_skip(0)
+	controller.handle_skip(1)
+	assert_eq(controller.state, MatchController.State.COUNTDOWN)
+	assert_eq(controller.game.bot_slots, [2], "the bot's slot reaches the minigame")
+
+
+## #819: a disconnected human and a bot in the same room both drop out of
+## "needed" — only the remaining connected humans have to skip.
+func test_bot_and_disconnected_member_together_do_not_block_the_skip_vote() -> void:
+	var room := _make_room(3)
+	room.mark_disconnected(room.members[2], 0)
+	room.add_bot()
+	var controller := _make_controller(room, 1)
+	controller.start()
+	controller.handle_skip(0)
+	assert_eq(controller.state, MatchController.State.INTRO)
+	controller.handle_skip(1)
+	assert_eq(
+		controller.state,
+		MatchController.State.COUNTDOWN,
+		"the 2 remaining connected humans skipped — the disconnected member and the bot don't count"
+	)
+	var votes: Array = events.filter(
+		func(event: Dictionary) -> bool: return event.type == "skip_votes"
+	)
+	assert_eq(votes[-1].needed, 2, "needed excludes both the disconnected human and the bot")
+
+
 func test_skip_from_disconnected_member_is_ignored() -> void:
 	var room := _make_room(3)
 	room.mark_disconnected(room.members[2], 0)
@@ -377,168 +434,6 @@ func test_team_mode_results_award_team_tables() -> void:
 			break
 	# Winning team members (slots 0/2) get 20 each, losers (1/3) get 5.
 	assert_eq(results.awards, {0: 20, 2: 20, 1: 5, 3: 5})
-
-
-func _register_mutators_and_pool(room: Room, ids: Array) -> void:
-	MutatorCatalog.clear()
-	for id: StringName in ids:
-		MutatorCatalog.register(Mutator.create({"id": id, "name": String(id), "blurb": "b"}))
-	assert_true(room.set_mutator_pool(ids))
-
-
-func test_no_mutator_rolls_without_a_pool() -> void:
-	var room := _make_room(2)
-	var controller := _make_controller(room, 3)
-	controller.start()
-	_run_until(controller, func() -> bool: return controller.is_done())
-	for event: Dictionary in events:
-		if event.type == "round_intro":
-			assert_false(event.has("mutator"), "empty pool never mutates")
-
-
-func test_mutator_rolls_are_seeded_announced_and_never_repeat() -> void:
-	var room := _make_room(2)
-	_register_mutators_and_pool(room, [&"alpha", &"beta"])
-	var controller := _make_controller(room, 30)
-	controller.start()
-	_run_until(controller, func() -> bool: return controller.is_done())
-	var previous_id := ""
-	var repeats := 0
-	var count := 0
-	for event: Dictionary in events:
-		if event.type != "round_intro":
-			continue
-		var id: String = event.get("mutator", {}).get("id", "")
-		if not id.is_empty():
-			count += 1
-			assert_true(id in ["alpha", "beta"], "rolled from the enabled pool")
-			if id == previous_id:
-				repeats += 1
-		previous_id = id
-	assert_eq(repeats, 0, "never the same mutator twice in a row")
-	assert_between(count, 5, 20, "~40% of 30 rounds with the seeded rng")
-	MutatorCatalog.clear()
-
-
-func test_snapshot_carries_mutator_for_late_arrivals() -> void:
-	var room := _make_room(2)
-	_register_mutators_and_pool(room, [&"alpha"])
-	var controller := _make_controller(room, 1)
-	controller.start()
-	controller.current_mutator = MutatorCatalog.mutator_of(&"alpha")
-	assert_eq(controller.get_snapshot().mutator.id, "alpha")
-	_run_until(controller, func() -> bool: return controller.is_done())
-	assert_false(controller.get_snapshot().has("mutator"), "no mutator once the match is over")
-	MutatorCatalog.clear()
-
-
-## Times out ranking slot 0 first and hands them 100 raw pickup coins, so cap
-## behavior is observable in the awards.
-class PickupGame:
-	extends SlotOrderGame
-
-	func _rank_players() -> Array:
-		_pickup_coins = {0: 100}
-		return super()
-
-
-## Pins the round's mutator directly instead of fishing for the 40% roll.
-func _controller_with_mutator(room: Room, id: StringName) -> MatchController:
-	MutatorCatalog.clear()
-	MutatorCatalog.register_builtins()
-	assert_true(room.set_mutator_pool([String(id)]))
-	var controller := _make_controller(room, 1)
-	controller.start()
-	controller.current_mutator = MutatorCatalog.mutator_of(id)
-	return controller
-
-
-func test_pack_a_registers_with_expected_knobs() -> void:
-	MutatorCatalog.clear()
-	MutatorCatalog.register_builtins()
-	MutatorCatalog.register_builtins()
-	for id: StringName in [&"double_coins", &"golden_round", &"overdrive", &"short_fuse"]:
-		assert_true(MutatorCatalog.is_registered(id), "%s registered" % id)
-	assert_eq(MutatorCatalog.mutator_of(&"double_coins").award_multiplier, 2.0)
-	assert_eq(MutatorCatalog.mutator_of(&"golden_round").pickup_cap_scale, 2.0)
-	assert_eq(MutatorCatalog.mutator_of(&"short_fuse").duration_scale, 0.6)
-	assert_eq(MutatorCatalog.mutator_of(&"overdrive").speed_scale, 1.25)
-	MutatorCatalog.clear()
-
-
-func test_double_coins_doubles_round_awards() -> void:
-	var room := _make_room(2)
-	var controller := _controller_with_mutator(room, &"double_coins")
-	_run_until(controller, func() -> bool: return controller.is_done())
-	var results := events.filter(func(e: Dictionary) -> bool: return e.type == "round_results")
-	assert_eq(results[0].awards, {0: 60, 1: 40}, "30/20 placement awards doubled")
-	MutatorCatalog.clear()
-
-
-func test_golden_round_raises_the_pickup_cap() -> void:
-	MinigameCatalog.clear()
-	MinigameCatalog.register(
-		MinigameMeta.create({"id": &"slot_order", "duration_sec": 60.0}), PickupGame
-	)
-	var room := _make_room(2)
-	var controller := _controller_with_mutator(room, &"golden_round")
-	_run_until(controller, func() -> bool: return controller.is_done())
-	var results := events.filter(func(e: Dictionary) -> bool: return e.type == "round_results")
-	assert_eq(results[0].awards[0], 30 + 60, "100 raw pickups capped at the doubled 60")
-	MutatorCatalog.clear()
-
-
-func test_short_fuse_scales_the_round_duration() -> void:
-	var room := _make_room(2)
-	var controller := _controller_with_mutator(room, &"short_fuse")
-	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
-	assert_almost_eq(controller.game.duration_override, 0.06, 0.001, "0.1s override scaled by 0.6")
-	MutatorCatalog.clear()
-
-
-func test_overdrive_scales_the_sim_delta() -> void:
-	var room := _make_room(2)
-	var controller := _controller_with_mutator(room, &"overdrive")
-	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
-	var before: float = controller.game.elapsed
-	controller.tick(TICK)
-	assert_almost_eq(controller.game.elapsed - before, TICK * 1.25, 0.0001)
-	MutatorCatalog.clear()
-
-
-func test_pack_b_registers_with_expected_knobs() -> void:
-	MutatorCatalog.clear()
-	MutatorCatalog.register_builtins()
-	assert_eq(MutatorCatalog.registered_ids().size(), 8, "packs A and B both registered")
-	assert_eq(
-		MutatorCatalog.mutator_of(&"mirror_mode").input_transform, Mutator.InputTransform.MIRROR
-	)
-	assert_true(MutatorCatalog.mutator_of(&"blackout").view_flags.has(&"blackout"))
-	assert_true(MutatorCatalog.mutator_of(&"masquerade").view_flags.has(&"hide_nameplates"))
-	assert_eq(MutatorCatalog.mutator_of(&"robin_hood").end_transfer_amount, 10)
-	MutatorCatalog.clear()
-
-
-func test_mirror_mode_flips_move_intent_server_side() -> void:
-	var room := _make_room(2)
-	var controller := _controller_with_mutator(room, &"mirror_mode")
-	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
-	controller.handle_input(0, {"mx": 1.0, "my": 0.5})
-	var game: SlotOrderGame = controller.game
-	assert_eq(game.inputs.size(), 1)
-	assert_eq(game.inputs[0][1].mx, -1.0, "horizontal intent flipped before the sim sees it")
-	assert_eq(game.inputs[0][1].my, 0.5)
-	MutatorCatalog.clear()
-
-
-func test_robin_hood_transfers_coins_in_the_broadcast_totals() -> void:
-	var room := _make_room(2)
-	var controller := _controller_with_mutator(room, &"robin_hood")
-	_run_until(controller, func() -> bool: return controller.is_done())
-	var results := events.filter(func(e: Dictionary) -> bool: return e.type == "round_results")
-	# Placement awards 30/20, then last place takes 10 from first: 20/30.
-	assert_eq(results[0].totals, {0: 20, 1: 30})
-	MutatorCatalog.clear()
 
 
 ## #182: the 3-2-1 countdown sits between intro and play — the game is

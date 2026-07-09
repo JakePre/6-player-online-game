@@ -24,15 +24,27 @@ var team_mode := false
 var team_count := 0
 ## Test-harness hook: when > 0, replaces meta.duration_sec for this instance.
 var duration_override := 0.0
+## Server-owned bot slots among `slots` (#819) — the match controller passes
+## these at setup so a "wait for everyone" gate (lock-ins, votes) can skip
+## waiting on a bot that will never explicitly act, via `_human_slots()`.
+## Minigames otherwise stay bot-blind by design.
+var bot_slots: Array[int] = []
 
 var _placements: Array = []
 var _pickup_coins := {}
 
 
-func setup(player_slots: Array[int], seed_value: int) -> void:
+func setup(player_slots: Array[int], seed_value: int, bots: Array[int] = []) -> void:
 	slots = player_slots.duplicate()
+	bot_slots = bots.duplicate()
 	rng.seed = seed_value
 	_setup()
+
+
+## The subset of `slots` a "wait for everyone" gate should require action
+## from — see BotGate.humans_or_everyone() (#819).
+func _human_slots() -> Array[int]:
+	return BotGate.humans_or_everyone(slots, bot_slots)
 
 
 func tick(delta: float) -> void:

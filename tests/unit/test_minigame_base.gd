@@ -21,6 +21,32 @@ func _make_game(duration: float) -> RecorderGame:
 	return game
 
 
+## #819: setup's bot_slots param defaults to empty, so every existing call
+## site (and every other test file's game.setup(slots, seed) two-arg calls)
+## keeps working unchanged.
+func test_setup_defaults_to_no_bots() -> void:
+	var game := _make_game(1.0)
+	assert_eq(game.bot_slots, [])
+	assert_eq(game._human_slots(), [0, 2, 5], "with no bots, everyone counts as human")
+
+
+func test_human_slots_excludes_the_bot_slots_passed_at_setup() -> void:
+	var game := RecorderGame.new()
+	game.meta = MinigameMeta.create({"id": &"recorder", "duration_sec": 1.0})
+	game.setup([0, 2, 5] as Array[int], 42, [2] as Array[int])
+	assert_eq(game.bot_slots, [2])
+	assert_eq(game._human_slots(), [0, 5])
+
+
+## An all-bot roster (debug/render harnesses) has nobody to wait FOR, so
+## _human_slots() falls back to the full roster rather than returning empty.
+func test_human_slots_falls_back_to_everyone_when_all_bots() -> void:
+	var game := RecorderGame.new()
+	game.meta = MinigameMeta.create({"id": &"recorder", "duration_sec": 1.0})
+	game.setup([0, 2, 5] as Array[int], 42, [0, 2, 5] as Array[int])
+	assert_eq(game._human_slots(), [0, 2, 5])
+
+
 func test_times_out_with_everyone_tied() -> void:
 	var game := _make_game(0.5)
 	while not game.finished:

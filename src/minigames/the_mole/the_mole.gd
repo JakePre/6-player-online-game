@@ -146,7 +146,7 @@ func _tick(delta: float) -> void:
 		Phase.WORK:
 			_tick_work(delta)
 		Phase.VOTE:
-			if phase_elapsed >= VOTE_SEC or votes.size() >= slots.size():
+			if phase_elapsed >= VOTE_SEC or _all_humans_voted():
 				_tally_and_reveal()
 		Phase.REVEAL:
 			if phase_elapsed >= REVEAL_SEC:
@@ -181,6 +181,16 @@ func _start_vote() -> void:
 	votes.clear()
 	for slot: int in slots:
 		move_dirs[slot] = Vector2.ZERO
+
+
+## #819: only the humans need to vote — a bot's vote counts toward the tally
+## if cast, but the room shouldn't sit out the full VOTE_SEC waiting on one
+## that never does.
+func _all_humans_voted() -> bool:
+	for slot: int in _human_slots():
+		if not votes.has(slot):
+			return false
+	return true
 
 
 func _tally_and_reveal() -> void:

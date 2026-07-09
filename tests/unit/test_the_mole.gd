@@ -6,10 +6,10 @@ extends GutTest
 const TICK := 1.0 / 30.0
 
 
-func _game(player_slots: Array[int] = [0, 1, 2, 3]) -> TheMole:
+func _game(player_slots: Array[int] = [0, 1, 2, 3], bots: Array[int] = []) -> TheMole:
 	var game := TheMole.new()
 	game.meta = TheMole.make_meta()
-	game.setup(player_slots, 42)
+	game.setup(player_slots, 42, bots)
 	return game
 
 
@@ -141,6 +141,49 @@ func test_everyone_voting_ends_the_vote_early_and_tallies() -> void:
 	game.tick(TICK)
 	assert_eq(game.phase, TheMole.Phase.REVEAL)
 	assert_true(game.caught, "a unanimous crew catches the mole")
+
+
+## #819: a bot slot never votes, but the tally shouldn't hold the full
+## VOTE_SEC waiting on it once every human has.
+func test_a_bot_slot_does_not_block_the_vote_from_tallying() -> void:
+	var game := _game([0, 1, 2, 3] as Array[int], [3] as Array[int])  # slot 3 is the bot
+	game.phase = TheMole.Phase.VOTE
+	for slot: int in game.slots:
+		if slot == 3:
+			continue
+		var target: int = game.mole if slot != game.mole else _crew(game)
+		game.handle_input(slot, {"vote": target})
+	game.tick(TICK)
+	assert_eq(game.phase, TheMole.Phase.REVEAL, "every human voted — the bot never holds it up")
+	assert_false(game.votes.has(3), "the bot itself never actually voted")
+
+
+## The gate must check each human individually, not just a vote count — a
+## bot's vote could otherwise coincidentally make the tally match the human
+## count while a real human still hasn't voted (#819).
+func test_a_bot_vote_cannot_stand_in_for_a_missing_human_vote() -> void:
+	var game := _game([0, 1, 2, 3] as Array[int], [3] as Array[int])  # slot 3 is the bot
+	game.phase = TheMole.Phase.VOTE
+	game.handle_input(0, {"vote": 1})
+	game.handle_input(1, {"vote": 0})
+	game.handle_input(3, {"vote": 0})  # the bot votes too — 3 total votes, same as the human count
+	game.tick(TICK)
+	assert_eq(
+		game.phase,
+		TheMole.Phase.VOTE,
+		"slot 2 (human) never voted — the bot's vote can't cover for them"
+	)
+
+
+## A solo bot-only game (a debug/render harness) has nobody to wait FOR — it
+## keeps requiring everyone, same as before #819.
+func test_an_all_bot_game_still_waits_for_everyone_to_vote() -> void:
+	var game := _game([0, 1, 2, 3] as Array[int], [0, 1, 2, 3] as Array[int])
+	game.phase = TheMole.Phase.VOTE
+	var target: int = game.mole if 0 != game.mole else _crew(game)
+	game.handle_input(0, {"vote": target})
+	game.tick(TICK)
+	assert_eq(game.phase, TheMole.Phase.VOTE, "one of four bots voted — the tally still waits")
 
 
 func test_scoring_success_and_catch() -> void:
