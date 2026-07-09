@@ -126,9 +126,20 @@ static func build_playlist(
 	var playlist: Array = []
 	var pool := eligible.duplicate()
 	while playlist.size() < rounds:
+		var just_refilled := false
 		if pool.is_empty():
 			pool = eligible.duplicate()
+			just_refilled = true
 		var candidates := _without_streak_violations(pool, playlist)
+		# #815: the very first pick right after a reshuffle must not repeat the
+		# game that just closed the previous cycle — that reads as "playing the
+		# same game twice in a row" even though the pools are technically
+		# distinct. Excluded from *this draw's* candidates only (not from
+		# `pool`), so the deferred game still gets drawn later in this same
+		# cycle — the cycle stays the full eligible set, just reordered.
+		if just_refilled and not playlist.is_empty() and candidates.size() > 1:
+			candidates = candidates.duplicate()
+			candidates.erase(playlist[-1])
 		var pick: StringName = candidates[rng.randi_range(0, candidates.size() - 1)]
 		pool.erase(pick)
 		playlist.append(pick)

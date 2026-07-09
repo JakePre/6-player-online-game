@@ -55,6 +55,35 @@ func test_no_repeats_until_pool_exhausted() -> void:
 		assert_eq(window, ["a", "b", "c"], "rounds %d-%d must be distinct" % [start, start + 2])
 
 
+## #815: a reshuffle at the pool-exhaustion boundary must not let the very
+## first pick of the new cycle repeat the very last pick of the old one —
+## confirmed as a real, frequent bug before the fix (100+ hits in 200 seeds
+## with this exact 3-game/9-round setup).
+func test_no_repeat_across_the_reshuffle_seam() -> void:
+	_register(&"a", MinigameMeta.Category.FFA)
+	_register(&"b", MinigameMeta.Category.SKILL)
+	_register(&"c", MinigameMeta.Category.TEAM)
+	for seed_value in 200:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		var playlist: Array = MinigameCatalog.build_playlist(rng, 9, 4)
+		for i in range(3, playlist.size(), 3):
+			assert_ne(
+				playlist[i],
+				playlist[i - 1],
+				"seed %d: round %d repeats round %d across a reshuffle" % [seed_value, i, i - 1]
+			)
+
+
+## The seam-avoidance defers the last pick to the *next* cycle rather than
+## dropping it — a single-game catalog has nothing to defer to, so it must
+## still repeat (the only alternative is no playlist at all).
+func test_single_game_catalog_still_repeats_every_round() -> void:
+	_register(&"only", MinigameMeta.Category.FFA)
+	var playlist := MinigameCatalog.build_playlist(_seeded_rng(), 5, 2)
+	assert_eq(playlist, [&"only", &"only", &"only", &"only", &"only"])
+
+
 func test_category_streak_capped_at_two_when_avoidable() -> void:
 	# 3 FFA + 1 SKILL over 3 rounds: an unfiltered picker produces FFA/FFA/FFA
 	# for ~1 in 4 seeds; the streak rule must always break it up.
