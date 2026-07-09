@@ -4,8 +4,10 @@ extends MinigameView3D
 ## vanish when blasted), bombs with a fuse pulse, the blast-cross flames,
 ## floating power-ups, and the players. Renders get_snapshot() only.
 
-const PILLAR_COLOR := Color(0.32, 0.34, 0.4)
-const SOFT_COLOR := Color(0.6, 0.44, 0.3)
+## Brighter, higher-contrast blocks (#786): the old muted grey/brown pair
+## read as flat and dark, especially against the light #589 floor tint.
+const PILLAR_COLOR := Color(0.58, 0.6, 0.68)
+const SOFT_COLOR := Color(0.85, 0.62, 0.4)
 const BOMB_COLOR := Color(0.15, 0.15, 0.18)
 const FLAME_COLOR := Color(1.0, 0.55, 0.15)
 const RANGE_COLOR := Color(1.0, 0.5, 0.35)
@@ -93,8 +95,18 @@ func _update_blocks() -> void:
 func _make_block(cell: int, solid: bool) -> MeshInstance3D:
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(BlastGrid.CELL_SIZE * 0.92, BLOCK_HEIGHT, BlastGrid.CELL_SIZE * 0.92)
+	var color := PILLAR_COLOR if solid else SOFT_COLOR
 	var material := StandardMaterial3D.new()
-	material.albedo_color = PILLAR_COLOR if solid else SOFT_COLOR
+	material.albedo_color = color
+	# Metallic/roughness + a modest emission (#786) give the block a real
+	# specular highlight and lift it clear of ambient shadow, instead of
+	# reading as a flat, dark silhouette (the coin_scramble/treasure_divers
+	# convention, toned down since these are structural, not glowing pickups).
+	material.metallic = 0.3
+	material.roughness = 0.5
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 0.25
 	mesh.material = material
 	var node := MeshInstance3D.new()
 	node.name = "Block%d" % cell
