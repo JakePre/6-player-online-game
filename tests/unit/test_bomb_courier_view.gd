@@ -77,3 +77,32 @@ func test_detonation_pops_a_blast() -> void:
 	var before := _particle_count()
 	view.render(_snapshot(-1.0, 1))
 	assert_gt(_particle_count(), before, "a detonation blasts at the courier")
+
+
+## #810: bombs use the real Kenney model, with a separate glow ring carrying
+## the fuse-urgency tint instead of a plain colored cube.
+func test_carried_bomb_uses_the_bomb_model_and_a_fuse_ring() -> void:
+	view.render(_snapshot(5.0, 0))
+	var root: Node3D = view.arena.get_node("Carried0")
+	assert_not_null(root, "the carried bomb root exists")
+	assert_gt(root.get_child_count(), 0, "the model + ring are attached")
+	assert_not_null(root.get_node("FuseRing"))
+
+
+## #810: the fuse countdown reads like the always-legible nameplate
+## convention instead of a tiny, perspective-shrinking default label.
+func test_fuse_countdown_is_sized_for_readability() -> void:
+	view.render(_snapshot(5.0, 0))
+	var label: Label3D = view.arena.get_node("Fuse0")
+	assert_true(label.fixed_size, "the timer doesn't shrink with distance")
+	assert_gt(label.font_size, 48, "bigger than the nameplate baseline")
+	assert_gt(label.outline_size, 0, "an outline keeps it readable over any background")
+	assert_eq(label.text, "5.0")
+
+
+## Pile bombs (not yet picked up) use the same real model.
+func test_pile_crate_uses_the_bomb_model_and_a_fuse_ring() -> void:
+	view.render({"players": {}, "pile": [[0, 1.0, 1.0, 3.0]]})
+	var root: Node3D = view.arena.get_node("Crate0")
+	assert_not_null(root, "the pile crate root exists")
+	assert_not_null(root.get_node("FuseRing"))
