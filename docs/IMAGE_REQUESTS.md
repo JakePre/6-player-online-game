@@ -31,6 +31,39 @@ when it arrives. A `requested` row is a follow-up, not a dependency.
 - **Status values:** `requested` → `generated` (delivered, not yet wired) →
   `landed`. Withdrawn requests get `withdrawn`, not deleted.
 
+### Texture rows (#817)
+
+Textures are a different beast from key art — a bad key art is just ugly, a
+bad texture breaks the 3D scene. Every texture row must satisfy all of:
+
+- **Tileable/seamless.** Say "seamless tileable texture" explicitly in the
+  prompt; the generator must not leave visible seams when the image repeats.
+  The owner should sanity-check by tiling 2×2 before committing (most image
+  tools' "offset by 50%" trick shows seams instantly).
+- **Albedo only, flat lighting.** No baked shadows, highlights, vignette,
+  depth-of-field, or perspective — the engine lights the scene. Prompt for
+  "flat even diffuse lighting, orthographic top-down, no shadows". Image gen
+  cannot produce usable normal/roughness maps; don't request them.
+- **Size:** 1024×1024 PNG (power of two, square). 512×512 acceptable for
+  small props.
+- **Palette:** keep to the game's chunky low-poly look — saturated but not
+  neon, reads well under the warm arena light and per-game `_floor_tint()`
+  multiplication (#589). A texture that's already dark fights the tint hook;
+  keep mid-tone.
+- **Destination:** `assets/generated/textures/<kebab-name>.png`.
+- **Row must name its consumer** (which game/surface) so the landing agent
+  knows what material to wire and can flip the row to `landed`.
+- **Landing (Sonnet):** import with repeat enabled + sRGB albedo, wire into a
+  `StandardMaterial3D` (or the #813 floor/tile hook once it exists), log in
+  `assets/CREDITS.md` as owner-generated.
+
+**3D models are out of scope for this pipeline.** Image gen does not produce
+game-ready GLB; the in-repo Kenney kits (platformer/nature/food/city) remain
+the mesh source (#813). Mesh-generation tools (e.g. image-to-3D services)
+exist but produce unretopologized, unrigged output needing cleanup passes we
+have no tooling for — an owner call is filed on #817 before anything builds
+on that.
+
 ## Requests
 
 | ID | Task / issue | Prompt | Size / aspect | Destination | Status |
@@ -85,3 +118,13 @@ when it arrives. A `requested` row is a follow-up, not a dependency.
 | IMG-048 | #682 audit | Intro-card key art for **Shred Session** (rhythm skill): a character shredding a guitar on stage as four glowing note lanes stream toward them, crowd silhouettes below. Chunky low-poly party-game style, dark blue-slate backdrop, coin-gold accents, concert energy, no text or UI. | 1280×720, 16:9 PNG | `assets/generated/keyart/shred_session.png` | landed |
 | IMG-049 | #682 audit | Intro-card key art for **Tumble Run** (vertical climb): characters scrambling up crumbling platforms as boulders tumble down past them, debris falling away below. Chunky low-poly party-game style, dark blue-slate backdrop, coin-gold accents, vertical composition, no text or UI. | 1280×720, 16:9 PNG | `assets/generated/keyart/tumble_run.png` | landed |
 | IMG-050 | #682 audit | Key art for **The Gauntlet** finale (last-one-standing): a shrinking circular stone platform over a void, fighters shoving at the glowing doomed edge as hazards rain down — the match's climax. Chunky low-poly party-game style, dark blue-slate backdrop, strong coin-gold accents, epic finale energy, no text or UI. (Consumer: finale chrome/podium; the finale skips the standard intro card today.) | 1280×720, 16:9 PNG | `assets/generated/keyart/gauntlet.png` | landed |
+| IMG-051 | #817/#813 | Seamless tileable **cracked ice** floor texture: pale blue-white ice with fine hairline cracks and subtle frozen depth, flat even diffuse lighting, orthographic top-down, no shadows, no objects. Mid-tone (tint hook multiplies it). Consumer: Thin Ice floor (and Memory Match's icy read). | 1024×1024 PNG, tileable | `assets/generated/textures/ice-cracked.png` | requested |
+| IMG-052 | #817/#813 | Seamless tileable **asphalt racetrack** texture: dark-grey asphalt with fine aggregate grain and faint tire scuff variation, flat even diffuse lighting, orthographic top-down, no shadows, no lane markings (lines are drawn by the game). Mid-tone. Consumer: Turbo Lap track ribbon (#785). | 1024×1024 PNG, tileable | `assets/generated/textures/asphalt-track.png` | requested |
+| IMG-053 | #817/#813 | Seamless tileable **stone plaza pavers** texture: warm grey-beige cobblestone/flagstone pavers in a natural irregular pattern, flat even diffuse lighting, orthographic top-down, no shadows, no moss or debris. Chunky stylized (not photoreal). Consumer: Pickpocket Plaza, Fort Siege courtyard (#808 rework). | 1024×1024 PNG, tileable | `assets/generated/textures/stone-pavers.png` | requested |
+| IMG-054 | #817/#813 | Seamless tileable **wooden court planks** texture: warm honey-toned polished wood planks running one direction, subtle grain, flat even diffuse lighting, orthographic top-down, no shadows. Stylized low-poly-friendly, mid-tone. Consumer: Basket Brawl court, Shred Session stage. | 1024×1024 PNG, tileable | `assets/generated/textures/wood-court.png` | requested |
+| IMG-055 | #817/#813 | Seamless tileable **packed sand** texture: warm tan desert sand with subtle wind ripples, flat even diffuse lighting, orthographic top-down, no shadows, no footprints. Stylized, mid-tone. Consumer: Target Range gallery floor, Sumo Smash ring clay. | 1024×1024 PNG, tileable | `assets/generated/textures/sand-packed.png` | requested |
+| IMG-056 | #817/#813 | Seamless tileable **pool water surface** texture: light aqua-blue water with gentle stylized caustic ripples, flat even diffuse lighting, orthographic top-down, no shadows, no reflections of objects. Bright and readable, not deep-ocean dark. Consumer: Treasure Divers / Fish Frenzy pool (#782 geometry pass). | 1024×1024 PNG, tileable | `assets/generated/textures/water-pool.png` | requested |
+| IMG-057 | #817/#813 | Seamless tileable **metal deck plate** texture: brushed steel floor with a subtle diamond-plate emboss pattern, cool grey, flat even diffuse lighting, orthographic top-down, no shadows, no rust. Clean sci-fi utility. Mid-tone (must stay readable under Blast Grid's dim palette, #786). Consumer: Laser Limbo, Faulty Wiring, Blast Grid floors. | 1024×1024 PNG, tileable | `assets/generated/textures/metal-deck.png` | requested |
+| IMG-058 | #817/#813 | Seamless tileable **ember rock** texture: dark volcanic rock with thin glowing orange-gold cracks running through it, flat even diffuse lighting, orthographic top-down, no smoke or flames. The glow is in the albedo (no emission map). Consumer: Meteor Shower floor, Gauntlet finale platform. | 1024×1024 PNG, tileable | `assets/generated/textures/ember-rock.png` | requested |
+| IMG-059 | #817/#813 | Seamless tileable **wooden crate face** texture: light pine crate panel with a simple plank-and-frame border reading as one crate face when mapped to a cube, flat even diffuse lighting, straight-on view, no shadows, no stencils/text. Bright enough to read on a dim grid (#786). Consumer: Blast Grid soft walls, Wall Builders blocks. | 1024×1024 PNG, tileable | `assets/generated/textures/crate-face.png` | requested |
+| IMG-060 | #817/#813 | Seamless tileable **castle stone wall** texture: large grey-stone blocks with tight mortar lines, subtly varied block tones, flat even diffuse lighting, straight-on view, no shadows, no moss/banners. Chunky stylized. Consumer: Fort Siege gate/walls (#808 rework), Tumble Run ledges. | 1024×1024 PNG, tileable | `assets/generated/textures/castle-stone.png` | requested |
