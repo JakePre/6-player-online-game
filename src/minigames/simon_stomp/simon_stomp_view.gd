@@ -50,6 +50,13 @@ const RIPPLE_SEC := 0.4
 const RIPPLE_REACH := 2.6
 const BEAT_RIPPLE_STRENGTH := 0.65
 const PRESS_SHAKE := 3.0
+## Audience layout (#795): alive players line up behind the pads facing the
+## camera (the Shred Session rig-row convention); eliminated players move to
+## a mirrored row on the far side, watching instead of loitering on the pads
+## (rigs otherwise have no position/reveal logic here at all, so they'd sit
+## invisible and stacked at the arena origin — right where the pad diamond is).
+const ROW_Z := 4.5
+const ROW_SPREAD := 4.0
 
 var _phase: int = SimonStomp.Phase.SHOW
 var _round := 0
@@ -237,25 +244,62 @@ func _flash_bounce(now: float) -> float:
 	return FLASH_BOUNCE_HEIGHT * sin(PI * since / FLASH_BOUNCE_SEC)
 
 
-## Alive players idle; a player who cleared this round cheers, a busted one
-## slumps ("hit"). Nameplates show each player's cleared-round tally.
+## Alive players stand in a stage row facing the pads; a player who cleared
+## this round cheers, a busted one slumps ("hit"). Eliminated players move to
+## an audience row on the far side, idling — or cheering along, if anyone
+## still in it clears the round (#795). Nameplates show each player's
+## cleared-round tally.
 func _update_rigs() -> void:
-	for slot: int in names:
-		var rig := rig_for_slot(slot)
-		if rig == null:
-			continue
-		var caption := "%s  %d" % [player_name(slot), int(_cleared_count.get(slot, 0))]
-		var desired: StringName = &"idle"
-		if not _alive.get(slot, true):
-			desired = &"hit"
-			caption += "  (out)"
-		elif _round_cleared.get(slot, false):
-			desired = &"cheer"
-		elif _round_failed.get(slot, false):
-			desired = &"hit"
-		if rig.current_action() != desired:
-			rig.play(desired)
-		rig.display_name = caption
+	var sorted_slots: Array = names.keys()
+	sorted_slots.sort()
+	var stage: Array = []
+	var audience: Array = []
+	for slot: int in sorted_slots:
+		if bool(_alive.get(slot, true)):
+			stage.append(slot)
+		else:
+			audience.append(slot)
+	var anyone_cleared: bool = (_round_cleared.values() as Array).any(
+		func(cleared: Variant) -> bool: return bool(cleared)
+	)
+	for i in stage.size():
+		_place_rig(stage[i], i, stage.size(), -ROW_Z, 0.0, false, anyone_cleared)
+	for i in audience.size():
+		_place_rig(audience[i], i, audience.size(), ROW_Z, PI, true, anyone_cleared)
+
+
+## `z`/`facing` pick the row and which way it looks; `is_audience` decides
+## whether this slot poses off its own round result or the group's.
+func _place_rig(
+	slot: int,
+	index: int,
+	count: int,
+	z: float,
+	facing: float,
+	is_audience: bool,
+	anyone_cleared: bool
+) -> void:
+	var rig := rig_for_slot(slot)
+	if rig == null:
+		return
+	var x := lerpf(-ROW_SPREAD, ROW_SPREAD, 0.5 if count <= 1 else float(index) / (count - 1))
+	rig.position = to_arena(Vector2(x, z))
+	rig.rotation.y = facing
+	reveal_rig(slot)
+	var caption := "%s  %d" % [player_name(slot), int(_cleared_count.get(slot, 0))]
+	var desired: StringName
+	if is_audience:
+		caption += "  (out)"
+		desired = &"cheer" if anyone_cleared else &"idle"
+	elif _round_cleared.get(slot, false):
+		desired = &"cheer"
+	elif _round_failed.get(slot, false):
+		desired = &"hit"
+	else:
+		desired = &"idle"
+	if rig.current_action() != desired:
+		rig.play(desired)
+	rig.display_name = caption
 
 
 ## An expanding, fading ground ring at `pad` — the stomp's shockwave. One-shot

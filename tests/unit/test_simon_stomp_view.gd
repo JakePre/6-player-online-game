@@ -74,3 +74,61 @@ func test_each_flashed_pad_plays_its_own_distinct_sfx() -> void:
 	view._show_timer = SimonStomp.SHOW_LEAD_IN_SEC + 0.01
 	view._update_pads()
 	assert_signal_emitted_with_parameters(view, "sfx_requested", [view.PAD_SFX[2]])
+
+
+## #795: alive players are revealed in a stage row facing the pads, instead
+## of loitering invisibly at the arena origin (where the pad diamond sits).
+func test_alive_players_stand_in_the_stage_row_and_are_revealed() -> void:
+	view.render({"phase": SimonStomp.Phase.INPUT, "round": 0, "alive": {0: true, 1: true}})
+	var rig0 := view.rig_for_slot(0)
+	var rig1 := view.rig_for_slot(1)
+	assert_true(rig0.visible, "stage players are revealed")
+	assert_true(rig1.visible)
+	assert_almost_eq(rig0.position.z, -view.ROW_Z, 0.001, "the stage sits behind the pads")
+	assert_almost_eq(rig0.rotation.y, 0.0, 0.001, "the stage faces the pads/audience")
+	assert_ne(rig0.position.x, rig1.position.x, "the row spreads players apart")
+
+
+## An eliminated player moves to a mirrored row on the far side and is marked
+## (out) — not stuck loitering on the pads.
+func test_eliminated_players_move_to_the_audience_row() -> void:
+	view.render({"phase": SimonStomp.Phase.INPUT, "round": 0, "alive": {0: true, 1: false}})
+	var rig1 := view.rig_for_slot(1)
+	assert_true(rig1.visible, "eliminated players are still revealed, just relocated")
+	assert_almost_eq(rig1.position.z, view.ROW_Z, 0.001, "the audience watches from the far side")
+	assert_almost_eq(rig1.rotation.y, PI, 0.001, "the audience faces back toward the stage")
+	assert_string_contains(rig1.display_name, "(out)")
+
+
+## The old behavior froze an eliminated player on the one-shot "hit" pose
+## forever; the audience now idles (or cheers) instead.
+func test_eliminated_player_is_not_frozen_on_the_bust_pose() -> void:
+	(
+		view
+		. render(
+			{
+				"phase": SimonStomp.Phase.INPUT,
+				"round": 0,
+				"alive": {0: false},
+				"round_failed": {0: true},
+			}
+		)
+	)
+	view.render({"phase": SimonStomp.Phase.INPUT, "round": 1, "alive": {0: false}})
+	assert_eq(view.rig_for_slot(0).current_action(), &"idle", "the audience settles, not busted")
+
+
+## The audience cheers along when a player still in the round clears it.
+func test_audience_cheers_when_a_stage_player_clears_the_round() -> void:
+	(
+		view
+		. render(
+			{
+				"phase": SimonStomp.Phase.INPUT,
+				"round": 0,
+				"alive": {0: false, 1: true},
+				"round_cleared": {1: true},
+			}
+		)
+	)
+	assert_eq(view.rig_for_slot(0).current_action(), &"cheer", "the audience cheers a clear too")
