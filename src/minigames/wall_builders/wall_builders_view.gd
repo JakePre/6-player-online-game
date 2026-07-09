@@ -7,6 +7,12 @@ const WALL_COLORS: Array[Color] = [Color(0.85, 0.45, 0.3), Color(0.35, 0.55, 0.8
 const BLOCK_SIZE := 0.7
 const WALL_WIDTH := 4.0
 const ROW_BLOCKS := 5
+## Home-zone marker (#807): a floor decal the size of the actual delivery
+## radius, plus a beacon tall enough to stay visible over a near-full wall —
+## an empty wall (height 0) is otherwise invisible, so nothing shows a
+## first-time player where to haul blocks.
+const BEACON_HEIGHT := 6.0
+const BEACON_RADIUS := 0.1
 
 ## Latest replicated state, straight from WallBuilders.get_snapshot().
 var players := {}
@@ -48,6 +54,7 @@ func _setup_3d() -> void:
 		_floor_pool.append(node)
 	for team_index in 2:
 		var side := -1.0 if team_index == 0 else 1.0
+		_build_home_marker(team_index, side)
 		var wall_mesh := BoxMesh.new()
 		wall_mesh.size = Vector3(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 		var material := StandardMaterial3D.new()
@@ -75,6 +82,46 @@ func _setup_3d() -> void:
 		marker.visible = false
 		arena.add_child(marker)
 		_carry_markers[slot] = marker
+
+
+## A team-colored floor decal at the actual delivery radius, plus a beacon
+## tall enough to read over a near-full wall (#807) — an empty wall gives no
+## clue where home is otherwise.
+func _build_home_marker(team_index: int, side: float) -> void:
+	var pos := Vector2(side * WallBuilders.WALL_X, 0.0)
+	var color := WALL_COLORS[team_index]
+
+	var decal_mesh := CylinderMesh.new()
+	decal_mesh.top_radius = WallBuilders.WALL_REACH
+	decal_mesh.bottom_radius = WallBuilders.WALL_REACH
+	decal_mesh.height = 0.08
+	var decal_material := StandardMaterial3D.new()
+	decal_material.albedo_color = color
+	decal_material.emission_enabled = true
+	decal_material.emission = color
+	decal_material.emission_energy_multiplier = 0.4
+	decal_mesh.material = decal_material
+	var decal := MeshInstance3D.new()
+	decal.name = "HomeZone%d" % team_index
+	decal.mesh = decal_mesh
+	decal.position = to_arena(pos, 0.04)
+	arena.add_child(decal)
+
+	var beacon_mesh := CylinderMesh.new()
+	beacon_mesh.top_radius = BEACON_RADIUS
+	beacon_mesh.bottom_radius = BEACON_RADIUS * 1.5
+	beacon_mesh.height = BEACON_HEIGHT
+	var beacon_material := StandardMaterial3D.new()
+	beacon_material.albedo_color = color
+	beacon_material.emission_enabled = true
+	beacon_material.emission = color
+	beacon_material.emission_energy_multiplier = 0.7
+	beacon_mesh.material = beacon_material
+	var beacon := MeshInstance3D.new()
+	beacon.name = "HomeBeacon%d" % team_index
+	beacon.mesh = beacon_mesh
+	beacon.position = to_arena(pos, BEACON_HEIGHT / 2.0)
+	arena.add_child(beacon)
 
 
 func _render_3d(game: Dictionary) -> void:

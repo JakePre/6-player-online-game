@@ -44,3 +44,20 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.blocks, [])
+
+
+## #807: each team's delivery spot gets a floor decal plus a beacon, visible
+## even before any block has actually been stacked.
+func test_home_zones_are_marked_for_both_teams() -> void:
+	for team_index in 2:
+		assert_not_null(view.arena.get_node("HomeZone%d" % team_index))
+		assert_not_null(view.arena.get_node("HomeBeacon%d" % team_index))
+	var zone0: MeshInstance3D = view.arena.get_node("HomeZone0")
+	var zone1: MeshInstance3D = view.arena.get_node("HomeZone1")
+	assert_almost_eq(
+		zone0.position.x, -WallBuilders.WALL_X, 0.001, "team 0's home sits at its wall"
+	)
+	assert_almost_eq(zone1.position.x, WallBuilders.WALL_X, 0.001, "team 1's home sits at its wall")
+	var mat0: StandardMaterial3D = zone0.mesh.material
+	var mat1: StandardMaterial3D = zone1.mesh.material
+	assert_ne(mat0.albedo_color, mat1.albedo_color, "each team's home reads as its own color")
