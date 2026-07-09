@@ -29,6 +29,12 @@ const MAX_ACTIVE_PELLETS := 10
 const SPILL_HEADROOM := 6
 const CRASH_INVULN_SEC := 2.0
 const TEAM_THRESHOLD := 4
+## No 180s (#796): a direction this close to dead opposite of the current
+## heading is ignored instead of snapping the head straight back into its own
+## neck. An about-face still works, it just has to be eased through a real
+## turn (two 90-ish taps) like any other sharp turn, instead of a free
+## instant reversal.
+const REVERSAL_DOT_MAX := -0.9
 
 ## get_snapshot() wire shape (#708): named indices for the players positional
 ## array. Array SHAPE on the wire is unchanged — additive only.
@@ -116,8 +122,12 @@ func _setup() -> void:
 ## Steering only — the chain never stops moving; input turns the head.
 func _handle_input(slot: int, data: Dictionary) -> void:
 	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
-	if dir.length() > 0.2:
-		headings[slot] = dir.normalized()
+	if dir.length() <= 0.2:
+		return
+	var new_heading := dir.normalized()
+	if new_heading.dot(headings[slot]) <= REVERSAL_DOT_MAX:
+		return
+	headings[slot] = new_heading
 
 
 func _tick(delta: float) -> void:
