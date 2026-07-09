@@ -21,7 +21,7 @@ func _spread(game: ShockTag, holder: int) -> void:
 	game.positions[1] = Vector2(7.0, -7.0)
 	game.positions[2] = Vector2(0.0, 7.0)
 	game.zapped = holder
-	game.immunity_left = 0.0
+	game._tag_back_left = 0.0
 
 
 func test_setup_electrifies_exactly_one_player() -> void:
@@ -70,7 +70,8 @@ func test_tag_passes_the_zap_and_drains_coins() -> void:
 	assert_eq(game.zapped, 1, "the zap passes on touch")
 	assert_eq(game.coins[1], 20 - ShockTag.DRAIN_COINS, "victim drained")
 	assert_eq(game.coins[0], 3 + ShockTag.DRAIN_COINS, "tagger pockets the drain")
-	assert_almost_eq(game.immunity_left, ShockTag.IMMUNITY_SEC, 0.05)
+	assert_eq(game._tag_back_slot, 0, "the player who just passed the zap is now immune")
+	assert_almost_eq(game._tag_back_left, ShockTag.NO_TAG_BACK_SEC, 0.05)
 
 
 func test_drain_never_takes_more_than_the_victim_has() -> void:
@@ -92,9 +93,23 @@ func test_immunity_blocks_instant_tag_backs() -> void:
 	assert_eq(game.zapped, 1)
 	game.tick(TICK)
 	assert_eq(game.zapped, 1, "still immune: the zap cannot bounce straight back")
-	game.immunity_left = 0.0
+	game._tag_back_left = 0.0
 	game.tick(TICK)
 	assert_eq(game.zapped, 0, "after immunity the collision tags again")
+
+
+## #809: the immunity only shields the specific player who just passed the
+## zap — the newly-zapped chaser can still tag a different bystander at once.
+func test_new_zapped_can_tag_a_bystander_during_the_immunity_window() -> void:
+	var game := _game_with(3)
+	_spread(game, 0)
+	game.positions[0] = Vector2.ZERO
+	game.positions[1] = Vector2(0.1, 0.0)
+	game.tick(TICK)
+	assert_eq(game.zapped, 1, "the zap passes to slot 1")
+	game.positions[2] = game.positions[1]
+	game.tick(TICK)
+	assert_eq(game.zapped, 2, "a bystander in range gets tagged right away")
 
 
 func test_clean_players_bank_coins_over_time() -> void:

@@ -66,27 +66,50 @@ func test_setup_spawns_are_spread_at_eight_players() -> void:
 func test_bomb_transfers_on_contact() -> void:
 	var game := _make_game(3)
 	_spread_players(game)
-	var victim := _first_other(game, game.carrier)
-	game.positions[victim] = game.positions[game.carrier] + Vector2(HotPotato.PLAYER_RADIUS, 0.0)
+	var passer: int = game.carrier
+	var victim := _first_other(game, passer)
+	game.positions[victim] = game.positions[passer] + Vector2(HotPotato.PLAYER_RADIUS, 0.0)
 	game.tick(TICK)
 	assert_eq(game.carrier, victim, "contact passes the bomb")
-	assert_gt(game.transfer_cooldown, 0.0, "transfer arms the cooldown")
+	assert_eq(game._tag_back_slot, passer, "the player who just passed it is now immune")
+	assert_gt(game._tag_back_left, 0.0, "immunity is armed")
 
 
-func test_transfer_cooldown_blocks_ping_pong() -> void:
+## #809: the passer can't get the bomb tagged straight back onto them, but
+## once the immunity window expires an unmoved pair can still ping-pong it.
+func test_no_tag_back_blocks_the_immediate_return_tag() -> void:
 	var game := _make_game(3)
 	_spread_players(game)
-	var first: int = game.carrier
-	var victim := _first_other(game, first)
-	game.positions[victim] = game.positions[first]
+	var passer: int = game.carrier
+	var victim := _first_other(game, passer)
+	game.positions[victim] = game.positions[passer]
 	game.tick(TICK)
 	assert_eq(game.carrier, victim)
-	for _i in 10:
-		game.tick(TICK)
-	assert_eq(game.carrier, victim, "bomb stays put during the cooldown")
 	for _i in 20:
 		game.tick(TICK)
-	assert_eq(game.carrier, first, "bomb passes back once the cooldown expires")
+	assert_eq(game.carrier, victim, "the passer stays immune to an instant return tag")
+	for _i in 15:
+		game.tick(TICK)
+	assert_eq(game.carrier, passer, "immunity expires and the bomb can return")
+
+
+## The old cooldown froze every transfer; the new one only shields the
+## specific player who just passed — anyone else can be tagged right away.
+func test_carrier_can_tag_someone_else_during_the_immunity_window() -> void:
+	var game := _make_game(3)
+	_spread_players(game)
+	var passer: int = game.carrier
+	var victim := _first_other(game, passer)
+	var bystander := -1
+	for slot: int in game.alive_slots():
+		if slot != passer and slot != victim:
+			bystander = slot
+	game.positions[victim] = game.positions[passer]
+	game.tick(TICK)
+	assert_eq(game.carrier, victim)
+	game.positions[bystander] = game.positions[victim]
+	game.tick(TICK)
+	assert_eq(game.carrier, bystander, "the new carrier can tag a third player immediately")
 
 
 func test_carrier_moves_ten_percent_faster() -> void:

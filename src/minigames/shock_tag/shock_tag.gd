@@ -15,9 +15,12 @@ const TAG_RANGE := PLAYER_RADIUS * 2.2
 const DRAIN_COINS := 5
 ## Coins banked per full second of staying clean.
 const CLEAN_COINS_PER_SEC := 1.0
-## A fresh victim cannot be re-tagged by anyone for this long, so the zap
-## never ping-pongs inside one collision.
-const IMMUNITY_SEC := 1.5
+## No-tag-backs (#809): the player who just passed the zap can't get it
+## tagged straight back onto them for this long, so they get a real chance to
+## put distance between themselves and the newly-electrified chaser — but the
+## new zapped player can still tag anyone *else* immediately, unlike the old
+## blanket immunity that froze every tag.
+const NO_TAG_BACK_SEC := 1.0
 
 ## get_snapshot() wire shape (#708): named indices for the players positional
 ## array. Array SHAPE on the wire is unchanged — additive only.
@@ -31,7 +34,11 @@ var move_dirs := {}
 var coins := {}
 ## Slot currently holding the zap.
 var zapped := -1
-var immunity_left := 0.0
+
+## No-tag-back state: `_tag_back_slot` cannot be re-tagged while
+## `_tag_back_left` counts down.
+var _tag_back_slot := -1
+var _tag_back_left := 0.0
 
 var _clean_progress := {}
 
@@ -75,7 +82,7 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	if finished:
 		return
-	immunity_left = maxf(immunity_left - delta, 0.0)
+	_tag_back_left = maxf(_tag_back_left - delta, 0.0)
 	for slot: int in slots:
 		var speed := ZAPPED_SPEED if slot == zapped else MOVE_SPEED
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
@@ -92,7 +99,6 @@ func get_snapshot() -> Dictionary:
 	return {
 		"players": players,
 		"zapped": zapped,
-		"immunity": snappedf(immunity_left, 0.01),
 	}
 
 
@@ -126,16 +132,19 @@ func _bank_clean_coins(delta: float) -> void:
 
 
 func _resolve_tag() -> void:
-	if immunity_left > 0.0 or zapped == -1:
+	if zapped == -1:
 		return
 	for slot: int in slots:
 		if slot == zapped:
+			continue
+		if slot == _tag_back_slot and _tag_back_left > 0.0:
 			continue
 		if positions[zapped].distance_to(positions[slot]) > TAG_RANGE:
 			continue
 		var drained := mini(DRAIN_COINS, int(coins[slot]))
 		coins[slot] -= drained
 		coins[zapped] += drained
+		_tag_back_slot = zapped
+		_tag_back_left = NO_TAG_BACK_SEC
 		zapped = slot
-		immunity_left = IMMUNITY_SEC
 		return
