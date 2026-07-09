@@ -121,6 +121,38 @@ func test_relay_sprint_brain_dodges_an_imminent_sweeper() -> void:
 	assert_ne(float(intent.get("my", 0.0)), 0.0, "swerves off the sweeper's lateral line")
 
 
+func test_relay_sprint_brain_dodges_the_sweeper_s_predicted_position_not_its_stale_one() -> void:
+	# #715/#768 follow-up: reacting to the sweeper's snapshot position (not
+	# where it'll be on arrival) is what let bots loop into it forever — live
+	# testing confirmed a lead estimate fixes it. Crafted so the sweeper is
+	# crossing zero: it's slightly negative on both polls, but closing fast
+	# enough that the LEAD estimate is positive — a naive "dodge away from
+	# current" brain would swerve the opposite way from a predictive one.
+	var brain := BotBrains.brain_for(&"relay_sprint", 0, 1)
+	var lane := [[0], 0, 5.0, 0.0, false]
+	# First poll seeds the velocity estimate (progress unchanged is fine — the
+	# brain only tracks the hazard's own lateral history, not our motion).
+	brain.think(
+		_play_state(
+			"relay_sprint", {"lanes": {0: lane}, "track_len": 24.0, "hazards": [[7.0, -0.3]]}
+		),
+		{}
+	)
+	# Second poll: the sweeper moved -0.3 -> -0.1 in one ~0.25s interval — a
+	# closing velocity that projects past zero by our estimated arrival.
+	var intent := brain.think(
+		_play_state(
+			"relay_sprint", {"lanes": {0: lane}, "track_len": 24.0, "hazards": [[7.0, -0.1]]}
+		),
+		{}
+	)
+	assert_lt(
+		float(intent.get("my", 0.0)),
+		0.0,
+		"dodges away from the predicted (positive) position, not the stale negative snapshot"
+	)
+
+
 func test_relay_sprint_brain_finished_team_sends_nothing() -> void:
 	var brain := BotBrains.brain_for(&"relay_sprint", 0, 1)
 	var game := {"lanes": {0: [[0], 0, 24.0, 0.0, true]}, "track_len": 24.0, "hazards": []}

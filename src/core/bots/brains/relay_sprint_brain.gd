@@ -3,10 +3,20 @@ extends BotBrain
 ## Relay-racer archetype (M19-02, #686): only the currently active runner on
 ## each team affects progress (the sim reads _move[active_runner] and ignores
 ## everyone else's), so a benched teammate just idles. The active runner runs
-## flat out, swerving away from whichever oscillating sweeper is both close
-## ahead and lined up with our current lane position — using its CURRENT
-## snapshot position, the same instant-in-time read a human watching the
-## sweeper would react to.
+## flat out, swerving away from wherever the nearest oscillating sweeper is
+## predicted to be when we actually reach it.
+##
+## Predictive dodge (#715/#768 follow-up): the sweeper swings continuously
+## (HAZARD_PERIOD_SEC, ~2.6 rad/s of angular velocity) but a poll's decision
+## holds for one bot tick (~0.25s) — reacting to the sweeper's position AT
+## POLL TIME meant the runner routinely dodged to a spot the sweeper reached
+## a moment later. Live testing confirmed this (not #768's cadence-aliasing
+## class, already fixed for hurdle_dash): bots reset to progress 0 and
+## re-collide with hazard 0 on an almost fixed ~1.2s cycle, over and over.
+## This estimates each hazard's lateral velocity from consecutive polls (the
+## same lead-the-target trick as target_range_brain.gd, keyed by the
+## hazard's stable array index) and extrapolates to our estimated arrival
+## time instead of reacting to a stale snapshot.
 ##
 ## Snapshot: {lanes: {team_index: [team_slots, active_leg, progress, lateral,
 ## done]}, track_len, hazards: [[x, current_lateral], ...]}. Input: {mx, my}.
@@ -16,6 +26,10 @@ extends BotBrain
 const LOOKAHEAD := 3.0
 ## Return-to-center drift once nothing nearby is dangerous.
 const CENTER_PULL := 0.3
+
+## Last observed lateral per hazard index (stable across polls — hazards are
+## always snapshotted in HAZARD_POSITIONS order), for the velocity estimate.
+var _last_hazard_lateral := {}
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -35,7 +49,7 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var lateral := float(lane[RelaySprint.LN_LATERAL])
 	# INF means "no imminent threat" — a sentinel float, not Variant/null, so
 	# the comparison below stays statically typed.
-	var threat_lateral := _imminent_threat(game.get("hazards", []), progress)
+	var threat_lateral := _predicted_threat(game.get("hazards", []), progress)
 	var danger_margin := RelaySprint.HAZARD_RADIUS + RelaySprint.RUNNER_RADIUS + 0.3
 	if threat_lateral != INF and absf(lateral - threat_lateral) <= danger_margin:
 		var away := signf(lateral - threat_lateral)
@@ -52,16 +66,30 @@ func _find_team(lanes: Dictionary) -> int:
 	return -1
 
 
-## The lateral offset of the nearest sweeper within LOOKAHEAD progress units
-## ahead of us, or INF if nothing's close enough to react to yet.
-func _imminent_threat(hazards: Array, progress: float) -> float:
+## Predicted lateral offset of the nearest sweeper within LOOKAHEAD progress
+## units ahead of us at our estimated arrival time, or INF if nothing's close
+## enough to react to yet. Velocity is estimated from the last two polls of
+## that same hazard (index-matched); arrival time from our closing speed.
+func _predicted_threat(hazards: Array, progress: float) -> float:
 	var best := INF
 	var best_dist := INF
-	for hazard: Array in hazards:
+	var best_index := -1
+	for i in hazards.size():
+		var hazard: Array = hazards[i]
 		var dx := float(hazard[RelaySprint.HZ_X]) - progress
 		if dx < -RelaySprint.HAZARD_RADIUS or dx > LOOKAHEAD:
 			continue
 		if dx < best_dist:
 			best_dist = dx
 			best = float(hazard[RelaySprint.HZ_LATERAL])
-	return best
+			best_index = i
+	if best_index == -1:
+		return INF
+	var velocity := 0.0
+	if _last_hazard_lateral.has(best_index):
+		velocity = (
+			(best - float(_last_hazard_lateral[best_index])) / NetManager.BOT_INPUT_INTERVAL_SEC
+		)
+	_last_hazard_lateral[best_index] = best
+	var eta := maxf(best_dist, 0.0) / RelaySprint.RUN_SPEED
+	return clampf(best + velocity * eta, -RelaySprint.LANE_HALF, RelaySprint.LANE_HALF)
