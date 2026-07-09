@@ -140,3 +140,38 @@ func test_camera_framing_grows_with_the_lane_bank() -> void:
 	assert_almost_eq(
 		float(lane_23.center_x) - float(lane_22.center_x), BullseyeBowl.LANE_SPACING, 0.001
 	)
+
+
+## #797: low headcounts widen the pitch to fill the arena the baseline
+## already tunes for, instead of clustering every lane at the fixed pitch.
+func test_low_headcount_widens_lane_pitch() -> void:
+	var lane_0: Dictionary = view._lanes[0]
+	var lane_1: Dictionary = view._lanes[1]
+	var pitch: float = float(lane_1.center_x) - float(lane_0.center_x)
+	assert_gt(pitch, BullseyeBowl.LANE_SPACING, "2 players get more than the packed baseline pitch")
+
+
+## The outer lanes of a widened low-count bank still land within the tuned
+## <=6 arena half-width — spread to fill it, not spill past it.
+func test_widened_lanes_stay_within_the_tuned_arena_half() -> void:
+	var lane_1: Dictionary = view._lanes[1]
+	assert_lt(absf(float(lane_1.center_x)), view._arena_half(), "outer lane stays inside the arena")
+
+
+## A full baseline bank (6 players) keeps the exact classic pitch — the
+## widening only kicks in below the baseline headcount.
+func test_baseline_headcount_keeps_the_classic_pitch() -> void:
+	var six := {}
+	for slot in 6:
+		six[slot] = "P%d" % (slot + 1)
+	var baseline_view: MinigameView3D = VIEW_SCENE.instantiate()
+	add_child_autofree(baseline_view)
+	baseline_view.setup(six, 0)
+	var lane_0: Dictionary = baseline_view._lanes[0]
+	var lane_1: Dictionary = baseline_view._lanes[1]
+	assert_almost_eq(
+		float(lane_1.center_x) - float(lane_0.center_x),
+		BullseyeBowl.LANE_SPACING,
+		0.001,
+		"a full baseline bank isn't widened"
+	)

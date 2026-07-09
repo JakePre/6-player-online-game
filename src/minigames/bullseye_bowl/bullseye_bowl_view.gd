@@ -46,12 +46,24 @@ func _arena_half() -> float:
 	return BullseyeBowl.LANE_LENGTH * 0.75 * MinigameScaling.growth(names.size())
 
 
+## #797: below the baseline headcount the arena keeps its tuned <=6 width
+## (MinigameScaling.growth floors at 1.0), but the fixed LANE_SPACING packed
+## every lane near center regardless — most of that width sat unused. Spreads
+## lanes across the same outer-lane span a full baseline bank already fills,
+## then settles back to LANE_SPACING once `count` reaches the baseline (where
+## the arena itself starts growing to match, keeping the tuned framing exact).
+static func _lane_pitch(count: int) -> float:
+	var baseline_span := (MinigameScaling.BASELINE_PLAYERS - 1) * BullseyeBowl.LANE_SPACING
+	return maxf(BullseyeBowl.LANE_SPACING, baseline_span / maxf(1.0, float(count - 1)))
+
+
 func _setup_3d() -> void:
 	var slot_list: Array = names.keys()
 	slot_list.sort()
+	var pitch := _lane_pitch(slot_list.size())
 	for i in slot_list.size():
 		var slot: int = slot_list[i]
-		var center_x := (i - (slot_list.size() - 1) / 2.0) * BullseyeBowl.LANE_SPACING
+		var center_x := (i - (slot_list.size() - 1) / 2.0) * pitch
 		_build_lane(slot, center_x, i % 2 == 1)
 		var rig := rig_for_slot(slot)
 		if rig != null:
