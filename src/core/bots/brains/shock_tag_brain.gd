@@ -3,8 +3,8 @@ extends BotBrain
 ## Shock Tag archetype (M19-02, #686): flee the zapped player to keep banking
 ## clean coins; when zapped, chase whoever's carrying the most coins — passing
 ## the zap onto a fat target drains the most value. Snapshot: {players:
-## {slot: [x, y, coins]}, zapped, immunity}. Input: {mx, my} only. Indices
-## named via ShockTag.PS_* (#708).
+## {slot: [x, y, coins]}, zapped}. Input: {mx, my} only. Indices named via
+## ShockTag.PS_* (#708).
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:

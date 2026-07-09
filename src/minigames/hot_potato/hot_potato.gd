@@ -11,8 +11,15 @@ const PLAYER_RADIUS := 0.45
 ## Carrier moves 10% faster so tagging a fleeing player is possible.
 const CARRIER_SPEED_MULT := 1.1
 const TRANSFER_RANGE := PLAYER_RADIUS * 2.0
-## Grace period after the bomb changes hands so it cannot ping-pong.
-const TRANSFER_COOLDOWN_SEC := 0.75
+## No-tag-backs (#809): the player who just passed the bomb can't receive it
+## right back for this long, so they get a real chance to run — but the new
+## carrier can still tag anyone *else* immediately, unlike the old blanket
+## cooldown that froze every transfer.
+const NO_TAG_BACK_SEC := 1.0
+## Brief full freeze right after a fuse blast reassigns the bomb, so the
+## fresh (randomly picked) carrier isn't instantly re-tagged before they can
+## even move.
+const RESPAWN_GRACE_SEC := 0.75
 const FUSE_MIN_SEC := 8.0
 const FUSE_MAX_SEC := 14.0
 const MAX_BLASTS := 3
@@ -31,10 +38,15 @@ var move_dirs := {}
 var hold_time := {}
 var carrier := -1
 var fuse := 0.0
-var transfer_cooldown := 0.0
 var blasts := 0
 ## Slots in the order they were eliminated (one per blast).
 var eliminated: Array[int] = []
+
+## No-tag-back state: `_tag_back_slot` cannot receive the bomb back while
+## `_tag_back_left` counts down.
+var _tag_back_slot := -1
+var _tag_back_left := 0.0
+var _respawn_grace_left := 0.0
 
 
 static func make_meta() -> MinigameMeta:
@@ -63,7 +75,6 @@ func _setup() -> void:
 		hold_time[slots[i]] = 0.0
 	carrier = slots[rng.randi_range(0, slots.size() - 1)]
 	fuse = rng.randf_range(FUSE_MIN_SEC, FUSE_MAX_SEC)
-	transfer_cooldown = 0.0
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
@@ -74,7 +85,8 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 
 func _tick(delta: float) -> void:
-	transfer_cooldown = maxf(transfer_cooldown - delta, 0.0)
+	_tag_back_left = maxf(_tag_back_left - delta, 0.0)
+	_respawn_grace_left = maxf(_respawn_grace_left - delta, 0.0)
 	for slot: int in alive_slots():
 		var speed := MOVE_SPEED * (CARRIER_SPEED_MULT if slot == carrier else 1.0)
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
@@ -133,14 +145,17 @@ func _rank_players() -> Array:
 
 
 func _resolve_transfer() -> void:
-	if transfer_cooldown > 0.0:
+	if _respawn_grace_left > 0.0:
 		return
 	for slot: int in alive_slots():
 		if slot == carrier:
 			continue
+		if slot == _tag_back_slot and _tag_back_left > 0.0:
+			continue
 		if positions[carrier].distance_to(positions[slot]) <= TRANSFER_RANGE:
+			_tag_back_slot = carrier
+			_tag_back_left = NO_TAG_BACK_SEC
 			carrier = slot
-			transfer_cooldown = TRANSFER_COOLDOWN_SEC
 			return
 
 
@@ -154,6 +169,7 @@ func _explode() -> void:
 	if blasts < MAX_BLASTS and survivors.size() > 1:
 		carrier = survivors[rng.randi_range(0, survivors.size() - 1)]
 		fuse = rng.randf_range(FUSE_MIN_SEC, FUSE_MAX_SEC)
-		transfer_cooldown = TRANSFER_COOLDOWN_SEC
+		_respawn_grace_left = RESPAWN_GRACE_SEC
+		_tag_back_slot = -1
 	else:
 		finish(_rank_players())
