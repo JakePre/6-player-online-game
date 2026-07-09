@@ -188,17 +188,20 @@ func _build_hud() -> void:
 	add_child(_scoreboard)
 
 
-## Flat, screen-space lane headers (#585): a row of chips along the bottom, one
-## per lane in left-to-right order, each a clear direction arrow plus the
-## device-aware bound input below it. Replaces the iso-projected Label3D arrows.
+## Flat, screen-space lane headers (#585): a row of chips, one per lane in
+## left-to-right order, each a clear direction arrow plus the device-aware
+## bound input below it. Replaces the iso-projected Label3D arrows.
+## #798: the original bottom-edge placement (-24px) still went unnoticed in
+## owner playtesting — moved well up toward where the hit line reads on
+## screen, and enlarged, so it's impossible to miss.
 func _build_lane_headers() -> void:
 	var row := HBoxContainer.new()
 	row.name = "LaneHeaders"
 	row.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	row.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	row.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	row.position.y = -24.0
-	row.add_theme_constant_override(&"separation", PartyTheme.SPACE_MD)
+	row.position.y = -220.0
+	row.add_theme_constant_override(&"separation", PartyTheme.SPACE_LG)
 	add_child(row)
 	_lane_glyph_labels.clear()
 	for lane in ShredSession.LANES:
@@ -207,12 +210,12 @@ func _build_lane_headers() -> void:
 		var arrow := Label.new()
 		arrow.text = LANE_LABELS[lane]
 		arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		arrow.add_theme_font_size_override(&"font_size", PartyTheme.SIZE_HEADER)
+		arrow.add_theme_font_size_override(&"font_size", PartyTheme.SIZE_DISPLAY)
 		arrow.add_theme_color_override(&"font_color", LANE_COLORS[lane])
 		chip.add_child(arrow)
 		var glyph := Label.new()
-		glyph.theme_type_variation = PartyTheme.SMALL_VARIATION  # SmallLabel — smaller text
 		glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		glyph.add_theme_font_size_override(&"font_size", PartyTheme.SIZE_HEADER)
 		chip.add_child(glyph)
 		row.add_child(chip)
 		_lane_glyph_labels.append(glyph)
@@ -325,8 +328,40 @@ func _handle_local_judgment() -> void:
 	var lane: int = int(me[ShredSession.PS_LAST_LANE])
 	if lane >= 0 and lane < ShredSession.LANES:
 		_lane_flash_until[lane] = _now_sec() + FLASH_SEC
+		# A clean hit vanishes its note immediately instead of sliding through
+		# the line (#798) — a miss still rolls past, which is the miss itself
+		# reading as feedback. The shared chart keeps the note in every other
+		# player's snapshot until its window fully closes, so this is a
+		# purely local, cosmetic early-removal, not a state change.
+		if judgment == ShredSession.Judgment.PERFECT or judgment == ShredSession.Judgment.GOOD:
+			_pop_judged_note(lane)
 	_show_judgment(judgment)
 	_update_streak(int(me[ShredSession.PS_STREAK]))
+
+
+## Vanishes the note nearest the hit line in `lane` (#798) — a small sparkle
+## instead of the usual queue_free, so a clean hit gets its own pop. Only
+## targets a note actually near judgment time (the sim's own GOOD_SEC
+## window), so this can't be mistaken for a note that hasn't arrived yet.
+func _pop_judged_note(lane: int) -> void:
+	var clock := _clock + (_now_sec() - _snapshot_at)
+	var closest_key := ""
+	var closest_dt := INF
+	for key: String in _note_nodes:
+		var entry: Dictionary = _note_nodes[key]
+		if int(entry.lane) != lane:
+			continue
+		var dt := absf(float(entry.time) - clock)
+		if dt < closest_dt:
+			closest_dt = dt
+			closest_key = key
+	if closest_key.is_empty() or closest_dt > ShredSession.GOOD_SEC:
+		return
+	var entry: Dictionary = _note_nodes[closest_key]
+	var node: MeshInstance3D = entry.node
+	fx_sparkle(Vector2(node.position.x, node.position.z), LANE_COLORS[lane], node.position.y)
+	node.queue_free()
+	_note_nodes.erase(closest_key)
 
 
 func _show_judgment(judgment: int) -> void:

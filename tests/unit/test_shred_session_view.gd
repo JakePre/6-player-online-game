@@ -97,6 +97,51 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view._note_nodes.size(), 0)
 
 
+## #798: a clean hit vanishes its note right away instead of sliding through
+## the line — the local player's own judgment event pops it early.
+func test_a_perfect_hit_pops_its_note_immediately() -> void:
+	view.render(_snap([[3.0, 1]], {0: [0, 0, 0, -1, 0]}, 3.0))
+	assert_eq(view._note_nodes.size(), 1, "the note is up before the hit")
+	view.render(_snap([[3.0, 1]], {0: [2, 1, ShredSession.Judgment.PERFECT, 1, 1]}, 3.0))
+	assert_eq(view._note_nodes.size(), 0, "the perfect hit vanishes it early")
+
+
+## A GOOD hit gets the same early-vanish treatment as a PERFECT.
+func test_a_good_hit_pops_its_note_immediately() -> void:
+	view.render(_snap([[3.0, 2]], {0: [0, 0, 0, -1, 0]}, 3.0))
+	view.render(_snap([[3.0, 2]], {0: [1, 1, ShredSession.Judgment.GOOD, 2, 1]}, 3.0))
+	assert_eq(view._note_nodes.size(), 0, "a good hit vanishes it early too")
+
+
+## A miss keeps rolling through the line — the miss itself is the feedback,
+## and the server's own snapshot still carries the note for other players.
+func test_a_miss_does_not_pop_its_note() -> void:
+	view.render(_snap([[3.0, 0]], {0: [0, 0, 0, -1, 0]}, 3.0))
+	view.render(_snap([[3.0, 0]], {0: [0, 0, ShredSession.Judgment.MISS, 0, 1]}, 3.0))
+	assert_eq(view._note_nodes.size(), 1, "a missed note keeps sliding — still in the snapshot")
+
+
+## A hit only ever pops the note near the hit line — a far-future note in the
+## same lane is untouched.
+func test_pop_never_targets_a_note_far_from_the_hit_line() -> void:
+	view.render(_snap([[10.0, 1]], {0: [0, 0, 0, -1, 0]}, 3.0))
+	view.render(_snap([[10.0, 1]], {0: [2, 1, ShredSession.Judgment.PERFECT, 1, 1]}, 3.0))
+	assert_eq(view._note_nodes.size(), 1, "a note way up-track is out of the judging window")
+
+
+func test_lane_headers_are_enlarged_and_moved_off_the_bottom_edge() -> void:
+	# #798: the original -24px placement went unnoticed; moved up and enlarged.
+	# A bottom-anchored Control's `position` resolves through the parent
+	# viewport size at layout time, so this checks `offset_top` — the literal
+	# value the layout math is built from — rather than the post-anchor pixel
+	# position, which the CI render clip verifies visually.
+	var row: Control = view.get_node("LaneHeaders")
+	assert_almost_eq(row.offset_top, -220.0, 0.01, "moved well above the old -24px placement")
+	var chip: VBoxContainer = row.get_child(0)
+	var arrow: Label = chip.get_child(0)
+	assert_gt(arrow.get_theme_font_size(&"font_size"), 22, "bigger than the old header size")
+
+
 func test_flat_lane_headers_replace_the_iso_projected_glyphs() -> void:
 	# #585: the ambiguous iso Label3D targets are gone; a flat screen-space
 	# header row carries lane identity instead.
