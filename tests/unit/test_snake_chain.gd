@@ -75,6 +75,43 @@ func test_own_fresh_segments_are_safe_but_old_ones_kill() -> void:
 	assert_gt(float(game.invuln_left[0]), 0.0, "old own segment crashes")
 
 
+## #796: no free 180s — a direction dead opposite of the current heading is
+## ignored, so the head can't snap straight back into its own neck.
+func test_exact_reversal_input_is_ignored() -> void:
+	var game := _game()
+	var before: Vector2 = game.headings[0]
+	game.handle_input(0, {"mx": -before.x, "my": -before.y})
+	assert_eq(game.headings[0], before, "the exact-opposite input is rejected")
+
+
+## Not just the mathematically-perfect reverse — anything close enough reads
+## as "trying to reverse" and is rejected the same way.
+func test_near_reversal_input_is_ignored() -> void:
+	var game := _game()
+	game.headings[0] = Vector2.RIGHT
+	game.handle_input(0, {"mx": -1.0, "my": 0.05})
+	assert_eq(game.headings[0], Vector2.RIGHT, "a near-opposite input is rejected too")
+
+
+## The guard only blocks near-reversals — an ordinary sharp turn still works.
+func test_sharp_turn_short_of_reversal_is_allowed() -> void:
+	var game := _game()
+	game.headings[0] = Vector2.RIGHT
+	game.handle_input(0, {"mx": 0.0, "my": 1.0})
+	assert_eq(game.headings[0], Vector2.DOWN, "a 90-degree turn is not a reversal")
+
+
+## The rule only blocks an instant about-face — easing through two real turns
+## still gets you facing backward, same as any other snake game.
+func test_reversal_still_reachable_through_two_turns() -> void:
+	var game := _game()
+	game.headings[0] = Vector2.RIGHT
+	game.handle_input(0, {"mx": 0.0, "my": 1.0})
+	assert_eq(game.headings[0], Vector2.DOWN)
+	game.handle_input(0, {"mx": -1.0, "my": 0.0})
+	assert_eq(game.headings[0], Vector2.LEFT, "two 90-degree turns reach a full about-face")
+
+
 func test_invulnerable_heads_pass_through() -> void:
 	var game := _game()
 	game.invuln_left[0] = 1.0

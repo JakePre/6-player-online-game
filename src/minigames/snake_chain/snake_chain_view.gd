@@ -39,6 +39,11 @@ func _setup_3d() -> void:
 	pellet_mesh.height = 0.5
 	var pellet_material := StandardMaterial3D.new()
 	pellet_material.albedo_color = PELLET_COLOR
+	# #796: metallic + roughness give the sphere a real specular highlight
+	# instead of reading as a flat, shadeless disc (the coin_scramble/
+	# treasure_divers convention for small glowing pickups).
+	pellet_material.metallic = 0.6
+	pellet_material.roughness = 0.35
 	pellet_material.emission_enabled = true
 	pellet_material.emission = PELLET_COLOR
 	pellet_material.emission_energy_multiplier = 0.5
@@ -57,6 +62,8 @@ func _setup_3d() -> void:
 		var material := StandardMaterial3D.new()
 		var color := player_color(slot)
 		material.albedo_color = color
+		material.metallic = 0.6
+		material.roughness = 0.35
 		material.emission_enabled = true
 		material.emission = color
 		material.emission_energy_multiplier = 0.35
