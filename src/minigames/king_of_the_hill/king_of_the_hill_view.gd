@@ -193,12 +193,18 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		if Time.get_ticks_msec() < int(_shove_hold.get(slot, 0)):
-			# The shove animation owns the rig for a moment (#587): move it,
-			# don't re-animate it — mirrors rumble_ring's hit/ko reaction hold.
-			rig.position = to_arena(Vector2(state[KingOfTheHill.PS_X], state[KingOfTheHill.PS_Y]))
-		else:
-			update_rig(slot, Vector2(state[KingOfTheHill.PS_X], state[KingOfTheHill.PS_Y]))
+		# The shove animation gets to finish its flourish while the player
+		# stands still (#587), but never at the cost of stalling movement
+		# (#800) — update_rig()'s force_animate=false only protects the pose
+		# while stationary; the walk switch still fires the instant the
+		# player actually moves.
+		var flourishing := Time.get_ticks_msec() < int(_shove_hold.get(slot, 0))
+		update_rig(
+			slot,
+			Vector2(state[KingOfTheHill.PS_X], state[KingOfTheHill.PS_Y]),
+			0.0,
+			not flourishing
+		)
 		rig.display_name = "%s  %d" % [player_name(slot), int(state[KingOfTheHill.PS_POINTS])]
 		# Scoring sparkles (M13-03): points ticking up while holding the hill
 		# shed a sparkle in the scorer's color. Seeded via _points_seen.

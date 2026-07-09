@@ -156,6 +156,51 @@ func test_anchor_use_does_not_play_the_shove_animation() -> void:
 	assert_ne(view.rig_for_slot(0).current_action(), &"interact")
 
 
+## #800: the shove flourish must never stall movement — the walk switch
+## fires the instant the player actually moves, even mid-flourish.
+func test_movement_during_the_shove_flourish_is_not_stalled() -> void:
+	(
+		view
+		. render(
+			{
+				"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]},
+				"zone": [],
+				"held": {0: KingOfTheHill.Item.SHOVE},
+			}
+		)
+	)
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]}, "zone": [], "held": {}})
+	assert_eq(view.rig_for_slot(0).current_action(), &"interact", "the flourish plays first")
+	view.render({"players": {0: [3.0, 0.0, 0], 1: [1.0, 1.0, 0]}, "zone": [], "held": {}})
+	assert_eq(
+		view.rig_for_slot(0).current_action(),
+		&"walk",
+		"moving mid-flourish switches to walk immediately — never stalls movement"
+	)
+
+
+## Standing still lets the flourish play out undisturbed (unchanged from
+## before #800) — only movement interrupts it.
+func test_standing_still_keeps_the_flourish_playing() -> void:
+	(
+		view
+		. render(
+			{
+				"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]},
+				"zone": [],
+				"held": {0: KingOfTheHill.Item.SHOVE},
+			}
+		)
+	)
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]}, "zone": [], "held": {}})
+	view.render({"players": {0: [0.0, 0.0, 0], 1: [1.0, 1.0, 0]}, "zone": [], "held": {}})
+	assert_eq(
+		view.rig_for_slot(0).current_action(),
+		&"interact",
+		"no movement — the flourish still plays out"
+	)
+
+
 func test_zone_throbs_across_snapshots() -> void:
 	view.render({"players": {}, "zone": [0.0, 0.0, 3.0]})
 	var glow_a: float = view._zone_material.emission_energy_multiplier
