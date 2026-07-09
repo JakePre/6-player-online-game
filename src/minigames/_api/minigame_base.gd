@@ -17,6 +17,11 @@ var finished := false
 ## instead of FFA placements. An explicit flag (not the meta category)
 ## because e.g. Color Clash plays FFA below 4 players.
 var team_mode := false
+## True number of teams in a team_mode game (#811). Multi-team sims (3+
+## teams) set it in _setup() so tied teams — merged into one placements
+## group — still award from the right table; 0 keeps the pre-#811 "one team
+## per placements group" reading, exact for 2-team games.
+var team_count := 0
 ## Test-harness hook: when > 0, replaces meta.duration_sec for this instance.
 var duration_override := 0.0
 
@@ -50,7 +55,12 @@ func handle_input(slot: int, data: Dictionary) -> void:
 
 
 func get_results() -> Dictionary:
-	return {"placements": _placements, "pickup_coins": _pickup_coins, "team_mode": team_mode}
+	return {
+		"placements": _placements,
+		"pickup_coins": _pickup_coins,
+		"team_mode": team_mode,
+		"team_count": team_count,
+	}
 
 
 func get_snapshot() -> Dictionary:

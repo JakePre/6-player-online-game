@@ -58,14 +58,30 @@ static func award_for_placements(placements: Array) -> Dictionary:
 	return awards
 
 
-## `team_placements` is an array of teams ordered best-first, each an array of
-## member slots. Every member of a team gets that team's award.
-static func award_for_teams(team_placements: Array) -> Dictionary:
+## `team_placements` is an array of rank groups ordered best-first, each an
+## array of member slots. A group normally holds one team, but TIED teams are
+## merged into one group (the sims' tie convention) — every slot in a group
+## gets the same award, and ties share the higher award (SPEC §5, #811).
+##
+## `team_count` is the true number of teams in the game; it picks the award
+## table and advances the rank past a merged group by how many teams it
+## holds (derivable because team games split evenly — `even_players`). The
+## default 0 means "one team per group" (the pre-#811 call shape), which is
+## exact whenever nothing tied.
+static func award_for_teams(team_placements: Array, team_count: int = 0) -> Dictionary:
+	if team_count <= 0:
+		team_count = team_placements.size()
+	var total_slots := 0
+	for group: Array in team_placements:
+		total_slots += group.size()
+	var slots_per_team := maxi(1, total_slots / maxi(team_count, 1))
 	var awards := {}
-	for i in team_placements.size():
-		var value := team_award(i, team_placements.size())
-		for slot: int in team_placements[i]:
+	var rank := 0
+	for group: Array in team_placements:
+		var value := team_award(rank, team_count)
+		for slot: int in group:
 			awards[slot] = value
+		rank += maxi(1, group.size() / slots_per_team)
 	return awards
 
 
@@ -81,12 +97,16 @@ static func total_round_award(
 
 
 ## Team-game counterpart of total_round_award: team awards plus capped
-## pickup coins. `team_placements` is teams best-first, each an array of
-## member slots. Returns {slot: coins}.
+## pickup coins. `team_placements` is rank groups best-first (tied teams
+## merged, see award_for_teams); `team_count` is the true team count (0 =
+## one team per group). Returns {slot: coins}.
 static func total_team_round_award(
-	team_placements: Array, pickup_coins: Dictionary, pickup_cap: int = PICKUP_CAP
+	team_placements: Array,
+	pickup_coins: Dictionary,
+	pickup_cap: int = PICKUP_CAP,
+	team_count: int = 0
 ) -> Dictionary:
-	var awards := award_for_teams(team_placements)
+	var awards := award_for_teams(team_placements, team_count)
 	for slot: int in pickup_coins:
 		awards[slot] = int(awards.get(slot, 0)) + mini(int(pickup_coins[slot]), pickup_cap)
 	return awards

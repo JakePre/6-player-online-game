@@ -64,6 +64,32 @@ func test_four_team_awards_taper_to_floor() -> void:
 	assert_eq(awards, {0: 25, 1: 18, 2: 12, 3: 5})
 
 
+## #811: tied teams merge into one placements group and share the HIGHER
+## award (SPEC §5); the next group's rank skips past every team in the merge.
+func test_tied_teams_share_higher_award() -> void:
+	# Three 2-slot teams, two tied for 1st: both take 25, third is ranked 3rd.
+	var awards := Economy.award_for_teams([[0, 1, 2, 3], [4, 5]], 3)
+	assert_eq(awards, {0: 25, 1: 25, 2: 25, 3: 25, 4: 5, 5: 5})
+
+
+func test_tied_teams_mid_table() -> void:
+	# Four 1-slot teams, middle two tied: they share 2nd (18), last is 4th (5).
+	var awards := Economy.award_for_teams([[0], [1, 2], [3]], 4)
+	assert_eq(awards, {0: 25, 1: 18, 2: 18, 3: 5})
+
+
+func test_all_teams_tied_share_first() -> void:
+	# A three-team dead heat: everyone takes the three-team 1st award.
+	var awards := Economy.award_for_teams([[0, 1, 2, 3, 4, 5]], 3)
+	assert_eq(awards, {0: 25, 1: 25, 2: 25, 3: 25, 4: 25, 5: 25})
+
+
+func test_team_count_default_keeps_one_team_per_group() -> void:
+	# Pre-#811 call shape (no team_count): each group is one team — unchanged.
+	var awards := Economy.award_for_teams([[0, 1], [2, 3], [4, 5]])
+	assert_eq(awards, {0: 25, 1: 25, 2: 15, 3: 15, 4: 5, 5: 5})
+
+
 ## Many teams stay monotonic non-increasing and finish at the loser floor.
 func test_many_team_awards_monotonic() -> void:
 	var previous := 999

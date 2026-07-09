@@ -135,7 +135,39 @@ func test_team_dead_heat_is_a_full_tie() -> void:
 	game.grid[1] = 1
 	game.duration_override = TICK
 	game.tick(TICK)
-	assert_eq(game.get_results().placements, [[0, 1, 2, 3]])
+	var placements: Array = game.get_results().placements
+	assert_eq(placements.size(), 1, "dead heat is one merged group")
+	var group: Array = placements[0].duplicate()
+	group.sort()
+	assert_eq(group, [0, 1, 2, 3])
+
+
+## #811: two of three teams tying for first merge into ONE rank group (they
+## must share the higher award — the old sort picked an arbitrary winner).
+## Ranks directly off an injected grid (no tick, so spawn repaints can't
+## skew the counts).
+func test_partial_team_tie_merges_the_tied_teams() -> void:
+	var game := _game(_n_slots(18))
+	assert_eq(game.teams.size(), 3, "18 players split into three teams")
+	assert_eq(game.team_count, 3, "true team count rides the results (#811)")
+	game.grid.fill(ColorClash.UNPAINTED)
+	game.grid[0] = 0
+	game.grid[1] = 1  # teams 0 and 1 tied at one tile; team 2 has none
+	var placements: Array = game._rank_players()
+	assert_eq(placements.size(), 2, "tied leaders merge; team 2 ranks below")
+	var leaders: Array = placements[0].duplicate()
+	leaders.sort()
+	var expected: Array = (game.teams[0] + game.teams[1]).duplicate()
+	expected.sort()
+	assert_eq(leaders, expected, "the merged group is exactly the two tied teams")
+	# The award path pays both tied teams the three-team FIRST award (25).
+	var awards := Economy.award_for_teams(placements, game.team_count)
+	for slot: int in placements[0]:
+		assert_eq(int(awards[slot]), 25, "tied teams share the higher award")
+	for slot: int in placements[1]:
+		assert_eq(int(awards[slot]), 5)
+	game.finish(placements)
+	assert_eq(int(game.get_results().team_count), 3, "team_count rides get_results()")
 
 
 func test_spawn_tiles_painted_at_setup() -> void:
