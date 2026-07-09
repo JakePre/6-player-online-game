@@ -31,20 +31,14 @@ const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
 ## How often the server pumps a practice bot's intent (#577), matching the
 ## human client input cadence.
 const BOT_INPUT_INTERVAL_SEC := 0.25
-## Server-side emote anti-spam (#592): a token bucket, not a flat cooldown —
-## a burst reads as snappy party chat, the sustained rate after it still caps
-## a 24-player room. EMOTE_BURST_MAX spends instantly; each EMOTE_REFILL_MS
-## regains one token (so the sustained rate is 1000.0 / EMOTE_REFILL_MS/sec).
+# TokenBucket (#770) config; see that class for the burst/refill math.
+## Emote anti-spam (#592): a small burst reads as snappy party chat, the
+## sustained rate still caps a 24-player room.
 const EMOTE_BURST_MAX := 3.0
 const EMOTE_REFILL_MS := 500.0
-## Server-side gameplay-input flood guard (#707): the same token-bucket shape as
-## the emote limiter, sized far above real play so no legitimate client is ever
-## throttled. Movement views send one intent per 30 Hz physics tick plus
-## edge-triggered actions — a legit peak is ~30-40/s — while a hostile client
-## can spam intents at packet rate, each costing an O(n) sim scan before it's
-## rejected. INPUT_BURST_MAX spends instantly; one token returns every
-## INPUT_REFILL_MS, so the sustained cap is 1000.0 / INPUT_REFILL_MS per sec
-## (~67/s here — roughly double the real peak).
+## Gameplay-input flood guard (#707): sized far above real play (a legit peak is
+## ~30-40/s) so no honest client is throttled, while still capping a hostile
+## packet-rate flood whose every intent costs an O(n) sim scan before rejection.
 const INPUT_BURST_MAX := 30.0
 const INPUT_REFILL_MS := 15.0
 ## Rolling window size for the load-soak tick timer (#710).
@@ -508,38 +502,16 @@ func _rpc_skip_intro() -> void:
 		controller.handle_skip(member.slot)
 
 
-## True if `peer_id` may send an emote at `now_ms`, consuming a token if so
-## (#592). `now_ms` is a parameter rather than read internally so the
-## token-bucket math is directly unit-testable without live multiplayer
-## transport or real delays.
+## True if `peer_id` may send an emote / gameplay intent at `now_ms`, consuming
+## a token if so (#592 / #707). Thin wrappers over the shared TokenBucket math
+## (#770); `now_ms` is a parameter so the buckets stay unit-testable without
+## live transport or real delays.
 func _emote_allowed(peer_id: int, now_ms: int) -> bool:
-	var state: Dictionary = _emote_tokens.get(
-		peer_id, {"tokens": EMOTE_BURST_MAX, "last_ms": now_ms}
-	)
-	var elapsed := now_ms - int(state.last_ms)
-	var tokens: float = minf(EMOTE_BURST_MAX, float(state.tokens) + elapsed / EMOTE_REFILL_MS)
-	if tokens < 1.0:
-		_emote_tokens[peer_id] = {"tokens": tokens, "last_ms": now_ms}
-		return false
-	_emote_tokens[peer_id] = {"tokens": tokens - 1.0, "last_ms": now_ms}
-	return true
+	return TokenBucket.consume(_emote_tokens, peer_id, now_ms, EMOTE_BURST_MAX, EMOTE_REFILL_MS)
 
 
-## True if `peer_id` may send a gameplay intent at `now_ms`, consuming a token
-## if so (#707). Same token-bucket math as _emote_allowed, its own generous
-## budget; `now_ms` is a parameter so the bucket is unit-testable without live
-## transport or real delays.
 func _input_allowed(peer_id: int, now_ms: int) -> bool:
-	var state: Dictionary = _input_tokens.get(
-		peer_id, {"tokens": INPUT_BURST_MAX, "last_ms": now_ms}
-	)
-	var elapsed := now_ms - int(state.last_ms)
-	var tokens: float = minf(INPUT_BURST_MAX, float(state.tokens) + elapsed / INPUT_REFILL_MS)
-	if tokens < 1.0:
-		_input_tokens[peer_id] = {"tokens": tokens, "last_ms": now_ms}
-		return false
-	_input_tokens[peer_id] = {"tokens": tokens - 1.0, "last_ms": now_ms}
-	return true
+	return TokenBucket.consume(_input_tokens, peer_id, now_ms, INPUT_BURST_MAX, INPUT_REFILL_MS)
 
 
 @rpc("any_peer", "call_remote", "reliable")
