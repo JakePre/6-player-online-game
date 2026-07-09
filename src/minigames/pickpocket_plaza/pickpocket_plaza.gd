@@ -39,6 +39,10 @@ const DROP_COINS := 2
 const ARREST_POINTS := 3
 ## A wandering villager repicks a waypoint once it arrives here.
 const WAYPOINT_REACHED := 0.5
+## Owner-picked fix (#805): a villager currently in steal range slows way
+## down, so a channel a thief actually started can be finished instead of
+## losing contact to their wander mid-lift.
+const HELD_SPEED_MULT := 0.3
 ## The arrest commotion: a public flash (it reveals the guard, as an arrest
 ## always must) that fades over this long.
 const ALARM_SEC := 1.0
@@ -184,7 +188,7 @@ func _tick(delta: float) -> void:
 		stun[slot] = maxf(float(stun[slot]) - delta, 0.0)
 		_lift_cd[slot] = maxf(float(_lift_cd[slot]) - delta, 0.0)
 	_move_thieves(delta)
-	_move_crowd(delta)
+	_move_crowd(delta, _bodies_in_contact())
 	_pickpocket(delta)
 
 
@@ -196,16 +200,33 @@ func _move_thieves(delta: float) -> void:
 		positions[slot] = _clamped(pos)
 
 
-func _move_crowd(delta: float) -> void:
+## Villager bodies (including the guard's disguise, which must behave
+## identically or its speed alone would out them) within steal range of any
+## unstunned thief right now.
+func _bodies_in_contact() -> Array[bool]:
+	var held: Array[bool] = []
+	held.resize(CROWD_SIZE)
+	held.fill(false)
+	for slot: int in thieves:
+		if float(stun[slot]) > 0.0:
+			continue
+		for i in CROWD_SIZE:
+			if positions[slot].distance_to(crowd[i]) <= PICKPOCKET_RADIUS:
+				held[i] = true
+	return held
+
+
+func _move_crowd(delta: float, held: Array[bool]) -> void:
 	for i in CROWD_SIZE:
+		var speed := VILLAGER_SPEED * (HELD_SPEED_MULT if held[i] else 1.0)
 		if i == guard_body:
-			crowd[i] = _clamped(crowd[i] + _guard_dir * VILLAGER_SPEED * delta)
+			crowd[i] = _clamped(crowd[i] + _guard_dir * speed * delta)
 			continue
 		var to_target: Vector2 = _waypoints[i] - crowd[i]
 		if to_target.length() <= WAYPOINT_REACHED:
 			_waypoints[i] = _random_point()
 			to_target = _waypoints[i] - crowd[i]
-		var step := to_target.normalized() * VILLAGER_SPEED * delta
+		var step := to_target.normalized() * speed * delta
 		if step.length() >= to_target.length():
 			crowd[i] = _waypoints[i]
 		else:

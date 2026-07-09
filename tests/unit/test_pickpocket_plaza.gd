@@ -104,6 +104,62 @@ func test_pickpocketed_villager_goes_empty_on_cooldown() -> void:
 	assert_eq(int(game.loot[thief]), 1, "no double-dip on a spent villager")
 
 
+## #805: the owner's picked fix for "too hard to steal" — a villager slows
+## way down while a thief is standing close enough to lift from them.
+func test_villager_slows_while_a_thief_is_in_steal_range() -> void:
+	var game := _game()
+	var thief := _a_thief(game)
+	var body := (game.guard_body + 1) % PickpocketPlaza.CROWD_SIZE
+	game.crowd[body] = Vector2.ZERO
+	game._waypoints[body] = Vector2(20.0, 0.0)  # far off, straight line
+	game.positions[thief] = game.crowd[body]  # standing right on them — in range
+	game.tick(TICK)
+	var moved: float = (game.crowd[body] as Vector2).length()
+	assert_almost_eq(
+		moved,
+		PickpocketPlaza.VILLAGER_SPEED * PickpocketPlaza.HELD_SPEED_MULT * TICK,
+		0.001,
+		"held villager moves at the slowed speed"
+	)
+
+
+## Without a thief nearby the slow never kicks in — wandering stays as-is.
+func test_villager_moves_at_full_speed_without_a_nearby_thief() -> void:
+	var game := _game()
+	var thief := _a_thief(game)
+	var body := (game.guard_body + 1) % PickpocketPlaza.CROWD_SIZE
+	game.crowd[body] = Vector2.ZERO
+	game._waypoints[body] = Vector2(20.0, 0.0)
+	game.positions[thief] = Vector2(-PickpocketPlaza.ARENA_HALF, -PickpocketPlaza.ARENA_HALF)
+	game.tick(TICK)
+	var moved: float = (game.crowd[body] as Vector2).length()
+	assert_almost_eq(
+		moved,
+		PickpocketPlaza.VILLAGER_SPEED * TICK,
+		0.001,
+		"an unheld villager wanders at full speed"
+	)
+
+
+## The guard's disguised body must slow identically under the same contact
+## rule — if only genuine villagers slowed, the lack of slowdown would out
+## the guard's body as fake the moment a thief stood on it.
+func test_the_guards_disguised_body_slows_too() -> void:
+	var game := _game()
+	var thief := _a_thief(game)
+	game.crowd[game.guard_body] = Vector2.ZERO
+	game.positions[thief] = game.crowd[game.guard_body]
+	game.handle_input(game.guard, {"mx": 1.0, "my": 0.0})
+	game.tick(TICK)
+	var moved: float = (game.crowd[game.guard_body] as Vector2).length()
+	assert_almost_eq(
+		moved,
+		PickpocketPlaza.VILLAGER_SPEED * PickpocketPlaza.HELD_SPEED_MULT * TICK,
+		0.001,
+		"the guard's disguise slows identically under the same contact rule"
+	)
+
+
 func test_guard_arrests_a_nearby_suspect() -> void:
 	var game := _game()
 	var thief := _a_thief(game)
