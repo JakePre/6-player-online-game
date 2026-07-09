@@ -101,6 +101,37 @@ func test_all_locked_advances_the_round_early() -> void:
 	assert_eq(game.locked[0], -1, "locks reset with the new deal")
 
 
+## #819: a bot slot never locks in, but the round shouldn't hold the full
+## ANSWER_SEC waiting on it once every human has.
+func test_a_bot_slot_does_not_block_the_round_from_advancing() -> void:
+	var game := CountQuick.new()
+	game.meta = CountQuick.make_meta()
+	var player_slots: Array[int] = [0, 1]
+	game.setup(player_slots, 7, [1])  # slot 1 is the bot
+	_to_answer(game)
+	var right: Dictionary = _pad_with_value(game, game.correct_count)
+	game.positions[0] = right.pos
+	game.tick(TICK)
+	game.tick(TICK)
+	assert_eq(game.round_number, 1, "the lone human locked in — the bot never holds it up")
+	assert_eq(game.locked[1], -1, "the bot itself never actually locked in")
+
+
+## A solo bot-only game (a debug/render harness) has nobody to wait FOR — it
+## keeps requiring everyone, same as before #819.
+func test_an_all_bot_game_still_waits_for_everyone() -> void:
+	var game := CountQuick.new()
+	game.meta = CountQuick.make_meta()
+	var player_slots: Array[int] = [0, 1]
+	game.setup(player_slots, 7, [0, 1])  # both slots are bots
+	_to_answer(game)
+	var right: Dictionary = _pad_with_value(game, game.correct_count)
+	game.positions[0] = right.pos
+	game.tick(TICK)
+	game.tick(TICK)
+	assert_eq(game.round_number, 0, "one of two bots locked in — the round still waits")
+
+
 func test_six_rounds_then_ranking_by_total() -> void:
 	var game := _game_with(3)
 	game.scores = {0: 5, 1: 9, 2: 5}

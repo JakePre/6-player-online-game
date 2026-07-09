@@ -138,10 +138,12 @@ func _show_duration() -> float:
 	return SHOW_LEAD_IN_SEC + sequence.size() * SHOW_PER_PAD_SEC
 
 
-## True once every still-alive player has either cleared or failed this round,
-## so INPUT can end early instead of waiting out the timeout.
+## True once every still-alive HUMAN player has either cleared or failed this
+## round, so INPUT can end early instead of waiting out the timeout — a bot
+## whose captured sequence desyncs and never presses a pad shouldn't hold up
+## the round the other players already finished (#819).
 func _all_alive_resolved() -> bool:
-	for slot: int in slots:
+	for slot: int in _human_slots():
 		if not alive.get(slot, false):
 			continue
 		if not (round_cleared.get(slot, false) or round_failed.get(slot, false)):
