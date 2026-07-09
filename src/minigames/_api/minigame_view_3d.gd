@@ -151,7 +151,16 @@ func fx_dust(world_pos: Vector2) -> void:
 ## `height` lifts the rig above (or below) the floor plane — e.g. swimming on
 ## a water surface vs diving to the seabed (M10-04) — and interpolates like
 ## the rest of the position.
-func update_rig(slot: int, world_pos: Vector2, height: float = 0.0) -> void:
+## `force_animate` (#800) lets a caller protect a one-shot reaction/flourish
+## animation from being cut short while the player is stationary, without
+## ever stalling movement: a caller passes false while such an animation
+## owns the rig, but moving still always wins — the walk switch fires
+## regardless of `force_animate` the instant real displacement is detected,
+## so "the item-use animation freezes you in place" can't happen. Position,
+## facing, and interpolation are unaffected either way.
+func update_rig(
+	slot: int, world_pos: Vector2, height: float = 0.0, force_animate: bool = true
+) -> void:
 	var rig: CharacterRig = _rigs.get(slot)
 	if rig == null:
 		return
@@ -162,9 +171,10 @@ func update_rig(slot: int, world_pos: Vector2, height: float = 0.0) -> void:
 	var moving := delta.length() > MOVE_EPSILON
 	if moving:
 		rig.rotation.y = atan2(delta.x, delta.y)
-	var desired: StringName = &"walk" if moving else &"idle"
-	if rig.current_action() != desired:
-		rig.play(desired)
+	if force_animate or moving:
+		var desired: StringName = &"walk" if moving else &"idle"
+		if rig.current_action() != desired:
+			rig.play(desired)
 	_rig_last_pos[slot] = world_pos
 
 
