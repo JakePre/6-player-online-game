@@ -30,6 +30,16 @@ func test_setup_lines_up_rigs_with_lamp_and_labels() -> void:
 	assert_almost_eq(bob.position.x, 1.0, 0.001)
 
 
+## Regression (#780): rigs are pooled hidden (#601); this stationary view
+## places them once and never calls update_rig, so a snapshot must reveal the
+## round's participants or the duelists never render at all.
+func test_render_reveals_the_duelist_rigs() -> void:
+	assert_false(view.rig_for_slot(0).visible, "rigs start hidden until a snapshot reveals them")
+	view.render({"phase": QuickDraw.Phase.WAITING, "round": 0, "wins": {0: 0, 1: 0}})
+	assert_true(view.rig_for_slot(0).visible, "the round's participants become visible")
+	assert_true(view.rig_for_slot(1).visible)
+
+
 func test_waiting_phase_shows_red_wait() -> void:
 	view.render({"phase": QuickDraw.Phase.WAITING, "round": 0, "wins": {0: 0, 1: 0}})
 	var label: Label = view.get_node("SignalLabel")

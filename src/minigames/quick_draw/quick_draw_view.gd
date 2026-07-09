@@ -236,6 +236,13 @@ func _update_rigs() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
+		# Rigs are pooled hidden (#601); a stationary view that places them once
+		# in _line_up_rigs never calls update_rig, so without this reveal the
+		# duelists never appear at all (#780). Reveal only the round's actual
+		# participants (the snapshot's wins keys), so a disconnected member's rig
+		# stays hidden — the same snapshot-driven reveal Bullseye Bowl uses.
+		if _wins.has(slot):
+			reveal_rig(slot)
 		var caption := "%s  %d" % [player_name(slot), int(_wins.get(slot, 0))]
 		var desired: StringName = &"idle"
 		if _phase == QuickDraw.Phase.ROUND_OVER:
