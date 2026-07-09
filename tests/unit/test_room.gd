@@ -148,6 +148,36 @@ func test_excluded_game_ids_rejects_set_that_leaves_nothing_eligible() -> void:
 	MinigameCatalog.clear()
 
 
+## Regression (#816): a solo host (1 connected member) could never exclude any
+## game, because no game is eligible at 1 player (min_players >= 2) so every
+## exclusion was silently rejected — the client toggle flipped but the server
+## never stored it, and the next broadcast (a player joining) reverted it,
+## reading as "joining reset the room settings". The guard now floors the
+## eligibility check at MIN_PLAYERS_TO_START, the lowest count a match can run.
+func test_excluded_game_ids_accepts_while_host_is_alone() -> void:
+	_register_test_minigames()
+	var room := _room_with(1)
+	assert_eq(room.connected_count(), 1)
+	assert_true(
+		room.set_excluded_game_ids(["game_a"]),
+		"a solo host can exclude a game — validated at the 2-player start floor, not count 1"
+	)
+	assert_eq(room.excluded_game_ids, [&"game_a"] as Array[StringName])
+	# The exclusion survives a player joining (the reported symptom).
+	room.add_member(200, "Joiner", "jtoken")
+	assert_eq(
+		room.to_state_dict().excluded_game_ids, [&"game_a"], "the exclusion persists across a join"
+	)
+	# The starve guard still holds even at the floor: excluding everything fails.
+	assert_false(
+		room.set_excluded_game_ids(["game_a", "game_b"]), "excluding every game is still rejected"
+	)
+	assert_eq(
+		room.excluded_game_ids, [&"game_a"] as Array[StringName], "the rejected set is untouched"
+	)
+	MinigameCatalog.clear()
+
+
 func test_excluded_game_ids_locked_once_match_started() -> void:
 	_register_test_minigames()
 	var room := _room_with(2)

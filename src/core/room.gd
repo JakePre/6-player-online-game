@@ -188,9 +188,17 @@ func set_mutator_pool(pool: Array) -> bool:
 ## rather than rejected so a stale client toggle set cannot wedge the set.
 ## Unlike the mutator pool, an exclusion set can starve the playlist builder
 ## entirely, so it is also rejected outright (returning false, leaving the
-## previous set untouched) if it would leave zero games eligible at the
-## room's current connected player count — MinigameCatalog.build_playlist's
-## assert(not eligible.is_empty()) must never be allowed to fire.
+## previous set untouched) if it would leave zero games eligible — otherwise
+## MinigameCatalog.build_playlist's assert(not eligible.is_empty()) fires.
+##
+## Eligibility is checked at the count a match can actually run at, floored to
+## MIN_PLAYERS_TO_START — never the raw connected count (#816). At 1 player NO
+## game is eligible (every game has min_players >= 2), so validating against the
+## live count silently rejected every exclusion a solo host made while setting
+## up: the client toggle flipped but the server never stored it, and the next
+## broadcast (a player joining) re-synced the toggles back, reading as "joining
+## reset the room settings". A match can't start below MIN_PLAYERS_TO_START
+## anyway, so that is the meaningful floor.
 func set_excluded_game_ids(ids: Array) -> bool:
 	if state != State.LOBBY:
 		return false
@@ -199,7 +207,8 @@ func set_excluded_game_ids(ids: Array) -> bool:
 		var sid := StringName(String(id))
 		if MinigameCatalog.is_registered(sid) and sid not in cleaned:
 			cleaned.append(sid)
-	if MinigameCatalog.eligible_ids(connected_count(), cleaned).is_empty():
+	var check_count := maxi(connected_count(), NetConfig.MIN_PLAYERS_TO_START)
+	if MinigameCatalog.eligible_ids(check_count, cleaned).is_empty():
 		return false
 	excluded_game_ids = cleaned
 	return true
