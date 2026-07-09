@@ -126,6 +126,64 @@ readability, root-caused, cheap). The rest are parallel.
 | #591 | match-start jingle swap | Sonnet |
 | #592 | emote rate-limit tuning | Sonnet |
 
+## Owner playtest wave 3 (2026-07-09) — #776–#821
+
+46 issues filed in one pass (§6) from the owner's full-roster playtest.
+"Fable" rows follow the retirement note above: design-proposal-first, owner
+picks, then the build routes Opus/Sonnet. **Suggested order:** #780 first
+(Quick Draw is unplayable), then the other real bugs (#811, #816, #804,
+#783, #776, #778, #821, #790), then UX/design; Sonnet rows are parallel any
+time. #787 (Gauntlet polish) sequences behind the in-flight #584 build.
+
+| Issue | Task | Model |
+|---|---|---|
+| **#780** | [CRITICAL] Quick Draw broken — no characters, no text | **Opus** |
+| #776 | Fish Frenzy — P1 always wins contested fish (slot bias) | Opus |
+| #777 | Rumble Ring — attack/hurt anims, dead space key?, sword/heart HUD | Opus |
+| #778 | Tumble Run — jump height + no kill plane (shared sim w/ #788) | Opus |
+| #779 | Laser Limbo — anims + high/low beam readability | Opus |
+| #781 | Coin Scramble — pickup burst + sky-drop spawns | Sonnet |
+| #782 | Treasure Divers — pool geometry/water-level coherence | Opus |
+| #783 | Nom Arena — dash one-direction bug + nameplate size | Opus |
+| #784 | Memory Match — tile fall/crack, fall death, shove physics (proposal for the mechanic) | Opus |
+| #785 | Turbo Lap — real course, perpendicular finish, more laps | Opus |
+| #786 | Blast Grid — too dark | Sonnet |
+| #787 | Gauntlet — floor embed, death/fling anims, spawn protection (⛓ #584) | Opus |
+| #788 | Loadout Duel — powerup sprites + jump height (pairs w/ #778) | Opus |
+| #789 | Knock-Off — animations (⛓ soft #777 conventions) | Sonnet |
+| #790 | Target Range — players don't render (reveal_rig class?) | Opus |
+| #791 | Ro-Sham-Bo — remake, new concept | Fable → per concept |
+| #792 | Sumo Smash — anims + dash cooldown | Opus |
+| #793 | Putt Panic — seeded random course per play | Opus |
+| #794 | Beat Bounce — remake, new concept (2nd rework; #259 was the 1st) | Fable → per concept |
+| #795 | Simon Stomp — players as audience | Sonnet |
+| #796 | Snake Chain — lighting + no-180 input guard | Sonnet |
+| #797 | Bullseye Bowl — lane spacing at low counts | Sonnet |
+| #798 | Shred Session — controls placement, notes vanish on hit, drum samples | Sonnet |
+| #799 | Count Quick — guess time ×2, spawn-on-marker bug, no lock-in | Opus |
+| #800 | King of the Hill — item anim freezes movement | Sonnet |
+| #801 | The Mole — voting phase legibility | Opus |
+| #802 | Faulty Wiring — render the wires (objective invisible) | Opus |
+| #803 | Basket Brawl — rename vs add shooting | Fable → Sonnet/Opus |
+| #804 | Musical Platforms — music never stops (BUG) + scramble grace | Opus |
+| #805 | Pickpocket Plaza — slow NPCs underfoot, easier steal | Sonnet |
+| #806 | Heist Night — vault visibility in the dark + 2-digit labels | Opus |
+| #807 | Wall Builders — mark home/delivery zone | Sonnet |
+| #808 | Fort Siege — too abstract: level/controls/defense rework | Fable → Opus |
+| #809 | Hot Potato + Shock Tag — no-tag-backs immunity (one claim, both) | Sonnet |
+| #810 | Bomb Courier — bomb model + readable countdown | Sonnet |
+| #811 | Ties still award a sole winner (scoring fairness audit) | Opus |
+| #812 | Host debug game — all minigames in order | Opus |
+| #813 | Environment variety — floor-tile mesh hook then fan-out, props | Opus → Sonnet |
+| #814 | Tab-held game-log overlay | Opus |
+| #815 | Random draft: shuffle-bag, no repeats until roster exhausted | Sonnet |
+| #816 | Joining a room resets all room settings (BUG) | Opus |
+| #817 | AI texture-gen pipeline (IMAGE_REQUESTS extension) | Fable spec → Sonnet landing |
+| #818 | Bots occasionally err (⛓ soft #715) | Sonnet |
+| #819 | Bots auto-ready/lock-in when all humans have | Sonnet |
+| #820 | Team games — team colors override player colors | Opus |
+| #821 | Settings slider click minimizes the window (BUG) | Opus |
+
 ## Project review findings (2026-07-05)
 
 From the full audit in [PROJECT_REVIEW.md](PROJECT_REVIEW.md). These are the
