@@ -106,8 +106,9 @@ func _setup() -> void:
 	grid.resize(grid_dim * grid_dim)
 	grid.fill(UNPAINTED)
 	# Balanced teams from 4 up; counts with no clean even split play FFA — a
-	# lopsided paint race is never fun (#178).
-	var team_count := team_count_for(slots.size())
+	# lopsided paint race is never fun (#178). team_count is the base-class
+	# field: the award path needs the true count to pay merged ties (#811).
+	team_count = team_count_for(slots.size())
 	team_mode = team_count > 0
 	if team_mode:
 		var shuffled := slots.duplicate()
@@ -181,26 +182,28 @@ func get_snapshot() -> Dictionary:
 
 
 ## Most tiles wins. FFA: players ranked by their own tiles (ties grouped).
-## Teams: every team best-first by painted tiles (team_mode routing awards the
-## SPEC $5 / ADR 003 N-team tables); an all-teams dead heat is a full tie.
+## Teams: rank groups best-first by painted tiles, TIED teams merged into one
+## group (#811 — a partial tie used to sort arbitrarily and pay the "winner"
+## more; award_for_teams now shares the higher award across a merged group
+## using the base team_count). An all-teams dead heat falls out as one group.
 func _rank_players() -> Array:
 	var counts := _tile_counts()
 	if team_mode:
-		var ranked: Array = []
+		var by_tiles := {}
 		for team_index in teams.size():
-			ranked.append([int(counts.get(team_index, 0)), team_index])
-		var all_equal := true
-		for entry: Array in ranked:
-			if entry[0] != ranked[0][0]:
-				all_equal = false
-				break
-		if all_equal:
-			return [slots.duplicate()]
-		# Best-first; award_for_teams reads one team per entry, place = index.
-		ranked.sort_custom(func(x: Array, y: Array) -> bool: return x[0] > y[0])
+			var tiles: int = counts.get(team_index, 0)
+			if not by_tiles.has(tiles):
+				by_tiles[tiles] = []
+			by_tiles[tiles].append(team_index)
+		var tile_totals := by_tiles.keys()
+		tile_totals.sort()
+		tile_totals.reverse()
 		var placements: Array = []
-		for entry: Array in ranked:
-			placements.append(teams[entry[1]].duplicate())
+		for tiles: int in tile_totals:
+			var group: Array = []
+			for team_index: int in by_tiles[tiles]:
+				group += teams[team_index]
+			placements.append(group)
 		return placements
 	var by_count := {}
 	for slot: int in slots:

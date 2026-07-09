@@ -56,6 +56,22 @@ func test_three_teams_of_two_at_six_players() -> void:
 	assert_eq(game.teams.size(), 3)
 	for team: Array in game.teams:
 		assert_eq(team.size(), 2)
+	# #811: merged tie groups in placements can't reveal the team count, so
+	# the true count must ride the results for the award table.
+	assert_eq(game.team_count, 3)
+
+
+## #811: two teams finishing in the same tick merge into one placements
+## group; with team_count on the results the award path pays both the
+## three-team FIRST award (25) instead of reading a two-team game (20).
+func test_tick_tied_finishers_share_the_higher_award() -> void:
+	var game := _game()
+	var placements: Array = [game.teams[0] + game.teams[1], game.teams[2]]
+	var awards := Economy.award_for_teams(placements, game.team_count)
+	for slot: int in placements[0]:
+		assert_eq(int(awards[slot]), 25, "tied-first teams share the 3-team 1st award")
+	for slot: int in placements[1]:
+		assert_eq(int(awards[slot]), 5)
 
 
 func test_two_teams_at_four_players() -> void:

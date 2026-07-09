@@ -81,6 +81,12 @@ func _setup() -> void:
 	if team_mode:
 		for start in range(0, shuffled.size(), TEAM_SIZE):
 			teams.append(shuffled.slice(start, start + TEAM_SIZE))
+		# The true team count (#811): _rank_players merges TIED teams into one
+		# placements group, so the award path can't count teams from the group
+		# count — without this, two-of-three teams tying for first got paid
+		# from the two-team table (20) instead of sharing the three-team
+		# first-place award (25).
+		team_count = teams.size()
 	else:
 		# Head-to-head sprint: everyone is a one-runner team.
 		for slot: int in shuffled:

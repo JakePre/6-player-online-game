@@ -324,7 +324,9 @@ func _enter_results() -> void:
 	if current_mutator != null:
 		cap = current_mutator.scaled_pickup_cap(Economy.PICKUP_CAP)
 	var awards := (
-		Economy.total_team_round_award(results.placements, results.pickup_coins, cap)
+		Economy.total_team_round_award(
+			results.placements, results.pickup_coins, cap, int(results.get("team_count", 0))
+		)
 		if results.get("team_mode", false)
 		else Economy.total_round_award(results.placements, results.pickup_coins, cap)
 	)
