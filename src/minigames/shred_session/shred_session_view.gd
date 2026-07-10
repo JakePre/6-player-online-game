@@ -177,7 +177,9 @@ func _build_hud() -> void:
 	_scoreboard.name = "Scoreboard"
 	_scoreboard.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_scoreboard.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_scoreboard.position = Vector2(-16.0, 16.0)
+	# Below the match-chrome header (~100px) — at y=16 the top score rows hid
+	# behind it (#831 render spot-check).
+	_scoreboard.position = Vector2(-16.0, 120.0)
 	_scoreboard.add_theme_constant_override(&"separation", PartyTheme.SPACE_XS)
 	add_child(_scoreboard)
 
