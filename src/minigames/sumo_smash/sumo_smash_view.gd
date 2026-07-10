@@ -1,13 +1,17 @@
 extends MinigameView3D
 ## Sumo Smash client view (M8-07): renders the replicated platform in the
 ## shared 2.5D iso-arena (M8-01, MinigameView3D) — the ring as a stone disc,
-## players as CharacterRig instances (dashing runs the "run" action with the
-## dash-ready state on the nameplate), rung-out players hidden. Presentation-
-## tier swap only: state storage and the render contract are unchanged from
-## the 2D pass (M4-04).
+## players as CharacterRig instances. A dash throws a real lunge/shove pose
+## (`attack`) and a shoved player flinches (`hit`, #792); the local dash's
+## ready/recharging state rides the banner. Rung-out players hidden.
+## Presentation-tier swap only: state storage and the render contract are
+## unchanged from the 2D pass (M4-04).
 
 const PLATFORM_COLOR := Color(0.5, 0.46, 0.4)
 const PLATFORM_THICKNESS := 0.4
+## How long a shove's hurt reaction owns the rig before walk/idle resumes
+## (#792) — mirrors rumble_ring's hit/ko reaction hold.
+const REACT_HOLD_SEC := 0.4
 
 ## Latest replicated state, straight from SumoSmash.get_snapshot().
 var players := {}
@@ -19,6 +23,10 @@ var _dash_label: Label
 var _last_pos := {}
 var _out_seen := -1
 var _was_ready := true
+## Rig-animation ownership (#792): dash rising-edge tracking and the hurt-react
+## hold (msec) so a shove's flinch isn't restarted or overwritten every frame.
+var _was_dashing := {}
+var _react_hold := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -72,22 +80,37 @@ func _render_3d(game: Dictionary) -> void:
 		rig.visible = true
 		var state: Array = players[slot]
 		var at := Vector2(state[SumoSmash.PS_X], state[SumoSmash.PS_Y])
-		# Height rides update_rig (M12-04's interpolator owns position; setting
-		# rig.position.y directly after this call would flicker every frame).
-		update_rig(slot, at, PLATFORM_THICKNESS)
 		var dashing := int(state[SumoSmash.PS_DASHING]) == 1
-		if dashing and rig.current_action() != &"run":
-			rig.play(&"run")
-			# Signature cue (#728, docs/AUDIO_GUIDE.md — Brawlers): the dash
-			# lunge itself, fired on the same edge as the run pose.
-			play_sfx(&"dash")
-		# Dash trail (#587): a player-colored burst reads as a fast streak far
-		# better than the old generic gray dust puff. A sudden non-dash
-		# displacement means a shove landed - burst at the contact too, same
-		# treatment. Seeded via _last_pos.
+		var lurched := _last_pos.has(slot) and (_last_pos[slot] as Vector2).distance_to(at) > 0.25
+		var shoved := lurched and not dashing
+		var now := Time.get_ticks_msec()
+		# Rig-animation ownership (#792): the dash IS the shove — a lunge pose
+		# played once on the rising edge; a shove throws a hurt reaction held for
+		# a beat. Both own the rig via a direct position set (like rumble_ring),
+		# so the one-shot animation plays out instead of update_rig overwriting
+		# it with walk every frame. Ordinary movement uses update_rig as before.
+		if dashing:
+			if not bool(_was_dashing.get(slot, false)):
+				rig.play(&"attack")
+				# Signature cue (#728, docs/AUDIO_GUIDE.md — Brawlers): the lunge.
+				play_sfx(&"dash")
+			rig.position = to_arena(at, PLATFORM_THICKNESS)
+		elif now < int(_react_hold.get(slot, 0)):
+			rig.position = to_arena(at, PLATFORM_THICKNESS)
+		elif shoved:
+			rig.play(&"hit")
+			_react_hold[slot] = now + int(REACT_HOLD_SEC * 1000.0)
+			rig.position = to_arena(at, PLATFORM_THICKNESS)
+		else:
+			# Height rides update_rig (M12-04's interpolator owns position;
+			# setting rig.position.y directly here would flicker every frame).
+			update_rig(slot, at, PLATFORM_THICKNESS)
+		_was_dashing[slot] = dashing
+		# Dash trail (#587): a player-colored burst reads as a fast streak; a
+		# sudden non-dash displacement means a shove landed — burst there too.
 		if dashing:
 			fx_burst(at, player_color(slot), 0.5)
-		elif _last_pos.has(slot) and (_last_pos[slot] as Vector2).distance_to(at) > 0.25:
+		elif shoved:
 			fx_burst(at, player_color(slot), 0.6)
 			# Non-damaging body contact — the shove that just landed.
 			play_sfx(&"bump")

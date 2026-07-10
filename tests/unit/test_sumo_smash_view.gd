@@ -73,6 +73,30 @@ func test_local_dash_indicator_tracks_cooldown() -> void:
 	assert_string_contains(label.text, "READY")
 
 
+## #792: a dash throws a real attack lunge, not the old indistinct `run` (which
+## looked identical to normal movement, so a dash — and its cooldown — never
+## read).
+func test_dash_plays_the_attack_lunge() -> void:
+	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
+	view.render({"radius": 8.0, "players": {0: [0.5, 0.0, 2.0, 1]}, "out": []})
+	assert_eq(view.rig_for_slot(0).current_action(), &"attack", "a dash lunges")
+
+
+## #792: a shoved player (a sudden non-dash displacement) throws a hurt reaction.
+func test_being_shoved_plays_a_hurt_reaction() -> void:
+	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
+	view.render({"radius": 8.0, "players": {0: [0.6, 0.0, 0.0, 0]}, "out": []})
+	assert_eq(view.rig_for_slot(0).current_action(), &"hit", "a shove flinches")
+
+
+## Ordinary movement stays walk/idle — only a dash or a shove animates specially.
+func test_ordinary_movement_does_not_lunge_or_flinch() -> void:
+	view.render({"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0]}, "out": []})
+	view.render({"radius": 8.0, "players": {0: [0.1, 0.0, 0.0, 0]}, "out": []})
+	var action := view.rig_for_slot(0).current_action()
+	assert_true(action == &"walk" or action == &"idle", "a small move stays walk/idle")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
