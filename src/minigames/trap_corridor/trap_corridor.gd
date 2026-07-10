@@ -68,6 +68,17 @@ static func make_meta() -> MinigameMeta:
 					{"action": &"action_primary"},
 					" to arm (or click a tile)",
 				],
+				# Structured spec (#832/#844): the trapper-cursor template shape — the
+				# move cluster doubles as cursor movement, arm has a click alternative.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{
+						"verb": "Arm trap (trapper)",
+						"input": &"action_primary",
+						"alt": "or click a tile"
+					},
+				],
 				"name": "Trap Corridor",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 3,
