@@ -18,6 +18,7 @@ func test_meta() -> void:
 	assert_eq(meta.category, MinigameMeta.Category.FFA)
 	assert_eq(meta.min_players, 2)
 	assert_eq(meta.max_players, 12)
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 
 
 func test_registered_in_catalog() -> void:
