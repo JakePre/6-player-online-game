@@ -32,10 +32,10 @@ func test_swarm_shows_during_flash_and_clears() -> void:
 	)
 	assert_true(view.arena.get_node("Swarm0").visible)
 	assert_false(view.arena.get_node("Swarm2").visible)
-	assert_eq(view.get_node("PhaseLabel").text, view.FLASH_TEXT)
+	assert_eq(view.get_node("BannerLayer/PhaseLabel").text, view.FLASH_TEXT)
 	view.render({"players": {}, "phase": CountQuick.Phase.ANSWER, "swarm": [], "pads": []})
 	assert_false(view.arena.get_node("Swarm0").visible, "the swarm vanishes with the flash")
-	assert_eq(view.get_node("PhaseLabel").text, view.ANSWER_TEXT)
+	assert_eq(view.get_node("BannerLayer/PhaseLabel").text, view.ANSWER_TEXT)
 
 
 func test_pads_show_their_values() -> void:

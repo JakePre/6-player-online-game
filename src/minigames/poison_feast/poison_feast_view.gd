@@ -48,15 +48,10 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
-	_pot_label = Label.new()
-	_pot_label.name = "PotLabel"
-	_pot_label.add_theme_font_size_override(&"font_size", 28)
+	_pot_label = make_status_label(&"PotLabel")
 	_pot_label.add_theme_color_override(&"font_color", TIER_COLORS[PoisonFeast.Tier.GOLDEN])
-	_pot_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_pot_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_pot_label.position.y = 40.0
 	_pot_label.visible = false
-	add_child(_pot_label)
 
 
 func _render_3d(game: Dictionary) -> void:

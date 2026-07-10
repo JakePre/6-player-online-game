@@ -295,6 +295,8 @@ func _place_rig(
 ## and self-freeing (M13-01 convention), so the FX pass stays a one-file view
 ## change. `strength` scales how far the ring travels (beats ripple gently).
 func _stomp_ripple(pad: int, color: Color, strength: float = 1.0) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	var mesh := TorusMesh.new()
 	mesh.inner_radius = 0.5
 	mesh.outer_radius = 0.62

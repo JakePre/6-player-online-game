@@ -251,17 +251,6 @@ func _build_ore_mesh(node_name: String) -> MeshInstance3D:
 
 
 func _build_labels() -> void:
-	_push_label = Label.new()
-	_push_label.name = "PushLabel"
-	_push_label.add_theme_font_size_override(&"font_size", 30)
-	_push_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_push_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_push_label.position.y = 16.0
-	add_child(_push_label)
-
-	_bonus_label = Label.new()
-	_bonus_label.name = "BonusLabel"
-	_bonus_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_bonus_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_push_label = make_status_label(&"PushLabel")
+	_bonus_label = make_status_label(&"BonusLabel", PartyTheme.SIZE_OVERLAY_BODY)
 	_bonus_label.position.y = 56.0
-	add_child(_bonus_label)

@@ -67,14 +67,8 @@ func _setup_3d() -> void:
 	_build_zone("Pile", BombCourier.PILE_POS, PILE_COLOR)
 	_build_zone("Depot", BombCourier.DEPOT_POS, DEPOT_COLOR)
 	_build_zone("Defuse", BombCourier.DEFUSE_POS, DEFUSE_COLOR)
-	_score_label = Label.new()
-	_score_label.name = "HintLabel"
-	_score_label.add_theme_font_size_override(&"font_size", 22)
-	_score_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_score_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_score_label.position.y = 20.0
+	_score_label = make_status_label(&"HintLabel")
 	_score_label.text = "Pile → Depot before it blows!"
-	add_child(_score_label)
 
 
 func _render_3d(game: Dictionary) -> void:

@@ -162,7 +162,7 @@ func test_sabotage_falls_back_to_center_with_no_living_rival() -> void:
 ## still holds their one grudge, and names the current target.
 func test_grudge_prompt_only_for_eliminated_local_player() -> void:
 	var v := _make_view(3)
-	var prompt: Label = v.get_node("GrudgePrompt")
+	var prompt: Label = v.get_node("BannerLayer/GrudgePrompt")
 	# Local slot 0 alive -> no prompt.
 	v.render(
 		{"radius": 10.0, "players": {0: [0.0, 0.0, 2, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
@@ -182,7 +182,7 @@ func test_grudge_prompt_only_for_eliminated_local_player() -> void:
 ## own copy of the same fix.
 func test_grudge_prompt_stays_within_the_viewport() -> void:
 	var v := _make_view(3)
-	var prompt: Label = v.get_node("GrudgePrompt")
+	var prompt: Label = v.get_node("BannerLayer/GrudgePrompt")
 	v.render(
 		{"radius": 10.0, "players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
 	)
@@ -222,7 +222,7 @@ func test_grudge_cycles_between_living_rivals() -> void:
 
 func test_grudge_fires_once_then_prompt_hides() -> void:
 	var v := _make_view(2)
-	var prompt: Label = v.get_node("GrudgePrompt")
+	var prompt: Label = v.get_node("BannerLayer/GrudgePrompt")
 	v.render(
 		{"radius": 10.0, "players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 2, 0.0]}, "hazards": []}
 	)

@@ -22,8 +22,8 @@ func after_each() -> void:
 
 func test_setup_lines_up_rigs_with_lamp_and_labels() -> void:
 	assert_not_null(view.arena.get_node("SignalLamp"))
-	assert_not_null(view.get_node("SignalLabel"))
-	assert_not_null(view.get_node("RoundLabel"))
+	assert_not_null(view.get_node("BannerLayer/SignalLabel"))
+	assert_not_null(view.get_node("BannerLayer/RoundLabel"))
 	var alice: CharacterRig = view.rig_for_slot(0)
 	var bob: CharacterRig = view.rig_for_slot(1)
 	assert_almost_eq(alice.position.x, -1.0, 0.001, "two duelists straddle the center")
@@ -42,15 +42,15 @@ func test_render_reveals_the_duelist_rigs() -> void:
 
 func test_waiting_phase_shows_red_wait() -> void:
 	view.render({"phase": QuickDraw.Phase.WAITING, "round": 0, "wins": {0: 0, 1: 0}})
-	var label: Label = view.get_node("SignalLabel")
+	var label: Label = view.get_node("BannerLayer/SignalLabel")
 	assert_eq(label.text, "WAIT...")
 	assert_eq(view._lamp_material.albedo_color, view.WAITING_COLOR)
-	assert_string_contains(view.get_node("RoundLabel").text, "Round 1")
+	assert_string_contains(view.get_node("BannerLayer/RoundLabel").text, "Round 1")
 
 
 func test_live_phase_shows_green_draw() -> void:
 	view.render({"phase": QuickDraw.Phase.LIVE, "round": 2, "wins": {0: 1, 1: 1}})
-	var label: Label = view.get_node("SignalLabel")
+	var label: Label = view.get_node("BannerLayer/SignalLabel")
 	assert_eq(label.text, "DRAW!")
 	assert_eq(view._lamp_material.albedo_color, view.LIVE_COLOR)
 
@@ -81,7 +81,7 @@ func test_round_over_winner_cheers_and_tallies() -> void:
 	assert_eq(view.rig_for_slot(1).current_action(), &"hit")
 	assert_string_contains(view.rig_for_slot(0).display_name, "2")
 	assert_string_contains(view.rig_for_slot(1).display_name, "false start")
-	assert_string_contains(view.get_node("SignalLabel").text, "Alice wins")
+	assert_string_contains(view.get_node("BannerLayer/SignalLabel").text, "Alice wins")
 
 
 ## Signature cues (#728): the go signal fires `laser`, and a duel win fires
@@ -131,7 +131,7 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view._phase, QuickDraw.Phase.WAITING)
 	assert_eq(view._winner, -1)
-	assert_eq(view.get_node("SignalLabel").text, "WAIT...")
+	assert_eq(view.get_node("BannerLayer/SignalLabel").text, "WAIT...")
 
 
 ## M15-07: a 24-duelist crowd wraps into staggered ranks instead of one

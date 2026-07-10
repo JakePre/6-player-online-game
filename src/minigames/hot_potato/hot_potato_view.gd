@@ -136,6 +136,8 @@ func _trail_sparks() -> void:
 
 ## Expanding, fading orange shockwave sphere at the blast spot.
 func _spawn_blast(world_pos: Vector2) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	var mesh := SphereMesh.new()
 	mesh.radius = 0.5
 	mesh.height = 1.0

@@ -100,7 +100,7 @@ func _draw_flash() -> void:
 	# Signature cue (#728): the go-signal snap, not a UI accept.
 	play_sfx(&"laser")
 	request_shake(9.0)
-	if _flash_rect != null:
+	if _flash_rect != null and not ArenaFX.reduced_motion:
 		_flash_rect.color = Color(0.7, 1.0, 0.75, 0.55)
 		var tween := _flash_rect.create_tween()
 		tween.tween_property(_flash_rect, "color:a", 0.0, FLASH_SEC)
@@ -129,6 +129,8 @@ func _resolve_fx() -> void:
 ## A fountain of colored cubes over the winner — cheap, deterministic confetti
 ## sized to read at iso distance.
 func _confetti_burst(origin: Vector3) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	for i in 14:
 		var mesh := BoxMesh.new()
 		mesh.size = Vector3.ONE * 0.32
@@ -185,20 +187,9 @@ func _build_lamp() -> void:
 
 
 func _build_labels() -> void:
-	_signal_label = Label.new()
-	_signal_label.name = "SignalLabel"
-	_signal_label.add_theme_font_size_override(&"font_size", 40)
-	_signal_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_signal_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_signal_label.position.y = 16.0
-	add_child(_signal_label)
-
-	_round_label = Label.new()
-	_round_label.name = "RoundLabel"
-	_round_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_round_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_signal_label = make_status_label(&"SignalLabel")
+	_round_label = make_status_label(&"RoundLabel", PartyTheme.SIZE_OVERLAY_BODY)
 	_round_label.position.y = 72.0
-	add_child(_round_label)
 
 
 func _build_flash() -> void:

@@ -46,7 +46,7 @@ func test_arena_half_scales_with_lobby_size() -> void:
 
 func test_phase_label_flips_with_the_music() -> void:
 	view.render({"players": {}, "phase": MusicalPlatforms.Phase.MUSIC, "platforms": []})
-	var label: Label = view.get_node("PhaseLabel")
+	var label: Label = view.get_node("BannerLayer/PhaseLabel")
 	assert_eq(label.text, view.MUSIC_TEXT)
 	view.render({"players": {}, "phase": MusicalPlatforms.Phase.STOP, "platforms": []})
 	assert_eq(label.text, view.STOP_TEXT)
