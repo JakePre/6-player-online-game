@@ -126,6 +126,70 @@ func _seeded_plain_view() -> MinigameView3D:
 	return plain
 
 
+# --- Rim props (#813) --------------------------------------------------------
+
+
+## A trivial packed Node3D, so the scatter tests don't depend on any particular
+## kit mesh — the helper only cares that it gets an instantiable PackedScene.
+func _stub_prop() -> PackedScene:
+	var root := Node3D.new()
+	var packed := PackedScene.new()
+	packed.pack(root)
+	root.free()
+	return packed
+
+
+## scatter_rim_props builds a "RimProps" container under the arena holding one
+## node per requested prop.
+func test_scatter_rim_props_places_the_requested_count() -> void:
+	var plain := _seeded_plain_view()
+	var container := plain.scatter_rim_props([_stub_prop()], 12, 1)
+	assert_eq(container.name, "RimProps")
+	assert_eq(container.get_parent(), plain.arena, "props hang off the arena root")
+	assert_eq(container.get_child_count(), 12, "one node per requested prop")
+
+
+## Every prop is ground-seated (base at y=0) and sits outside the play area, so
+## scenery can never overlap gameplay — the play half is _arena_half().
+func test_rim_props_ring_outside_the_play_area_on_the_ground() -> void:
+	var plain := _seeded_plain_view()
+	var half := plain._arena_half()
+	var container := plain.scatter_rim_props([_stub_prop()], 16, 5)
+	for prop: Node3D in container.get_children():
+		assert_almost_eq(prop.position.y, 0.0, 0.001, "props sit on the floor plane")
+		var ground := Vector2(prop.position.x, prop.position.z).length()
+		assert_gte(ground, half, "every prop sits past the play-area edge")
+
+
+## The layout is seeded: the same seed reproduces the same placement (stable
+## frame-to-frame and testable), a different seed moves it.
+func test_rim_props_are_deterministic_for_a_seed() -> void:
+	var plain := _seeded_plain_view()
+	var scenes: Array[PackedScene] = [_stub_prop()]
+	var a := plain.scatter_rim_props(scenes, 8, 42)
+	var b := plain.scatter_rim_props(scenes, 8, 42)
+	var c := plain.scatter_rim_props(scenes, 8, 99)
+	assert_eq(
+		(a.get_child(0) as Node3D).position,
+		(b.get_child(0) as Node3D).position,
+		"same seed = same layout"
+	)
+	assert_ne(
+		(a.get_child(0) as Node3D).position,
+		(c.get_child(0) as Node3D).position,
+		"a different seed moves the ring"
+	)
+
+
+## Degenerate inputs are a no-op container, never a crash.
+func test_scatter_rim_props_tolerates_empty_inputs() -> void:
+	var plain := _seeded_plain_view()
+	assert_eq(plain.scatter_rim_props([], 10, 0).get_child_count(), 0, "no scenes = no props")
+	assert_eq(
+		plain.scatter_rim_props([_stub_prop()], 0, 0).get_child_count(), 0, "zero count = no props"
+	)
+
+
 # --- Team colors (#820) ------------------------------------------------------
 
 

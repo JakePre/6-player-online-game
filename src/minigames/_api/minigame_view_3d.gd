@@ -19,6 +19,15 @@ const FLOOR_TILE_SCENE := preload("res://assets/environment/kenney_platformer_ki
 ## mesh's own AABB in _build_floor (#813), so any block thickness works, from
 ## the thin `platform.glb` (~0.195) to a full `block-grass` (~1.0).
 const FLOOR_TILE_SIZE := 1.0
+## Rim-prop placement (#813): scatter_rim_props rings the arena with scenery in
+## this band of _arena_half() (just past the play area, inside the camera's
+## margin), with this much per-prop angle and scale jitter so a repeated mesh
+## doesn't read as a stamped pattern.
+const RIM_PROP_INNER := 1.1
+const RIM_PROP_OUTER := 1.28
+const RIM_PROP_ANGLE_JITTER := 0.22
+const RIM_PROP_SCALE_MIN := 0.8
+const RIM_PROP_SCALE_MAX := 1.2
 ## Below this per-snapshot displacement (world units), a rig is treated as
 ## stationary and plays "idle" instead of "walk".
 const MOVE_EPSILON := 0.01
@@ -106,6 +115,45 @@ func _render(game: Dictionary) -> void:
 ## plane; `height` lifts it above the floor surface (world units).
 func to_arena(pos: Vector2, height: float = 0.0) -> Vector3:
 	return Vector3(pos.x, height, pos.y)
+
+
+## Decorative rim props (#813): scatter non-interactive scenery — trees, rocks,
+## fences from the in-repo Kenney kits — in a ring just outside the play area,
+## parented to `arena` so it can never touch gameplay (the scenes are plain
+## MeshInstances with no collision bodies, and they sit past _arena_half()).
+## Ground-seated (base at y=0), spread evenly around the ring with a per-slot
+## angle jitter, at a radius in [RIM_PROP_INNER, RIM_PROP_OUTER] × _arena_half(),
+## each with a random yaw and gentle scale jitter so a repeated mesh doesn't
+## read as a stamped pattern. Seeded off `prop_seed` so the layout is stable
+## frame-to-frame and reproducible in tests — call once from _setup_3d().
+## Returns the container node (named "RimProps"). This is the shared half of the
+## props sweep: a game dresses its arena with one call, e.g.
+##   scatter_rim_props([preload("…/tree_pineRoundA.glb")], 16, 7)
+func scatter_rim_props(scenes: Array[PackedScene], count: int, prop_seed: int = 0) -> Node3D:
+	var container := Node3D.new()
+	container.name = "RimProps"
+	arena.add_child(container)
+	if scenes.is_empty() or count <= 0:
+		return container
+	var rng := RandomNumberGenerator.new()
+	rng.seed = prop_seed
+	var half := _arena_half()
+	for i in count:
+		var scene := scenes[rng.randi() % scenes.size()]
+		var prop := scene.instantiate() as Node3D
+		if prop == null:
+			continue
+		var angle := (
+			TAU * float(i) / float(count)
+			+ rng.randf_range(-RIM_PROP_ANGLE_JITTER, RIM_PROP_ANGLE_JITTER)
+		)
+		var radius := half * rng.randf_range(RIM_PROP_INNER, RIM_PROP_OUTER)
+		prop.position = to_arena(Vector2(cos(angle), sin(angle)) * radius, 0.0)
+		prop.rotation.y = rng.randf() * TAU
+		var jitter := rng.randf_range(RIM_PROP_SCALE_MIN, RIM_PROP_SCALE_MAX)
+		prop.scale = Vector3(jitter, jitter, jitter)
+		container.add_child(prop)
+	return container
 
 
 func rig_for_slot(slot: int) -> CharacterRig:

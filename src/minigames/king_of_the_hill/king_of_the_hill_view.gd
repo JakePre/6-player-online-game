@@ -20,6 +20,18 @@ const ZONE_DISC_HEIGHT := 0.04
 ## `held` rather than a dedicated event.
 const SHOVE_HOLD_SEC := 0.6
 
+## Rim scenery (#813): pines and rocks ring the grassy hilltop, dressing the
+## arena edge via the shared scatter_rim_props helper. Fixed seed so the layout
+## is stable and reproducible.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/tree_pineRoundA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/tree_pineRoundD.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_tallA.glb"),
+]
+const RIM_PROP_COUNT := 16
+const RIM_PROP_SEED := 0x40C
+
 ## Latest replicated state, straight from KingOfTheHill.get_snapshot().
 var players := {}
 var zone: Array = []
@@ -81,6 +93,9 @@ func _setup_3d() -> void:
 	_zone_node.mesh = mesh
 	_zone_node.visible = false
 	arena.add_child(_zone_node)
+	# Ring the grassy hilltop with pines and rocks (#813) — the demonstrator for
+	# the shared scatter_rim_props helper.
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 	# Held-item indicator for the local player (#139), on the always-on-top
 	# banner layer (#258).
 	_held_label = make_banner(&"HeldItem")
