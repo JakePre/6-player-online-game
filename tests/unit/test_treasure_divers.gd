@@ -143,3 +143,32 @@ func test_spawns_distinct_and_within_arena_at_twelve() -> void:
 		assert_lte(pos.length(), game._play_half, "spawn inside the scaled arena")
 		seen[pos] = true
 	assert_eq(seen.size(), 12, "every player gets a distinct spawn")
+
+
+## #782: the play area is a square (per-axis clamp) matching the square pool,
+## so a player can reach the corner where treasure spawns — the old circular
+## clamp left corner coins unreachable.
+func test_players_clamp_to_the_square_pool_bounds() -> void:
+	var game := _game_with(2)
+	var half: float = game._play_half
+	# Drive slot 0 hard toward the +x/+y corner for a while.
+	game.positions[0] = Vector2.ZERO
+	game.handle_input(0, {"mx": 1.0, "my": 1.0})
+	for _i in 120:
+		game.tick(TICK)
+	var pos: Vector2 = game.positions[0]
+	assert_almost_eq(pos.x, half, 0.01, "reaches the square's x edge")
+	assert_almost_eq(pos.y, half, 0.01, "reaches the square's y edge — the corner is reachable now")
+
+
+## #782: a coin dropped in a corner (a spot the old circular clamp shut off) is
+## now collectible by a diver who reaches it.
+func test_corner_treasure_is_reachable_and_collectible() -> void:
+	var game := _game_with(2)
+	var half: float = game._play_half
+	var corner := Vector2(half, half)
+	game.treasure = [corner]
+	game.positions[0] = corner  # a diver standing on the corner coin
+	game.diving[0] = true
+	game.tick(TICK)
+	assert_eq(game.coins[0], 1, "the corner coin can be collected")

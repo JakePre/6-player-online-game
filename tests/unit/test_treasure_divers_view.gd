@@ -50,6 +50,30 @@ func test_pool_floor_and_deck_border_dress_the_arena() -> void:
 		assert_not_null(view.arena.get_node("Deck%d" % i), "plank %d frames the pool" % i)
 
 
+## #782: the basin has walls on all four edges (the back no longer opens onto
+## nothing), and they rise from the seabed up to the water line.
+func test_pool_has_enclosing_walls() -> void:
+	for i in 4:
+		var wall: MeshInstance3D = view.arena.get_node("Wall%d" % i)
+		assert_not_null(wall, "wall %d encloses the basin" % i)
+		assert_almost_eq(
+			(wall.mesh as BoxMesh).size.y, view.SURFACE_HEIGHT, 0.001, "the wall reaches the water"
+		)
+		assert_almost_eq(
+			wall.position.y, view.SURFACE_HEIGHT / 2.0, 0.001, "rising from the seabed"
+		)
+
+
+## #782: the coping/deck sits at the water line, not flat on the seabed — that
+## was the "frame is at floor level, not water level" complaint.
+func test_deck_coping_sits_at_the_water_line() -> void:
+	for i in 4:
+		var plank: MeshInstance3D = view.arena.get_node("Deck%d" % i)
+		assert_almost_eq(
+			plank.position.y, view.SURFACE_HEIGHT, 0.001, "the rim is raised to water level"
+		)
+
+
 func test_surfaced_rigs_swim_high_and_divers_sink() -> void:
 	assert_not_null(view.arena.get_node("WaterSurface"))
 	view.render(
