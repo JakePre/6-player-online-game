@@ -33,6 +33,12 @@ func test_max_players_raised_to_eight() -> void:
 	assert_eq(ShockTag.make_meta().max_players, 8)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		ShockTag.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## No-crowd fairness (M15 8-cap): the spawn ring already auto-distributes by
 ## slot count, and at 8 players everyone starts well clear of tag range.
 func test_setup_spawns_are_spread_at_eight_players() -> void:
