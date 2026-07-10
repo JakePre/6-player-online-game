@@ -18,6 +18,63 @@ func _to_climb(game: TumbleRun) -> void:
 		game.tick(TICK)
 
 
+## #778: the shared default jump (apex ~2.6 u) couldn't clear the 3.1 u ledge
+## rise, so the climb was impossible. The bumped jump must clear a full rise.
+func test_jump_clears_a_ledge_rise() -> void:
+	var game := _game()
+	var sim := game.sim
+	# Step the sim alone (no boulders/crumble) to measure the pure jump arc.
+	sim.remove_body(0)
+	sim.add_body(0, Vector2(0.0, 0.5))  # grounded on the floor lid
+	sim.body_of(0).grounded = true
+	var start_y := 0.5
+	sim.press_jump(0)
+	var apex := start_y
+	for _i in 40:
+		sim.step(TICK)
+		apex = maxf(apex, float(sim.body_of(0).pos.y))
+	assert_gte(apex - start_y, TumbleRun.LEDGE_RISE + 0.2, "a jump rises past a full ledge")
+
+
+## #778: the real test is the zigzag — a single diagonal jump must actually
+## carry a climber up AND across onto the next (opposite-side) ledge, not just
+## clear the height in place. Steps the sim with ideal inputs.
+func test_a_climber_can_ladder_up_the_zigzag() -> void:
+	var game := _game()
+	var sim := game.sim
+	sim.remove_body(0)
+	sim.add_body(0, Vector2(3.0, 2.9))  # standing on ledge 0 (right side, lid 2.4)
+	sim.body_of(0).grounded = true
+	var ledge1: Rect2 = TumbleRun.ledges()[1]  # the next ledge, on the left
+	var target_lid: float = ledge1.position.y + ledge1.size.y
+	var reached := false
+	sim.press_jump(0)
+	for _i in 60:
+		sim.set_move(0, -1.0)  # steer toward the left ledge
+		sim.step(TICK)
+		var body := sim.body_of(0)
+		if bool(body.grounded) and float(body.pos.y) >= target_lid + 0.3:
+			reached = true
+			break
+	assert_true(reached, "a diagonal jump ladders onto the next higher ledge")
+
+
+## #778 (owner call): falling out of the stage resets you to the base to climb
+## again — no elimination (the #545 design), and the best height is kept.
+func test_falling_into_the_pit_resets_to_the_base() -> void:
+	var game := _game()
+	_to_climb(game)
+	game.climbers[0].height = 12.0  # already climbed this high
+	game.sim.body_of(0).pos = Vector2(8.5, -6.0)  # knocked into the pit, out of bounds
+	assert_true(0 in game.sim.out_slots(), "the body is out of the stage")
+	game.tick(TICK)
+	var body := game.sim.body_of(0)
+	assert_between(float(body.pos.y), -2.0, 2.0, "reset back down at the base, not left in the pit")
+	assert_false(0 in game.sim.out_slots(), "no longer out of bounds")
+	assert_true(game.sim.has_body(0), "still in the game — no elimination")
+	assert_almost_eq(float(game.climbers[0].height), 12.0, 0.001, "keeps the best height reached")
+
+
 func test_meta_and_catalog() -> void:
 	var meta := TumbleRun.make_meta()
 	assert_eq(meta.id, &"tumble_run")

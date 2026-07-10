@@ -23,6 +23,11 @@ const LEDGE_RISE := 3.1
 const LEDGE_WIDTH := 4.0
 const LEDGE_THICKNESS := 0.4
 const LEDGE_X := 4.2
+## The climb is the whole game, so it needs a jump that actually clears a
+## zigzag ledge (#778): the shared default (apex ~2.6 u) can't reach the 3.1 u
+## rise, let alone while crossing sideways to the alternating ledge. This lifts
+## the apex to ~4.3 u so a well-timed diagonal jump lands the next ledge.
+const JUMP_VELOCITY := 18.0
 
 ## Crumbling ledges cycle solid → gone → back, staggered by index so the
 ## whole climb never vanishes at once.
@@ -124,6 +129,7 @@ static func _crumble_indices() -> Array[int]:
 func _setup() -> void:
 	sim = SideScrollSim.new()
 	sim.bounds = stage_bounds()
+	sim.jump_velocity = JUMP_VELOCITY
 	crumble_state.resize(LEDGE_COUNT)
 	crumble_state.fill(true)
 	_rebuild_platforms()
@@ -189,11 +195,27 @@ func _tick_climb(delta: float) -> void:
 		if float(climbers[slot].stun) > 0.0:
 			sim.set_move(slot, 0.0)
 	sim.step(delta)
+	_reset_fallen()
 	_track_heights()
 	_tick_boulders(delta)
 	if _all_summited() or phase_left <= 0.0:
 		phase = Phase.DONE
 		finish(_rank_players())
+
+
+## Falling off the stage drops you back to the base to climb again (#778, owner
+## call): no elimination (the #545 design), just the lost height — a tumble into
+## the pit costs you progress, it doesn't end your run. Keeps the best height
+## already tracked, so a fall never lowers your standing, only stalls it.
+func _reset_fallen() -> void:
+	for slot: int in sim.out_slots():
+		var climber: Dictionary = climbers.get(slot, {})
+		if climber.is_empty() or bool(climber.summit):
+			continue
+		var fallen_x: float = (sim.body_of(slot).pos as Vector2).x
+		sim.remove_body(slot)
+		sim.add_body(slot, Vector2(clampf(fallen_x, -6.0, 6.0), 0.7))
+		climber.stun = 0.0
 
 
 func _tick_crumble(delta: float) -> void:

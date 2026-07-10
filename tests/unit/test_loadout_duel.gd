@@ -19,6 +19,23 @@ func _to_fight(game: LoadoutDuel) -> void:
 		game.tick(TICK)
 
 
+## #788: the loadout daises sit on platforms ~3 u up, unreachable with the
+## shared default jump. The bumped jump must clear onto the first tier (lid 3.0,
+## so a body stands at ~3.5).
+func test_jump_reaches_the_first_platform_tier() -> void:
+	var game := _game()
+	var sim := game.sim
+	sim.remove_body(0)
+	sim.add_body(0, Vector2(6.5, 0.5))  # grounded under the right platform
+	sim.body_of(0).grounded = true
+	sim.press_jump(0)
+	var apex := 0.5
+	for _i in 40:
+		sim.step(TICK)
+		apex = maxf(apex, float(sim.body_of(0).pos.y))
+	assert_gte(apex, 3.5, "the jump clears onto the first loadout platform")
+
+
 func test_meta_and_catalog() -> void:
 	var meta := LoadoutDuel.make_meta()
 	assert_eq(meta.id, &"loadout_duel")
