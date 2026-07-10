@@ -29,7 +29,7 @@ finding. First real sample (2026-07-07): `pickpocket_plaza @4p timeout 100%`
 
 | Always run full duration (timeout by design) | Can end early (timeout_rate meaningful) |
 |---|---|
-| pickpocket_plaza, king_of_the_hill, coin_scramble, color_clash, heist_night, nom_arena, fish_frenzy, basket_brawl, cart_push (cap), beat_bounce/simon_stomp/count_quick/shred_session (sequence caps), target_range, poison_feast, treasure_divers, snake_chain (score cap variant), bomb_courier (highest-score-wins, fixed 60s) | elimination games (thin_ice, sumo_smash, rumble_ring KOs, bullet_waltz, blast_grid, laser_limbo, memory_match, meteor_shower, hot_potato, shock_tag), races (hurdle_dash, relay_sprint, turbo_lap, tumble_run), objective games (wall_builders height, fort_siege capture, quick_draw, ro_sham_bo, knock_off/loadout_duel stocks, the_mole, faulty_wiring, trap_corridor, tug_of_war, putt_panic (ends when all sunk), bullseye_bowl) |
+| pickpocket_plaza, king_of_the_hill, coin_scramble, color_clash, heist_night, nom_arena, fish_frenzy, basket_brawl, cart_push (cap), beat_bounce/simon_stomp/count_quick/shred_session (sequence caps), target_range, poison_feast, treasure_divers, snake_chain (score cap variant), bomb_courier (highest-score-wins, fixed 60s) | elimination games (thin_ice, dodgeball, sumo_smash, rumble_ring KOs, bullet_waltz, blast_grid, laser_limbo, memory_match, meteor_shower, hot_potato, shock_tag), races (hurdle_dash, relay_sprint, turbo_lap, tumble_run), objective games (wall_builders height, fort_siege capture, quick_draw, knock_off/loadout_duel stocks, the_mole, faulty_wiring, trap_corridor, tug_of_war, putt_panic (ends when all sunk), bullseye_bowl) |
 
 **Suspiciously-fast medians** in elimination games are usually *bot* behavior,
 not game behavior — first sample: `sumo_smash @4p median 2s` (brains likely
@@ -55,7 +55,6 @@ richer (finale buy-in feeds on it).
 | Game | Expected telemetry signature | Why it's the design |
 |---|---|---|
 | poison_feast | High score variance, occasional negative scores, pot swings | Post-#174 rework IS push-your-luck: 25%/50% poison odds printed on the card. Variance is the fun. Tuning candidates: odds/points *ratios*, never removing the gamble. |
-| ro_sham_bo | Heavy tie/luck signature, flat win shares | It is rock-paper-scissors. Luck-dominant by definition; sudden-death exists to force resolution, not to reward skill. |
 | quick_draw | All-or-nothing placements, tiny durations per sub-round | Reaction duel — a 200 ms decide-everything window is the genre. |
 | tug_of_war | Near-100% ties **with bots** | Identical mashing cadence = identical pull. Says nothing about human balance; the sim already handicaps uneven teams. |
 | the_mole, faulty_wiring, pickpocket_plaza, trap_corridor | Role-holder win rates far from uniform at small n | One guard/mole vs many: per-round asymmetry is role luck. Judge only the *aggregate* role win rate over many rounds (mole should win a healthy minority, not half). |
