@@ -101,6 +101,14 @@ static func make_meta() -> MinigameMeta:
 					" · Item — ",
 					{"action": &"action_secondary"},
 				],
+				# Structured spec (#832/#844): full move cluster (steer/gas/brake) +
+				# Drift + Item, one row per verb.
+				"control_spec":
+				[
+					{"verb": "Steer/Gas/Brake", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Drift", "input": &"action_primary"},
+					{"verb": "Item", "input": &"action_secondary"},
+				],
 				"name": "Turbo Lap",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

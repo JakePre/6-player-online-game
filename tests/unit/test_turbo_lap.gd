@@ -33,6 +33,7 @@ func test_meta_and_catalog() -> void:
 	assert_eq(meta.id, &"turbo_lap")
 	assert_eq(meta.max_players, 12)
 	assert_false(meta.controls_text.is_empty())
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"turbo_lap") is TurboLap)
