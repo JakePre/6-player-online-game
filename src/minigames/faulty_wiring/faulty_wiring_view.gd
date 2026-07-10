@@ -13,6 +13,22 @@ const NODE_HEIGHT := 1.4
 const PLAYER_LAMP_RANGE := 6.0
 const PLAYER_LAMP_ENERGY := 1.6
 
+## The circuit made visible (#802): a central power core with a conduit run out
+## to each corner node. Each conduit lies flat near the floor and its energized
+## stretch grows from the core outward in proportion to that node's repair value
+## — the dark remaining run is the still-broken segment, so "which node needs
+## work, and how much" reads spatially instead of only as a pylon color. A cut
+## sparks at the fault (the break point where the live run ends). Emission-only
+## (no lights), so the wires glow without defeating the dark-room mechanic.
+const WIRE_Y := 0.12
+const WIRE_THICKNESS := 0.14
+const HUB_RADIUS := 0.7
+const HUB_HEIGHT := 0.45
+const CONDUIT_DARK := Color(0.04, 0.05, 0.08)
+## Live-current cyan-green: distinct from the red↔green pylon so the wire's
+## *length* (not its hue) carries the progress reading.
+const WIRE_LIVE_COLOR := Color(0.3, 0.95, 0.9)
+
 var phase: int = FaultyWiring.Phase.WORK
 var players := {}
 var nodes: Array = []
@@ -27,6 +43,14 @@ var _spark_seen: Array[int] = []
 var _fixed_seen: Array[bool] = []
 var _banner: Label
 var _role_label: Label
+## Wire runs (#802): the bright energized fill per node, plus the fixed
+## hub-end / direction / full run-length used to size it and to place the
+## fault spark. Indexed like FaultyWiring.NODE_POSITIONS.
+var _wire_fills: Array[MeshInstance3D] = []
+var _wire_fill_materials: Array[StandardMaterial3D] = []
+var _wire_hub: Array[Vector3] = []
+var _wire_dir: Array[Vector3] = []
+var _wire_len: Array[float] = []
 
 
 ## Electric cyan floor for the circuit-repair tension (#589).
@@ -46,6 +70,7 @@ func _process(_delta: float) -> void:
 
 func _setup_3d() -> void:
 	_darken()
+	_build_wires()
 	_build_nodes()
 	_attach_player_lamps()
 	_build_labels()
@@ -59,6 +84,7 @@ func _render_3d(game: Dictionary) -> void:
 	outcome = String(game.get("outcome", ""))
 	_update_players()
 	_update_nodes()
+	_update_wires()
 	_update_labels()
 
 
@@ -102,6 +128,102 @@ func _build_nodes() -> void:
 		_node_lights.append(light)
 		_spark_seen.append(0)
 		_fixed_seen.append(false)
+
+
+## The central power core plus a dark base conduit out to each corner node
+## (#802). The base conduit is the physical wire — always visible, so the whole
+## circuit's layout reads from the first frame; the bright energized fill that
+## grows along it is built here but sized per snapshot in _update_wires.
+func _build_wires() -> void:
+	var core := MeshInstance3D.new()
+	core.name = "PowerCore"
+	var core_mesh := CylinderMesh.new()
+	core_mesh.top_radius = HUB_RADIUS
+	core_mesh.bottom_radius = HUB_RADIUS * 1.15
+	core_mesh.height = HUB_HEIGHT
+	var core_material := StandardMaterial3D.new()
+	core_material.albedo_color = Color(0.1, 0.12, 0.16)
+	core_material.metallic = 0.6
+	core_material.emission_enabled = true
+	core_material.emission = WIRE_LIVE_COLOR
+	core_material.emission_energy_multiplier = 0.5
+	core_mesh.material = core_material
+	core.mesh = core_mesh
+	core.position = Vector3(0.0, HUB_HEIGHT * 0.5, 0.0)
+	arena.add_child(core)
+
+	var hub := Vector3(0.0, WIRE_Y, 0.0)
+	for i in FaultyWiring.NODE_POSITIONS.size():
+		var node_point := to_arena(FaultyWiring.NODE_POSITIONS[i], WIRE_Y)
+		var run := hub.distance_to(node_point)
+		var dir := (node_point - hub) / run
+		_wire_hub.append(hub)
+		_wire_dir.append(dir)
+		_wire_len.append(run)
+
+		# Dark base conduit spanning the whole run: box length along local Z,
+		# centered at the midpoint, look_at aims that axis down the run. Sits a
+		# hair below the fill so the bright fill never z-fights it.
+		var base := MeshInstance3D.new()
+		base.name = "Conduit%d" % i
+		var base_mesh := BoxMesh.new()
+		base_mesh.size = Vector3(WIRE_THICKNESS, WIRE_THICKNESS, run)
+		var base_material := StandardMaterial3D.new()
+		base_material.albedo_color = CONDUIT_DARK
+		base_material.metallic = 0.4
+		base_mesh.material = base_material
+		base.mesh = base_mesh
+		arena.add_child(base)
+		base.position = (hub + node_point) * 0.5 - Vector3(0.0, 0.02, 0.0)
+		base.look_at(node_point, Vector3.UP)
+
+		# Energized fill: a unit-length box (scaled along Z per snapshot) with a
+		# bright emissive material. Oriented once here; only its scale/position
+		# move as the repair value changes.
+		var fill := MeshInstance3D.new()
+		fill.name = "WireFill%d" % i
+		var fill_mesh := BoxMesh.new()
+		fill_mesh.size = Vector3(WIRE_THICKNESS * 1.3, WIRE_THICKNESS * 1.3, 1.0)
+		var fill_material := StandardMaterial3D.new()
+		fill_material.albedo_color = WIRE_LIVE_COLOR
+		fill_material.emission_enabled = true
+		fill_material.emission = WIRE_LIVE_COLOR
+		fill_material.emission_energy_multiplier = 1.4
+		fill_mesh.material = fill_material
+		fill.mesh = fill_mesh
+		fill.visible = false
+		arena.add_child(fill)
+		fill.position = hub
+		fill.look_at(node_point, Vector3.UP)
+		_wire_fills.append(fill)
+		_wire_fill_materials.append(fill_material)
+
+
+## Grows each wire's bright energized run from the core to a length proportional
+## to its node's repair value (#802): a fully repaired wire reaches the node, a
+## broken one is a short stub — so the still-dark remainder is the work left.
+func _update_wires() -> void:
+	for i in mini(nodes.size(), _wire_fills.size()):
+		var progress := clampf(float((nodes[i] as Array)[FaultyWiring.ND_VALUE]), 0.0, 1.0)
+		var fill_len := progress * _wire_len[i]
+		var fill := _wire_fills[i]
+		fill.visible = fill_len > 0.03
+		if not fill.visible:
+			continue
+		# Anchored at the core: centered half the live length down the run, and
+		# scaled to that length (the box is unit-length along Z). Rotation set at
+		# build stays put — only position/scale track the value.
+		fill.position = _wire_hub[i] + _wire_dir[i] * (fill_len * 0.5)
+		fill.scale = Vector3(1.0, 1.0, fill_len)
+		_wire_fill_materials[i].emission_energy_multiplier = 1.2 + 0.5 * progress
+
+
+## The world-space fault point for node `i`: the tip of its energized run, i.e.
+## where the live wire is severed. Cuts spark here (#802) instead of at the
+## pylon, so the break reads as a break in the wire itself.
+func _fault_point(i: int, progress: float) -> Vector2:
+	var tip := _wire_hub[i] + _wire_dir[i] * (clampf(progress, 0.0, 1.0) * _wire_len[i])
+	return Vector2(tip.x, tip.z)
 
 
 ## A small lamp on every rig so players are visible pools of light moving in
@@ -153,8 +275,10 @@ func _update_nodes() -> void:
 		_node_lights[i].light_energy = 0.6 + progress * 2.2
 		var pulse := int(state[FaultyWiring.ND_SPARK])
 		if pulse > _spark_seen[i]:
-			var at := Vector2(float(state[FaultyWiring.ND_X]), float(state[FaultyWiring.ND_Y]))
-			fx_burst(at, Color(1.0, 0.85, 0.3), NODE_HEIGHT)
+			# Spark at the break in the wire (the tip of the live run), not at the
+			# pylon — the cut reads as the circuit being severed (#802).
+			var at := _fault_point(i, progress)
+			fx_burst(at, Color(1.0, 0.85, 0.3), WIRE_Y + 0.2)
 			request_shake(5.0)
 			# `zap` (#728, docs/AUDIO_GUIDE.md) names "live wire" as its own
 			# use case, replacing the generic UI `error`.

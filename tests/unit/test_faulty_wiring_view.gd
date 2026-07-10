@@ -137,6 +137,64 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_not_null(view.arena.get_node("Node0"))
 
 
+# --- Visible wire runs (#802) ------------------------------------------------
+
+
+func test_setup_builds_the_power_core_and_wire_runs() -> void:
+	assert_not_null(view.arena.get_node("PowerCore"), "a central power core")
+	for i in FaultyWiring.NODE_POSITIONS.size():
+		assert_not_null(view.arena.get_node("Conduit%d" % i), "a base conduit to node %d" % i)
+		assert_not_null(view.arena.get_node("WireFill%d" % i), "an energized fill for node %d" % i)
+
+
+## The whole point of the fix: the energized run's length reads the repair
+## value, so "which node needs work and how much" is spatially obvious. scale.z
+## and position are stored transform values (readable headless, unlike AABBs).
+func test_wire_fill_length_tracks_the_repair_value() -> void:
+	var pos := FaultyWiring.NODE_POSITIONS
+	(
+		view
+		. render(
+			{
+				"phase": FaultyWiring.Phase.WORK,
+				"players": {},
+				"nodes":
+				[
+					_node(pos[0].x, pos[0].y, 0.0, 0),
+					_node(pos[1].x, pos[1].y, 1.0, 0),
+					_node(pos[2].x, pos[2].y, 0.5, 0),
+					_node(pos[3].x, pos[3].y, 0.25, 0),
+				],
+			}
+		)
+	)
+	var run := pos[1].length()  # all four corner runs are equal
+	assert_false(view._wire_fills[0].visible, "a 0% node lights no wire")
+	assert_true(view._wire_fills[1].visible, "a repaired node lights its wire")
+	assert_almost_eq(view._wire_fills[1].scale.z, run, 0.05, "a 100% wire reaches its node")
+	assert_almost_eq(view._wire_fills[2].scale.z, run * 0.5, 0.05, "50% node = half-lit wire")
+	assert_almost_eq(view._wire_fills[3].scale.z, run * 0.25, 0.05, "25% node = quarter-lit wire")
+	# The live run is anchored at the core, so its centre sits half its length in.
+	assert_almost_eq(
+		view._wire_fills[1].position.length(),
+		run * 0.5,
+		0.1,
+		"the full wire's centre is half a run from the core",
+	)
+
+
+## The far tip of the live run is the fault point a cut sparks at: on the node
+## when fully repaired, back at the core when fully broken (#802).
+func test_fault_point_is_the_tip_of_the_live_run() -> void:
+	var pos := FaultyWiring.NODE_POSITIONS
+	var full: Vector2 = view._fault_point(3, 1.0)
+	assert_almost_eq(full.x, pos[3].x, 0.05, "a full wire's fault point sits on its node")
+	assert_almost_eq(full.y, pos[3].y, 0.05)
+	assert_almost_eq(
+		view._fault_point(3, 0.0).length(), 0.0, 0.05, "a broken wire's fault point is at the core"
+	)
+
+
 ## #590: the base arena background is transparent by default (so the
 ## drifting backdrop shows through), but a pitch-black room is the mechanic
 ## here — _darken() must opt back into a solid background color.
