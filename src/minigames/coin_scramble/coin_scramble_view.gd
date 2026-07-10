@@ -13,6 +13,13 @@ const COIN_HOVER := 0.45
 const COIN_SPIN_HZ := 0.8
 const COIN_BOB := 0.08
 
+## Sky-drop spawn presentation (#781): a fresh coin falls from height and
+## settles with a slight overshoot instead of popping into existence.
+## STYLE_GUIDE.md's Motion section calls out TRANS_OVERSHOOT (back-out) as
+## reserved for playful pop-ins "(podium, coins)" at DUR_SLOW (0.4s).
+const COIN_DROP_HEIGHT := 4.0
+const COIN_DROP_SEC := 0.4
+
 ## Latest replicated state, straight from CoinScramble.get_snapshot().
 var players := {}
 var coins: Array = []
@@ -25,6 +32,11 @@ var _coin_nodes: Array[MeshInstance3D] = []
 var _counts_seen := {}
 var _coins_seen: Array = []
 var _coins_rendered_once := false
+# Sky-drop (#781): per-`coins`-index freshness this snapshot, and the wall
+# time each pooled node last started dropping (parallel to _coin_nodes,
+# stale/default entries read as "already landed" — see _process).
+var _coin_fresh: Array[bool] = []
+var _coin_drop_start: Array[float] = []
 
 
 func _physics_process(_delta: float) -> void:
@@ -42,7 +54,23 @@ func _process(_delta: float) -> void:
 		if not node.visible:
 			continue
 		node.rotation = Vector3(PI / 2.0, spin + i, 0.0)
-		node.position.y = COIN_HOVER + sin(now * 2.0 + i) * COIN_BOB
+		var rest_y := COIN_HOVER + sin(now * 2.0 + i) * COIN_BOB
+		var drop_t := 1.0
+		if i < _coin_drop_start.size():
+			drop_t = clampf((now - _coin_drop_start[i]) / COIN_DROP_SEC, 0.0, 1.0)
+		if drop_t < 1.0:
+			node.position.y = lerpf(COIN_HOVER + COIN_DROP_HEIGHT, rest_y, _ease_out_back(drop_t))
+		else:
+			node.position.y = rest_y
+
+
+## Standard easeOutBack: overshoots past 1.0 before settling — the "playful
+## pop-in" curve STYLE_GUIDE.md names coins for (TRANS_OVERSHOOT/back-out).
+static func _ease_out_back(t: float) -> float:
+	const C1 := 1.70158
+	const C3 := C1 + 1.0
+	var p := t - 1.0
+	return 1.0 + C3 * p * p * p + C1 * p * p
 
 
 ## Warm gold floor to match the coin-grab theme (#589).
@@ -94,9 +122,11 @@ func _update_players() -> void:
 		if _counts_seen.has(slot):
 			var before := int(_counts_seen[slot])
 			if count > before:
-				fx_sparkle(
-					Vector2(state[CoinScramble.PS_X], state[CoinScramble.PS_Y]), player_color(slot)
-				)
+				var at := Vector2(state[CoinScramble.PS_X], state[CoinScramble.PS_Y])
+				fx_sparkle(at, player_color(slot))
+				# Coin burst (#781): a gold burst distinct from the bump-scatter's
+				# player-colored one below, so "gained" and "lost" read apart.
+				fx_burst(at, COIN_COLOR)
 				if slot == my_slot:
 					play_sfx(&"coin")
 			elif count < before:
@@ -111,20 +141,25 @@ func _update_players() -> void:
 
 
 func _update_coins() -> void:
-	# Spawn drop-ins (M13-02): a coin at a position we have not seen before
-	# just rained in - dust where it lands. Seeded on the first snapshot.
-	if _coins_rendered_once:
-		for coin: Array in coins:
-			var fresh := true
-			for old: Array in _coins_seen:
-				if (
-					absf(float(old[CoinScramble.CO_X]) - float(coin[CoinScramble.CO_X])) < 0.01
-					and absf(float(old[CoinScramble.CO_Y]) - float(coin[CoinScramble.CO_Y])) < 0.01
-				):
-					fresh = false
-					break
-			if fresh:
-				fx_dust(Vector2(coin[CoinScramble.CO_X], coin[CoinScramble.CO_Y]))
+	# Spawn drop-ins (M13-02, #781): a coin at a position we have not seen
+	# before just rained in - dust where it lands, and (below, via
+	# _coin_fresh) it visibly falls into place instead of popping in. Value-
+	# matched against last snapshot, not index, since a coin's array index
+	# shifts whenever an earlier coin is collected (Array.remove_at).
+	_coin_fresh.resize(coins.size())
+	for i in coins.size():
+		var coin: Array = coins[i]
+		var fresh := true
+		for old: Array in _coins_seen:
+			if (
+				absf(float(old[CoinScramble.CO_X]) - float(coin[CoinScramble.CO_X])) < 0.01
+				and absf(float(old[CoinScramble.CO_Y]) - float(coin[CoinScramble.CO_Y])) < 0.01
+			):
+				fresh = false
+				break
+		_coin_fresh[i] = fresh
+		if fresh and _coins_rendered_once:
+			fx_dust(Vector2(coin[CoinScramble.CO_X], coin[CoinScramble.CO_Y]))
 	_coins_seen = coins.duplicate(true)
 	_coins_rendered_once = true
 	# Pooled (#709): reuse the disc nodes across snapshots, hiding surplus, so a
@@ -141,4 +176,11 @@ func _make_coin() -> Node3D:
 
 func _place_coin(node: Node3D, index: int) -> void:
 	var coin: Array = coins[index]
+	# X/Z are sim truth, always applied; Y (drop/hover/bob) is owned by
+	# _process once a fresh coin's drop starts (#781), so only the initial
+	# value is set here.
 	node.position = to_arena(Vector2(coin[CoinScramble.CO_X], coin[CoinScramble.CO_Y]), COIN_HOVER)
+	if index < _coin_fresh.size() and _coin_fresh[index] and not ArenaFX.reduced_motion:
+		if _coin_drop_start.size() < _coin_nodes.size():
+			_coin_drop_start.resize(_coin_nodes.size())
+		_coin_drop_start[index] = Time.get_ticks_msec() / 1000.0
