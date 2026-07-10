@@ -1,8 +1,9 @@
 extends GutTest
 ## Timing / pad-selection bot brains (M19-02, #686): beat_bounce, simon_stomp,
-## count_quick, shred_session, ro_sham_bo — steering/pressing assertions on
-## crafted snapshots. Split from test_bot_brains.gd per gdlint's public-method
-## cap (same precedent as test_match_controller_finale_only.gd).
+## count_quick, shred_session — steering/pressing assertions on crafted
+## snapshots. Split from test_bot_brains.gd per gdlint's public-method cap
+## (same precedent as test_match_controller_finale_only.gd). (ro_sham_bo's
+## brain retired with the game in #791 — dodgeball has its own brain test.)
 
 
 func _play_state(id: String, game: Dictionary) -> Dictionary:
@@ -264,108 +265,3 @@ func test_shred_session_brain_ignores_notes_outside_the_window() -> void:
 	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
 	var game := {"elapsed": 10.0, "notes": [[11.0, 1]]}
 	assert_eq(brain.think(_play_state("shred_session", game), {}), {})
-
-
-# --- ro_sham_bo ---------------------------------------------------------------
-
-
-func test_ro_sham_bo_brain_walks_toward_a_pad_when_undecided() -> void:
-	var brain := BotBrains.brain_for(&"ro_sham_bo", 0, 1)
-	var game := {
-		"phase": RoShamBo.Phase.THROW,
-		"players": {0: [0.0, 0.0, 1, 0]},
-		"sudden_death": false,
-		"target_shape": -1,
-	}
-	var intent := brain.think(_play_state("ro_sham_bo", game), {})
-	var heading := Vector2(float(intent.get("mx", 0.0)), float(intent.get("my", 0.0)))
-	assert_gt(heading.length(), 0.5, "commits to walking toward some pad")
-
-
-func test_ro_sham_bo_brain_sudden_death_pick_is_cached_across_ticks() -> void:
-	# #715: the sim's own rule is "exactly one" counter-throw wins — a shared
-	# correct throw is still a tie. The pick (counter or blind guess) must be
-	# decided once and held, not re-rolled every tick (which would jitter the
-	# heading and could even flip after committing to walk one way).
-	var brain := BotBrains.brain_for(&"ro_sham_bo", 0, 1)
-	var game := {
-		"phase": RoShamBo.Phase.THROW,
-		"players": {0: [0.0, 0.0, 1, 0]},
-		"sudden_death": true,
-		"target_shape": RoShamBo.Shape.ROCK,
-	}
-	var first := brain.think(_play_state("ro_sham_bo", game), {})
-	var second := brain.think(_play_state("ro_sham_bo", game), {})
-	assert_eq(first, second, "the sudden-death pick doesn't change tick to tick")
-
-
-func test_ro_sham_bo_brain_sudden_death_does_not_always_counter() -> void:
-	# The old always-counter policy meant two counter-reading bots threw the
-	# identical correct shape every single sudden-death round -- a shared
-	# correct throw is still a tie (per the sim), so that was an infinite
-	# mirror-tie loop. Across many independent seeds, some must NOT counter.
-	var target := RoShamBo.Shape.ROCK
-	var saw_non_counter := false
-	for seed_value in range(50):
-		var brain := BotBrains.brain_for(&"ro_sham_bo", 0, seed_value)
-		var game := {
-			"phase": RoShamBo.Phase.THROW,
-			"players": {0: [0.0, 0.0, 1, 0]},
-			"sudden_death": true,
-			"target_shape": target,
-		}
-		var intent := brain.think(_play_state("ro_sham_bo", game), {})
-		var counter_pos := RoShamBo.pad_position(RoShamBo.Shape.PAPER)
-		var heading := Vector2(float(intent.get("mx", 0.0)), float(intent.get("my", 0.0)))
-		if heading.dot(counter_pos.normalized()) <= 0.5:
-			saw_non_counter = true
-			break
-	assert_true(saw_non_counter, "at least one seed must blind-guess instead of countering")
-
-
-func test_ro_sham_bo_brains_do_not_always_mirror_in_sudden_death() -> void:
-	# The regression this fixes: two brains with different seeds facing the
-	# same target_shape must not throw the identical counter 100% of the
-	# time, or sudden death can never resolve between them.
-	var target := RoShamBo.Shape.SCISSORS
-	var mirrored := 0
-	var trials := 40
-	for i in trials:
-		var brain_a := BotBrains.brain_for(&"ro_sham_bo", 0, i * 2)
-		var brain_b := BotBrains.brain_for(&"ro_sham_bo", 1, i * 2 + 1)
-		var game := {
-			"phase": RoShamBo.Phase.THROW,
-			"players": {0: [0.0, 0.0, 1, 0], 1: [0.0, 0.0, 1, 0]},
-			"sudden_death": true,
-			"target_shape": target,
-		}
-		var a := brain_a.think(_play_state("ro_sham_bo", game), {})
-		var b := brain_b.think(_play_state("ro_sham_bo", game), {})
-		if Vector2(float(a.get("mx", 0.0)), float(a.get("my", 0.0))).is_equal_approx(
-			Vector2(float(b.get("mx", 0.0)), float(b.get("my", 0.0)))
-		):
-			mirrored += 1
-	assert_lt(mirrored, trials, "not every trial can mirror, or sudden death never resolves")
-
-
-func test_ro_sham_bo_brain_holds_still_once_thrown() -> void:
-	var brain := BotBrains.brain_for(&"ro_sham_bo", 0, 1)
-	var game := {
-		"phase": RoShamBo.Phase.THROW,
-		"players": {0: [0.0, -6.0, 1, 1]},
-		"sudden_death": false,
-		"target_shape": -1,
-	}
-	assert_eq(brain.think(_play_state("ro_sham_bo", game), {}), {})
-
-
-func test_ro_sham_bo_brain_eliminated_votes_a_living_rival() -> void:
-	var brain := BotBrains.brain_for(&"ro_sham_bo", 0, 1)
-	var game := {
-		"phase": RoShamBo.Phase.THROW,
-		"players": {0: [0.0, 0.0, 0, 0], 1: [1.0, 1.0, 1, 0], 2: [2.0, 2.0, 0, 0]},
-		"sudden_death": false,
-		"target_shape": -1,
-	}
-	var intent := brain.think(_play_state("ro_sham_bo", game), {})
-	assert_eq(int(intent.get("vote", -1)), 1, "the only living rival gets the vote")

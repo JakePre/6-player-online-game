@@ -58,7 +58,7 @@ static func register_builtins() -> void:
 	register(FaultyWiring.make_meta(), FaultyWiring)
 	register(PickpocketPlaza.make_meta(), PickpocketPlaza)
 	register(BlastGrid.make_meta(), BlastGrid)
-	register(RoShamBo.make_meta(), RoShamBo)
+	register(Dodgeball.make_meta(), Dodgeball)
 	register(TurboLap.make_meta(), TurboLap)
 	register(LoadoutDuel.make_meta(), LoadoutDuel)
 	register(PuttPanic.make_meta(), PuttPanic)
