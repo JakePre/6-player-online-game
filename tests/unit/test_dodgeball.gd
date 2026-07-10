@@ -183,7 +183,7 @@ func test_ffa_elimination_order_is_reverse_placement() -> void:
 	game._pending_falls = [2]
 	game._flush_falls()
 	# 0 survives; 2 fell last (2nd), 1 fell first (3rd).
-	var placements := game._rank_players()
+	var placements: Array = game._rank_players()
 	assert_eq(placements[0], [0], "the survivor wins")
 	assert_eq(placements[1], [2], "last out places above earlier outs")
 	assert_eq(placements[2], [1])
@@ -205,7 +205,7 @@ func test_team_wipeout_ends_with_the_team_tables() -> void:
 	game._flush_falls()
 	game._check_end()
 	assert_true(game.finished)
-	var placements := game.get_results().placements
+	var placements: Array = game.get_results().placements
 	assert_eq(placements[0], game.teams[0], "the surviving team is ranked first")
 	assert_true(game.get_results().team_mode)
 
