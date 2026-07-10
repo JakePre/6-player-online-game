@@ -78,6 +78,12 @@ static func make_meta() -> MinigameMeta:
 				# Device-aware (#608): the button reads as what the player holds.
 				"control_hints":
 				["Move — WASD / left stick · Shove — ", {"action": &"action_primary"}],
+				# Structured spec (#832/#844): the move + action template shape.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Shove", "input": &"action_primary"},
+				],
 				"name": "Cart Push",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 4,

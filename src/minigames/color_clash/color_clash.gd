@@ -95,6 +95,12 @@ static func make_meta() -> MinigameMeta:
 				"max_players": 24,
 				"duration_sec": 45.0,
 				"rules": "Paint the floor by walking on it — most tiles when time runs out wins!",
+				# Structured spec (#832/#844): a move row plus a plain note row.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"note": "Paint by walking"},
+				],
 			}
 		)
 	)

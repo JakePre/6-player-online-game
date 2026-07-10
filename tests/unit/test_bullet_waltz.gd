@@ -16,6 +16,7 @@ func test_meta_and_catalog() -> void:
 	var meta := BulletWaltz.make_meta()
 	assert_eq(meta.id, &"bullet_waltz")
 	assert_eq(meta.category, MinigameMeta.Category.SKILL)
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"bullet_waltz") is BulletWaltz)

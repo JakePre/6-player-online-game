@@ -73,6 +73,8 @@ static func make_meta() -> MinigameMeta:
 				"max_players": 24,
 				"duration_sec": 60.0,
 				"rules": "Dodge the storm — one hit and you're out! Skim bullets for bonus coins.",
+				# Structured spec (#832/#844): the bare-movement template shape.
+				"control_spec": [{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE}],
 			}
 		)
 	)

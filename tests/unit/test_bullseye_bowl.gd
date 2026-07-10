@@ -112,6 +112,12 @@ func test_max_players_raised_to_twenty_four() -> void:
 	assert_eq(BullseyeBowl.make_meta().max_players, 24)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		BullseyeBowl.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## No shared arena state (M15): each player has an independent lane, so a
 ## 24-player match is just 24 independent sets of scores/balls/phases.
 func test_setup_handles_twenty_four_players() -> void:

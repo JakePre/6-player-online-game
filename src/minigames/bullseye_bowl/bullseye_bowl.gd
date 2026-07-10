@@ -48,6 +48,12 @@ static func make_meta() -> MinigameMeta:
 				# Device-aware (#608): the button reads as what the player holds.
 				"control_hints":
 				["Roll — ", {"action": &"action_primary"}, " (lead the sliding target!)"],
+				# Structured spec (#832/#844): an action row plus a plain note row.
+				"control_spec":
+				[
+					{"verb": "Roll", "input": &"action_primary"},
+					{"note": "Lead the sliding target!"},
+				],
 				"name": "Bullseye Bowl",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

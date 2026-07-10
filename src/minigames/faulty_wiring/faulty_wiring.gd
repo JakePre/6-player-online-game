@@ -95,6 +95,12 @@ static func make_meta() -> MinigameMeta:
 					"Move — WASD / left stick · Cut (saboteur) — ",
 					{"action": &"action_primary"},
 				],
+				# Structured spec (#832/#844): move + role-qualified action.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Cut (saboteur)", "input": &"action_primary"},
+				],
 			}
 		)
 	)

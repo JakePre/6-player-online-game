@@ -40,6 +40,12 @@ func test_max_players_raised_to_eight() -> void:
 	assert_eq(CartPush.make_meta().max_players, 8)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		CartPush.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## No-crowd fairness (M15 8-cap): 4v4 splits evenly and everyone spawns
 ## within the arena, well clear of the effective-pusher cap concern (a 4th
 ## player per side has room as a rotating shover/ore-runner, per ADR 003).
