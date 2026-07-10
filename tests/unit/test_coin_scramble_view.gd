@@ -56,13 +56,16 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.coins.size(), 0)
 
 
-## M13-02: pickups sparkle in the collector's color, fresh coins dust in.
+## M13-02/#781: pickups sparkle in the collector's color plus a gold coin
+## burst, fresh coins dust in.
 func test_pickup_sparkles_once_seeded() -> void:
 	view.render({"players": {0: [0.0, 0.0, 2]}, "coins": []})
 	var before: int = view.arena.get_child_count()
 	watch_signals(view)
 	view.render({"players": {0: [0.0, 0.0, 3]}, "coins": []})
-	assert_eq(view.arena.get_child_count(), before + 1, "count up = one sparkle")
+	assert_eq(
+		view.arena.get_child_count(), before + 2, "count up = one sparkle + one coin burst (#781)"
+	)
 	# Shared meaning kept (#728): a pickup is currency gained, still `coin`.
 	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"coin"], "a pickup")
 
@@ -77,6 +80,19 @@ func test_bump_scatter_bursts_when_count_drops() -> void:
 	assert_eq(view.arena.get_child_count(), before + 1, "count down = one burst")
 	# Signature cue (#728): a bump scatter, not a generic error.
 	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"bump"], "a bump scatter")
+
+
+## #781: a freshly spawned coin drops in from height instead of popping
+## straight to its resting hover height.
+func test_fresh_coin_drops_in_from_height() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0]}, "coins": [[2.0, 2.0]]})
+	simulate(view, 1, 0.016)
+	var node: MeshInstance3D = view._coin_nodes[0]
+	assert_gt(
+		node.position.y,
+		view.COIN_HOVER + view.COIN_BOB,
+		"just-spawned coin starts above its resting hover height"
+	)
 
 
 func test_fresh_coins_dust_in_after_seeding() -> void:
