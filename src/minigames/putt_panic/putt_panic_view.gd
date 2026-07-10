@@ -23,9 +23,11 @@ var _charging := false
 var _sunk_seen := {}
 
 
-## Putting-green floor (#589).
-func _floor_tint() -> Color:
-	return Color(0.85, 0.98, 0.85)
+## A real putting green (#813): the Kenney grass block replaces the grey
+## platform and carries its own color, so the old pastel-green tint (#589)
+## approximating one is gone.
+func _floor_tile_scene() -> PackedScene:
+	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
 
 
 func _arena_half() -> float:

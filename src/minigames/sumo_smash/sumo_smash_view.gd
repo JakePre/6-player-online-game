@@ -39,9 +39,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			NetManager.send_match_input({"dash": true})
 
 
-## Warm tatami-tan floor for the sumo ring (#589).
-func _floor_tint() -> Color:
-	return Color(1.0, 0.91, 0.76)
+## A grass field around the stone ring (#813): the Kenney grass block replaces
+## the grey platform tile and carries its own color, so the old tan tint (#589)
+## is gone — the ring itself (Platform, below) stays its own stone disc.
+func _floor_tile_scene() -> PackedScene:
+	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
 
 
 func _arena_half() -> float:
