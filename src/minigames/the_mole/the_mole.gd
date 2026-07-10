@@ -259,6 +259,10 @@ func get_snapshot() -> Dictionary:
 		"cells": cell_list,
 		"votes_in": votes.size(),
 	}
+	if phase == Phase.VOTE:
+		# WHO has voted (participation only — never who they voted for, which
+		# would bandwagon). The accusation graph waits for `reveal.votes` (#801).
+		snapshot["voted"] = votes.keys()
 	if phase == Phase.REVEAL:
 		# The outcome is locked — the identity may go public now, not before.
 		snapshot["reveal"] = {
