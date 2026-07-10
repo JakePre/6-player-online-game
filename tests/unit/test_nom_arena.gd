@@ -20,6 +20,7 @@ func test_meta_and_catalog() -> void:
 	assert_eq(meta.id, &"nom_arena")
 	assert_eq(meta.category, MinigameMeta.Category.FFA)
 	assert_eq(meta.duration_sec, 60.0, "owner: QUICK, 60 s hard cap")
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"nom_arena") is NomArena)
