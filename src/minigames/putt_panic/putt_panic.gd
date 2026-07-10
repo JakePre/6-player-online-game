@@ -75,6 +75,16 @@ static func make_meta() -> MinigameMeta:
 					"Aim — WASD / stick / mouse · Charge + putt — hold & release ",
 					{"action": &"action_primary"},
 				],
+				# Structured spec (#832/#844): aim + hold-release action template shape.
+				"control_spec":
+				[
+					{"verb": "Aim", "input": InputGlyphs.CLUSTER_MOVE, "alt": "or mouse"},
+					{
+						"verb": "Charge + putt",
+						"input": &"action_primary",
+						"modifier": "hold & release"
+					},
+				],
 			}
 		)
 	)
