@@ -1,9 +1,10 @@
 class_name CountQuick
 extends MinigameBase
 ## Count Quick (M10-08, PHASE2.md $4 #25): a swarm of objects flashes on
-## screen, then hides — run to the answer pad with the right count. Locking
-## first and right pays double. Best total after six rounds wins.
-## Server-side simulation only — the client renders get_snapshot().
+## screen, then hides — run to the answer pad with the right count. There is no
+## lock-in (#799): you can move between pads the whole answer phase, and the pad
+## you stand on when the timer ends is your answer. Best total after six rounds
+## wins. Server-side simulation only — the client renders get_snapshot().
 
 enum Phase { FLASH, ANSWER }
 
@@ -11,12 +12,15 @@ const ARENA_HALF := 9.0
 const MOVE_SPEED := 6.0
 const PLAYER_RADIUS := 0.45
 const PAD_RADIUS := 1.3
-const FLASH_SEC := 2.2
-const ANSWER_SEC := 5.0
+## Longer than the original 2.2/5.0 (#799): the owner reported (twice) there was
+## no time to count the swarm, and too little time to commit an answer.
+const FLASH_SEC := 4.0
+const ANSWER_SEC := 6.0
 const ROUNDS := 6
 const SWARM_MIN := 8
 const SWARM_MAX := 24
-const SCORE_FIRST := 2
+## One point per correct answer at the buzzer. (The old first-correct double was
+## a lock-race artifact — with no lock-in there is no race, #799.)
 const SCORE_CORRECT := 1
 ## Answer pads sit on the arena diagonals at this distance.
 const PAD_DISTANCE := 6.0
@@ -26,7 +30,10 @@ const PAD_DISTANCE := 6.0
 const PS_X := 0
 const PS_Y := 1
 const PS_SCORE := 2
-const PS_LOCKED := 3
+## The value of the pad the player is currently standing on during ANSWER (their
+## live, still-changeable pick), or -1 for none / during FLASH. Was PS_LOCKED
+## (a bool) before lock-in was removed (#799).
+const PS_ANSWER := 3
 const PS_COUNT := 4
 
 const SW_X := 0
@@ -39,8 +46,6 @@ const PD_VALUE := 2
 var positions := {}
 var move_dirs := {}
 var scores := {}
-## slot -> pad index locked this round (-1 = still free to choose).
-var locked := {}
 var phase := Phase.FLASH
 var round_number := 0
 ## Swarm positions (only replicated during FLASH).
@@ -50,7 +55,6 @@ var pads: Array = []
 var correct_count := 0
 
 var _phase_left := FLASH_SEC
-var _first_correct_taken := false
 
 
 static func make_meta() -> MinigameMeta:
@@ -59,14 +63,17 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"count_quick",
-				"controls": "Move — WASD / left stick (run onto a pad to lock your answer)",
+				"controls": "Move — WASD / left stick (stand on the number you counted)",
 				"name": "Count Quick",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
 				"max_players": 24,
-				"duration_sec": 60.0,
+				"duration_sec": 72.0,
 				"rules":
-				"Count the swarm before it vanishes, then run to the right number. First correct pays double!",
+				(
+					"Count the swarm before it vanishes, then stand on the right number."
+					+ " No lock-in — change your pick until the timer ends. Most right wins!"
+				),
 			}
 		)
 	)
@@ -78,7 +85,6 @@ func _setup() -> void:
 		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * 2.0
 		move_dirs[slots[i]] = Vector2.ZERO
 		scores[slots[i]] = 0
-		locked[slots[i]] = -1
 	_deal_round()
 
 
@@ -92,15 +98,13 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	if finished:
 		return
+	# Everyone moves freely the whole time — no pad ever freezes a player, so
+	# spawning on a pad no longer auto-commits a wrong answer (#799).
 	for slot: int in slots:
-		if locked[slot] != -1:
-			continue  # a locked answer parks you on your pad
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.limit_length(ARENA_HALF)
-	if phase == Phase.ANSWER:
-		_resolve_locks()
 	_phase_left -= delta
-	if _phase_left <= 0.0 or (phase == Phase.ANSWER and _all_locked()):
+	if _phase_left <= 0.0:
 		_advance_phase()
 
 
@@ -112,7 +116,7 @@ func get_snapshot() -> Dictionary:
 			snappedf(pos.x, 0.01),
 			snappedf(pos.y, 0.01),
 			scores[slot],
-			1 if locked[slot] != -1 else 0,
+			_answer_of(slot) if phase == Phase.ANSWER else -1,
 		]
 	var swarm_list: Array = []
 	if phase == Phase.FLASH:
@@ -149,28 +153,22 @@ func _rank_players() -> Array:
 	return placements
 
 
-## Touching a pad locks it as your answer for the round — no take-backs.
-## Correct answers score immediately; the first correct one pays double.
-## Same-tick correct locks are a tie group (like Thin Ice falls / Hot Potato
-## blasts): everyone in it gets the first-correct double, so slot order never
-## decides a photo finish.
-func _resolve_locks() -> void:
-	var correct_this_tick: Array[int] = []
+## The value of the pad the player currently stands on, or -1 if they are not
+## on any pad — their live answer, read fresh every tick (no stored lock).
+func _answer_of(slot: int) -> int:
+	for pad: Dictionary in pads:
+		if positions[slot].distance_to(pad.pos) <= PAD_RADIUS + PLAYER_RADIUS:
+			return int(pad.value)
+	return -1
+
+
+## Scored once, when the ANSWER phase ends: everyone standing on the correct
+## pad at the buzzer takes a point. No first-correct bonus — with no lock-in
+## there is no race to reward, only whether you counted right (#799).
+func _score_answers() -> void:
 	for slot: int in slots:
-		if locked[slot] != -1:
-			continue
-		for pad_index in pads.size():
-			var pad: Dictionary = pads[pad_index]
-			if positions[slot].distance_to(pad.pos) > PAD_RADIUS + PLAYER_RADIUS:
-				continue
-			locked[slot] = pad_index
-			if int(pad.value) == correct_count:
-				correct_this_tick.append(slot)
-			break
-	for slot: int in correct_this_tick:
-		scores[slot] += SCORE_CORRECT if _first_correct_taken else SCORE_FIRST
-	if not correct_this_tick.is_empty():
-		_first_correct_taken = true
+		if _answer_of(slot) == correct_count:
+			scores[slot] += SCORE_CORRECT
 
 
 func _advance_phase() -> void:
@@ -178,6 +176,7 @@ func _advance_phase() -> void:
 		phase = Phase.ANSWER
 		_phase_left = ANSWER_SEC
 		return
+	_score_answers()
 	round_number += 1
 	if round_number >= ROUNDS:
 		finish(_rank_players())
@@ -215,16 +214,3 @@ func _deal_round() -> void:
 	for i in 4:
 		var pick := rng.randi_range(0, values.size() - 1)
 		pads.append({"pos": corners[i], "value": values.pop_at(pick)})
-	for slot: int in slots:
-		locked[slot] = -1
-	_first_correct_taken = false
-
-
-## #819: only the humans need to lock in — a bot that never finds its pad
-## (miscounted, or its brain stalls) shouldn't hold the room to the full
-## ANSWER_SEC timer.
-func _all_locked() -> bool:
-	for slot: int in _human_slots():
-		if locked[slot] == -1:
-			return false
-	return true

@@ -1,8 +1,9 @@
 extends MinigameView3D
 ## Count Quick client view (M10-08): the swarm scatters as small gold props
 ## during the flash, then vanishes; four numbered answer pads appear for the
-## scramble. Locked players get a [LOCKED] tag on their nameplate. COUNT! / PICK A
-## PAD! call-outs flip with the phase.
+## scramble. Each player's current pick shows on their nameplate — it can still
+## change (no lock-in, #799). COUNT! / STAND ON THE ANSWER! call-outs flip with
+## the phase.
 
 const SWARM_COLOR := Color(0.96, 0.79, 0.2)
 const SWARM_RADIUS := 0.22
@@ -10,7 +11,7 @@ const SWARM_POOL := 24
 const PAD_COLOR := Color(0.4, 0.6, 0.9, 0.6)
 const PAD_DISC_HEIGHT := 0.05
 const FLASH_TEXT := "COUNT THE SWARM!"
-const ANSWER_TEXT := "PICK A PAD!"
+const ANSWER_TEXT := "STAND ON THE ANSWER!"
 
 ## Latest replicated state, straight from CountQuick.get_snapshot().
 var players := {}
@@ -19,9 +20,10 @@ var swarm: Array = []
 var pads: Array = []
 
 var _swarm_pool: Array[MeshInstance3D] = []
-# Critter wiggle counter + per-slot lock tracking (M13-15).
+# Critter wiggle counter + per-slot last-seen pick (M13-15; #799: a pick is
+# now the pad value under the player, -1 for none, and can still change).
 var _wiggle_ticks := 0
-var _locked_seen := {}
+var _answer_seen := {}
 var _scores_seen := {}
 var _pad_nodes: Array[Node3D] = []
 var _pad_labels: Array[Label3D] = []
@@ -147,17 +149,19 @@ func _update_players() -> void:
 		update_rig(slot, Vector2(state[CountQuick.PS_X], state[CountQuick.PS_Y]))
 		var score := int(state[CountQuick.PS_SCORE])
 		var caption := "%s  %d" % [player_name(slot), score]
-		var locked_now := int(state[CountQuick.PS_LOCKED]) == 1
-		if locked_now:
-			caption += "  [LOCKED]"
+		var answer := int(state[CountQuick.PS_ANSWER])
+		if answer >= 0:
+			caption += "  ▶ %d" % answer
 		rig.display_name = caption
-		# Lock-in flash (M13-15): committing an answer sparkles in the
-		# player's color. Seeded via _locked_seen.
-		if _locked_seen.has(slot) and locked_now and not bool(_locked_seen[slot]):
+		# Pick flash (M13-15): landing on a pad — or switching to a different one —
+		# sparkles in the player's color. Seeded via _answer_seen; -1 = off all
+		# pads, so stepping off doesn't flash.
+		var last_answer := int(_answer_seen.get(slot, -1))
+		if answer >= 0 and answer != last_answer:
 			fx_sparkle(Vector2(state[CountQuick.PS_X], state[CountQuick.PS_Y]), player_color(slot))
 			if slot == my_slot:
 				play_sfx(&"click")
-		_locked_seen[slot] = locked_now
+		_answer_seen[slot] = answer
 		# A correct guess pays out (M12-02): only the scorer hears it.
 		if slot == my_slot and _scores_seen.has(slot) and score > int(_scores_seen[slot]):
 			# A correct guess is a small satisfying consume (#728).
