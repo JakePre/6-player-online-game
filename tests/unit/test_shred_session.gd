@@ -28,6 +28,16 @@ func test_registered_in_catalog() -> void:
 	assert_true(MinigameCatalog.is_registered(&"shred_session"))
 
 
+## #844: a note-only row for the 3 stick-axis lanes (no gamepad button glyph)
+## plus a real row for the action lane.
+func test_control_spec_present() -> void:
+	var spec: Array = ShredSession.make_meta().control_spec
+	assert_false(spec.is_empty(), "ships a #832 structured control spec")
+	assert_true(String(spec[0].get("note", "")).length() > 0, "the lanes are a note-only row")
+	assert_false(spec[0].has("input"), "a note-only row never draws a binding pill")
+	assert_eq(spec[1].get("input"), &"action_primary", "the action lane keeps a real row")
+
+
 func test_chart_is_seeded_and_deterministic() -> void:
 	var other := ShredSession.new()
 	other.meta = ShredSession.make_meta()
