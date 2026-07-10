@@ -85,6 +85,14 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.zone.size(), 0)
 
 
+## #813 demonstrator: the grassy hilltop is ringed with scenery via the shared
+## scatter_rim_props helper, dressing the arena edge.
+func test_hilltop_is_ringed_with_scenery() -> void:
+	var props: Node = view.arena.get_node("RimProps")
+	assert_not_null(props, "the rim-prop container is built")
+	assert_eq(props.get_child_count(), view.RIM_PROP_COUNT, "pines and rocks ring the hill")
+
+
 ## M6-02: the first placement tie group cheers on round results.
 func test_celebrate_makes_winners_cheer() -> void:
 	view.render({"players": {0: [0.0, 0.0, 5], 1: [1.0, 1.0, 2]}, "zone": []})
