@@ -80,6 +80,12 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"poison_feast",
 				"controls": "Move — WASD / left stick (eat by touch)",
+				# Structured spec (#832/#844): a move row plus a plain note row.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"note": "Eat by touch"},
+				],
 				"name": "Poison Feast",
 				"category": MinigameMeta.Category.SABOTAGE,
 				"min_players": 2,
