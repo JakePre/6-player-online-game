@@ -118,6 +118,12 @@ func test_max_players_raised_to_twelve() -> void:
 	assert_eq(TreasureDivers.make_meta().max_players, 12)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		TreasureDivers.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## M15: a 12-player match gets a bigger arena and proportionally more treasure.
 func test_arena_and_coin_supply_scale_at_twelve() -> void:
 	var game := _game_with(12)
