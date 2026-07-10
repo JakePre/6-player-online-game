@@ -69,6 +69,7 @@ func test_gauntlet_results_feed_ranking_end_to_end() -> void:
 	game.meta = Gauntlet.make_meta()
 	game.setup([0, 1, 2] as Array[int], 7)
 	game.apply_loadouts(shop.loadouts())
+	game._invuln_left.clear()  # past the opening spawn-protection window (#787)
 	# 2 falls, then 1 falls twice (shield first, then its life); 0 survives.
 	game.positions[2] = Vector2(game.radius + 1.0, 0.0)
 	game._hazard_accum = -INF

@@ -73,6 +73,7 @@ func test_finale_results_event_carries_the_ko_cause_breakdown() -> void:
 	)
 	var gauntlet := controller.game as Gauntlet
 	assert_not_null(gauntlet, "the finale runs The Gauntlet directly")
+	gauntlet._invuln_left.clear()  # past the opening spawn-protection window (#787)
 	# Walk slot 0 off the rim — a plain KO, no swing involved.
 	gauntlet.positions[0] = Vector2(gauntlet.radius + 1.0, 0.0)
 	controller.tick(TICK)
