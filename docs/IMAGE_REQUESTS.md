@@ -57,12 +57,11 @@ bad texture breaks the 3D scene. Every texture row must satisfy all of:
   `StandardMaterial3D` (or the #813 floor/tile hook once it exists), log in
   `assets/CREDITS.md` as owner-generated.
 
-**3D models are out of scope for this pipeline.** Image gen does not produce
-game-ready GLB; the in-repo Kenney kits (platformer/nature/food/city) remain
-the mesh source (#813). Mesh-generation tools (e.g. image-to-3D services)
-exist but produce unretopologized, unrigged output needing cleanup passes we
-have no tooling for — an owner call is filed on #817 before anything builds
-on that.
+**3D models have their own ledger** — `docs/MODEL_REQUESTS.md` (#817, owner
+decision 2026-07-10: the owner is standing up a model-generation pipeline and
+batch-generates from that queue). Same append-only rules. The in-repo Kenney
+kits (platformer/nature/food/city) remain the fallback mesh source (#813);
+never block on a generated model.
 
 ## Requests
 
