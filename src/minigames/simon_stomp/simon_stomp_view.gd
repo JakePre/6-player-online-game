@@ -182,20 +182,9 @@ func _build_pads() -> void:
 
 
 func _build_labels() -> void:
-	_phase_label = Label.new()
-	_phase_label.name = "PhaseLabel"
-	_phase_label.add_theme_font_size_override(&"font_size", 40)
-	_phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_phase_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_phase_label.position.y = 16.0
-	add_child(_phase_label)
-
-	_round_label = Label.new()
-	_round_label.name = "RoundLabel"
-	_round_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_round_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_phase_label = make_status_label(&"PhaseLabel")
+	_round_label = make_status_label(&"RoundLabel", PartyTheme.SIZE_OVERLAY_BODY)
 	_round_label.position.y = 72.0
-	add_child(_round_label)
 
 
 func _update_labels() -> void:
