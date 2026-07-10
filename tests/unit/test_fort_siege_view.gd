@@ -23,7 +23,9 @@ func test_setup_builds_arena_gate_and_core() -> void:
 	assert_not_null(view.arena)
 	assert_not_null(view.rig_for_slot(0))
 	assert_not_null(view.arena.get_node("Gate"))
-	assert_not_null(view.arena.get_node("Core"))
+	# The core is now a raised plinth + glowing crystal, not a flat disc (#808).
+	assert_not_null(view.arena.get_node("CorePlinth"))
+	assert_not_null(view.arena.get_node("CoreCrystal"))
 
 
 func test_render_replaces_replicated_state() -> void:
@@ -73,6 +75,84 @@ func test_rig_follows_player_snapshot() -> void:
 	var rig: CharacterRig = view.rig_for_slot(0)
 	assert_almost_eq(rig.position.x, 4.0, 0.001)
 	assert_almost_eq(rig.position.z, -2.0, 0.001)
+
+
+# --- Readable rework (#808) --------------------------------------------------
+
+
+func test_fort_walls_and_banners_enclose_the_core() -> void:
+	# Two side walls + a back wall, each carrying a team-colored banner strip.
+	assert_eq(view._wall_banners.size(), 3, "the fort has side + back walls with banners")
+	assert_not_null(view.arena.get_node("CorePlinth"))
+	assert_not_null(view.arena.get_node("CoreCrystal"))
+
+
+func test_batter_action_shakes_the_gate() -> void:
+	var teams := [[0, 1], [2, 3]]
+	# Seed the action counter (a mid-join must not replay), then bump it.
+	(
+		view
+		. render(
+			{
+				"gate": 1.0,
+				"players": {0: [0.0, FortSiege.GATE_Y, 0, FortSiege.Act.NONE, 0.0]},
+				"teams": teams,
+				"times": [-1.0, -1.0],
+			}
+		)
+	)
+	(
+		view
+		. render(
+			{
+				"gate": 0.9,
+				"players": {0: [0.0, FortSiege.GATE_Y, 1, FortSiege.Act.BATTER, 0.0]},
+				"teams": teams,
+				"times": [-1.0, -1.0],
+			}
+		)
+	)
+	assert_gt(view._gate_shake, 0.0, "a batter swing kicks off a gate recoil")
+
+
+func test_shove_cooldown_ring_shows_then_hides() -> void:
+	var teams := [[0, 1], [2, 3]]
+	view.render(
+		{"players": {0: [0.0, 0.0, 0, FortSiege.Act.NONE, 0.8]}, "teams": teams, "times": []}
+	)
+	var ring := view.rig_for_slot(0).get_node_or_null(^"CooldownRing") as Node3D
+	assert_not_null(ring, "a defender on cooldown shows a ring")
+	assert_true(ring.visible)
+	view.render(
+		{"players": {0: [0.0, 0.0, 0, FortSiege.Act.NONE, 0.0]}, "teams": teams, "times": []}
+	)
+	assert_false(ring.visible, "the ring clears when the shove is ready")
+
+
+func test_contested_core_flares_brighter() -> void:
+	view.render(
+		{"gate": 0.0, "capture": 0.2, "contested": false, "players": {}, "teams": [], "times": []}
+	)
+	var calm: float = view._crystal_material.emission_energy_multiplier
+	view.render(
+		{"gate": 0.0, "capture": 0.2, "contested": true, "players": {}, "teams": [], "times": []}
+	)
+	assert_gt(
+		view._crystal_material.emission_energy_multiplier, calm, "a contested core flares brighter"
+	)
+
+
+## The objective line answers "how do I defend?" and "what do I press?" per state.
+func test_objective_prompt_is_state_driven() -> void:
+	var teams := [[0, 1], [2, 3]]  # local slot 0 is on team 0
+	view.render(
+		{"phase": FortSiege.Phase.SIEGE, "attacking": 1, "gate": 1.0, "teams": teams, "times": []}
+	)
+	assert_string_contains(view._banner.text, "REPAIR", "a defender is told how to defend")
+	view.render(
+		{"phase": FortSiege.Phase.SIEGE, "attacking": 0, "gate": 1.0, "teams": teams, "times": []}
+	)
+	assert_string_contains(view._banner.text, "BATTER", "an attacker is told to batter")
 
 
 func test_render_tolerates_missing_keys() -> void:

@@ -13,6 +13,16 @@ enum Phase {
 	SWAP,
 }
 
+## The gate verb a player last performed (#808), so the view animates each swing
+## / repair / shove exactly once off a monotonic counter. NONE is the resting
+## state, never sent as a fresh action.
+enum Act {
+	NONE,
+	BATTER,
+	REPAIR,
+	SHOVE,
+}
+
 const ARENA_HALF := 9.0
 const MOVE_SPEED := 6.0
 const PLAYER_RADIUS := 0.45
@@ -20,8 +30,17 @@ const PLAYER_RADIUS := 0.45
 ## attackers cannot pass while it stands, and the core disc behind it.
 const GATE_Y := -3.0
 const GATE_MAX_HP := 12.0
-## Attackers this close to the wall batter it, 1 hp/s each.
+## Attackers this close to the gate line can batter (or defenders repair) it.
 const GATE_TOUCH := 1.0
+## Battering is now an explicit swing on a cooldown (#808), tuned so a raider's
+## average damage matches the old proximity rate (1 hp/s): 1 hp per 1.0s swing,
+## so mashing or holding the button caps at the same DPS and balance is unchanged.
+const BATTER_DAMAGE := 1.0
+const BATTER_COOLDOWN_SEC := 1.0
+## The mirrored defender verb (#808): hold the gate together by repairing it,
+## ~0.5 hp per 1.0s while it still stands — real pre-breach agency beyond shoving.
+const REPAIR_AMOUNT := 0.5
+const REPAIR_COOLDOWN_SEC := 1.0
 const CORE_POS := Vector2(0.0, -6.5)
 const CORE_RADIUS := 1.5
 ## Seconds of uncontested core-holding to capture (any defender on the core
@@ -38,7 +57,13 @@ const KNOCK_DECAY := 6.0
 ## array. Array SHAPE on the wire is unchanged — additive only.
 const PS_X := 0
 const PS_Y := 1
-const PS_COUNT := 2
+## #808 additive fields: a monotonic gate-action counter and its kind (Act.*)
+## so the view plays each swing/repair/shove once, plus the shove cooldown as a
+## 0..1 fraction remaining for the on-player cooldown ring.
+const PS_ACT_SEQ := 2
+const PS_ACT_KIND := 3
+const PS_SHOVE_CD := 4
+const PS_COUNT := 5
 
 var teams: Array = []
 var phase := Phase.SIEGE
@@ -51,6 +76,14 @@ var positions := {}
 var move_dirs := {}
 var knocks := {}
 var shove_cooldowns := {}
+## True while the gate is down and a defender is standing on the core, stalling
+## the capture meter (#808) — the view flashes a CONTESTED tag from it.
+var contested := false
+## Gate-verb state (#808): a shared batter/repair cooldown (role-exclusive), a
+## monotonic per-slot action counter, and the last action's kind (Act.*).
+var gate_cooldowns := {}
+var act_seq := {}
+var act_kind := {}
 ## One entry per attacking team once its siege resolves:
 ## {captured, time, progress}.
 var runs: Array = [{}, {}]
@@ -97,6 +130,11 @@ func _setup() -> void:
 		shuffled[i] = shuffled[j]
 		shuffled[j] = swap
 	teams = [shuffled.slice(0, shuffled.size() / 2), shuffled.slice(shuffled.size() / 2)]
+	for slot: int in slots:
+		# Monotonic across the whole game (both sieges), so the view's play-once
+		# tracking survives the swap — only the transient cooldowns reset per side.
+		act_seq[slot] = 0
+		act_kind[slot] = Act.NONE
 	_start_siege(0)
 
 
@@ -122,14 +160,57 @@ func _reset_slot(slot: int) -> void:
 	move_dirs[slot] = Vector2.ZERO
 	knocks[slot] = Vector2.ZERO
 	shove_cooldowns[slot] = 0.0
+	gate_cooldowns[slot] = 0.0
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
 	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
 	move_dirs[slot] = dir.limit_length(1.0)
-	if data.get("act", false) and phase == Phase.SIEGE:
-		if slot in teams[1 - attacking] and float(shove_cooldowns[slot]) <= 0.0:
+	# The one action button (#808) is context-sensitive by role: raiders BATTER
+	# the gate, defenders SHOVE a raider off it (or REPAIR it when none are on
+	# them). Held or mashed, each verb is gated to its own cooldown so the
+	# average rate — and the balance — matches the old proximity model.
+	if not data.get("act", false) or phase != Phase.SIEGE:
+		return
+	if slot in teams[attacking]:
+		_try_batter(slot)
+	else:
+		_try_defend(slot)
+
+
+## A raider's swing: 1 hp off the gate if they're at the gate line and off
+## cooldown. Records the swing so the view animates it and cracks the gate.
+func _try_batter(slot: int) -> void:
+	if gate_hp <= 0.0 or float(gate_cooldowns[slot]) > 0.0:
+		return
+	if (positions[slot] as Vector2).y - GATE_Y > GATE_TOUCH:
+		return
+	gate_hp = maxf(gate_hp - BATTER_DAMAGE, 0.0)
+	gate_cooldowns[slot] = BATTER_COOLDOWN_SEC
+	_record_act(slot, Act.BATTER)
+
+
+## A defender's action: shove any raider in reach off the gate; if none are on
+## them and the gate still stands, repair it instead — the mirrored gate verb.
+func _try_defend(slot: int) -> void:
+	if _raider_in_reach(slot):
+		if float(shove_cooldowns[slot]) <= 0.0:
 			_shove(slot)
+		return
+	if gate_hp <= 0.0 or gate_hp >= GATE_MAX_HP or float(gate_cooldowns[slot]) > 0.0:
+		return
+	if absf((positions[slot] as Vector2).y - GATE_Y) > GATE_TOUCH:
+		return
+	gate_hp = minf(gate_hp + REPAIR_AMOUNT, GATE_MAX_HP)
+	gate_cooldowns[slot] = REPAIR_COOLDOWN_SEC
+	_record_act(slot, Act.REPAIR)
+
+
+func _raider_in_reach(slot: int) -> bool:
+	for raider: int in teams[attacking]:
+		if positions[slot].distance_to(positions[raider]) <= SHOVE_RADIUS:
+			return true
+	return false
 
 
 ## Defender-only radial shove: every attacker in reach gets bounced away.
@@ -140,6 +221,12 @@ func _shove(slot: int) -> void:
 			continue
 		var away: Vector2 = positions[raider] - positions[slot]
 		knocks[raider] = (away.normalized() if away.length() > 0.001 else Vector2.UP) * SHOVE_KNOCK
+	_record_act(slot, Act.SHOVE)
+
+
+func _record_act(slot: int, kind: Act) -> void:
+	act_seq[slot] = int(act_seq[slot]) + 1
+	act_kind[slot] = kind
 
 
 func _tick(delta: float) -> void:
@@ -149,7 +236,6 @@ func _tick(delta: float) -> void:
 			_start_siege(1)
 		return
 	_move(delta)
-	_batter_gate(delta)
 	_fill_capture(delta)
 	if capture >= 1.0:
 		_end_siege(true)
@@ -160,6 +246,7 @@ func _tick(delta: float) -> void:
 func _move(delta: float) -> void:
 	for slot: int in slots:
 		shove_cooldowns[slot] = maxf(float(shove_cooldowns[slot]) - delta, 0.0)
+		gate_cooldowns[slot] = maxf(float(gate_cooldowns[slot]) - delta, 0.0)
 		var knock: Vector2 = knocks[slot]
 		var pos: Vector2 = positions[slot] + (move_dirs[slot] * MOVE_SPEED + knock) * delta
 		knocks[slot] = knock.move_toward(Vector2.ZERO, KNOCK_DECAY * delta)
@@ -170,17 +257,8 @@ func _move(delta: float) -> void:
 		positions[slot] = pos
 
 
-func _batter_gate(delta: float) -> void:
-	if gate_hp <= 0.0:
-		return
-	var batterers := 0
-	for raider: int in teams[attacking]:
-		if (positions[raider] as Vector2).y - GATE_Y <= GATE_TOUCH:
-			batterers += 1
-	gate_hp = maxf(gate_hp - batterers * delta, 0.0)
-
-
 func _fill_capture(delta: float) -> void:
+	contested = false
 	if gate_hp > 0.0:
 		return
 	var raiders_on := 0
@@ -189,6 +267,7 @@ func _fill_capture(delta: float) -> void:
 			raiders_on += 1
 	for defender: int in teams[1 - attacking]:
 		if positions[defender].distance_to(CORE_POS) <= CORE_RADIUS:
+			contested = true
 			return  # Contested: the meter holds.
 	if raiders_on > 0:
 		capture = minf(capture + delta / CAPTURE_SEC, 1.0)
@@ -219,7 +298,13 @@ func get_snapshot() -> Dictionary:
 	var players := {}
 	for slot: int in slots:
 		var pos: Vector2 = positions[slot]
-		players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01)]
+		players[slot] = [
+			snappedf(pos.x, 0.01),
+			snappedf(pos.y, 0.01),
+			int(act_seq.get(slot, 0)),
+			int(act_kind.get(slot, Act.NONE)),
+			snappedf(clampf(float(shove_cooldowns[slot]) / SHOVE_COOLDOWN_SEC, 0.0, 1.0), 0.01),
+		]
 	var limit := SIEGE_SEC if phase == Phase.SIEGE else SWAP_SEC
 	var times: Array = []
 	for run: Dictionary in runs:
@@ -230,6 +315,7 @@ func get_snapshot() -> Dictionary:
 		"phase_left": snappedf(maxf(limit - phase_elapsed, 0.0), 0.1),
 		"gate": snappedf(gate_hp / GATE_MAX_HP, 0.01),
 		"capture": snappedf(capture, 0.01),
+		"contested": contested,
 		"players": players,
 		"teams": teams.duplicate(true),
 		"times": times,

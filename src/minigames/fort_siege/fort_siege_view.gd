@@ -1,16 +1,31 @@
 extends MinigameView3D
-## Fort Siege client view (M10-12): the shared 2.5D iso-arena with the gate
-## wall (draining from grey toward red as it's battered, gone when breached),
-## the core disc glowing with capture progress, and a role banner telling
-## this client to STORM or DEFEND. Breach and capture moments burst. Renders
-## get_snapshot() only.
+## Fort Siege client view (M10-12, readable rework #808): the shared 2.5D
+## iso-arena rebuilt so the attack/defend fantasy reads at a glance — a real
+## fort (side + back walls enclosing a raised core plinth, with the gate as the
+## only way in), an active BATTER swing on the gate, a defender REPAIR/SHOVE with
+## a cooldown ring, a CONTESTED core tag, and state-driven objective prompts.
+## The sim's scoring/phases are untouched; this renders get_snapshot() only.
 
 const GATE_COLOR := Color(0.5, 0.48, 0.45)
 const GATE_HOT_COLOR := Color(0.85, 0.3, 0.2)
 const GATE_HEIGHT := 1.4
 const GATE_THICKNESS := 0.5
+## The enclosing fort walls — darker, cooler stone than the gate so the breach
+## point stands out as the one thing that changes.
+const WALL_COLOR := Color(0.34, 0.36, 0.42)
+const WALL_HEIGHT := 1.8
+const WALL_THICKNESS := 0.6
+const MERLON_COUNT := 7
 const CORE_COLOR := Color(0.96, 0.79, 0.2)
-const CORE_DISC_HEIGHT := 0.05
+const PLINTH_COLOR := Color(0.28, 0.29, 0.34)
+const PLINTH_HEIGHT := 0.5
+const CRYSTAL_HEIGHT := 1.1
+const CONTESTED_COLOR := Color(0.95, 0.3, 0.3)
+## The shove cooldown ring drawn under a defender — full when just used, gone
+## when ready to shove again.
+const COOLDOWN_RING_COLOR := Color(0.4, 0.75, 0.95)
+## How long a swing/repair/shove animation owns the rig before walk/idle resumes.
+const ACT_HOLD_SEC := 0.45
 
 ## Latest replicated state, straight from FortSiege.get_snapshot().
 var phase := FortSiege.Phase.SIEGE
@@ -18,22 +33,54 @@ var attacking := 0
 var phase_left := 0.0
 var gate := 1.0
 var capture := 0.0
+var contested := false
 var players := {}
 var teams: Array = []
 var times: Array = []
 
 var _gate_node: MeshInstance3D
 var _gate_material: StandardMaterial3D
-var _core_material: StandardMaterial3D
+var _gate_rest := Vector3.ZERO
+## Recoil magnitude from the last batter, decayed in _process so the shake plays
+## out across frames instead of being reset the same render it's set (#808).
+var _gate_shake := 0.0
+var _crystal_material: StandardMaterial3D
+var _crystal: MeshInstance3D
 var _banner: Label
-# FX seeds: last-seen gate for the breach burst, last-seen times for the
-# capture burst.
+var _scores: Label
+## Team-colored banner strips on the fort walls — recolored to the defending
+## team so "whose fort this is" reads and flips on the swap.
+var _wall_banners: Array[MeshInstance3D] = []
+## Per-slot: the last action counter seen (play each once), the ticks_msec a
+## swing/shove owns the rig, and a lazily-built shove cooldown ring.
+var _act_seen := {}
+var _act_hold := {}
+var _rings := {}
+# FX seeds: last-seen gate for the breach burst and crack thirds, last-seen
+# times for the capture burst.
 var _gate_seen := -1.0
+var _cracks_seen := 0
 var _times_seen: Array = []
 
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
+
+
+## Plays out the gate recoil from a batter across frames (#808); steady (no
+## jitter) under reduced motion, but still eases back to rest.
+func _process(delta: float) -> void:
+	if _gate_node == null:
+		return
+	if _gate_shake <= 0.001:
+		if _gate_node.position != _gate_rest:
+			_gate_node.position = _gate_rest
+		return
+	_gate_shake = maxf(_gate_shake - delta * 0.6, 0.0)
+	if ArenaFX.reduced_motion:
+		return
+	var jitter := sin(Time.get_ticks_msec() * 0.05) * _gate_shake
+	_gate_node.position = _gate_rest + Vector3(jitter, 0.0, 0.0)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -52,6 +99,14 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
+	_build_gate()
+	_build_walls()
+	_build_core()
+	_banner = make_banner(&"Role", 26)
+	_scores = make_status_label(&"Scores")
+
+
+func _build_gate() -> void:
 	var wall := BoxMesh.new()
 	wall.size = Vector3(FortSiege.ARENA_HALF * 2.0, GATE_HEIGHT, GATE_THICKNESS)
 	_gate_material = StandardMaterial3D.new()
@@ -60,25 +115,107 @@ func _setup_3d() -> void:
 	_gate_node = MeshInstance3D.new()
 	_gate_node.name = "Gate"
 	_gate_node.mesh = wall
-	_gate_node.position = to_arena(Vector2(0.0, FortSiege.GATE_Y), GATE_HEIGHT / 2.0)
+	_gate_rest = to_arena(Vector2(0.0, FortSiege.GATE_Y), GATE_HEIGHT / 2.0)
+	_gate_node.position = _gate_rest
 	arena.add_child(_gate_node)
-	var disc := CylinderMesh.new()
-	disc.top_radius = FortSiege.CORE_RADIUS
-	disc.bottom_radius = FortSiege.CORE_RADIUS
-	disc.height = CORE_DISC_HEIGHT
-	_core_material = StandardMaterial3D.new()
-	_core_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_core_material.albedo_color = Color(CORE_COLOR, 0.4)
-	_core_material.emission_enabled = true
-	_core_material.emission = CORE_COLOR
-	_core_material.emission_energy_multiplier = 0.2
-	disc.material = _core_material
-	var core := MeshInstance3D.new()
-	core.name = "Core"
-	core.mesh = disc
-	core.position = to_arena(FortSiege.CORE_POS, CORE_DISC_HEIGHT / 2.0)
-	arena.add_child(core)
-	_banner = make_banner(&"Role", 26)
+
+
+## The fort proper (#808): stone walls down both sides and across the back,
+## crenellated, enclosing the core — so the gate reads as the one way in. A
+## team-colored banner rides each wall and flips to the defenders on the swap.
+func _build_walls() -> void:
+	var half := FortSiege.ARENA_HALF
+	var back_y := -half
+	var depth := absf(FortSiege.GATE_Y - back_y)
+	# Left and right walls run from the gate line to the back wall.
+	for side in [-1.0, 1.0]:
+		var wall := _stone_wall(Vector3(WALL_THICKNESS, WALL_HEIGHT, depth))
+		wall.position = to_arena(
+			Vector2(side * half, (FortSiege.GATE_Y + back_y) / 2.0), WALL_HEIGHT / 2.0
+		)
+		arena.add_child(wall)
+		_add_merlons(wall, depth, Vector3(0.0, 0.0, 1.0))
+		_wall_banners.append(
+			_add_wall_banner(Vector2(side * half, (FortSiege.GATE_Y + back_y) / 2.0))
+		)
+	# Back wall spans the full width behind the core.
+	var back := _stone_wall(Vector3(half * 2.0 + WALL_THICKNESS, WALL_HEIGHT, WALL_THICKNESS))
+	back.position = to_arena(Vector2(0.0, back_y), WALL_HEIGHT / 2.0)
+	arena.add_child(back)
+	_add_merlons(back, half * 2.0, Vector3(1.0, 0.0, 0.0))
+	_wall_banners.append(_add_wall_banner(Vector2(0.0, back_y + 0.4)))
+
+
+func _stone_wall(size: Vector3) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = WALL_COLOR
+	mesh.material = mat
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	return node
+
+
+## Crenellation teeth along a wall's top edge (castle silhouette), spaced along
+## `axis` (unit X or Z) over `span` world units.
+func _add_merlons(wall: MeshInstance3D, span: float, axis: Vector3) -> void:
+	for i in MERLON_COUNT:
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(WALL_THICKNESS * 0.9, 0.4, WALL_THICKNESS * 0.9)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = WALL_COLOR.lightened(0.08)
+		mesh.material = mat
+		var tooth := MeshInstance3D.new()
+		tooth.mesh = mesh
+		var t := (float(i) / float(MERLON_COUNT - 1) - 0.5) * span
+		tooth.position = axis * t + Vector3(0.0, WALL_HEIGHT / 2.0 + 0.2, 0.0)
+		wall.add_child(tooth)
+
+
+func _add_wall_banner(world: Vector2) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.12, WALL_HEIGHT * 0.7, 1.2)
+	var mat := StandardMaterial3D.new()
+	mat.emission_enabled = true
+	mesh.material = mat
+	var node := MeshInstance3D.new()
+	node.name = "WallBanner"
+	node.mesh = mesh
+	node.position = to_arena(world, WALL_HEIGHT * 0.55)
+	arena.add_child(node)
+	return node
+
+
+## The objective made a place, not a decal (#808): a raised plinth with a glowing
+## crystal the raiders must reach and hold. The crystal brightens with capture.
+func _build_core() -> void:
+	var plinth_mesh := CylinderMesh.new()
+	plinth_mesh.top_radius = FortSiege.CORE_RADIUS
+	plinth_mesh.bottom_radius = FortSiege.CORE_RADIUS * 1.15
+	plinth_mesh.height = PLINTH_HEIGHT
+	var plinth_mat := StandardMaterial3D.new()
+	plinth_mat.albedo_color = PLINTH_COLOR
+	plinth_mesh.material = plinth_mat
+	var plinth := MeshInstance3D.new()
+	plinth.name = "CorePlinth"
+	plinth.mesh = plinth_mesh
+	plinth.position = to_arena(FortSiege.CORE_POS, PLINTH_HEIGHT / 2.0)
+	arena.add_child(plinth)
+
+	var crystal_mesh := PrismMesh.new()
+	crystal_mesh.size = Vector3(1.1, CRYSTAL_HEIGHT, 1.1)
+	_crystal_material = StandardMaterial3D.new()
+	_crystal_material.albedo_color = CORE_COLOR
+	_crystal_material.emission_enabled = true
+	_crystal_material.emission = CORE_COLOR
+	_crystal_material.emission_energy_multiplier = 0.4
+	crystal_mesh.material = _crystal_material
+	_crystal = MeshInstance3D.new()
+	_crystal.name = "CoreCrystal"
+	_crystal.mesh = crystal_mesh
+	_crystal.position = to_arena(FortSiege.CORE_POS, PLINTH_HEIGHT + CRYSTAL_HEIGHT / 2.0)
+	arena.add_child(_crystal)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -87,52 +224,145 @@ func _render_3d(game: Dictionary) -> void:
 	phase_left = float(game.get("phase_left", 0.0))
 	gate = float(game.get("gate", 1.0))
 	capture = float(game.get("capture", 0.0))
+	contested = bool(game.get("contested", false))
 	players = game.get("players", {})
 	teams = game.get("teams", [])
 	times = game.get("times", [])
 	_update_players()
 	_update_gate()
 	_update_core()
-	_update_banner()
+	_update_banners()
+	_update_scores()
 
 
 func _update_players() -> void:
 	for slot: int in players:
 		var state: Array = players[slot]
-		if rig_for_slot(slot) == null:
+		var rig := rig_for_slot(slot)
+		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[FortSiege.PS_X], state[FortSiege.PS_Y]))
+		_play_action(slot, state, rig)
+		var pos := Vector2(float(state[FortSiege.PS_X]), float(state[FortSiege.PS_Y]))
+		if Time.get_ticks_msec() < int(_act_hold.get(slot, 0)):
+			# A swing/shove owns the pose (#587 idiom): move it, don't re-animate.
+			rig.position = to_arena(pos)
+		else:
+			update_rig(slot, pos)
+		_update_cooldown_ring(slot, state, rig)
+
+
+## Fires the batter / repair / shove reaction the instant the sim's monotonic
+## counter ticks (#808), so each plays exactly once — a swing pose plus a cue
+## and, for a batter, a gate shake read as the wall taking the hit.
+func _play_action(slot: int, state: Array, rig: CharacterRig) -> void:
+	if state.size() <= FortSiege.PS_ACT_KIND:
+		return
+	var seq := int(state[FortSiege.PS_ACT_SEQ])
+	var seen: int = _act_seen.get(slot, seq)
+	_act_seen[slot] = seq
+	if seq <= seen:
+		return
+	var kind := int(state[FortSiege.PS_ACT_KIND])
+	var at := Vector2(float(state[FortSiege.PS_X]), float(state[FortSiege.PS_Y]))
+	match kind:
+		FortSiege.Act.BATTER:
+			rig.play(&"attack")
+			_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
+			fx_sparkle(Vector2(0.0, FortSiege.GATE_Y), GATE_HOT_COLOR, GATE_HEIGHT * 0.6)
+			_gate_shake = 0.18  # recoil, played out in _process
+			play_sfx(&"thud")
+		FortSiege.Act.REPAIR:
+			rig.play(&"interact")
+			_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
+			fx_sparkle(at, GATE_COLOR.lightened(0.3), 0.8)
+			play_sfx(&"click")
+		FortSiege.Act.SHOVE:
+			rig.play(&"attack")
+			_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
+			fx_burst(at, COOLDOWN_RING_COLOR, 0.6)
+			play_sfx(&"bump")
+
+
+## A flat ring under a defender showing their shove cooldown (#808): visible and
+## shrinking while on cooldown, hidden the moment it's ready again. Lazily built
+## per rig and reused (rigs are pooled).
+func _update_cooldown_ring(slot: int, state: Array, rig: CharacterRig) -> void:
+	if state.size() <= FortSiege.PS_SHOVE_CD:
+		return
+	var cd := float(state[FortSiege.PS_SHOVE_CD])
+	var ring: MeshInstance3D = _rings.get(slot)
+	if ring == null:
+		if cd <= 0.0:
+			return
+		ring = _make_cooldown_ring()
+		rig.add_child(ring)
+		_rings[slot] = ring
+	ring.visible = cd > 0.0
+	if ring.visible:
+		var mesh := ring.mesh as TorusMesh
+		mesh.outer_radius = 0.35 + 0.35 * cd
+
+
+func _make_cooldown_ring() -> MeshInstance3D:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.3
+	mesh.outer_radius = 0.7
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = COOLDOWN_RING_COLOR
+	mat.emission_enabled = true
+	mat.emission = COOLDOWN_RING_COLOR
+	mesh.material = mat
+	var node := MeshInstance3D.new()
+	node.name = "CooldownRing"
+	node.mesh = mesh
+	node.position = Vector3(0.0, 0.06, 0.0)
+	return node
 
 
 func _update_gate() -> void:
 	_gate_node.visible = gate > 0.0
 	_gate_material.albedo_color = GATE_HOT_COLOR.lerp(GATE_COLOR, gate)
+	# Crack the gate harder at each damage third (#808), so progress reads even
+	# before it falls.
+	var cracks := int((1.0 - gate) * 3.0)
+	if cracks > _cracks_seen and gate > 0.0:
+		fx_dust(Vector2(0.0, FortSiege.GATE_Y))
+	_cracks_seen = cracks
 	# Breach burst: the wall coming down is the round's first big moment.
 	if _gate_seen > 0.0 and gate <= 0.0:
 		fx_burst(Vector2(0.0, FortSiege.GATE_Y), GATE_HOT_COLOR)
 		fx_dust(Vector2(0.0, FortSiege.GATE_Y))
-		# The gate itself falling (#728) — the vocabulary names "gate
-		# battering" directly, heard by both sides alike (it's the sound of
-		# metal, not a personal win/loss read).
+		# The gate itself falling (#728) — heard by both sides alike.
 		play_sfx(&"clang")
 	_gate_seen = gate
 
 
 func _update_core() -> void:
-	_core_material.emission_energy_multiplier = 0.2 + capture * 1.2
+	# The crystal brightens with capture and flares red when a defender contests
+	# it (#808) — the KotH stall now reads.
+	var base := 0.4 + capture * 1.6
+	if contested:
+		_crystal_material.emission = CONTESTED_COLOR
+		_crystal_material.emission_energy_multiplier = 1.6
+	else:
+		_crystal_material.emission = CORE_COLOR
+		_crystal_material.emission_energy_multiplier = base
 	# Capture burst: a -1 in times flipping to a real time is a capture.
 	if _times_seen.size() == times.size():
 		for i in times.size():
 			if float(times[i]) >= 0.0 and float(_times_seen[i]) < 0.0:
-				fx_burst(FortSiege.CORE_POS, CORE_COLOR)
-				# Your own siege succeeding is a win (a delivery, #728); the
-				# other team's is a loss, still a legitimate hurt-generic error.
+				fx_burst(FortSiege.CORE_POS, CORE_COLOR, PLINTH_HEIGHT + 0.5)
 				if i < teams.size():
 					play_sfx(&"bell" if my_slot in teams[i] else &"error")
 	_times_seen = times.duplicate()
 
 
-func _update_banner() -> void:
+## Role banner + the state-driven objective line under it (#808): storming vs
+## defending, and exactly what to do at each phase, so "how do I defend?" is
+## answered on screen. The wall banners flip to the defending team's color.
+func _update_banners() -> void:
+	_recolor_wall_banners()
 	if _banner == null:
 		return
 	if phase == FortSiege.Phase.SWAP:
@@ -140,8 +370,52 @@ func _update_banner() -> void:
 		_banner.modulate = Color.WHITE
 		return
 	var storming: bool = teams.size() == 2 and my_slot in teams[attacking]
+	var breached := gate <= 0.0
+	var role := "STORM the fort!" if storming else "DEFEND the fort!"
+	var task: String
 	if storming:
-		_banner.text = "STORM the fort! (%0.0fs)" % phase_left
+		task = "Rush the core — HOLD it!" if breached else "BATTER the gate! (press to swing)"
+	elif contested:
+		task = "STAND ON THE CORE — you're blocking the capture!"
+	elif breached:
+		task = "Get them off the core!"
 	else:
-		_banner.text = "DEFEND the fort! (%0.0fs)" % phase_left
+		task = "SHOVE raiders off — or hold to REPAIR the gate"
+	_banner.text = "%s  (%0.0fs)\n%s" % [role, phase_left, task]
 	_banner.modulate = GATE_HOT_COLOR if storming else CORE_COLOR
+
+
+func _recolor_wall_banners() -> void:
+	if teams.size() != 2 or _wall_banners.is_empty():
+		return
+	var defending: Array = teams[1 - attacking]
+	if defending.is_empty():
+		return
+	var color := player_color(int(defending[0]))
+	for banner in _wall_banners:
+		var mat := (banner.mesh as BoxMesh).material as StandardMaterial3D
+		mat.albedo_color = color
+		mat.emission = color
+		mat.emission_energy_multiplier = 0.5
+
+
+## The target to beat, visible during the second siege (#808): both runs' times,
+## a dash for a run that failed to capture.
+func _update_scores() -> void:
+	if _scores == null:
+		return
+	var any_run := false
+	for t in times:
+		if float(t) >= 0.0:
+			any_run = true
+	if not any_run and attacking == 0 and phase == FortSiege.Phase.SIEGE:
+		_scores.text = ""
+		return
+	_scores.text = "Run 1: %s    Run 2: %s" % [_run_label(0), _run_label(1)]
+
+
+func _run_label(team: int) -> String:
+	if team >= times.size():
+		return "—"
+	var t := float(times[team])
+	return "%.1fs" % t if t >= 0.0 else "—"
