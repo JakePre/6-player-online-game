@@ -80,6 +80,49 @@ func test_lives_shown_on_nameplate() -> void:
 	assert_string_contains(view.rig_for_slot(0).display_name, "♥♥♥")
 
 
+# --- Floor seating, spawn shield, death fling (#787) -------------------------
+
+
+## The embed fix: update_rig now samples at the platform-top height, so the
+## per-frame interpolation keeps the rig on the surface instead of sliding it to
+## y=0 (sunk into the platform).
+func test_live_rig_sits_on_the_platform_top_not_embedded() -> void:
+	view.render({"radius": 10.0, "players": {0: [1.0, 1.0, 1, 0.0]}, "hazards": []})
+	view._interpolate_rigs(view._now_sec())  # the frame that used to drag it down
+	var rig: CharacterRig = view.rig_for_slot(0)
+	assert_true(rig.visible, "a living player's rig is shown")
+	var platform: MeshInstance3D = view.arena.get_node("Platform")
+	var top: float = platform.position.y + (platform.mesh as CylinderMesh).height / 2.0
+	assert_almost_eq(
+		rig.position.y, top, 0.01, "the rig stands on the platform, not embedded at y=0"
+	)
+
+
+## A spawn-protected player (invuln > 0 at PS_INVULN) wears a shield bubble that
+## clears once the window lapses.
+func test_spawn_protection_shows_a_shield_bubble() -> void:
+	view.render({"radius": 10.0, "players": {0: [0.0, 0.0, 1, 0.0, 0, 0, 0, 1.5]}, "hazards": []})
+	var shield := view.rig_for_slot(0).get_node_or_null(^"SpawnShield") as Node3D
+	assert_not_null(shield, "a protected rig shows a shield bubble")
+	assert_true(shield.visible)
+	view.render({"radius": 10.0, "players": {0: [0.0, 0.0, 1, 0.0, 0, 0, 0, 0.0]}, "hazards": []})
+	assert_false(shield.visible, "the bubble clears when protection lapses")
+
+
+## Losing a life hands the rig to the death-fling flourish: it comes off the
+## shared snapshot interpolation and is held for the animation, rather than just
+## blinking out the instant the snapshot respawns it.
+func test_losing_a_life_owns_the_rig_for_the_death_fling() -> void:
+	view.render({"radius": 10.0, "players": {0: [3.0, 0.0, 2, 0.0]}, "hazards": []})
+	assert_true(view._rig_samples.has(0), "the live rig is on the interpolation system")
+	view.render({"radius": 10.0, "players": {0: [0.0, 0.0, 1, 3.0]}, "hazards": []})
+	assert_true(view._death_hold.has(0), "the death fling owns the rig")
+	assert_gt(int(view._death_hold[0]), Time.get_ticks_msec() - 100, "for a window into the future")
+	assert_false(
+		view._rig_samples.has(0), "and it is off the shared interpolation during the fling"
+	)
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)

@@ -25,6 +25,10 @@ const PLAYER_RADIUS := 0.45
 const PUSH_DISTANCE := 0.35
 
 const RESPAWN_SEC := 3.0
+## Spawn protection (#787): a short window after a round starts and after every
+## respawn during which a player can't be KO'd or flung, so you never die the
+## instant you appear (you can still move and act throughout).
+const SPAWN_PROTECT_SEC := 2.0
 
 ## Weapon pickups (#584, owner decision 2026-07-06): battle axes drop on the
 ## platform; walk over one to grab it, action_primary swings it. A swing is a
@@ -65,7 +69,9 @@ const PS_RESPAWN := 3
 const PS_ARMED := 4
 const PS_SWING_SEQ := 5
 const PS_HIT_SEQ := 6
-const PS_COUNT := 7
+## Seconds of spawn protection remaining, 0 when vulnerable (#787).
+const PS_INVULN := 7
+const PS_COUNT := 8
 
 const HZ_X := 0
 const HZ_Y := 1
@@ -113,6 +119,8 @@ var ko_causes := {}
 var axe_kills := {}
 
 var _respawn_left := {}
+## slot -> seconds of spawn protection remaining (#787); absent = vulnerable.
+var _invuln_left := {}
 var _hazard_accum := 0.0
 var _weapon_accum := 0.0
 var _stage_accum := 0.0
@@ -172,6 +180,7 @@ func _setup() -> void:
 		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * start_radius * 0.6
 		move_dirs[slots[i]] = Vector2.ZERO
 		lives[slots[i]] = 1
+		_invuln_left[slots[i]] = SPAWN_PROTECT_SEC  # can't be KO'd the instant the round opens (#787)
 		shields[slots[i]] = false
 		speed_boosts[slots[i]] = false
 		sabotage_tokens[slots[i]] = 0
@@ -212,6 +221,7 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	_tick_shrink(delta)
 	_tick_respawns(delta)
+	_tick_invuln(delta)
 	_move_players(delta)
 	_apply_impulses(delta)
 	_resolve_pushes()
@@ -236,6 +246,8 @@ func get_snapshot() -> Dictionary:
 			int(armed.get(slot, 0)),
 			int(swing_seq[slot]),
 			int(hit_seq[slot]),
+			# Spawn-protection remaining (#787), so the view can shimmer the rig.
+			snappedf(_invuln_left.get(slot, 0.0), 0.01),
 		]
 	var hazard_list: Array = []
 	for hazard in hazards:
@@ -311,6 +323,20 @@ func _tick_respawns(delta: float) -> void:
 			_respawn_left.erase(slot)
 			positions[slot] = Vector2.ZERO
 			move_dirs[slot] = Vector2.ZERO
+			# Reappear protected, so a hazard/axe can't KO you the frame you're back.
+			_invuln_left[slot] = SPAWN_PROTECT_SEC
+
+
+func _tick_invuln(delta: float) -> void:
+	for slot: int in _invuln_left.keys():
+		_invuln_left[slot] -= delta
+		if _invuln_left[slot] <= 0.0:
+			_invuln_left.erase(slot)
+
+
+## Spawn-protected right now (#787): immune to KO and to swing knockback.
+func _is_protected(slot: int) -> bool:
+	return _invuln_left.has(slot)
 
 
 func _move_players(delta: float) -> void:
@@ -374,6 +400,9 @@ func _handle_swing(slot: int) -> void:
 	swing_seq[slot] = int(swing_seq[slot]) + 1
 	for victim: int in _active_slots():
 		if victim == slot:
+			continue
+		# Spawn-protected players aren't flung or staggered (#787).
+		if _is_protected(victim):
 			continue
 		var apart: Vector2 = positions[victim] - positions[slot]
 		if apart.length() > SWING_RANGE:
@@ -448,6 +477,10 @@ func _check_end() -> void:
 ## `cause` is "hazard", "rim", or "axe_launch" (#706 balance telemetry);
 ## `attacker` is the swinger credited for an axe_launch, else unused.
 func _knock_out(slot: int, cause: String, attacker: int = -1) -> void:
+	# Spawn-protected players shrug it off entirely — no life lost, no shield
+	# spent (#787). Nothing to attribute, so this returns before telemetry too.
+	if _is_protected(slot):
+		return
 	# A KO (or shield save) always ends the launch and drops the axe with them.
 	_impulses.erase(slot)
 	_impulse_attacker.erase(slot)

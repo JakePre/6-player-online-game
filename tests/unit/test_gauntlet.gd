@@ -10,6 +10,10 @@ func _gauntlet(player_slots: Array[int] = [0, 1]) -> Gauntlet:
 	var game := Gauntlet.new()
 	game.meta = Gauntlet.make_meta()
 	game.setup(player_slots, 12345)
+	# Most tests exercise KO/shield/elimination mechanics that only apply once
+	# the opening spawn-protection window (#787) has lapsed — clear it so they
+	# read as "mid-play". Protection itself is covered by its own tests below.
+	game._invuln_left.clear()
 	return game
 
 
@@ -79,6 +83,35 @@ func test_walking_off_the_platform_costs_a_life() -> void:
 	game.tick(TICK)
 	assert_eq(game.lives[0], 0)
 	assert_eq(game.elimination_order, [[0]])
+
+
+## #787: a spawn-protection window opens each round and reopens on every
+## respawn, during which a player can't be KO'd (and the snapshot exposes it so
+## the view can shimmer). One test covers open → blocks → lapses → respawn.
+func test_spawn_protection_window() -> void:
+	var game := Gauntlet.new()
+	game.meta = Gauntlet.make_meta()
+	game.setup([0, 1], 12345)
+	game.lives[0] = 2  # room to lose one and respawn
+	assert_true(game._is_protected(0), "players start spawn-protected")
+	assert_gt(
+		float(game.get_snapshot().players[0][Gauntlet.PS_INVULN]), 0.0, "protection is exposed"
+	)
+	# Protected: shoving player 0 off the rim costs nothing.
+	game.positions[0] = Vector2(game.radius + 5.0, 0.0)
+	game._hazard_accum = -INF
+	game.tick(TICK)
+	assert_eq(int(game.lives[0]), 2, "protected: the rim can't take a life")
+	# Window lapses -> the rim is lethal; player 0 loses a life and respawns.
+	game._invuln_left.clear()
+	game.positions[0] = Vector2(game.radius + 5.0, 0.0)
+	game._hazard_accum = -INF
+	game.tick(TICK)
+	assert_eq(int(game.lives[0]), 1, "unprotected: walking off costs a life")
+	assert_true(game._respawn_left.has(0), "and enters respawn")
+	# Reappears protected, so a hazard can't KO on the spawn frame.
+	_quiet_tick(game, Gauntlet.RESPAWN_SEC + 0.1)
+	assert_true(game._is_protected(0), "you reappear spawn-protected")
 
 
 func test_ko_with_lives_left_respawns_at_center_after_delay() -> void:

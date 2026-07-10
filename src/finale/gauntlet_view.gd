@@ -3,9 +3,9 @@ extends MinigameView3D
 ## telegraphed hazard discs, and players in the shared 2.5D iso-arena
 ## (M8-01). New build — the Gauntlet sim (M5-02) had server logic only.
 ## Renders Gauntlet.get_snapshot() untouched: {radius, shrink_in, players:
-## {slot: [x, y, lives, respawn_left, swings, swing_seq, hit_seq]}, hazards:
-## [[x, y, r, warn_left]], weapons: [[x, y]]} (#584 weapon fields) — indices
-## named via Gauntlet.PS_*/HZ_*/WP_* (#708).
+## {slot: [x, y, lives, respawn_left, swings, swing_seq, hit_seq, invuln_left]},
+## hazards: [[x, y, r, warn_left]], weapons: [[x, y]]} (#584 weapon fields,
+## #787 spawn protection) — indices named via Gauntlet.PS_*/HZ_*/WP_* (#708).
 
 const PLATFORM_COLOR := Color(0.45, 0.43, 0.4)
 const PLATFORM_THICKNESS := 0.4
@@ -31,6 +31,16 @@ const WEAPON_SPIN_HZ := 0.5
 const WEAPON_FLOAT_Y := 0.55
 ## How long a swing/stagger animation owns the rig before walk/idle resumes.
 const REACTION_HOLD_SEC := 0.6
+## Death fling (#787): on a KO the rig plays "ko" and is launched up-and-out,
+## tumbling, then dropped off the platform before it vanishes — instead of just
+## blinking out. Owns the rig (off the interpolation system) for this long.
+const DEATH_FLING_SEC := 0.7
+const DEATH_FLING_RISE := 1.2
+const DEATH_FLING_DIST := 3.5
+const DEATH_FLING_DROP := 3.5
+## Spawn-protection bubble (#787): a translucent shield around a rig that can't
+## be KO'd yet, so the window reads at a glance.
+const SHIELD_COLOR := Color(0.5, 0.85, 1.0)
 
 ## Shrink telegraph (#583): the band the next shrink stage is about to shed
 ## lights up for Gauntlet.SHRINK_WARN_SEC before it actually shrinks, reddening
@@ -63,6 +73,9 @@ var _hazard_nodes: Array[MeshInstance3D] = []
 var _last_radius := Gauntlet.START_RADIUS
 var _last_hazard_keys := {}  # quantized "x,y" -> Vector2 world pos (detonation FX)
 var _last_lives := {}  # slot -> lives (fall/KO burst)
+## slot -> ticks_msec until which the death-fling tween owns the rig (#787), so
+## _update_players leaves it alone until the flourish finishes.
+var _death_hold := {}
 
 ## Weapon pickups (#584).
 var _axe_mesh: Mesh
@@ -333,43 +346,117 @@ func _update_players() -> void:
 			continue
 		var lives := int(state[Gauntlet.PS_LIVES])
 		var prev_lives := int(_last_lives.get(slot, lives))
-		# Fall/KO burst where a player was standing the instant they lose a life.
+		# A life just lost: play the death flourish before the snapshot's respawn
+		# hides the rig (#787) — burst, "ko" pose, and a fling off the platform.
 		if lives < prev_lives:
-			fx_burst(
-				Vector2(rig.position.x, rig.position.z), HAZARD_FX_COLOR, PLATFORM_THICKNESS + 0.5
-			)
-			# The shared life-loss cue (#728) — hazard, rim, or axe_launch (the
-			# axe hit itself already sounded above via thud), same convention
-			# every other game's KO uses.
-			play_sfx(&"ko")
-			# Losing the last life is a finale elimination — call it out (M16-11).
-			if lives == 0:
-				_show_event("%s ELIMINATED" % player_name(slot), PartyTheme.DANGER)
+			_play_death(slot, rig, lives == 0)
 		_last_lives[slot] = lives
+		# While the fling tween owns the rig, leave it entirely alone (#787).
+		if Time.get_ticks_msec() < int(_death_hold.get(slot, 0)):
+			continue
 		var respawning := float(state[Gauntlet.PS_RESPAWN]) > 0.0
 		rig.visible = lives > 0 and not respawning
 		if not rig.visible:
 			continue
 		_update_weapon_state(slot, state, rig)
+		# Spawn protection reads as a translucent shield bubble (#787).
+		var protected := (
+			state.size() > Gauntlet.PS_INVULN and float(state[Gauntlet.PS_INVULN]) > 0.0
+		)
+		_apply_spawn_shield(rig, protected)
 		if Time.get_ticks_msec() < int(_reaction_hold.get(slot, 0)):
 			# A swing/stagger owns the rig (#587 idiom): move it, don't re-animate.
 			rig.position = to_arena(
 				Vector2(state[Gauntlet.PS_X], state[Gauntlet.PS_Y]), PLATFORM_THICKNESS
 			)
 		else:
-			update_rig(slot, Vector2(state[Gauntlet.PS_X], state[Gauntlet.PS_Y]))
-			rig.position.y = PLATFORM_THICKNESS
+			# Seat the rig on the platform top by sampling at PLATFORM_THICKNESS
+			# (#787): update_rig feeds the per-frame interpolation, which would
+			# otherwise slide the rig down to y=0 — embedding it in the platform.
+			update_rig(
+				slot, Vector2(state[Gauntlet.PS_X], state[Gauntlet.PS_Y]), PLATFORM_THICKNESS
+			)
 		rig.display_name = (
 			"%s %s%s" % [player_name(slot), "♥".repeat(lives), "⚔".repeat(int(_armed.get(slot, 0)))]
 		)
+
+
+## The KO flourish (#787): a burst where they stood, the shared life-loss cue,
+## the elimination call-out for a last life, and the fling that launches the rig
+## off the platform — so a death reads as being thrown out, not blinking away.
+func _play_death(slot: int, rig: CharacterRig, eliminated: bool) -> void:
+	fx_burst(Vector2(rig.position.x, rig.position.z), HAZARD_FX_COLOR, PLATFORM_THICKNESS + 0.5)
+	# The shared life-loss cue (#728) — hazard, rim, or axe_launch, the same
+	# convention every other game's KO uses.
+	play_sfx(&"ko")
+	if eliminated:
+		_show_event("%s ELIMINATED" % player_name(slot), PartyTheme.DANGER)
+	_fling_rig(slot, rig)
+
+
+## Launches the rig up-and-out from the arena centre, tumbling, then drops it off
+## the platform before hiding it (#787). Takes the rig off the shared snapshot
+## interpolation so the tween owns it; _death_hold keeps _update_players away
+## until it finishes. Reduced motion skips straight to hidden.
+func _fling_rig(slot: int, rig: CharacterRig) -> void:
+	_rig_samples.erase(slot)
+	_death_hold[slot] = Time.get_ticks_msec() + int(DEATH_FLING_SEC * 1000.0)
+	rig.play(&"ko")
+	if ArenaFX.reduced_motion or not is_inside_tree():
+		_hide_rig(rig)
+		return
+	var from := rig.position
+	var flat := Vector2(from.x, from.z)
+	var dir := flat.normalized() if flat.length() > 0.01 else Vector2(0.0, 1.0)
+	var apex := from + Vector3(dir.x, DEATH_FLING_RISE, dir.y)
+	var landing := (
+		from + Vector3(dir.x, 0.0, dir.y) * DEATH_FLING_DIST - Vector3(0.0, DEATH_FLING_DROP, 0.0)
+	)
+	var tween := create_tween()
+	tween.tween_property(rig, "position", apex, DEATH_FLING_SEC * 0.35).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(rig, "rotation:z", TAU, DEATH_FLING_SEC).as_relative()
+	tween.tween_property(rig, "position", landing, DEATH_FLING_SEC * 0.65).set_ease(Tween.EASE_IN)
+	tween.tween_callback(_hide_rig.bind(rig))
+
+
+func _hide_rig(rig: CharacterRig) -> void:
+	if not is_instance_valid(rig):
+		return
+	rig.visible = false
+	rig.rotation.z = 0.0  # clear the tumble so a respawn reappears upright
+
+
+## Toggles a translucent shield bubble on a spawn-protected rig (#787), lazily
+## built once per rig and reused (rigs are pooled).
+func _apply_spawn_shield(rig: CharacterRig, protected: bool) -> void:
+	var bubble := rig.get_node_or_null(^"SpawnShield") as MeshInstance3D
+	if bubble == null:
+		if not protected:
+			return
+		bubble = MeshInstance3D.new()
+		bubble.name = "SpawnShield"
+		var mesh := SphereMesh.new()
+		mesh.radius = 0.7
+		mesh.height = 1.6
+		var mat := StandardMaterial3D.new()
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = Color(SHIELD_COLOR, 0.22)
+		mat.emission_enabled = true
+		mat.emission = SHIELD_COLOR
+		mat.emission_energy_multiplier = 0.4
+		mesh.material = mat
+		bubble.mesh = mesh
+		bubble.position = Vector3(0.0, 0.9, 0.0)
+		rig.add_child(bubble)
+	bubble.visible = protected
 
 
 ## Arms/disarms the rig's hand and fires the swing/hit reactions off the sim's
 ## monotonic counters (#584) — each plays exactly once no matter how snapshots
 ## are sampled, and a mid-match join seeds silently instead of replaying.
 func _update_weapon_state(slot: int, state: Array, rig: CharacterRig) -> void:
-	if state.size() < Gauntlet.PS_COUNT:
-		return  # pre-#584 snapshot shape
+	if state.size() <= Gauntlet.PS_HIT_SEQ:
+		return  # pre-#584 snapshot shape (no weapon fields)
 	var swings := int(state[Gauntlet.PS_ARMED])
 	var was_armed := int(_armed.get(slot, 0)) > 0
 	_armed[slot] = swings
