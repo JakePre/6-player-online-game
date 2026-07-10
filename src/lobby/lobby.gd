@@ -21,6 +21,9 @@ var _remove_bot_button: Button
 ## Pickable color swatches (#581), one per palette index, built in code under
 ## the character card. Index i maps to PlayerPalette.active_colors()[i].
 var _color_swatches: Array[ColorRect] = []
+## Host-only "play every game in order" toggle (#812), built in code above the
+## per-game exclusion list so there is no .tscn churn.
+var _debug_all_games_toggle: CheckBox
 
 @onready var _code_label: Label = %CodeLabel
 @onready var _copy_button: Button = %CopyButton
@@ -62,6 +65,7 @@ func _ready() -> void:
 	)
 	_build_mutator_toggles()
 	_build_game_toggles()
+	_build_debug_toggle()
 	_build_color_swatches()
 	_code_label.text = NetManager.my_room_code
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
@@ -183,6 +187,31 @@ func _sync_game_toggles(state: Dictionary, editable: bool) -> void:
 		toggle.disabled = not editable
 
 
+## Host-only debug run (#812): one match that plays every eligible game in order.
+## Kept out of _game_toggles (whose children must all carry a game_id meta) and
+## mounted just above that list, since it governs the whole selection.
+func _build_debug_toggle() -> void:
+	_debug_all_games_toggle = CheckBox.new()
+	_debug_all_games_toggle.name = "DebugAllGames"
+	_debug_all_games_toggle.text = "Play all games in order (debug)"
+	_debug_all_games_toggle.tooltip_text = (
+		"Host: run every eligible minigame once, in catalog order — no repeats, "
+		+ "no mutators. Pairs with practice bots for a solo audit pass."
+	)
+	_debug_all_games_toggle.toggled.connect(
+		func(on: bool) -> void: NetManager.request_set_debug_all_games(on)
+	)
+	var parent := _game_toggles.get_parent()
+	parent.add_child(_debug_all_games_toggle)
+	parent.move_child(_debug_all_games_toggle, _game_toggles.get_index())
+
+
+## Server echo wins: reflect the broadcast flag without re-sending it.
+func _sync_debug_toggle(state: Dictionary, editable: bool) -> void:
+	_debug_all_games_toggle.set_pressed_no_signal(bool(state.get("debug_all_games", false)))
+	_debug_all_games_toggle.disabled = not editable
+
+
 ## A row of pickable color swatches under the character card (#581). Built once;
 ## colors/enabled state are refreshed from room state in _sync_color_swatches.
 func _build_color_swatches() -> void:
@@ -270,8 +299,12 @@ func _on_room_updated(state: Dictionary) -> void:
 	_series_option.select(_series_option.get_item_index(series_length))
 	_series_option.disabled = not i_am_host or in_match
 	_update_series_board(series)
-	_sync_mutator_toggles(state, i_am_host and not in_match)
-	_sync_game_toggles(state, i_am_host and not in_match)
+	var debug_all_games: bool = state.get("debug_all_games", false)
+	_sync_debug_toggle(state, i_am_host and not in_match)
+	_sync_mutator_toggles(state, i_am_host and not in_match and not debug_all_games)
+	# The per-game exclusion list has no effect while the debug run is on (it
+	# plays everything regardless), so grey it out to say so.
+	_sync_game_toggles(state, i_am_host and not in_match and not debug_all_games)
 	_character_label.text = CharacterRoster.display_name_for(_my_character_id())
 	_character_preview.show_character(
 		_my_character_id(), PlayerPalette.color_for_slot(NetManager.my_slot), _my_ready(state)

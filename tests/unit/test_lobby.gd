@@ -171,6 +171,24 @@ func test_add_bot_disables_at_the_cap() -> void:
 	assert_true(lobby._add_bot_button.disabled, "no room for another bot")
 
 
+## #812: the host-only "play all games in order" toggle, built beside the
+## per-game exclusion list, reflects the broadcast flag and freezes off-host.
+func test_debug_all_games_toggle_built_and_reflects_state() -> void:
+	assert_not_null(lobby._debug_all_games_toggle, "the debug toggle exists")
+	assert_eq(
+		lobby._debug_all_games_toggle.get_parent(),
+		lobby._game_toggles.get_parent(),
+		"lives beside the per-game exclusion list",
+	)
+	lobby._sync_debug_toggle({"debug_all_games": true}, true)
+	assert_true(lobby._debug_all_games_toggle.button_pressed, "reflects the broadcast")
+	assert_false(lobby._debug_all_games_toggle.disabled, "host edits it in the lobby")
+	lobby._sync_debug_toggle({"debug_all_games": true}, false)
+	assert_true(lobby._debug_all_games_toggle.disabled, "frozen off-host / in match")
+	lobby._sync_debug_toggle({}, true)
+	assert_false(lobby._debug_all_games_toggle.button_pressed, "defaults off when absent")
+
+
 ## #581: the color-swatch picker row.
 func test_builds_one_color_swatch_per_palette_color() -> void:
 	assert_eq(

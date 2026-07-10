@@ -21,6 +21,11 @@ var mutator_pool: Array[StringName] = []
 ## Host-curated exclusion set (#572): MinigameCatalog ids the playlist builder
 ## must never draw from for this match. Empty = every registered game eligible.
 var excluded_game_ids: Array[StringName] = []
+## Host debug run (#812): when on, the match plays every eligible game once in
+## catalog order (no shuffle, no repeats, no mutators) instead of drawing a
+## round_count-length random playlist — a solo host + practice bots can then
+## audit the whole roster in one sitting. A legit host feature, not a debug RPC.
+var debug_all_games := false
 ## Best-of-N series (M11-01); length 1 leaves it idle.
 var series := SeriesTracker.new()
 ## Milliseconds timestamp of the moment the last connected member dropped,
@@ -214,6 +219,18 @@ func set_excluded_game_ids(ids: Array) -> bool:
 	return true
 
 
+## Lobby-only, like the other host settings (#812). Toggling it on makes the
+## next match play the whole eligible roster in order; toggling off restores the
+## normal random draw. No eligibility guard is needed — the debug playlist is
+## built from eligible_ids at match start, and the start gate already refuses a
+## head count no game supports.
+func set_debug_all_games(enabled: bool) -> bool:
+	if state != State.LOBBY:
+		return false
+	debug_all_games = enabled
+	return true
+
+
 ## Start gating (M2-02): a match needs at least 2 players and every connected
 ## member ready. The caller checks that the requester is the host.
 func can_start() -> bool:
@@ -273,6 +290,7 @@ func to_state_dict() -> Dictionary:
 		"round_count": round_count,
 		"mutator_pool": mutator_pool.duplicate(),
 		"excluded_game_ids": excluded_game_ids.duplicate(),
+		"debug_all_games": debug_all_games,
 		"series": series.to_dict(),
 		"members": member_dicts,
 	}

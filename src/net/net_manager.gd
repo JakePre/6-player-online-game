@@ -225,6 +225,12 @@ func request_set_excluded_games(ids: Array) -> void:
 	_rpc_set_excluded_games.rpc_id(1, ids)
 
 
+## Host-only lobby setting (#812): flips the next match to the full-roster debug
+## run (every eligible game once, in order, no mutators).
+func request_set_debug_all_games(enabled: bool) -> void:
+	_rpc_set_debug_all_games.rpc_id(1, enabled)
+
+
 func send_ping() -> void:
 	_rpc_ping.rpc_id(1, Time.get_ticks_msec())
 
@@ -416,6 +422,17 @@ func _rpc_set_excluded_games(ids: Array) -> void:
 		return
 	MinigameCatalog.register_builtins()
 	if room.set_excluded_game_ids(ids):
+		_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_debug_all_games(enabled: bool) -> void:
+	if not is_server:
+		return
+	var room := _room_of_host_sender()
+	if room == null:
+		return
+	if room.set_debug_all_games(enabled):
 		_broadcast_room_state(room)
 
 
