@@ -90,6 +90,45 @@ func test_hud_counts_the_survivors() -> void:
 	assert_string_contains(view._hud.text, "2 left")
 
 
+## #789: an attack pops a quick squash-lunge on the attacker's own body, on
+## top of the arc flash — the rig itself reads as swinging, not just the FX.
+func test_swing_pops_a_lunge_that_settles_back() -> void:
+	view.render({"players": {0: _fighter(0.0, 0.5, 1, 1, 0, 1)}, "phase": KnockOff.Phase.FIGHT})
+	var body: Panel = view.rig_for_slot(0).get_node("Body")
+	view._process(view.SWING_POSE_SEC * 0.5)
+	assert_ne(body.scale, Vector2.ONE, "mid-lunge the body is off its rest scale")
+	view._process(view.SWING_POSE_SEC)
+	assert_eq(body.scale, Vector2.ONE, "the lunge settles back out")
+
+
+## #789: a landed hit flashes the victim red — the flinch cue Rumble Ring's
+## anim pass (#777) established, adapted to this tier's plain modulate tint.
+func test_landing_a_hit_flashes_red_then_clears() -> void:
+	view.render({"players": {0: _fighter(0.0, 0.5, 1, 1, 0, 0)}, "phase": KnockOff.Phase.FIGHT})
+	view.render({"players": {0: _fighter(0.0, 0.5, 1, 1, 20, 0)}, "phase": KnockOff.Phase.FIGHT})
+	var rig := view.rig_for_slot(0)
+	view._process(view.HIT_POSE_SEC * 0.5)
+	assert_ne(rig.modulate, Color.WHITE, "mid-flash the rig reads hurt")
+	view._process(view.HIT_POSE_SEC)
+	assert_eq(rig.modulate, Color.WHITE, "the flash clears back to normal")
+
+
+## #789: the sim frees a KO'd body immediately (test_falling_off_the_stage_is_a_ko
+## in test_knock_off.gd), so every post-death snapshot reports (0, 0) — the
+## view must not teleport the corpse to stage center. It tumbles from its
+## last real pose instead, then disappears once the tumble finishes.
+func test_ko_tumbles_from_its_last_pose_instead_of_teleporting_to_origin() -> void:
+	view.render({"players": {0: _fighter(4.0, 0.5, 1, 1, 80, 0)}, "phase": KnockOff.Phase.FIGHT})
+	view.render({"players": {0: _fighter(0.0, 0.0, 1, 0, 80, 0)}, "phase": KnockOff.Phase.FIGHT})
+	var rig := view.rig_for_slot(0)
+	view._process(0.1)
+	assert_ne(
+		rig.position, view.world_to_screen(Vector2.ZERO), "does not snap to the wire's dead (0, 0)"
+	)
+	view._process(view.KO_TUMBLE_SEC)
+	assert_false(rig.visible, "the tumble finishes by hiding the rig for good")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
