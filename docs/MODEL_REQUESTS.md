@@ -39,8 +39,7 @@ and the fallbacks remain shipped — nothing breaks.
 - **Orientation/scale:** Y-up, -Z forward (Godot convention). State the
   intended in-game size in the row; the landing agent scales on import, but a
   model exported near-correct avoids 100× surprises.
-- **No rigging or animation** — static props only. Anything that must animate
-  gets built from primitives/kit pieces by the game's own view code.
+- **Rigging & animation support:** Static props are the default. However, rigged/animated requests (e.g. characters, enemies, dynamic hazards) can now also be filed. If requesting an animated asset, specify the required animation loops (e.g. walk, jump, attack, idle) in the prompt so they can be processed through the local Puppeteer rigging and animation pipeline.
 - **Destination:** `assets/generated/models/<kebab-name>.glb`.
 - **Row must name its consumer** (which game/issue) so the landing agent knows
   what to wire and can flip the row to `landed`.
