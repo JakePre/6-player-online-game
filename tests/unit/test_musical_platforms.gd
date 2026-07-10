@@ -22,6 +22,13 @@ func _force_stop(game: MusicalPlatforms) -> void:
 	game.tick(TICK)
 
 
+## Runs the current scramble out to elimination (#804: an all-claimed board now
+## holds for the grace window, so force the timeout to resolve it in one step).
+func _resolve_scramble(game: MusicalPlatforms) -> void:
+	game._phase_left = 0.0
+	game.tick(TICK)
+
+
 func test_music_phase_spawns_no_platforms() -> void:
 	var game := _game_with(4)
 	assert_eq(game.phase, MusicalPlatforms.Phase.MUSIC)
@@ -83,14 +90,24 @@ func test_stop_timeout_downs_everyone_without_a_platform() -> void:
 	assert_false(game.finished, "two players still standing")
 
 
-func test_all_claimed_ends_the_scramble_early() -> void:
+## #804: an all-claimed board no longer eliminates the odd one out instantly —
+## the scramble holds open for the grace window first, then ends without
+## waiting out the full timer.
+func test_all_claimed_holds_for_the_grace_window_then_ends() -> void:
 	var game := _game_with(3)
 	_force_stop(game)
 	game.positions[0] = game.platforms[0].pos
 	game.positions[1] = game.platforms[1].pos
 	game.positions[2] = Vector2(-8.0, -8.0)
 	game.tick(TICK)
-	assert_eq(game.phase, MusicalPlatforms.Phase.MUSIC, "no need to wait out the timer")
+	assert_eq(
+		game.phase, MusicalPlatforms.Phase.STOP, "grace window: no instant kill on a fast fill"
+	)
+	assert_eq(game.down_order, [], "nobody goes down during the grace window")
+	# Wind the clock to just past the grace floor (but well before the timeout).
+	game._phase_left = MusicalPlatforms.STOP_SEC - MusicalPlatforms.SCRAMBLE_GRACE_SEC
+	game.tick(TICK)
+	assert_eq(game.phase, MusicalPlatforms.Phase.MUSIC, "ends once the grace has elapsed")
 	assert_eq(game.down_order, [[2]])
 
 
@@ -101,11 +118,14 @@ func test_musical_chairs_runs_to_a_winner() -> void:
 	game.positions[1] = game.platforms[1].pos
 	game.positions[2] = Vector2(-8.0, -8.0)
 	game.tick(TICK)
+	_resolve_scramble(game)
+	assert_eq(game.down_order, [[2]], "round one eliminates the platform-less player")
 	_force_stop(game)
 	assert_eq(game.platforms.size(), 1, "two players left, one platform")
 	game.positions[0] = game.platforms[0].pos
 	game.positions[1] = Vector2(8.0, 8.0)
 	game.tick(TICK)
+	_resolve_scramble(game)
 	assert_true(game.finished)
 	assert_eq(game.get_results().placements, [[0], [1], [2]])
 

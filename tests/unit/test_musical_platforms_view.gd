@@ -143,6 +143,32 @@ func test_wave_drop_in_dusts_after_seeding() -> void:
 	assert_eq(view.arena.get_child_count(), before + 2, "second wave dusts both platforms")
 
 
+## #804: the music STOPPING is the whole game — the round loop pauses for the
+## scramble phase and resumes when players roam again.
+func test_music_pauses_for_the_scramble_and_resumes() -> void:
+	AudioManager.play_music(&"round")
+	AudioManager.set_music_paused(false)
+	view.render(
+		{"players": {}, "phase": MusicalPlatforms.Phase.STOP, "platforms": [], "fallen": []}
+	)
+	assert_true(AudioManager.music_paused, "music stops for the scramble")
+	view.render(
+		{"players": {}, "phase": MusicalPlatforms.Phase.MUSIC, "platforms": [], "fallen": []}
+	)
+	assert_false(AudioManager.music_paused, "music returns with the roam phase")
+
+
+## #804: a winner emerging mid-scramble must not leave the shared loop paused
+## for the next round — the results celebration resumes it.
+func test_celebrate_resumes_the_music() -> void:
+	view.render(
+		{"players": {}, "phase": MusicalPlatforms.Phase.STOP, "platforms": [], "fallen": []}
+	)
+	assert_true(AudioManager.music_paused, "paused going into the results")
+	view.celebrate([[0]])
+	assert_false(AudioManager.music_paused, "the results resume the music")
+
+
 func test_claim_sparkles_in_the_claimants_color() -> void:
 	view.render(
 		{

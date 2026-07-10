@@ -83,6 +83,12 @@ func _render_3d(game: Dictionary) -> void:
 	platforms = game.get("platforms", [])
 	fallen = game.get("fallen", [])
 	_phase_label.text = STOP_TEXT if phase == MusicalPlatforms.Phase.STOP else MUSIC_TEXT
+	# The music actually STOPPING is the whole game (#804): pause the round loop
+	# for the scramble, resume when players roam again. Set from the phase every
+	# render (not just the edge) so a mid-STOP rejoiner also lands on silence;
+	# _celebrate and _exit_tree guarantee the shared loop never stays paused once
+	# this game is done.
+	AudioManager.set_music_paused(phase == MusicalPlatforms.Phase.STOP)
 	# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): the music
 	# stopping is the danger telegraph — scramble now.
 	if _phase_seen == MusicalPlatforms.Phase.MUSIC and phase == MusicalPlatforms.Phase.STOP:
@@ -168,3 +174,17 @@ func _shake_on_new_downs() -> void:
 		request_shake(9.0)
 		play_sfx(&"ko")
 	_fallen_seen = fallen_count
+
+
+## The round can end mid-scramble (a winner emerges while the music is stopped),
+## so resume the shared loop before the results celebration rather than leaving
+## it silent (#804). Winners still cheer via the base.
+func _celebrate(placements: Array) -> void:
+	AudioManager.set_music_paused(false)
+	super(placements)
+
+
+## Never strand the shared round music paused when this view unmounts mid-STOP
+## (game over, leaderboard, a wipe) — the next round would start silent (#804).
+func _exit_tree() -> void:
+	AudioManager.set_music_paused(false)

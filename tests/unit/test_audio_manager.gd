@@ -51,3 +51,24 @@ func test_sfx_pool_round_robins() -> void:
 	AudioManager.play_sfx(&"click")
 	AudioManager.play_sfx(&"coin")
 	assert_eq(AudioManager._sfx_next, (before + 2) % AudioManager.SFX_POOL_SIZE)
+
+
+## #804: the current loop can be paused in place (Musical Platforms' music
+## stopping is the mechanic) and resumed.
+func test_set_music_paused_toggles_the_loop() -> void:
+	AudioManager.play_music(&"round")
+	AudioManager.set_music_paused(true)
+	assert_true(AudioManager.music_paused, "the loop pauses in place")
+	AudioManager.set_music_paused(false)
+	assert_false(AudioManager.music_paused, "and resumes")
+
+
+## #804: a game must never strand the next screen's music paused — starting any
+## new track clears a lingering pause.
+func test_new_track_clears_a_lingering_pause() -> void:
+	AudioManager.set_music_paused(true)
+	AudioManager.play_music(&"round")
+	AudioManager.play_music(&"finale")
+	# Drive the crossfade tween's deferred play callback deterministically.
+	AudioManager._fade_tween.custom_step(AudioManager.CROSSFADE_SEC * 2.0)
+	assert_false(AudioManager.music_paused, "a fresh track is never left paused")

@@ -70,6 +70,9 @@ const SFX_POOL_SIZE := 6
 
 ## The music channel currently playing (or requested), &"" when silent.
 var current_music: StringName = &""
+## True while the current loop is paused in place (#804) — Musical Platforms'
+## scramble silence. Cleared whenever a new track starts (below).
+var music_paused := false
 
 var _music_player: AudioStreamPlayer
 var _fade_tween: Tween
@@ -98,6 +101,17 @@ func play_music(name: StringName) -> void:
 		return
 	current_music = name if MUSIC.has(name) else &""
 	_crossfade_to(&"" if current_music == &"" else track_for(current_music))
+
+
+## Pauses or resumes the current music loop in place. Musical Platforms' music
+## STOPPING is the mechanic (#804): the view pauses the round loop for the
+## whole scramble phase and resumes when the music returns. Idempotent, and
+## belt-and-suspenders against a game stranding the next screen silent — the
+## crossfade below clears the pause whenever a new track starts, and the game
+## view also resumes on teardown.
+func set_music_paused(paused: bool) -> void:
+	music_paused = paused
+	_music_player.stream_paused = paused
 
 
 ## Rotates the round channel to its next loop (#711): the match screen calls
@@ -132,6 +146,10 @@ func _crossfade_to(path: String) -> void:
 		stream.loop = true
 	_fade_tween.tween_callback(
 		func() -> void:
+			# Clear any pause a game left behind (#804) so a new track is never
+			# stranded silent.
+			music_paused = false
+			_music_player.stream_paused = false
 			_music_player.stream = stream
 			_music_player.play()
 	)

@@ -19,6 +19,12 @@ const PLATFORM_MAX_DIST := 7.0
 const MUSIC_MIN_SEC := 4.0
 const MUSIC_MAX_SEC := 7.0
 const STOP_SEC := 4.0
+## Minimum scramble before an all-claimed board can end the phase (#804): with
+## fast players/bots every platform can be grabbed within a tick or two, which
+## used to eliminate the odd one out instantly. Holding the phase open for a
+## grace window lets contested platforms actually be fought over before anyone
+## goes down. A full-timeout scramble (a platform left free) is unaffected.
+const SCRAMBLE_GRACE_SEC := 1.5
 ## Rejection-sampling budget for _spawn_platforms(), per platform needed
 ## (200 attempts / 5 platforms at the 6-player baseline).
 const PLACEMENT_ATTEMPTS_PER_PLATFORM := 40
@@ -105,7 +111,14 @@ func _tick(delta: float) -> void:
 	if phase == Phase.STOP:
 		_resolve_claims(alive)
 	_phase_left -= delta
-	if _phase_left <= 0.0 or (phase == Phase.STOP and _all_platforms_claimed()):
+	# An all-claimed board only ends the scramble after the grace window (#804),
+	# so a fast fill no longer kills the odd one out on the first tick; a timeout
+	# (a platform still free) always ends it regardless.
+	var scramble_elapsed := STOP_SEC - _phase_left
+	var claimed_out := (
+		phase == Phase.STOP and _all_platforms_claimed() and scramble_elapsed >= SCRAMBLE_GRACE_SEC
+	)
+	if _phase_left <= 0.0 or claimed_out:
 		_advance_phase(alive)
 	_check_end()
 
