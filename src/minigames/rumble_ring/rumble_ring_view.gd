@@ -7,8 +7,16 @@ const COIN_COLOR := Color(0.96, 0.79, 0.2)
 const SMASH_RING_COLOR := Color(1.0, 0.5, 0.2, 0.6)
 const GUARD_TINT := Color(0.6, 0.8, 1.0)
 const REACTION_HOLD_SEC := 0.6
+## How long the attack animation is protected from update_rig's walk/idle
+## overwrite (#777): swings used to play `interact` for a single frame before
+## update_rig clobbered it, so a swing was visually silent. Movement still wins
+## (force_animate=false, the #800 idiom) — you're never rooted by your own swing.
+const ATTACK_HOLD_SEC := 0.35
 const SWING_ARC_COLOR := Color(1.0, 0.95, 0.7, 0.7)
 const SWING_ARC_SEC := 0.18
+## Brief "not ready" flash on a swing press that the cooldown (or a raised guard)
+## would swallow (#777) — so Space is never silently dead.
+const SWING_HINT_SEC := 0.4
 ## Charged-smash shockwave (M13-28, #263): a flat ring that bursts outward.
 const SMASH_RING_SEC := 0.32
 const SMASH_RING_REACH := 2.6
@@ -28,10 +36,18 @@ var _coin_mesh: CylinderMesh
 var _coin_nodes: Array[MeshInstance3D] = []
 ## slot -> msec until which hit/ko reactions own the rig's animation.
 var _reaction_hold := {}
+## slot -> msec until which a swing/smash attack animation plays (movement still
+## interrupts it — see ATTACK_HOLD_SEC).
+var _attack_hold := {}
 var _banner: Label
 var _guard_since := -1.0
 ## Short-lived swing arcs, {node: TorusMesh slice} -> expiry msec.
 var _swing_arcs := {}
+## Local swing readiness prediction (seconds): a press before this is on
+## cooldown and gives a "not ready" hint instead of silence (#777). The server
+## stays authoritative for the actual swing; this only drives local feedback.
+var _local_swing_ready_at := 0.0
+var _swing_hint_until := 0.0
 
 
 func _physics_process(_delta: float) -> void:
@@ -42,13 +58,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	if NetManager.multiplayer.multiplayer_peer == null:
 		return
 	if event.is_action_pressed(&"action_primary"):
+		# Always send — the server decides if the swing lands. Locally, predict
+		# whether it will, so a swallowed press (cooldown or guard up) flashes a
+		# hint rather than doing nothing at all (#777).
 		NetManager.send_match_input({"attack": true})
+		_register_local_swing()
 	elif event.is_action_pressed(&"action_secondary"):
 		_guard_since = Time.get_ticks_msec() / 1000.0
 		NetManager.send_match_input({"guard": true})
 	elif event.is_action_released(&"action_secondary"):
 		_guard_since = -1.0
 		NetManager.send_match_input({"guard": false})
+
+
+## Local feedback for a swing press (#777): while guarding, the guard banner
+## already explains why a swing is blocked, so stay quiet; otherwise flash a
+## "recharging" hint if still on cooldown, or arm the cooldown on a real swing.
+func _register_local_swing() -> void:
+	if _guard_since >= 0.0:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if now < _local_swing_ready_at:
+		_banner.text = "Swing recharging…"
+		_banner.modulate = Color(1.0, 0.55, 0.5)
+		_swing_hint_until = now + SWING_HINT_SEC
+	else:
+		_local_swing_ready_at = now + RumbleRing.SWING_COOLDOWN_SEC
 
 
 ## Warm boxing-ring floor (#589).
@@ -128,16 +163,21 @@ func _build_ring() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _guard_since < 0.0:
-		_banner.text = ""
+	var now := Time.get_ticks_msec() / 1000.0
+	# Guard state takes the banner while it's held.
+	if _guard_since >= 0.0:
+		var held := now - _guard_since
+		if held >= RumbleRing.SMASH_CHARGE_SEC:
+			_banner.text = "SMASH CHARGED — release!"
+			_banner.modulate = Color(1.0, 0.6, 0.2)
+		else:
+			_banner.text = "GUARDING (%d%%)" % int(held / RumbleRing.SMASH_CHARGE_SEC * 100.0)
+			_banner.modulate = GUARD_TINT
 		return
-	var held := Time.get_ticks_msec() / 1000.0 - _guard_since
-	if held >= RumbleRing.SMASH_CHARGE_SEC:
-		_banner.text = "SMASH CHARGED — release!"
-		_banner.modulate = Color(1.0, 0.6, 0.2)
-	else:
-		_banner.text = "GUARDING (%d%%)" % int(held / RumbleRing.SMASH_CHARGE_SEC * 100.0)
-		_banner.modulate = GUARD_TINT
+	# Otherwise, hold a swing "recharging" hint until it expires, then clear.
+	if now < _swing_hint_until:
+		return
+	_banner.text = ""
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -177,15 +217,23 @@ func _play_event(event: Dictionary) -> void:
 			play_sfx(&"bump")
 			fx_sparkle(_event_ground(slot), GUARD_TINT, 1.0)
 		"swing":
-			rig.play(&"interact")
+			# A real melee swing animation (#777) — was `interact`, a limp pose
+			# that update_rig clobbered the same frame, so a swing looked dead.
+			# _hold_attack protects it briefly (movement still interrupts).
+			rig.play(&"attack")
+			_hold_attack(slot)
 			_spawn_swing_arc(slot)
 			# #587: this was gated to the local player only — every opponent's
 			# swing was silent. hit/ko/blocked/smash all play unconditionally;
 			# swing matches that convention now.
 			play_sfx(&"click")
 		"smash":
-			# The charged super: `hit_heavy` is the vocabulary's literal
-			# "charged smash, critical, big launch" entry.
+			# The charged super also throws an attack swing on the smasher (#777),
+			# not just the shockwave.
+			rig.play(&"attack")
+			_hold_attack(slot)
+			# `hit_heavy` is the vocabulary's literal "charged smash, critical,
+			# big launch" entry.
 			play_sfx(&"hit_heavy")
 			_smash_shockwave(slot)
 			request_shake(10.0)
@@ -193,6 +241,10 @@ func _play_event(event: Dictionary) -> void:
 
 func _hold_reaction(slot: int) -> void:
 	_reaction_hold[slot] = Time.get_ticks_msec() + int(REACTION_HOLD_SEC * 1000.0)
+
+
+func _hold_attack(slot: int) -> void:
+	_attack_hold[slot] = Time.get_ticks_msec() + int(ATTACK_HOLD_SEC * 1000.0)
 
 
 ## A visible slash fan in the attacker's facing so reach reads (#257).
@@ -277,11 +329,16 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		if Time.get_ticks_msec() < int(_reaction_hold.get(slot, 0)):
+		var now := Time.get_ticks_msec()
+		var pos := Vector2(state[RumbleRing.PS_X], state[RumbleRing.PS_Y])
+		if now < int(_reaction_hold.get(slot, 0)):
 			# A hit/ko reaction owns the rig: move it, don't re-animate it.
-			rig.position = to_arena(Vector2(state[RumbleRing.PS_X], state[RumbleRing.PS_Y]))
+			rig.position = to_arena(pos)
 		else:
-			update_rig(slot, Vector2(state[RumbleRing.PS_X], state[RumbleRing.PS_Y]))
+			# During an attack the swing animation plays but movement still wins
+			# (force_animate=false, #800/#777) — you're never rooted by your swing.
+			var attacking := now < int(_attack_hold.get(slot, 0))
+			update_rig(slot, pos, 0.0, not attacking)
 		var invuln := float(state[RumbleRing.PS_INVULN]) > 0.0
 		rig.visible = true
 		rig.player_color = (
@@ -289,12 +346,15 @@ func _update_players() -> void:
 			if int(state[RumbleRing.PS_GUARDING]) == 1
 			else PlayerPalette.color_for_slot(slot)
 		)
+		# Plain HP pips + a labelled KO count (#777): the old ♥/⚔ icons read as
+		# "too complicated — what does sword/heart mean". Filled pips = HP left.
+		var hp := clampi(int(state[RumbleRing.PS_HP]), 0, RumbleRing.MAX_HP)
+		var pips := "●".repeat(hp) + "○".repeat(RumbleRing.MAX_HP - hp)
 		var caption := (
-			"%s  ♥%d ⚔%d"
-			% [player_name(slot), int(state[RumbleRing.PS_HP]), int(state[RumbleRing.PS_POINTS])]
+			"%s  %s  KOs %d" % [player_name(slot), pips, int(state[RumbleRing.PS_POINTS])]
 		)
 		if invuln:
-			caption += "  ✨"
+			caption += "  (safe)"
 		rig.display_name = caption
 
 
