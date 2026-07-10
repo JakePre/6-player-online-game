@@ -54,6 +54,11 @@ static func make_meta() -> MinigameMeta:
 				"rules":
 				"Watch the pads flash, then stomp them back in order. One slip and you're out!",
 				"controls": "Stomp pads — WASD / left stick (N/E/S/W)",
+				# Structured spec (#832/#844): the pad-stomp template shape (matches
+				# beat_bounce's — the four directions collapse to the move cluster,
+				# avoiding a per-axis row since those have no gamepad button glyph).
+				"control_spec":
+				[{"verb": "Stomp", "input": InputGlyphs.CLUSTER_MOVE, "note": "N/E/S/W"}],
 			}
 		)
 	)
