@@ -23,9 +23,15 @@ var _charging := false
 var _sunk_seen := {}
 
 
-## Putting-green floor (#589).
+## Actual grass tiles for the putting green (#813) — a putting green IS grass,
+## so the green now comes from the tile texture. A gentle green tint still
+## warms it, kept near white so the grass texture reads.
 func _floor_tint() -> Color:
-	return Color(0.85, 0.98, 0.85)
+	return Color(0.92, 1.0, 0.92)
+
+
+func _floor_tile_scene() -> PackedScene:
+	return preload("res://assets/environment/kenney_platformer_kit/block-grass-low.glb")
 
 
 func _arena_half() -> float:

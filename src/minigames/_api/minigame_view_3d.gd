@@ -14,8 +14,12 @@ extends MinigameView
 const CHARACTER_RIG_SCENE := preload("res://src/characters/character_rig.tscn")
 const ISO_CAMERA_RIG_SCENE := preload("res://src/characters/iso_camera_rig.tscn")
 const FLOOR_TILE_SCENE := preload("res://assets/environment/kenney_platformer_kit/platform.glb")
-## `platform.glb` is a flat 1x1 world-unit tile, ~0.195 units thick (SPEC $10
-## kit is on a 1m grid). Tiles are placed so their top surface sits at y=0.
+## The default tile's dimensions: `platform.glb` is a flat 1x1 world-unit tile,
+## ~0.195 units thick (SPEC $10 kit is on a 1m grid). `_build_floor` now
+## *measures* whatever tile `_floor_tile_scene()` returns (#813) so any kit
+## mesh tiles correctly; these two consts are only the fallback when a mesh
+## reports a degenerate (zero) footprint/height. Tiles always sit so their top
+## surface lands on y=0.
 const FLOOR_TILE_SIZE := 1.0
 const FLOOR_TILE_THICKNESS := 0.195
 ## Below this per-snapshot displacement (world units), a rig is treated as
@@ -358,6 +362,17 @@ func _floor_tint() -> Color:
 	return Color.WHITE
 
 
+## Per-game floor tile mesh (#813). Default is the neutral grey platform tile
+## every un-overridden game shares; override to return a different in-repo kit
+## tile (e.g. a grass or snow block from the Kenney platformer kit) so a game's
+## ground reads as its setting, not one universal slab. `_build_floor` measures
+## whatever this returns, so tiles of any footprint/thickness lay down flush and
+## sit on y=0 — a one-liner per game, no scene work. Pairs with `_floor_tint()`,
+## which still multiplies its hue over the chosen tile's native color.
+func _floor_tile_scene() -> PackedScene:
+	return FLOOR_TILE_SCENE
+
+
 func _setup_3d() -> void:
 	pass
 
@@ -438,30 +453,38 @@ func _build_camera() -> void:
 
 
 func _build_floor() -> void:
-	var tile := FLOOR_TILE_SCENE.instantiate()
+	var tile := _floor_tile_scene().instantiate()
 	var tile_meshes := tile.find_children("*", "MeshInstance3D", true, false)
 	var mesh_instance := tile_meshes[0] as MeshInstance3D if not tile_meshes.is_empty() else null
 	var mesh: Mesh = mesh_instance.mesh if mesh_instance != null else null
 	var base_material: Material = (
 		mesh_instance.get_active_material(0) if mesh_instance != null else null
 	)
+	# Measure the chosen tile so any kit mesh tiles correctly (#813): tiles butt
+	# together at their true footprint, and each drops by its own top height so
+	# the surface still lands on y=0 — the same invariant the hardcoded
+	# platform.glb path held (span 1.0, top 0.195), now derived per tile. Read
+	# the AABB before freeing the instance; the mesh resource outlives the node.
+	var aabb := mesh.get_aabb() if mesh != null else AABB()
 	tile.free()
 	if mesh == null:
 		return
 
-	var tiles_per_side := int(ceil(_arena_half() * 2.0 / FLOOR_TILE_SIZE))
+	var t := _floor_tiling(aabb, _arena_half())
+	var span: float = t.span
+	var top_y: float = t.top_y
+	var tiles_per_side: int = t.count
+	var start: float = t.start
+
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.mesh = mesh
 	multimesh.instance_count = tiles_per_side * tiles_per_side
 
-	var start := -_arena_half() + FLOOR_TILE_SIZE * 0.5
 	var i := 0
 	for x in tiles_per_side:
 		for z in tiles_per_side:
-			var pos := Vector3(
-				start + x * FLOOR_TILE_SIZE, -FLOOR_TILE_THICKNESS, start + z * FLOOR_TILE_SIZE
-			)
+			var pos := Vector3(start + x * span, -top_y, start + z * span)
 			multimesh.set_instance_transform(i, Transform3D(Basis(), pos))
 			i += 1
 
@@ -470,6 +493,28 @@ func _build_floor() -> void:
 	floor_node.multimesh = multimesh
 	floor_node.material_override = _floor_material(base_material)
 	arena.add_child(floor_node)
+
+
+## Tiling parameters for a floor built from a tile of the given `aabb` across an
+## arena of half-extent `half` (#813): `span` is the per-tile footprint (tiles
+## butt together at their true size), `top_y` is the drop that lands the tile's
+## top surface on y=0 (a thick block sinks by its own height; a flat plane sits
+## on the plane), `count` is the tiles-per-side needed to cover the arena, and
+## `start` is the center of the first (edge) tile. A degenerate (zero-footprint
+## or zero-height) measurement falls back to the default platform tile's known
+## dimensions rather than producing an infinite count. Pure math so it is unit-
+## tested directly — the headless RenderingServer doesn't retain MultiMesh
+## instance transforms to read back.
+static func _floor_tiling(aabb: AABB, half: float) -> Dictionary:
+	var footprint := maxf(aabb.size.x, aabb.size.z)
+	var span := footprint if footprint > 0.01 else FLOOR_TILE_SIZE
+	var top_y := aabb.end.y if aabb.size.y > 0.0 else FLOOR_TILE_THICKNESS
+	return {
+		"span": span,
+		"top_y": top_y,
+		"count": int(ceil(half * 2.0 / span)),
+		"start": -half + span * 0.5,
+	}
 
 
 ## The floor's material, tinted per game (#589). Duplicates the native Kenney

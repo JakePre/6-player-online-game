@@ -50,9 +50,14 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
-## Cool mossy-green hilltop floor (#589).
+## Grass tiles for the mossy hilltop (#813): the green now comes from the tile
+## texture itself, with a gentle tint kept near white so the grass still reads.
 func _floor_tint() -> Color:
-	return Color(0.85, 0.96, 0.85)
+	return Color(0.9, 1.0, 0.9)
+
+
+func _floor_tile_scene() -> PackedScene:
+	return preload("res://assets/environment/kenney_platformer_kit/block-grass-low.glb")
 
 
 func _arena_half() -> float:
