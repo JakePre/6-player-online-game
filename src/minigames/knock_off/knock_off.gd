@@ -67,6 +67,14 @@ static func make_meta() -> MinigameMeta:
 					" · Smash — ",
 					{"action": &"action_secondary"},
 				],
+				# Structured spec (#832/#844): the side-scroll template shape.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE_LR},
+					{"verb": "Jump", "input": &"move_up"},
+					{"verb": "Jab", "input": &"action_primary"},
+					{"verb": "Smash", "input": &"action_secondary"},
+				],
 				"name": "Knock-Off",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
