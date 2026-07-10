@@ -80,6 +80,13 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"tumble_run",
 				"controls": "Move — A/D / stick · Jump — W / stick up",
+				# Structured spec (#832/#844): the side-scroll template shape
+				# (lr-cluster move + move_up jump, no action button here).
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE_LR},
+					{"verb": "Jump", "input": &"move_up"},
+				],
 				"name": "Tumble Run",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,
