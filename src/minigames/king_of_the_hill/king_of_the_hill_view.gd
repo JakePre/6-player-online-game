@@ -50,9 +50,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
-## Cool mossy-green hilltop floor (#589).
-func _floor_tint() -> Color:
-	return Color(0.85, 0.96, 0.85)
+## An actual grassy hilltop (#813): tile the arena with the Kenney grass block
+## instead of the grey platform, so King of the Hill reads as a green field.
+## The block carries its own grass color, so no tint is layered over it.
+func _floor_tile_scene() -> PackedScene:
+	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
 
 
 func _arena_half() -> float:

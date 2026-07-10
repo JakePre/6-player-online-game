@@ -66,14 +66,46 @@ func test_floor_material_is_a_per_view_duplicate() -> void:
 	assert_ne(mine, theirs, "each view owns its own floor material")
 
 
-## King of the Hill overrides _floor_tint() (moss). The Kenney tile's native
-## albedo is white, so the tinted material albedo equals the tint exactly.
-func test_floor_tint_override_recolors_the_material() -> void:
-	assert_eq(view._floor_tint(), Color(0.85, 0.96, 0.85), "KotH declares its moss tint")
-	var albedo := _floor_albedo(view)
-	assert_almost_eq(albedo.r, 0.85, 0.01)
-	assert_almost_eq(albedo.g, 0.96, 0.01)
-	assert_almost_eq(albedo.b, 0.85, 0.01)
+## King of the Hill overrides _floor_tile_scene() (#813): its arena tiles with
+## the Kenney grass block, not the default grey platform, so the fixture proves
+## the mesh hook is honored.
+func test_floor_tile_scene_override_swaps_the_mesh() -> void:
+	var grass_mesh := (view.arena.get_node("Floor") as MultiMeshInstance3D).multimesh.mesh
+	var plain_mesh := (
+		(_seeded_plain_view().arena.get_node("Floor") as MultiMeshInstance3D).multimesh.mesh
+	)
+	assert_ne(grass_mesh, plain_mesh, "KotH's grass block is a different mesh than the platform")
+
+
+## The reason a thick block works without a per-game offset (#813): the builder
+## seats each tile at y = -_mesh_top(mesh), so the tile's top surface lands on
+## the y=0 floor plane whatever its thickness. _mesh_top reads the mesh's own
+## vertices (unlike get_aabb / multimesh transforms, which read 0 in a headless
+## run until the RenderingServer has drawn them), so it is the placement math
+## that is actually verifiable here.
+func test_mesh_top_measures_each_tile_thickness() -> void:
+	var platform: Mesh = _tile_mesh("res://assets/environment/kenney_platformer_kit/platform.glb")
+	var grass: Mesh = _tile_mesh("res://assets/environment/kenney_platformer_kit/block-grass.glb")
+	# The thin default platform vs the full grass block — very different tops, so
+	# a fixed offset would sink or float one of them; the per-mesh measure seats
+	# both. (These are the exact values _build_floor negates for the instance Y.)
+	assert_almost_eq(MinigameView3D._mesh_top(platform), 0.195, 0.01, "thin platform top")
+	assert_almost_eq(MinigameView3D._mesh_top(grass), 1.0, 0.01, "full grass block top")
+
+
+func _tile_mesh(scene_path: String) -> Mesh:
+	var tile := (load(scene_path) as PackedScene).instantiate()
+	var mi := tile.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	var mesh := mi.mesh
+	tile.free()
+	return mesh
+
+
+func _seeded_plain_view() -> MinigameView3D:
+	var plain: MinigameView3D = _plain_view()
+	add_child_autofree(plain)
+	plain.setup({0: "Alice"}, 0)
+	return plain
 
 
 func test_untinted_game_keeps_the_neutral_white_floor() -> void:
