@@ -612,6 +612,11 @@ func _mount_view(id: String) -> void:
 
 
 func _unmount_view() -> void:
+	# Restore personal identity synchronously (#820): a team round's colors
+	# must be gone before the leaderboard/podium chips this same handler builds
+	# next read color_for_slot — the view's own _exit_tree clear rides a deferred
+	# queue_free and would land a frame too late.
+	PlayerPalette.clear_team_assignments()
 	if _minigame_view != null:
 		DiagnosticsLog.event(&"match", &"view_unmount", {"game": _minigame_id})
 		_minigame_view.queue_free()

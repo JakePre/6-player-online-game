@@ -533,6 +533,14 @@ func _build_character_rigs() -> void:
 		_rigs[slot] = rig
 
 
+## Rigs bake player_color at build time (before any snapshot), so when a team
+## round flips identity to team colors (#820) the pooled rigs must be re-pushed —
+## outline, through-wall silhouette, and nameplate all recolor from this.
+func _on_identity_colors_changed() -> void:
+	for slot: int in _rigs:
+		(_rigs[slot] as CharacterRig).player_color = player_color(slot)
+
+
 func _character_ids_by_slot() -> Dictionary:
 	var out := {}
 	for member: Dictionary in NetManager.my_room_state.get("members", []):

@@ -38,6 +38,12 @@ var view_flags: Array = []
 ## another player's secrets.
 var private_state: Dictionary = {}
 
+## True once this round's team colors have been applied to PlayerPalette (#820).
+## Per-view (a fresh view starts false), and teams are fixed for a round, so the
+## palette is rebuilt exactly once — from the first snapshot that carries team
+## membership — never every snapshot.
+var _team_synced := false
+
 
 func setup(player_names: Dictionary, local_slot: int) -> void:
 	names = player_names
@@ -47,7 +53,42 @@ func setup(player_names: Dictionary, local_slot: int) -> void:
 
 ## Called for every received snapshot with MinigameBase.get_snapshot() output.
 func render(game: Dictionary) -> void:
+	_sync_team_palette(game)
 	_render(game)
+
+
+## Team-mode rounds recolor every competitor by their team, not their personal
+## pick (#820), so allegiance reads at a glance. Applied once per round from the
+## first snapshot carrying team membership — `teams` (Color Clash, Fort Siege,
+## Basket Brawl, Wall Builders, Cart Push, Snake Chain, Relay Sprint) or Tug of
+## War's team_a/team_b. _exit_tree restores personal identity as the round
+## leaves the screen. Solo games carry no team key, so this no-ops for them.
+func _sync_team_palette(game: Dictionary) -> void:
+	if _team_synced:
+		return
+	var teams := _teams_in(game)
+	if teams.is_empty():
+		return
+	PlayerPalette.set_team_assignments(teams)
+	_team_synced = true
+	_on_identity_colors_changed()
+
+
+## The round's team membership as an array-of-member-arrays, normalizing Tug of
+## War's team_a/team_b to the same shape the rest of the roster already emits.
+static func _teams_in(game: Dictionary) -> Array:
+	var teams: Array = game.get("teams", [])
+	if teams.is_empty() and game.has("team_a") and game.has("team_b"):
+		return [game["team_a"], game["team_b"]]
+	return teams
+
+
+## Restore personal identity when the round's view leaves the screen (#820), so
+## the lobby, standings, podium, and any following solo game read personal picks
+## again. Fires on both the production unmount (queue_free) and test autofree.
+func _exit_tree() -> void:
+	if _team_synced:
+		PlayerPalette.clear_team_assignments()
 
 
 ## Sends the shared WASD/stick move intent; movement minigames call this from
@@ -115,6 +156,14 @@ func _setup() -> void:
 
 
 func _render(_game: Dictionary) -> void:
+	pass
+
+
+## Called when the identity palette changes under the view's feet (#820: team
+## colors switching on). Views that bake player_color into long-lived nodes at
+## build time (the 3D tier's character rigs) re-push it here; views that read
+## player_color fresh every render need do nothing.
+func _on_identity_colors_changed() -> void:
 	pass
 
 
