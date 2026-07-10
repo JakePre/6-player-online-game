@@ -31,6 +31,7 @@ func test_meta_catalog_and_even_rule() -> void:
 	assert_eq(meta.category, MinigameMeta.Category.TEAM)
 	assert_eq(meta.max_players, 12)
 	assert_true(meta.even_players, "never drafted at 3 or 5 (#178)")
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"fort_siege") is FortSiege)

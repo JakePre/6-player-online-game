@@ -56,6 +56,8 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"hot_potato",
 				"controls": "Move — WASD / left stick",
+				# Structured spec (#832/#844): the bare-movement template shape.
+				"control_spec": [{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE}],
 				"name": "Hot Potato",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 3,

@@ -60,6 +60,8 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"meteor_shower",
 				"controls": "Move — WASD / left stick",
+				# Structured spec (#832/#844): the bare-movement template shape.
+				"control_spec": [{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE}],
 				"name": "Meteor Shower",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

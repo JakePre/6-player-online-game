@@ -103,6 +103,15 @@ static func make_meta() -> MinigameMeta:
 					" · Throw — ",
 					{"action": &"action_secondary"},
 				],
+				# Structured spec (#832/#844): the side-scroll template shape
+				# (lr-cluster move + move_up jump + this game's fire/throw actions).
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE_LR},
+					{"verb": "Jump", "input": &"move_up"},
+					{"verb": "Fire", "input": &"action_primary"},
+					{"verb": "Throw", "input": &"action_secondary"},
+				],
 				"name": "Loadout Duel",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

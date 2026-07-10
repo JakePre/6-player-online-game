@@ -50,6 +50,12 @@ static func make_meta() -> MinigameMeta:
 				# Device-aware (#608): the button reads as what the player holds.
 				"control_hints":
 				["Run — WASD / left stick · Jump — ", {"action": &"action_primary"}],
+				# Structured spec (#832/#844): move + action, "Run" for its own verb.
+				"control_spec":
+				[
+					{"verb": "Run", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Jump", "input": &"action_primary"},
+				],
 				"name": "Hurdle Dash",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

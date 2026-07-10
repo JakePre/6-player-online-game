@@ -44,6 +44,8 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"memory_match",
 				"controls": "Move — WASD / left stick",
+				# Structured spec (#832/#844): the bare-movement template shape.
+				"control_spec": [{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE}],
 				"name": "Memory Match",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

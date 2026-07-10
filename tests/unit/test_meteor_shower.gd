@@ -111,6 +111,12 @@ func test_max_players_raised_to_twelve() -> void:
 	assert_eq(MeteorShower.make_meta().max_players, 12)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		MeteorShower.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## M15: at 12 players the arena and both zone radii grow together, so
 ## METEOR_RADIUS stays the same fraction of the final zone as at 6.
 func test_arena_and_zone_scale_at_twelve_preserving_final_zone_density() -> void:

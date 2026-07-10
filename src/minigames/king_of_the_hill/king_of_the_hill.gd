@@ -90,7 +90,19 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"king_of_the_hill",
-				"controls": "Move — WASD / left stick",
+				# Was bare "Move" only — missing the item-use action the view has
+				# always sent on action_primary (shove/anchor); filled in with the
+				# #844 conversion.
+				"controls": "Move — WASD / left stick · Use item — SPACE / pad A",
+				# Device-aware (#608): the button reads as what the player holds.
+				"control_hints":
+				["Move — WASD / left stick · Use item — ", {"action": &"action_primary"}],
+				# Structured spec (#832/#844): the move + action template shape.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Use item", "input": &"action_primary"},
+				],
 				"name": "King of the Hill",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

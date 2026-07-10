@@ -109,12 +109,23 @@ static func make_meta() -> MinigameMeta:
 					+ " capture. Defenders shove you off. Then SWAP — the faster"
 					+ " siege wins the day."
 				),
-				"controls": "Move — WASD / left stick · Shove (defending) — SPACE / pad A",
+				# Stale as bare "Shove (defending)" since #808 gave the one button a
+				# third meaning (BATTER for raiders, REPAIR for an unthreatened
+				# defender) — updated alongside the #844 conversion.
+				"controls": "Move — WASD / left stick · Batter/Repair/Shove — SPACE / pad A",
 				# Device-aware (#608): the button reads as what the player holds.
 				"control_hints":
 				[
-					"Move — WASD / left stick · Shove (defending) — ",
+					"Move — WASD / left stick · Batter/Repair/Shove — ",
 					{"action": &"action_primary"},
+				],
+				# Structured spec (#832/#844): one button, three role/context-
+				# dependent meanings (#808) — named together since control_spec
+				# rows are static per game, not per-role.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Batter / Repair / Shove", "input": &"action_primary"},
 				],
 			}
 		)
