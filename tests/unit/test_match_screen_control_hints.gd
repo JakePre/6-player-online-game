@@ -17,6 +17,27 @@ var screen: Control
 
 func before_each() -> void:
 	MinigameCatalog.register_builtins()
+	# A synthetic hints-only fixture (#844): once the fan-out gave every real
+	# hinted game a control_spec, no registered game was left to exercise the
+	# legacy hint-segment path on its own — this pins the framework mechanism
+	# independent of any one game's copy.
+	(
+		MinigameCatalog
+		. register(
+			(
+				MinigameMeta
+				. create(
+					{
+						"id": &"legacy_hint_test_game",
+						"name": "Legacy Hint Test",
+						"controls": "prose ignored",
+						"control_hints": ["Press ", {"action": &"action_primary"}, " to test"],
+					}
+				)
+			),
+			MinigameBase
+		)
+	)
 	NetManager.my_room_state = {}
 	screen = (load("res://src/match/match_screen.tscn") as PackedScene).instantiate()
 	add_child_autofree(screen)
@@ -57,26 +78,19 @@ func _controls_label() -> Label:
 
 
 func test_intro_hint_reads_the_active_device_glyph() -> void:
-	# Shred Session's control_hints are anchored on action_primary (Space on kb).
-	# The #844 fan-out gave every other hinted game a control_spec (chips win
-	# over hints — see the section below), so this is the one game left that
-	# still genuinely exercises the legacy hint-segment path end to end.
-	NetManager.match_event_received.emit(_intro_event("shred_session", "prose ignored"))
-	assert_eq(
-		_controls_label().text,
-		"Strum the four lanes — ◀ ▶ ▲ / action (left stick / Space), on the beat"
-	)
+	# Every real registered game now ships a control_spec (chips win over
+	# hints — see the section below), so a synthetic fixture (registered in
+	# before_each) is what actually exercises the legacy hint-segment path.
+	NetManager.match_event_received.emit(_intro_event("legacy_hint_test_game", "prose ignored"))
+	assert_eq(_controls_label().text, "Press Space to test")
 
 
 func test_intro_hint_re_renders_on_device_change() -> void:
-	NetManager.match_event_received.emit(_intro_event("shred_session", "prose ignored"))
+	NetManager.match_event_received.emit(_intro_event("legacy_hint_test_game", "prose ignored"))
 	InputGlyphs.active_device = InputGlyphs.Device.GAMEPAD
 	InputGlyphs.active_layout = InputGlyphs.Layout.PLAYSTATION
 	InputGlyphs.device_changed.emit(InputGlyphs.Device.GAMEPAD)
-	assert_eq(
-		_controls_label().text,
-		"Strum the four lanes — ◀ ▶ ▲ / action (left stick / ✕), on the beat"
-	)
+	assert_eq(_controls_label().text, "Press ✕ to test")
 
 
 func test_intro_falls_back_to_prose_without_structured_hints() -> void:
