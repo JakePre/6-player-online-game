@@ -14,6 +14,7 @@ func before_each() -> void:
 func after_each() -> void:
 	# Static state — restore between tests so nothing leaks.
 	PlayerPalette.clear_overrides()
+	PlayerPalette.clear_team_assignments()
 	PlayerPalette.use_colorblind = _saved_colorblind
 
 
@@ -60,4 +61,66 @@ func test_is_index_free_rejects_taken_and_out_of_range() -> void:
 	assert_false(PlayerPalette.is_index_free(-1, others), "negative is not a real index")
 	assert_false(
 		PlayerPalette.is_index_free(PlayerPalette.COLORS.size(), others), "past the palette end"
+	)
+
+
+# --- Team colors (#820) ------------------------------------------------------
+
+
+func test_team_assignment_colors_every_member_by_team() -> void:
+	# Two teams: slots 0/2 vs 1/3. Each member reads its team color, not its pick.
+	PlayerPalette.set_team_assignments([[0, 2], [1, 3]])
+	assert_eq(PlayerPalette.color_for_slot(0), PlayerPalette.TEAM_COLORS[0], "team 0 member")
+	assert_eq(PlayerPalette.color_for_slot(2), PlayerPalette.TEAM_COLORS[0], "team 0 member")
+	assert_eq(PlayerPalette.color_for_slot(1), PlayerPalette.TEAM_COLORS[1], "team 1 member")
+	assert_eq(PlayerPalette.color_for_slot(3), PlayerPalette.TEAM_COLORS[1], "team 1 member")
+
+
+func test_team_color_overrides_a_personal_pick() -> void:
+	# Slot 0 picked P6's color, but during a team round its team wins.
+	PlayerPalette.set_overrides({0: 5})
+	PlayerPalette.set_team_assignments([[0], [1]])
+	assert_eq(
+		PlayerPalette.color_for_slot(0),
+		PlayerPalette.TEAM_COLORS[0],
+		"team color takes precedence over the #581 pick",
+	)
+
+
+func test_slots_outside_any_team_keep_their_personal_color() -> void:
+	# A spectator/unassigned slot during a team round is untouched.
+	PlayerPalette.set_team_assignments([[0], [1]])
+	assert_eq(PlayerPalette.color_for_slot(4), PlayerPalette.COLORS[4], "slot 4 is on no team")
+
+
+func test_clear_team_assignments_restores_personal_identity() -> void:
+	PlayerPalette.set_overrides({0: 5})
+	PlayerPalette.set_team_assignments([[0], [1]])
+	PlayerPalette.clear_team_assignments()
+	assert_false(PlayerPalette.has_team_assignments(), "no team round in force")
+	assert_eq(PlayerPalette.color_for_slot(0), PlayerPalette.COLORS[5], "the #581 pick is back")
+	assert_eq(PlayerPalette.color_for_slot(1), PlayerPalette.COLORS[1], "slot default is back")
+
+
+func test_team_colors_follow_the_colorblind_toggle() -> void:
+	PlayerPalette.set_team_assignments([[0], [1]])
+	PlayerPalette.use_colorblind = true
+	assert_eq(
+		PlayerPalette.color_for_slot(1),
+		PlayerPalette.TEAM_COLORS_COLORBLIND[1],
+		"the colorblind team set is served when the toggle is on",
+	)
+
+
+func test_team_index_wraps_past_the_team_palette_size() -> void:
+	# More teams than colors (defensive): the 5th team reuses the 1st color.
+	var teams := []
+	for i in PlayerPalette.TEAM_COLORS.size() + 1:
+		teams.append([i])
+	PlayerPalette.set_team_assignments(teams)
+	var wrapped := PlayerPalette.TEAM_COLORS.size()  # the one-past team
+	assert_eq(
+		PlayerPalette.color_for_slot(wrapped),
+		PlayerPalette.TEAM_COLORS[0],
+		"team indices wrap like the personal palette does",
 	)

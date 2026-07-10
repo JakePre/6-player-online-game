@@ -187,4 +187,5 @@ func _celebrate(placements: Array) -> void:
 ## Never strand the shared round music paused when this view unmounts mid-STOP
 ## (game over, leaderboard, a wipe) — the next round would start silent (#804).
 func _exit_tree() -> void:
+	super()  # keep the base's identity-palette restore (#820)
 	AudioManager.set_music_paused(false)

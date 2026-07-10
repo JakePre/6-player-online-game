@@ -5,6 +5,10 @@ extends GutTest
 ## exercises the base — King of the Hill is a plain, already-tested fixture
 ## with no extra setup requirements (same choice test_minigame_view.gd made).
 
+const KOTH_SCENE: PackedScene = preload(
+	"res://src/minigames/king_of_the_hill/king_of_the_hill_view.tscn"
+)
+
 var view: MinigameView3D
 
 
@@ -16,10 +20,24 @@ func _plain_view() -> MinigameView3D:
 
 
 func before_each() -> void:
-	var scene: PackedScene = load("res://src/minigames/king_of_the_hill/king_of_the_hill_view.tscn")
-	view = scene.instantiate()
+	view = KOTH_SCENE.instantiate()
 	add_child_autofree(view)
 	view.setup({0: "Alice"}, 0)
+
+
+func after_each() -> void:
+	# The team-color funnel is static PlayerPalette state (#820) — restore it so
+	# a team-snapshot test never bleeds into the next.
+	PlayerPalette.clear_team_assignments()
+
+
+## A mounted 2-player KotH view (rigs need the arena from _ready, so add before
+## setup — the same order before_each uses).
+func _two_player_view() -> MinigameView3D:
+	var v: MinigameView3D = KOTH_SCENE.instantiate()
+	add_child_autofree(v)
+	v.setup({0: "Alice", 1: "Bob"}, 0)
+	return v
 
 
 func test_backdrop_sits_behind_the_arena_viewport() -> void:
@@ -106,6 +124,46 @@ func _seeded_plain_view() -> MinigameView3D:
 	add_child_autofree(plain)
 	plain.setup({0: "Alice"}, 0)
 	return plain
+
+
+# --- Team colors (#820) ------------------------------------------------------
+
+
+## A team-mode snapshot (carrying `teams`) recolors every rig to its team color,
+## overriding personal picks — the identity funnel reaches the pooled rigs even
+## though they baked player_color at build time (before any snapshot).
+func test_team_snapshot_recolors_rigs_by_team() -> void:
+	var two := _two_player_view()
+	two.render({"teams": [[0], [1]]})
+	assert_eq(two.rig_for_slot(0).player_color, PlayerPalette.TEAM_COLORS[0], "slot 0 on team 0")
+	assert_eq(two.rig_for_slot(1).player_color, PlayerPalette.TEAM_COLORS[1], "slot 1 on team 1")
+
+
+## Tug of War's team_a/team_b shape funnels through the same path as `teams`.
+func test_tug_of_war_team_shape_is_understood() -> void:
+	var two := _two_player_view()
+	two.render({"team_a": [0], "team_b": [1]})
+	assert_eq(two.rig_for_slot(0).player_color, PlayerPalette.TEAM_COLORS[0])
+	assert_eq(two.rig_for_slot(1).player_color, PlayerPalette.TEAM_COLORS[1])
+
+
+## A solo snapshot (no team key) leaves rigs on their personal colors.
+func test_solo_snapshot_leaves_personal_colors() -> void:
+	view.render({})
+	assert_eq(view.rig_for_slot(0).player_color, PlayerPalette.color_for_slot(0))
+	assert_false(PlayerPalette.has_team_assignments(), "no team round in force")
+
+
+## Leaving the round (the view exits the tree) restores personal identity, so the
+## lobby and standings that follow read personal picks — not the last team color.
+func test_leaving_a_team_round_restores_personal_identity() -> void:
+	var solo: MinigameView3D = KOTH_SCENE.instantiate()
+	add_child(solo)
+	solo.setup({0: "Alice", 1: "Bob"}, 0)
+	solo.render({"teams": [[0], [1]]})
+	assert_true(PlayerPalette.has_team_assignments(), "team round is in force while mounted")
+	solo.free()
+	assert_false(PlayerPalette.has_team_assignments(), "exiting the round restores personal colors")
 
 
 func test_untinted_game_keeps_the_neutral_white_floor() -> void:

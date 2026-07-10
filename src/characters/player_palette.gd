@@ -24,6 +24,28 @@ const COLORS: Array[Color] = [
 	Color(0.145, 0.510, 0.480),  # P12 teal
 ]
 
+## High-contrast team colors (#820). During a team_mode round the view tier
+## assigns every competing slot to a team and color_for_slot serves one of these
+## instead of the personal pick, so allegiance reads at a glance — a 2-team game
+## is always the maximally-separable red/blue pair; 3-4 team games (Color Clash)
+## add yellow and green. Wraps for any larger team count.
+const TEAM_COLORS: Array[Color] = [
+	Color(0.902, 0.290, 0.235),  # Team 1 red
+	Color(0.255, 0.522, 0.957),  # Team 2 blue
+	Color(0.957, 0.792, 0.204),  # Team 3 yellow
+	Color(0.298, 0.749, 0.353),  # Team 4 green
+]
+
+## Colorblind-safe team colors (M12-03 parity with COLORS_COLORBLIND): orange /
+## blue is the Okabe-Ito pair every CB type keeps apart, with yellow + bluish
+## green for the 3-4 team games. Served whenever use_colorblind is on.
+const TEAM_COLORS_COLORBLIND: Array[Color] = [
+	Color(0.902, 0.624, 0.000),  # Team 1 orange
+	Color(0.000, 0.447, 0.698),  # Team 2 blue
+	Color(0.941, 0.894, 0.259),  # Team 3 yellow
+	Color(0.000, 0.620, 0.451),  # Team 4 bluish green
+]
+
 ## Colorblind-safe variant (M12-03): the default set's worst confusions are
 ## P1 red / P4 green (deutan+protan) and P2 blue / P5 purple. This set leans
 ## on the blue–orange–yellow axis that all three CB types retain and staggers
@@ -55,6 +77,14 @@ static var use_colorblind := false
 ## per-view change. Empty = everyone on their slot default. Keys are int slots.
 static var _overrides := {}
 
+## Team-color assignments (#820), slot(int) -> team index(int). While non-empty
+## (a team_mode round is on screen), color_for_slot serves TEAM_COLORS[team]
+## for an assigned slot, overriding both the #581 pick and the slot default so
+## the whole team reads as one color. Empty everywhere else — the view tier
+## clears it as the round leaves the screen, restoring personal identity for the
+## lobby, standings, and solo games.
+static var _team_of := {}
+
 
 ## Replace the chosen-color overrides wholesale (the client rebuilds this from
 ## each room_updated). A pick is a palette *index*, not a Color, so it survives
@@ -66,6 +96,34 @@ static func set_overrides(map: Dictionary) -> void:
 
 static func clear_overrides() -> void:
 	_overrides = {}
+
+
+## Assign the competing slots to teams for a team_mode round (#820). `teams` is
+## the snapshot's array-of-member-arrays — team 0's slots, team 1's, and so on.
+## Replaces any prior assignment wholesale; color_for_slot then serves the team
+## color for every listed slot until clear_team_assignments().
+static func set_team_assignments(teams: Array) -> void:
+	var map := {}
+	for team_index in teams.size():
+		for slot: int in teams[team_index] as Array:
+			map[int(slot)] = team_index
+	_team_of = map
+
+
+static func clear_team_assignments() -> void:
+	_team_of = {}
+
+
+## Whether a team_mode round's colors are currently in force. The view tier
+## uses this to apply the assignment exactly once per round (teams are fixed).
+static func has_team_assignments() -> bool:
+	return not _team_of.is_empty()
+
+
+## The team palette in force right now (respects the colorblind toggle, exactly
+## as active_colors() does for personal identity).
+static func active_team_colors() -> Array[Color]:
+	return TEAM_COLORS_COLORBLIND if use_colorblind else TEAM_COLORS
 
 
 ## The palette index a slot actually shows: its explicit pick if it made one,
@@ -96,6 +154,9 @@ static func active_colors() -> Array[Color]:
 ## slot default. Wraps at the palette size, so a 13th player reuses P1's color —
 ## `label_for_slot()` keeps them distinct.
 static func color_for_slot(slot: int) -> Color:
+	if _team_of.has(slot):
+		var team_colors := active_team_colors()
+		return team_colors[posmod(int(_team_of[slot]), team_colors.size())]
 	var colors := active_colors()
 	var idx: int = _overrides.get(slot, slot)
 	return colors[posmod(idx, colors.size())]
