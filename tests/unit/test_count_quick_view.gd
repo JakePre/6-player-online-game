@@ -53,12 +53,19 @@ func test_pads_show_their_values() -> void:
 	assert_eq((pad.get_node("Value") as Label3D).text, "14")
 
 
-func test_locked_players_show_it_on_the_nameplate() -> void:
+## #799: the nameplate shows each player's current pick (the pad value under
+## them), not a lock tag; off all pads (-1) shows no pick marker.
+func test_current_pick_shows_on_the_nameplate() -> void:
 	view.render(
-		{"players": {0: [0.0, 0.0, 3, 1], 1: [1.0, 1.0, 2, 0]}, "phase": 1, "swarm": [], "pads": []}
+		{
+			"players": {0: [0.0, 0.0, 3, 14], 1: [1.0, 1.0, 2, -1]},
+			"phase": 1,
+			"swarm": [],
+			"pads": []
+		}
 	)
-	assert_string_contains(view.rig_for_slot(0).display_name, "LOCKED")
-	assert_false("LOCKED" in view.rig_for_slot(1).display_name)
+	assert_string_contains(view.rig_for_slot(0).display_name, "▶ 14")
+	assert_false("▶" in view.rig_for_slot(1).display_name, "off all pads shows no pick")
 	assert_string_contains(view.rig_for_slot(0).display_name, "3")
 
 
@@ -69,7 +76,7 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.pads.size(), 0)
 
 
-## M13-15: the swarm wiggles like living critters, lock-ins flash.
+## M13-15: the swarm wiggles like living critters; picks flash.
 func test_swarm_wiggles_across_snapshots() -> void:
 	view.render({"players": {}, "phase": CountQuick.Phase.FLASH, "swarm": [[2.0, 2.0]], "pads": []})
 	var node: MeshInstance3D = view.arena.get_node("Swarm0")
@@ -78,10 +85,14 @@ func test_swarm_wiggles_across_snapshots() -> void:
 	assert_ne(node.position, pos_a, "same replicated spot, living wiggle")
 
 
-func test_lock_in_flashes_once_seeded() -> void:
-	view.render({"players": {0: [0.0, 0.0, 0, 0]}, "phase": 1, "swarm": [], "pads": []})
+## #799: landing on a pad flashes; staying on the same pad doesn't re-flash;
+## switching to a different pad flashes again (the pick changed).
+func test_landing_on_a_pad_flashes_and_re_flashes_on_change() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0, -1]}, "phase": 1, "swarm": [], "pads": []})
 	var before: int = view.arena.get_child_count()
-	view.render({"players": {0: [0.0, 0.0, 0, 1]}, "phase": 1, "swarm": [], "pads": []})
-	assert_eq(view.arena.get_child_count(), before + 1, "the commit sparkles")
-	view.render({"players": {0: [0.0, 0.0, 0, 1]}, "phase": 1, "swarm": [], "pads": []})
-	assert_eq(view.arena.get_child_count(), before + 1, "staying locked adds nothing")
+	view.render({"players": {0: [0.0, 0.0, 0, 12]}, "phase": 1, "swarm": [], "pads": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "landing on a pad sparkles")
+	view.render({"players": {0: [0.0, 0.0, 0, 12]}, "phase": 1, "swarm": [], "pads": []})
+	assert_eq(view.arena.get_child_count(), before + 1, "staying on the same pad adds nothing")
+	view.render({"players": {0: [0.0, 0.0, 0, 9]}, "phase": 1, "swarm": [], "pads": []})
+	assert_eq(view.arena.get_child_count(), before + 2, "switching pads flashes the new pick")
