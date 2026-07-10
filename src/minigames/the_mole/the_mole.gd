@@ -91,6 +91,13 @@ static func make_meta() -> MinigameMeta:
 					"Move — WASD / left stick · Sabotage (mole) / cycle vote — ",
 					{"action": &"action_primary"},
 				],
+				# Structured spec (#832/#844): move + role-qualified action, keeping
+				# the vote-cycle verb (#801: still the one-button cycle mechanic).
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Sabotage (mole) / cycle vote", "input": &"action_primary"},
+				],
 			}
 		)
 	)
