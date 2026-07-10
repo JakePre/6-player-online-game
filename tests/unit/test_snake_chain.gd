@@ -23,6 +23,7 @@ func test_meta_and_catalog() -> void:
 	var meta := SnakeChain.make_meta()
 	assert_eq(meta.id, &"snake_chain")
 	assert_eq(meta.category, MinigameMeta.Category.TEAM)
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"snake_chain") is SnakeChain)
