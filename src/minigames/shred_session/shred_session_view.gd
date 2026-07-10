@@ -167,17 +167,11 @@ func _build_hud() -> void:
 	_judgment_label.visible = false
 	add_child(_judgment_label)
 
-	_streak_label = Label.new()
-	_streak_label.name = "StreakLabel"
+	_streak_label = make_status_label(&"StreakLabel")
 	_streak_label.add_theme_font_override(&"font", PartyTheme.FONT_DISPLAY)
-	_streak_label.add_theme_font_size_override(&"font_size", PartyTheme.SIZE_TITLE)
 	_streak_label.add_theme_color_override(&"font_color", PartyTheme.ACCENT_BRIGHT)
-	_streak_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_streak_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_streak_label.position.y = 120.0
 	_streak_label.visible = false
-	add_child(_streak_label)
 
 	_scoreboard = VBoxContainer.new()
 	_scoreboard.name = "Scoreboard"

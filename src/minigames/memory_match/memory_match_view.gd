@@ -94,18 +94,10 @@ func _build_floor() -> void:
 
 
 func _setup_3d() -> void:
-	_phase_label = Label.new()
-	_phase_label.name = "PhaseLabel"
-	_phase_label.theme_type_variation = PartyTheme.TITLE_VARIATION
-	_phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	# A black outline so it stays legible over both the bright-green and dark
-	# floor phases (#586) — the old plain label washed out against the tiles.
-	_phase_label.add_theme_constant_override(&"outline_size", 10)
-	_phase_label.add_theme_color_override(&"font_outline_color", Color(0, 0, 0, 0.85))
-	_phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_phase_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_phase_label.position.y = 16.0
-	add_child(_phase_label)
+	# make_status_label's outline already keeps this legible over both the
+	# bright-green and dark floor phases (#586) — the old plain label washed
+	# out against the tiles.
+	_phase_label = make_status_label(&"PhaseLabel")
 
 
 func _render_3d(game: Dictionary) -> void:

@@ -167,6 +167,8 @@ func _shake_on_new_falls() -> void:
 
 ## Expanding, fading ring at the water surface where a player went under.
 func _spawn_splash(world_pos: Vector2) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	var mesh := TorusMesh.new()
 	mesh.inner_radius = 0.35
 	mesh.outer_radius = 0.5

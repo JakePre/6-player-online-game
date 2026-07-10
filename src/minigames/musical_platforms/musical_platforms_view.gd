@@ -68,13 +68,7 @@ func _setup_3d() -> void:
 		node.visible = false
 		arena.add_child(node)
 		_platform_pool.append(node)
-	_phase_label = Label.new()
-	_phase_label.name = "PhaseLabel"
-	_phase_label.add_theme_font_size_override(&"font_size", 32)
-	_phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_phase_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_phase_label.position.y = 16.0
-	add_child(_phase_label)
+	_phase_label = make_status_label(&"PhaseLabel")
 
 
 func _render_3d(game: Dictionary) -> void:

@@ -290,20 +290,12 @@ func _setup_3d() -> void:
 		_axe_mesh = (axe_nodes[0] as MeshInstance3D).mesh
 	axe_source.free()
 
-	_grudge_prompt = Label.new()
-	_grudge_prompt.name = "GrudgePrompt"
+	_grudge_prompt = make_banner(&"GrudgePrompt")
 	_grudge_prompt.theme_type_variation = PartyTheme.HEADER_VARIATION
 	_grudge_prompt.add_theme_color_override(&"font_color", PartyTheme.ACCENT_BRIGHT)
 	_grudge_prompt.add_theme_stylebox_override(&"normal", _chrome_panel(PartyTheme.DANGER))
-	_grudge_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_grudge_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	# Grow upward off the bottom anchor, or the long "GRUDGE → name … aim /
-	# strike" prompt runs downward off screen (#576).
-	_grudge_prompt.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_grudge_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_grudge_prompt.position.y = -70.0
 	_grudge_prompt.visible = false
-	add_child(_grudge_prompt)
 
 	_build_chrome()
 

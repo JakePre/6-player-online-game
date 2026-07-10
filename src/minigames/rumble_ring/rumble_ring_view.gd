@@ -244,6 +244,8 @@ func _event_ground(slot: int) -> Vector2:
 ## smasher and fades. Fire-and-forget, self-freeing, so this stays a one-file
 ## view change.
 func _smash_shockwave(slot: int) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	var mesh := TorusMesh.new()
 	mesh.inner_radius = 0.72
 	mesh.outer_radius = 0.9

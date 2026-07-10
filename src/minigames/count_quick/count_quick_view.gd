@@ -79,7 +79,11 @@ func _setup_3d() -> void:
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.no_depth_test = true
 		label.fixed_size = true
-		label.pixel_size = 0.004
+		# STYLE_GUIDE Label3D rule: pixel_size = 0.002, size via font_size,
+		# outline_size >= font_size / 4.
+		label.pixel_size = 0.002
+		label.font_size = 40
+		label.outline_size = 14
 		label.position.y = 1.2
 		pad.add_child(label)
 		pad.visible = false
@@ -87,13 +91,7 @@ func _setup_3d() -> void:
 		_pad_nodes.append(pad)
 		_pad_labels.append(label)
 
-	_phase_label = Label.new()
-	_phase_label.name = "PhaseLabel"
-	_phase_label.add_theme_font_size_override(&"font_size", 32)
-	_phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_phase_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_phase_label.position.y = 16.0
-	add_child(_phase_label)
+	_phase_label = make_status_label(&"PhaseLabel")
 
 
 func _render_3d(game: Dictionary) -> void:

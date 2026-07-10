@@ -35,10 +35,10 @@ func test_safe_tiles_light_up_only_while_showing() -> void:
 	var unlit: MeshInstance3D = view.arena.get_node("Tile_1_0")
 	assert_eq(lit.material_override, view._safe_material)
 	assert_eq(unlit.material_override, view._dark_material)
-	assert_string_contains(view.get_node("PhaseLabel").text, view.SHOW_TEXT)
+	assert_string_contains(view.get_node("BannerLayer/PhaseLabel").text, view.SHOW_TEXT)
 	view.render({"players": {}, "phase": MemoryMatch.Phase.DARK, "safe_tiles": [], "fallen": []})
 	assert_eq(lit.material_override, view._dark_material, "everything uniform in the dark")
-	assert_string_contains(view.get_node("PhaseLabel").text, view.DARK_TEXT)
+	assert_string_contains(view.get_node("BannerLayer/PhaseLabel").text, view.DARK_TEXT)
 
 
 func test_failed_check_collapses_and_shakes() -> void:
@@ -106,7 +106,7 @@ func test_show_banner_carries_round_and_safe_count() -> void:
 			"round": 2
 		}
 	)
-	var text: String = view.get_node("PhaseLabel").text
+	var text: String = view.get_node("BannerLayer/PhaseLabel").text
 	assert_string_contains(text, "Round 3", "1-based round for players")
 	assert_string_contains(text, "3 safe", "how many tiles to remember")
 	assert_string_contains(text, "GREEN", "names the green safe tiles, not a 'pattern'")
@@ -117,8 +117,10 @@ func test_dark_banner_omits_the_safe_count() -> void:
 	view.render(
 		{"players": {}, "phase": MemoryMatch.Phase.DARK, "safe_tiles": [], "fallen": [], "round": 0}
 	)
-	assert_string_contains(view.get_node("PhaseLabel").text, view.DARK_TEXT)
-	assert_false(view.get_node("PhaseLabel").text.contains("safe)"), "no count while dark")
+	assert_string_contains(view.get_node("BannerLayer/PhaseLabel").text, view.DARK_TEXT)
+	assert_false(
+		view.get_node("BannerLayer/PhaseLabel").text.contains("safe)"), "no count while dark"
+	)
 
 
 ## The safe tiles pulse during SHOW so they read as the focal "go here".

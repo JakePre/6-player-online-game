@@ -81,9 +81,9 @@ func _build_label() -> Label3D:
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
 	label.fixed_size = true
-	# Nameplate was the largest in any view (#783: "player names too big"); 0.004
-	# brings it in line with the other blob/tag labels (beat_bounce, count_quick).
-	label.pixel_size = 0.004
+	# STYLE_GUIDE Label3D rule: pixel_size stays fixed, apparent size comes from
+	# font_size (#783 "player names too big" is handled by font_size, not pixel_size).
+	label.pixel_size = 0.002
 	label.font_size = 44
 	label.outline_size = 12
 	label.modulate = Color.WHITE

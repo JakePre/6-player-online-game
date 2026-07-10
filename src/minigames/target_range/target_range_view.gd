@@ -299,7 +299,7 @@ func _fire_shot() -> void:
 	var from := rig.position + Vector3(0.0, 0.9, 0.0)
 	var to := to_arena(_aim, CROSSHAIR_HEIGHT)
 	var length := from.distance_to(to)
-	if length < 0.1:
+	if length < 0.1 or ArenaFX.reduced_motion:
 		return
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(TRACER_THICKNESS, TRACER_THICKNESS, length)

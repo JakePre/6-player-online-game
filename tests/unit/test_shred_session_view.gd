@@ -86,7 +86,7 @@ func test_local_verdict_flashes_on_a_fresh_event() -> void:
 
 
 func test_streak_banner_shows_once_the_multiplier_is_live() -> void:
-	var streak: Label = view.get_node("StreakLabel")
+	var streak: Label = view.get_node("BannerLayer/StreakLabel")
 	view.render(_snap([], {0: [16, ShredSession.STREAK_X2, 1, 0, 3]}))
 	assert_true(streak.visible)
 	assert_string_contains(streak.text, "×2")

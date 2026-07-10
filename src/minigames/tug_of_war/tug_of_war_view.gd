@@ -202,6 +202,8 @@ func _fire_pull_fx() -> void:
 
 ## A low puff of dust kicked up under the leading edge of the gaining team.
 func _scuff_dust(side: float) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	var base := Vector2(rope + side * 1.6, TEAM_ROW_Z * side)
 	for i in 3:
 		var mesh := SphereMesh.new()
@@ -227,6 +229,8 @@ func _scuff_dust(side: float) -> void:
 ## Streamers erupt from the knot at the moment it's dragged over the line —
 ## the focal point everyone is watching — in the winning team's color.
 func _win_burst(side: float) -> void:
+	if ArenaFX.reduced_motion:
+		return
 	var origin := Vector3(side * win_offset, ROPE_HEIGHT + 0.5, 0.0)
 	var color := TEAM_A_COLOR if side < 0.0 else TEAM_B_COLOR
 	# A big expanding shockwave ring on the ground at the knot — the reliably
