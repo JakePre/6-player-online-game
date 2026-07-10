@@ -47,6 +47,9 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"coin_scramble",
 				"controls": "Move — WASD / left stick",
+				# Structured spec (#832): the bare-movement template shape.
+				# Prose above stays as the wire/legacy fallback.
+				"control_spec": [{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE}],
 				"name": "Coin Scramble",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

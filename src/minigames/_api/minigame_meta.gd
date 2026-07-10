@@ -33,6 +33,23 @@ var controls_text := ""
 ## change); an empty list means "use controls_text". Only button actions render
 ## a glyph — movement/axis hints stay literal (a #608 follow-up).
 var control_hints: Array = []
+## Structured control spec (#832): ordered rows the intro card renders as
+## verb + binding chips for the ACTIVE device only, live-updating on device
+## change and on remap (InputGlyphs.bindings_changed). Each row:
+##   {"verb": "Jump",                # gameplay verb; keeps role qualifiers
+##                                   # ("Shove (defending)", "Cut (saboteur)")
+##    "input": &"action_primary",    # an InputMap action, or a movement
+##                                   # cluster (InputGlyphs.CLUSTER_MOVE /
+##                                   # CLUSTER_MOVE_LR / CLUSTER_MOVE_UD);
+##                                   # omit for a note-only row
+##    "hold": true,                  # optional: renders a "hold" prefix
+##    "modifier": "hold & release",  # optional custom prefix (wins over hold)
+##    "alt": "or mouse",             # optional keyboard-only literal
+##                                   # alternative (mouse aim, click)
+##    "note": "lead the target!"}    # optional trailing literal hint
+## Client-derived like control_hints (never serialized); empty falls back to
+## control_hints, then controls_text.
+var control_spec: Array = []
 
 
 static func create(values: Dictionary) -> MinigameMeta:
@@ -47,6 +64,7 @@ static func create(values: Dictionary) -> MinigameMeta:
 	meta.rules_text = values.get("rules", "")
 	meta.controls_text = values.get("controls", "")
 	meta.control_hints = values.get("control_hints", [])
+	meta.control_spec = values.get("control_spec", [])
 	return meta
 
 

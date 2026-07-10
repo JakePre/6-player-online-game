@@ -99,6 +99,23 @@ static func _body(weight: int) -> FontVariation:
 	return font
 
 
+## Key-badge pill for control-binding chips (#832): a tight raised capsule
+## around a binding label ("Space", "Ⓐ", "WASD") so bindings read as keys, not
+## prose. Additive per §4 — new surfaces may reuse it, existing tokens don't
+## change.
+static func key_pill() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = BG_RAISED
+	style.set_corner_radius_all(RADIUS_SM)
+	style.set_border_width_all(1)
+	style.border_color = BORDER
+	style.content_margin_left = float(SPACE_SM)
+	style.content_margin_right = float(SPACE_SM)
+	style.content_margin_top = float(SPACE_XS) / 2.0
+	style.content_margin_bottom = float(SPACE_XS) / 2.0
+	return style
+
+
 static func _flat(bg: Color, border_color: Color = Color.TRANSPARENT) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = bg

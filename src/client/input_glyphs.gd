@@ -11,8 +11,28 @@ extends Node
 ## swapped layout). Listeners re-render their hints.
 signal device_changed(device: Device)
 
+## The live InputMap's bindings changed (a keyboard remap or pad rebind was
+## applied, #832). Fired by SettingsStore after apply_keybinds/apply_padbinds
+## so control hints re-render with the new keys, not just on device swap.
+signal bindings_changed
+
 enum Device { KEYBOARD, GAMEPAD }
 enum Layout { XBOX, PLAYSTATION, SWITCH, GENERIC }
+
+## Reserved control_spec input names (#832) that render as a movement cluster
+## rather than a single action: the full WASD/stick cluster, its left-right
+## slice (side-scrollers), and its up-down slice (lane games).
+const CLUSTER_MOVE := &"move"
+const CLUSTER_MOVE_LR := &"move_lr"
+const CLUSTER_MOVE_UD := &"move_ud"
+
+## Movement actions per cluster, in display order (up-left-down-right reads as
+## "WASD" on factory keys).
+const CLUSTER_ACTIONS := {
+	CLUSTER_MOVE: [&"move_up", &"move_left", &"move_down", &"move_right"],
+	CLUSTER_MOVE_LR: [&"move_left", &"move_right"],
+	CLUSTER_MOVE_UD: [&"move_up", &"move_down"],
+}
 
 var active_device: Device = Device.KEYBOARD
 var active_layout: Layout = Layout.GENERIC
@@ -74,6 +94,80 @@ static func compose_hint(segments: Array, glyph: Callable) -> String:
 		elif segment is Dictionary and (segment as Dictionary).has("action"):
 			out += String(glyph.call((segment as Dictionary)["action"]))
 	return out
+
+
+## Rebinds landed in the live InputMap (SettingsStore.apply_keybinds /
+## apply_padbinds, #832) — tell every live hint to re-read its labels.
+func notify_bindings_changed() -> void:
+	bindings_changed.emit()
+
+
+## The display label for a control_spec input on the active device: movement
+## clusters resolve to the actual bound keys ("WASD", or "Up Left Down Right"
+## after a remap) on keyboard and the stick on a pad; anything else is an
+## InputMap action rendered via glyph_for.
+func binding_label(input: StringName) -> String:
+	if CLUSTER_ACTIONS.has(input):
+		return _cluster_label(input)
+	return glyph_for(input)
+
+
+## Keyboard: the cluster's bound keys, live from the InputMap — single-char
+## keys pack tight ("WASD"), anything longer joins with a slash so a remap to
+## the arrows reads "Up/Left/Down/Right". Pad: the stick (with an axis arrow
+## for the half-clusters), or per-action button glyphs after a button rebind.
+func _cluster_label(cluster: StringName) -> String:
+	var actions: Array = CLUSTER_ACTIONS[cluster]
+	if active_device == Device.KEYBOARD:
+		var labels: Array[String] = []
+		var all_single := true
+		for action: StringName in actions:
+			var label := glyph_for(action)
+			if label.is_empty():
+				continue
+			labels.append(label)
+			all_single = all_single and label.length() == 1
+		if labels.is_empty():
+			return ""
+		# The full cluster packs single keys tight ("WASD"); the half-clusters
+		# and any multi-char remap ("Up/Left/…") slash-join for readability.
+		if cluster == CLUSTER_MOVE and all_single:
+			return "".join(labels)
+		return "/".join(labels)
+	return _pad_cluster_label(cluster, actions)
+
+
+## Pad side of the cluster: the stick (with an axis arrow for half-clusters)
+## while every action rides a joypad axis; per-action button glyphs after a
+## button rebind.
+func _pad_cluster_label(cluster: StringName, actions: Array) -> String:
+	if _cluster_is_stick_bound(actions):
+		if cluster == CLUSTER_MOVE_LR:
+			return "Left Stick ◀▶"
+		if cluster == CLUSTER_MOVE_UD:
+			return "Left Stick ▲▼"
+		return "Left Stick"
+	var glyphs: Array[String] = []
+	for action: StringName in actions:
+		var glyph := glyph_for(action)
+		if not glyph.is_empty():
+			glyphs.append(glyph)
+	return "/".join(glyphs)
+
+
+## True while every cluster action still rides a joypad axis (the factory left
+## stick, or any stick after an axis rebind) — a button rebind drops to glyphs.
+func _cluster_is_stick_bound(actions: Array) -> bool:
+	for action: StringName in actions:
+		if not InputMap.has_action(action):
+			return false
+		var has_motion := false
+		for event in InputMap.action_get_events(action):
+			if event is InputEventJoypadMotion:
+				has_motion = true
+		if not has_motion:
+			return false
+	return true
 
 
 ## The label to show for an input action on the *active* device: the keyboard

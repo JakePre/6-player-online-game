@@ -93,3 +93,48 @@ func test_hint_for_renders_against_the_active_device() -> void:
 	assert_eq(InputGlyphs.hint_for(segments), "Drift — ✕")
 	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
 	assert_eq(InputGlyphs.hint_for(segments), "Drift — Space")
+
+
+# --- Movement clusters + rebind hook (#832) -------------------------------------
+
+
+func test_move_cluster_reads_the_bound_keys_on_keyboard() -> void:
+	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
+	# Factory binds are WASD (project.godot / SettingsStore.REBINDABLE_ACTIONS),
+	# displayed in up-left-down-right order.
+	assert_eq(InputGlyphs.binding_label(InputGlyphs.CLUSTER_MOVE), "WASD")
+	assert_eq(InputGlyphs.binding_label(InputGlyphs.CLUSTER_MOVE_LR), "A/D")
+	assert_eq(InputGlyphs.binding_label(InputGlyphs.CLUSTER_MOVE_UD), "W/S")
+
+
+func test_move_cluster_follows_a_keyboard_remap() -> void:
+	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
+	SettingsStore.apply_keybinds({"keybinds": {"move_up": KEY_UP}})
+	# Multi-char labels switch the cluster to slash-joined so "Up" stays
+	# readable next to single keys.
+	assert_string_contains(InputGlyphs.binding_label(InputGlyphs.CLUSTER_MOVE), "Up/")
+	SettingsStore.apply_keybinds({})  # restore factory binds
+
+
+func test_move_cluster_reads_as_the_stick_on_a_pad() -> void:
+	InputGlyphs.active_device = InputGlyphs.Device.GAMEPAD
+	InputGlyphs.active_layout = InputGlyphs.Layout.XBOX
+	assert_eq(InputGlyphs.binding_label(InputGlyphs.CLUSTER_MOVE), "Left Stick")
+	assert_string_contains(InputGlyphs.binding_label(InputGlyphs.CLUSTER_MOVE_LR), "Left Stick")
+
+
+func test_binding_label_falls_through_to_glyph_for_plain_actions() -> void:
+	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
+	assert_eq(InputGlyphs.binding_label(&"action_primary"), "Space")
+
+
+func test_settings_apply_fires_bindings_changed() -> void:
+	watch_signals(InputGlyphs)
+	SettingsStore.apply_keybinds({})
+	assert_signal_emitted(InputGlyphs, "bindings_changed")
+
+
+func test_padbinds_apply_fires_bindings_changed() -> void:
+	watch_signals(InputGlyphs)
+	SettingsStore.apply_padbinds({})
+	assert_signal_emitted(InputGlyphs, "bindings_changed")
