@@ -71,6 +71,8 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"snake_chain",
 				"controls": "Steer — WASD / left stick",
+				# Structured spec (#832/#844): bare movement, own verb kept.
+				"control_spec": [{"verb": "Steer", "input": InputGlyphs.CLUSTER_MOVE}],
 				"name": "Snake Chain",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
