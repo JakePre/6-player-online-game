@@ -174,6 +174,12 @@ func test_max_players_raised_to_twenty_four() -> void:
 	assert_eq(SimonStomp.make_meta().max_players, 24)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		SimonStomp.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## No arena/position state (M15): a 24-player match just tracks 24 sets of
 ## alive/cleared-count against the same shared 4-pad sequence.
 func test_setup_handles_twenty_four_players() -> void:
