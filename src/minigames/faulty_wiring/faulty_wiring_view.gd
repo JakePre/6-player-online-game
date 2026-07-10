@@ -121,26 +121,10 @@ func _attach_player_lamps() -> void:
 
 
 func _build_labels() -> void:
-	_banner = Label.new()
-	_banner.name = "Banner"
-	_banner.add_theme_font_size_override(&"font_size", 40)
-	_banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_banner.position.y = 18.0
-	add_child(_banner)
-
-	_role_label = Label.new()
-	_role_label.name = "RoleLabel"
-	_role_label.add_theme_font_size_override(&"font_size", 26)
-	_role_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_role_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	# Grow upward off the bottom anchor, or long role text runs downward off
-	# screen — reported unreadable at the bottom edge (#576).
-	_role_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_role_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_role_label.position.y = -60.0
-	add_child(_role_label)
+	_banner = make_status_label(&"Banner")
+	# The secret-role prompt is exactly what make_banner exists for (#258/#576):
+	# bottom-center, grows upward, never hides under the emote band.
+	_role_label = make_banner(&"RoleLabel")
 
 
 func _update_players() -> void:
@@ -192,16 +176,16 @@ func _update_labels() -> void:
 			_banner.text = "POWER FAILED — SABOTEUR WINS"
 			_banner.add_theme_color_override(&"font_color", BROKEN_COLOR)
 		_role_label.text = "The saboteur was %s" % who
-		_role_label.add_theme_color_override(&"font_color", Color(0.95, 0.85, 0.4))
+		_role_label.add_theme_color_override(&"font_color", PartyTheme.ACCENT_BRIGHT)
 		return
 	_banner.text = "REPAIR THE WIRING"
-	_banner.add_theme_color_override(&"font_color", Color(0.85, 0.88, 0.95))
+	_banner.add_theme_color_override(&"font_color", PartyTheme.TEXT)
 	# Only the saboteur's own client shows the secret prompt (#254).
 	if String(private_state.get("role", "")) == "saboteur":
 		var cd := float(private_state.get("cut_cd", 0.0))
 		if cd > 0.0:
 			_role_label.text = "YOU ARE THE SABOTEUR — cut ready in %.1fs" % cd
-			_role_label.add_theme_color_override(&"font_color", Color(0.8, 0.5, 0.5))
+			_role_label.add_theme_color_override(&"font_color", PartyTheme.DANGER.darkened(0.2))
 		else:
 			_role_label.text = "YOU ARE THE SABOTEUR — SPACE to cut a wire"
 			_role_label.add_theme_color_override(&"font_color", BROKEN_COLOR)

@@ -73,3 +73,30 @@ Generated art goes through [IMAGE_REQUESTS.md](IMAGE_REQUESTS.md) (owner runs
 the generations). Ship the fully-styled no-art fallback first; art slots in
 when delivered. Fonts/licenses live in `assets/fonts/` and are logged in
 `assets/CREDITS.md`.
+
+## In-match overlay text (#831)
+
+Screen text drawn over the 3D arena runs bigger than chrome (read from
+further away) and comes from exactly two `MinigameView3D` helpers — never a
+hand-rolled `Label.new()`:
+
+- **Top-center phase/status headline** ("WATCH", "ROUND 3", reveals):
+  `make_status_label(name)` — `SIZE_OVERLAY_TITLE` (40), black outline, on the
+  never-hidden `BannerLayer`. Secondary status lines (round counters) pass
+  `PartyTheme.SIZE_OVERLAY_BODY` and offset `position.y` below the headline.
+- **Bottom-center gameplay prompt** (role prompts, charge bars, held-item
+  hints): `make_banner(name)` — `SIZE_OVERLAY_BODY` (24), grows upward, clears
+  the emote band (#258/#576).
+
+**Color rule:** semantic meanings use `PartyTheme` tokens everywhere —
+`SUCCESS` = good/complete, `DANGER` = threat/failure, `INFO` = neutral call
+out, `ACCENT`/`ACCENT_BRIGHT` = coins & highlights, `TEXT`/`TEXT_DIM` for
+plain copy. Game-identity palettes (team colors, lane colors, tier colors)
+are fine but must be **named consts** on the view/sim — never inline
+`Color(...)` literals at the call site.
+
+**In-world text (`Label3D` — nameplates, pad values, callouts):** use
+`pixel_size = 0.002` and set apparent size via `font_size` (30–56 by camera
+distance), `outline_size >= font_size / 4` so text survives bright floors.
+Don't scale with `pixel_size` — mixed pixel densities are what made in-world
+text look incoherent across games.

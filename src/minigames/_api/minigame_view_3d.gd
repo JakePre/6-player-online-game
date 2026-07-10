@@ -244,27 +244,56 @@ func _celebrate(placements: Array) -> void:
 ## Gameplay-critical screen text (dash bars, charge banners, held-item
 ## prompts) must never hide behind the arena or the emote chrome (#258):
 ## banners live on a high CanvasLayer, bottom-center, above the emote band.
-func make_banner(banner_name: StringName, font_size := 24) -> Label:
+func make_banner(banner_name: StringName, font_size := PartyTheme.SIZE_OVERLAY_BODY) -> Label:
+	var label := _new_overlay_label(banner_name, font_size)
+	label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	label.position.y -= 120.0
+	# #576: a bottom-center anchor with the label's zero-size starting rect
+	# defaults to growing right+down as text arrives, so long banners (role
+	# text, vote prompts) ran off the right edge and under the emote band.
+	# Grow outward from center and upward from the bottom anchor instead.
+	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_attach_overlay_label(label)
+	return label
+
+
+## Top-center phase/status headline ("WATCH", "ROUND 3", role reveals) —
+## the counterpart to make_banner (#831): every view used to hand-roll this
+## with drifting sizes and no outline. Same never-hidden CanvasLayer, plus an
+## outline so it stays readable over bright arenas.
+func make_status_label(label_name: StringName, font_size := PartyTheme.SIZE_OVERLAY_TITLE) -> Label:
+	var label := _new_overlay_label(label_name, font_size)
+	label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	label.position.y += 16.0
+	label.grow_vertical = Control.GROW_DIRECTION_END
+	label.add_theme_constant_override(&"outline_size", 6)
+	label.add_theme_color_override(&"font_outline_color", Color(0, 0, 0, 0.85))
+	_attach_overlay_label(label)
+	return label
+
+
+## Shared overlay-label plumbing for make_banner/make_status_label, split into
+## build + attach: anchors/offsets must be fully configured BEFORE the label
+## enters the tree — set_anchors_preset on an in-tree control can resolve
+## against a not-yet-laid-out (zero-size) parent rect and pin the label to the
+## wrong spot (caught by the #576 centering regression test).
+func _new_overlay_label(label_name: StringName, font_size: int) -> Label:
+	var label := Label.new()
+	label.name = label_name
+	label.add_theme_font_size_override(&"font_size", font_size)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	return label
+
+
+func _attach_overlay_label(label: Label) -> void:
 	if _banner_layer == null:
 		_banner_layer = CanvasLayer.new()
 		_banner_layer.name = "BannerLayer"
 		_banner_layer.layer = 5
 		add_child(_banner_layer)
-	var label := Label.new()
-	label.name = banner_name
-	label.add_theme_font_size_override(&"font_size", font_size)
-	label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	label.position.y -= 120.0
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# #576: a bottom-center anchor with the label's zero-size starting rect
-	# defaults to growing right+down as text arrives, so long banners (role
-	# text, vote prompts) ran off the right edge and under the emote band.
-	# Grow outward from center and upward from the bottom anchor instead.
-	label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_banner_layer.add_child(label)
-	return label
 
 
 # --- Pooled transient entity nodes (#709) -------------------------------------

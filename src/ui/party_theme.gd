@@ -20,6 +20,11 @@ const SIZE_HEADER := 22
 const SIZE_BUTTON := 18
 const FONT_SIZE := 16
 const SIZE_SMALL := 13
+## In-match overlay scale (#831) — screen text drawn OVER the 3D arena reads
+## from further away than chrome, so it runs bigger: phase/status headlines
+## (MinigameView3D.make_status_label) and gameplay prompts (make_banner).
+const SIZE_OVERLAY_TITLE := 40
+const SIZE_OVERLAY_BODY := 24
 
 ## Palette — dark blue-slate depth with the coin-gold identity accent.
 const BG_DARKER := Color(0.07, 0.08, 0.115)
