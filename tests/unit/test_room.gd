@@ -187,6 +187,23 @@ func test_excluded_game_ids_locked_once_match_started() -> void:
 	MinigameCatalog.clear()
 
 
+# --- Debug "play all games" toggle (#812) ------------------------------------
+
+
+func test_debug_all_games_toggle_defaults_off_replicates_and_is_lobby_only() -> void:
+	var room := _room_with(2)
+	assert_false(room.debug_all_games, "off by default")
+	assert_false(room.to_state_dict().debug_all_games, "off in the broadcast")
+	assert_true(room.set_debug_all_games(true), "the host can turn it on in the lobby")
+	assert_true(room.to_state_dict().debug_all_games, "the toggle rides the room state")
+	assert_true(room.set_debug_all_games(false), "and back off")
+	assert_false(room.debug_all_games)
+	# Locked once the match is under way, like every other lobby setting.
+	room.state = Room.State.IN_MATCH
+	assert_false(room.set_debug_all_games(true), "rejected mid-match")
+	assert_false(room.debug_all_games)
+
+
 func test_cannot_start_alone() -> void:
 	var room := _room_with(1)
 	_ready_all(room)

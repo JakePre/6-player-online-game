@@ -595,3 +595,49 @@ func test_finale_ignores_input_from_non_participants() -> void:
 	var players: Dictionary = controller.get_snapshot().shop.players
 	assert_false(bool(players.get(99, {}).get("confirmed", false)))
 	assert_eq(players.size(), 2)
+
+
+# --- Debug run: every game once, in order (#812) -----------------------------
+
+
+## With debug_all_games on and no explicit playlist, the controller drafts the
+## whole eligible roster in catalog order rather than a random round_count draw.
+func test_debug_all_games_plays_the_whole_eligible_roster_in_order() -> void:
+	# The real roster (before_each's lone stub can't prove "every game"). clear()
+	# first so register_builtins' is-empty guard actually repopulates.
+	MinigameCatalog.clear()
+	MinigameCatalog.register_builtins()
+	var room := _make_room(4)
+	room.debug_all_games = true
+	var controller: MatchController = MatchController.new(room, {"seed": 7, "finale": false})
+	var expected: Array = MinigameCatalog.eligible_ids(4, [])
+	assert_eq(controller.playlist, expected, "the debug run is eligible_ids in catalog order")
+	assert_gt(controller.playlist.size(), 1, "the whole roster, not a single game")
+	var seen := {}
+	for id: StringName in controller.playlist:
+		assert_false(seen.has(id), "%s is played exactly once" % id)
+		seen[id] = true
+
+
+## The debug run is a full audit, so the host's exclusion set does not apply —
+## an "excluded" game is still reached.
+func test_debug_all_games_ignores_host_exclusions() -> void:
+	MinigameCatalog.clear()
+	MinigameCatalog.register_builtins()
+	var room := _make_room(4)
+	room.debug_all_games = true
+	var victim: StringName = MinigameCatalog.eligible_ids(4, [])[0]
+	room.excluded_game_ids = [victim] as Array[StringName]
+	var controller: MatchController = MatchController.new(room, {"seed": 7, "finale": false})
+	assert_true(victim in controller.playlist, "the 'excluded' game is still in the debug run")
+
+
+## No mutator ever rolls during a debug run, even with the whole pool enabled.
+func test_debug_run_never_rolls_a_mutator() -> void:
+	MutatorCatalog.register_builtins()
+	var room := _make_room(4)
+	room.debug_all_games = true
+	assert_true(room.set_mutator_pool(MutatorCatalog.registered_ids()), "enable every mutator")
+	var controller: MatchController = MatchController.new(room, {"seed": 7, "finale": false})
+	for _i in 50:
+		assert_null(controller._roll_mutator(), "the debug audit is never perturbed by a mutator")

@@ -95,6 +95,11 @@ func _init(match_room: Room, config: Dictionary) -> void:
 		# its player-count eligibility assert would fire even when an explicit
 		# playlist is supplied, e.g. for a solo --debug-minigame session.
 		playlist = config.playlist
+	elif room.debug_all_games:
+		# #812: the whole eligible roster once, in catalog order — no shuffle, no
+		# repeats. Host exclusions are ignored on purpose; the point of the debug
+		# run is to reach every game the current head count can support.
+		playlist = MinigameCatalog.eligible_ids(room.connected_count(), [])
 	else:
 		playlist = MinigameCatalog.build_playlist(
 			_rng, int(config.get("rounds", 12)), room.connected_count(), room.excluded_game_ids
@@ -280,7 +285,8 @@ func _enter_intro() -> void:
 ## pool, never the same one twice in a row. Deterministic from the match seed.
 func _roll_mutator() -> Mutator:
 	var previous := current_mutator
-	if room.mutator_pool.is_empty() or _rng.randf() >= MUTATOR_ROUND_CHANCE:
+	# The debug run (#812) is a clean audit pass — never perturbed by mutators.
+	if room.debug_all_games or room.mutator_pool.is_empty() or _rng.randf() >= MUTATOR_ROUND_CHANCE:
 		return null
 	var pool := room.mutator_pool.filter(
 		func(id: StringName) -> bool: return previous == null or id != previous.id
