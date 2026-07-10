@@ -80,6 +80,7 @@ func test_meta_and_catalog() -> void:
 	assert_eq(meta.id, &"tumble_run")
 	assert_eq(meta.max_players, 8)
 	assert_false(meta.controls_text.is_empty())
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"tumble_run") is TumbleRun)
