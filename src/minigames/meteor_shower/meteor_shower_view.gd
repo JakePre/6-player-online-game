@@ -40,9 +40,11 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
-## Warm ember/ash floor under the falling meteors (#589).
-func _floor_tint() -> Color:
-	return Color(1.0, 0.84, 0.74)
+## An open grass field under the falling meteors (#813) — the Kenney grass
+## block replaces the grey platform and carries its own color, so the old
+## ember/ash tint (#589) is gone.
+func _floor_tile_scene() -> PackedScene:
+	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
 
 
 func _arena_half() -> float:

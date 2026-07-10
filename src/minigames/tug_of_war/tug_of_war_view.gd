@@ -82,9 +82,11 @@ func _decay_knot_flare() -> void:
 	_marker_material.emission_energy_multiplier = 2.6 if flaring else 0.9
 
 
-## Dusty tan floor for the rope struggle (#589).
-func _floor_tint() -> Color:
-	return Color(0.98, 0.9, 0.76)
+## A grass field for the rope struggle (#813) — the classic field-day setting;
+## the Kenney grass block replaces the grey platform and carries its own
+## color, so the old dusty-tan tint (#589) is gone.
+func _floor_tile_scene() -> PackedScene:
+	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
 
 
 func _arena_half() -> float:
