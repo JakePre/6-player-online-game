@@ -39,6 +39,9 @@ static func make_meta() -> MinigameMeta:
 				# Device-aware (#608): the button reads as what the player holds.
 				"control_hints":
 				["Press ", {"action": &"action_primary"}, " the instant it flashes DRAW!"],
+				# Structured spec (#832/#844): a single action row with its note.
+				"control_spec":
+				[{"verb": "Draw", "input": &"action_primary", "note": "the instant it flashes!"}],
 				"name": "Quick Draw",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

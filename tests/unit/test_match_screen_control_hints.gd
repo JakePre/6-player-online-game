@@ -57,17 +57,26 @@ func _controls_label() -> Label:
 
 
 func test_intro_hint_reads_the_active_device_glyph() -> void:
-	# Quick Draw's control_hints are anchored on action_primary (Space on kb).
-	NetManager.match_event_received.emit(_intro_event("quick_draw", "prose ignored"))
-	assert_eq(_controls_label().text, "Press Space the instant it flashes DRAW!")
+	# Shred Session's control_hints are anchored on action_primary (Space on kb).
+	# The #844 fan-out gave every other hinted game a control_spec (chips win
+	# over hints — see the section below), so this is the one game left that
+	# still genuinely exercises the legacy hint-segment path end to end.
+	NetManager.match_event_received.emit(_intro_event("shred_session", "prose ignored"))
+	assert_eq(
+		_controls_label().text,
+		"Strum the four lanes — ◀ ▶ ▲ / action (left stick / Space), on the beat"
+	)
 
 
 func test_intro_hint_re_renders_on_device_change() -> void:
-	NetManager.match_event_received.emit(_intro_event("quick_draw", "prose ignored"))
+	NetManager.match_event_received.emit(_intro_event("shred_session", "prose ignored"))
 	InputGlyphs.active_device = InputGlyphs.Device.GAMEPAD
 	InputGlyphs.active_layout = InputGlyphs.Layout.PLAYSTATION
 	InputGlyphs.device_changed.emit(InputGlyphs.Device.GAMEPAD)
-	assert_eq(_controls_label().text, "Press ✕ the instant it flashes DRAW!")
+	assert_eq(
+		_controls_label().text,
+		"Strum the four lanes — ◀ ▶ ▲ / action (left stick / ✕), on the beat"
+	)
 
 
 func test_intro_falls_back_to_prose_without_structured_hints() -> void:
