@@ -33,7 +33,8 @@ const FL_COUNT := 2
 var lane := {}
 var caught := {}
 var streak := {}
-## Incoming fish, each {lane: int, arrives_at: float, caught_by: int (-1)}.
+## Incoming fish, each {lane: int, arrives_at: float}. A fish is retired the
+## moment anyone in its lane catches it (everyone there scores — #776).
 var fish: Array[Dictionary] = []
 
 var _next_spawn_at := 0.0
@@ -79,16 +80,13 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(_delta: float) -> void:
 	if elapsed >= _next_spawn_at - SWIM_SEC:
 		_next_spawn_at += cadence()
-		fish.append(
-			{"lane": rng.randi_range(0, LANES - 1), "arrives_at": _next_spawn_at, "caught_by": -1}
-		)
+		fish.append({"lane": rng.randi_range(0, LANES - 1), "arrives_at": _next_spawn_at})
 	for i in range(fish.size() - 1, -1, -1):
 		var arrival: float = fish[i].arrives_at
 		if elapsed < arrival:
 			continue
 		if elapsed <= arrival + CATCH_WINDOW_SEC:
-			_try_catch(i)
-			if int(fish[i].caught_by) >= 0:
+			if _try_catch(i):
 				fish.remove_at(i)
 			continue
 		# Escaped: everyone in its lane whiffed — their streaks die.
@@ -126,16 +124,20 @@ func _rank_players() -> Array:
 	return placements
 
 
-## First player standing in the fish's lane catches it — everyone had the
-## same beat to be there.
-func _try_catch(index: int) -> void:
+## Everyone standing in the fish's lane catches it — same beat, same reward, no
+## contention. Awarding only the first slot in the lane made player 1 win every
+## shared-lane fish (#776); the lane is a shared prize, so all who are there
+## score and keep their streak. Returns whether anyone caught it, so the caller
+## retires the fish from the water.
+func _try_catch(index: int) -> bool:
 	var fish_lane: int = fish[index].lane
+	var caught_any := false
 	for slot: int in slots:
 		if int(lane[slot]) != fish_lane:
 			continue
-		fish[index].caught_by = slot
+		caught_any = true
 		caught[slot] = int(caught[slot]) + 1
 		streak[slot] = int(streak[slot]) + 1
 		if int(streak[slot]) % STREAK_EVERY == 0:
 			caught[slot] = int(caught[slot]) + STREAK_BONUS
-		return
+	return caught_any

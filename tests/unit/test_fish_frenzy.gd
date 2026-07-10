@@ -24,8 +24,9 @@ func test_meta_and_catalog() -> void:
 
 
 ## No sim geometry to scale (fixed 3 lanes, no positions); a 24-cap for this
-## game isn't planned (ADR 003 — first-catch-wins is accepted as-is only up
-## to 8), so this just confirms setup handles the raised cap.
+## game isn't planned (ADR 003), so this just confirms setup handles the raised
+## cap. A fish in a lane is a shared prize (#776), so more players just means
+## more of them can score the same beat.
 func test_setup_handles_eight_players() -> void:
 	var player_slots: Array[int] = []
 	for i in 8:
@@ -60,7 +61,7 @@ func test_cadence_tightens_over_the_round() -> void:
 func test_standing_in_the_lane_catches_at_the_line() -> void:
 	var game := _game()
 	game._next_spawn_at = 999.0  # No cadence spawns in this focused test.
-	game.fish.append({"lane": 2, "arrives_at": game.elapsed, "caught_by": -1})
+	game.fish.append({"lane": 2, "arrives_at": game.elapsed})
 	game.handle_input(0, {"lane": 2})
 	game.tick(TICK)
 	assert_eq(game.caught[0], 1)
@@ -68,13 +69,30 @@ func test_standing_in_the_lane_catches_at_the_line() -> void:
 	assert_eq(game.fish.size(), 0, "caught fish leave the water")
 
 
+## #776: a fish in a lane is a shared prize — EVERYONE standing there catches
+## it and keeps their streak, so no lowest-slot bias (player 1 used to win the
+## whole lane). The catch still retires the one fish from the water.
+func test_everyone_in_the_lane_catches_the_same_fish() -> void:
+	var game := _game([0, 1, 2] as Array[int])
+	game._next_spawn_at = 999.0
+	game.fish.append({"lane": 2, "arrives_at": game.elapsed})
+	game.handle_input(0, {"lane": 2})
+	game.handle_input(1, {"lane": 2})
+	game.handle_input(2, {"lane": 0})  # different lane: no catch, no streak
+	game.tick(TICK)
+	assert_eq(game.caught[0], 1, "P1 scores")
+	assert_eq(game.caught[1], 1, "P2 in the same lane scores too")
+	assert_eq(game.caught[2], 0, "the player in another lane does not")
+	assert_eq(game.streak[0], 1)
+	assert_eq(game.streak[1], 1)
+	assert_eq(game.fish.size(), 0, "the fish is retired once caught")
+
+
 func test_wrong_lane_misses_and_escape_breaks_the_streak() -> void:
 	var game := _game()
 	game.streak[0] = 4
 	game.handle_input(0, {"lane": 1})
-	game.fish.append(
-		{"lane": 1, "arrives_at": game.elapsed - FishFrenzy.CATCH_WINDOW_SEC - 0.1, "caught_by": -1}
-	)
+	game.fish.append({"lane": 1, "arrives_at": game.elapsed - FishFrenzy.CATCH_WINDOW_SEC - 0.1})
 	# Fish is already past the window in slot 0's lane: it escaped them.
 	game.tick(TICK)
 	assert_eq(game.caught[0], 0)
@@ -85,7 +103,7 @@ func test_streak_bonus_every_five() -> void:
 	var game := _game()
 	game.streak[0] = 4
 	game.handle_input(0, {"lane": 0})
-	game.fish.append({"lane": 0, "arrives_at": game.elapsed, "caught_by": -1})
+	game.fish.append({"lane": 0, "arrives_at": game.elapsed})
 	game.tick(TICK)
 	assert_eq(game.streak[0], 5)
 	assert_eq(game.caught[0], 1 + FishFrenzy.STREAK_BONUS, "fifth in a row pays double")
@@ -111,7 +129,7 @@ func test_most_fish_wins_and_catches_become_pickup_coins() -> void:
 
 func test_snapshot_shape() -> void:
 	var game := _game()
-	game.fish.append({"lane": 1, "arrives_at": game.elapsed + 1.0, "caught_by": -1})
+	game.fish.append({"lane": 1, "arrives_at": game.elapsed + 1.0})
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.players[0].size(), 3)
 	assert_eq(snapshot.fish.size(), 1)
