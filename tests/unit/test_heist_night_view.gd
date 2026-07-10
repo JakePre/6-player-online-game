@@ -51,6 +51,17 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.reveal, {})
 
 
+## #806: the sim now reveals players standing in a vault glow during the dark
+## phase, so the view must render (not drop) players even while dark — before,
+## dark snapshots always carried an empty players dict.
+func test_dark_snapshot_renders_vault_lit_players() -> void:
+	view.render(
+		{"dark": true, "players": {1: [2.0, 2.0]}, "vaults": {1: [2.0, 2.0, 12]}, "coins": []}
+	)
+	assert_true(view.dark)
+	assert_eq(view.players.size(), 1, "a vault-lit player renders through the dark phase")
+
+
 ## M13-27: a vault total dropping (theft) fires a steal pulse; the first
 ## snapshot seeds silently and gains never pulse.
 func test_vault_drop_fires_steal_pulse() -> void:

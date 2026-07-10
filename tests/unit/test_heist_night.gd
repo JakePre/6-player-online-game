@@ -129,8 +129,21 @@ func test_snapshot_hides_players_in_the_dark() -> void:
 	_make_dark(game)
 	var snapshot := game.get_snapshot()
 	assert_true(snapshot.dark)
-	assert_eq(snapshot.players.size(), 0, "dark: nobody visible")
+	assert_eq(snapshot.players.size(), 0, "dark: nobody standing in a vault glow")
 	assert_eq(snapshot.vaults.size(), 3, "vault totals stay visible")
+
+
+## #806: the always-lit vaults reveal a silhouette even in the dark, so a player
+## standing in a vault's glow is in the snapshot (server-decided, identical for
+## every client) while a player out in the open dark stays hidden.
+func test_dark_reveals_a_player_standing_in_a_vault_glow() -> void:
+	var game := _game()
+	_make_dark(game)
+	game.positions[0] = game.vault_pos[1]  # onto another player's vault
+	game.positions[2] = Vector2.ZERO  # arena centre, clear of every vault
+	var players: Dictionary = game.get_snapshot().players
+	assert_true(players.has(0), "a player in a vault's glow is revealed in the dark")
+	assert_false(players.has(2), "a player out in the open dark stays hidden")
 
 
 func test_steal_log_revealed_only_after_finish() -> void:
