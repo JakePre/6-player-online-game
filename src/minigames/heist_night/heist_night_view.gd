@@ -14,6 +14,9 @@ const BLUEPRINT_GRID := Color(0.35, 0.75, 0.95, 0.14)
 const BLUEPRINT_GRID_DARK := Color(0.35, 0.75, 0.95, 0.05)
 const COIN_COLOR := Color(1.0, 0.85, 0.25)
 const VAULT_FILL := Color(0.12, 0.2, 0.34)
+## The warm aura painted behind a player caught in a vault's glow during the
+## dark phase (#806), so the reveal reads as "lit by the vault", not a full blip.
+const VAULT_GLOW := Color(1.0, 0.9, 0.5)
 const GRID_STEP := 2.0
 const NAME_OFFSET := 14.0
 const ALARM_COLOR := Color(0.95, 0.3, 0.3)
@@ -145,25 +148,21 @@ func _draw() -> void:
 		var label_color := player_color(slot)
 		if dark:
 			label_color = label_color.lerp(Color.WHITE, 0.6)
+		# Center on the vault by the label's true width and draw unbounded, so a
+		# two-digit total is never clipped against a fixed box (#806).
+		var label_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		var label_pos := pos + Vector2(-label_width / 2.0, 4.0)
 		draw_string_outline(
 			font,
-			pos + Vector2(-20.0, 4.0),
+			label_pos,
 			label,
-			HORIZONTAL_ALIGNMENT_CENTER,
-			40,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1,
 			font_size,
 			6,
 			Color(0.0, 0.0, 0.0, 0.9)
 		)
-		draw_string(
-			font,
-			pos + Vector2(-20.0, 4.0),
-			label,
-			HORIZONTAL_ALIGNMENT_CENTER,
-			40,
-			font_size,
-			label_color
-		)
+		draw_string(font, label_pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, label_color)
 	for coin: Array in coins:
 		var coin_px := _to_px(Vector2(coin[HeistNight.CN_X], coin[HeistNight.CN_Y]), px_per_unit)
 		draw_circle(coin_px, 0.34 * px_per_unit, COIN_COLOR)
@@ -172,6 +171,11 @@ func _draw() -> void:
 		var state: Array = players[slot]
 		var pos := _to_px(Vector2(state[HeistNight.PS_X], state[HeistNight.PS_Y]), px_per_unit)
 		var color := player_color(slot)
+		# In the dark, the only players in the snapshot are the ones standing in a
+		# vault's glow (#806): a soft gold aura sells "caught in the vault light"
+		# rather than looking like the radar came back on.
+		if dark:
+			draw_circle(pos, HeistNight.PLAYER_RADIUS * px_per_unit * 2.4, Color(VAULT_GLOW, 0.3))
 		# Players are radar blips: solid dot + halo ring.
 		draw_circle(pos, HeistNight.PLAYER_RADIUS * px_per_unit, color)
 		draw_circle(

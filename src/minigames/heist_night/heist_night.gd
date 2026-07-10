@@ -102,8 +102,11 @@ func _tick(delta: float) -> void:
 func get_snapshot() -> Dictionary:
 	var dark := is_dark()
 	var players := {}
-	if not dark:
-		for slot: int in slots:
+	for slot: int in slots:
+		# In the light everyone's on the radar; in the dark you vanish — except
+		# while standing in a vault's glow, which lights you up for every client
+		# the same way (#806). Robbing a vault therefore exposes you.
+		if not dark or _in_vault_glow(slot):
 			var pos: Vector2 = positions[slot]
 			players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01)]
 	var vault_list := {}
@@ -191,3 +194,12 @@ func _vault_under(slot: int) -> int:
 		if positions[slot].distance_to(vault_pos[owner]) <= VAULT_RADIUS:
 			return owner
 	return -1
+
+
+## Whether `slot` stands within any vault's glow — the always-lit vault discs
+## reveal a silhouette even in the dark (#806), own vault or someone else's.
+func _in_vault_glow(slot: int) -> bool:
+	for owner: int in slots:
+		if positions[slot].distance_to(vault_pos[owner]) <= VAULT_RADIUS:
+			return true
+	return false
