@@ -156,6 +156,12 @@ func test_max_players_raised_to_twelve() -> void:
 	assert_eq(MusicalPlatforms.make_meta().max_players, 12)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		MusicalPlatforms.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## M15: a fixed-size ring cannot fit 11 well-spaced platforms, so the ring
 ## (and the arena) grow with the lobby to the same per-player-area formula.
 func test_arena_and_platform_ring_scale_at_twelve() -> void:
