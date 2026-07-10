@@ -82,6 +82,17 @@ static func make_meta() -> MinigameMeta:
 					{"action": &"action_secondary"},
 					" (hold, release)",
 				],
+				# Structured spec (#832/#844): move + swing + a hold-release guard/smash.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Swing", "input": &"action_primary"},
+					{
+						"verb": "Guard / Smash",
+						"input": &"action_secondary",
+						"modifier": "hold, release",
+					},
+				],
 				"name": "Rumble Ring",
 				"category": MinigameMeta.Category.FFA,
 				"min_players": 2,

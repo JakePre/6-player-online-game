@@ -25,6 +25,7 @@ func test_meta_and_catalog() -> void:
 	assert_eq(meta.id, &"rumble_ring")
 	assert_eq(meta.category, MinigameMeta.Category.FFA)
 	assert_eq(meta.max_players, 8, "M15: 8 by design, not scaled further")
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 	MinigameCatalog.clear()
 	MinigameCatalog.register_builtins()
 	assert_true(MinigameCatalog.instantiate(&"rumble_ring") is RumbleRing)
