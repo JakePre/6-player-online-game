@@ -100,6 +100,12 @@ func test_max_players_raised_to_twenty_four() -> void:
 	assert_eq(QuickDraw.make_meta().max_players, 24)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		QuickDraw.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## No arena/position state in this sim (M15): a 24-player match just tracks
 ## 24 sets of wins, same as any other count.
 func test_setup_handles_twenty_four_players() -> void:
