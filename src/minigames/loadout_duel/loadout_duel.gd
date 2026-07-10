@@ -24,6 +24,11 @@ const DAIS_KINDS := [Kind.BLASTER, Kind.SCATTER, Kind.BOOMER, Kind.HAMMER, Kind.
 ## Shots per pickup; the weapon empties (back to NONE) when it runs dry.
 const AMMO := {Kind.BLASTER: 3, Kind.SCATTER: 2, Kind.BOOMER: 1, Kind.HAMMER: 4}
 
+## The weapon daises sit on platforms 3.0 u / 5.6 u up, but the shared default
+## jump only clears ~2.6 u — so the loadouts were literally unreachable (#788).
+## Lift the apex to ~3.6 u to put the first tier in reach with margin.
+const JUMP_VELOCITY := 16.5
+
 const SUB_ROUNDS := 3
 const COUNTDOWN_SEC := 1.5
 const ROUND_CAP_SEC := 45.0
@@ -145,6 +150,7 @@ static func dais_positions() -> Array[Vector2]:
 
 func _setup() -> void:
 	sim = SideScrollSim.new()
+	sim.jump_velocity = JUMP_VELOCITY
 	sim.solids = solid_platforms()
 	sim.one_way = one_way_platforms()
 	sim.bounds = stage_bounds()
