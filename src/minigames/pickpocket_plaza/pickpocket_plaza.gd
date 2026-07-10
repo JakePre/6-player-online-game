@@ -107,6 +107,12 @@ static func make_meta() -> MinigameMeta:
 					"Move — WASD / left stick · Arrest (guard) — ",
 					{"action": &"action_primary"},
 				],
+				# Structured spec (#832/#844): move + role-qualified action.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Arrest (guard)", "input": &"action_primary"},
+				],
 			}
 		)
 	)
