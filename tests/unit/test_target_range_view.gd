@@ -26,6 +26,16 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_not_null(view.arena.get_node("Crosshair0"))
 
 
+## #790: rigs are pooled hidden (#601) and this stationary view places them once
+## in _line_up_rigs, so a snapshot must reveal the round's shooters or they never
+## render at all. Reveal is snapshot-driven (the scores keys), matching #780.
+func test_render_reveals_the_shooter_rigs() -> void:
+	assert_false(view.rig_for_slot(0).visible, "rigs start hidden until a snapshot reveals them")
+	view.render({"scores": {0: 0, 1: 0}, "targets": [], "aims": {}})
+	assert_true(view.rig_for_slot(0).visible, "the round's shooters become visible")
+	assert_true(view.rig_for_slot(1).visible)
+
+
 ## A target present one snapshot and gone the next, while on-screen, was shot —
 ## it pops a break burst where it stood.
 func test_shooting_a_target_breaks_it_with_a_burst() -> void:

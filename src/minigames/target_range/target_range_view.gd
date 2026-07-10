@@ -180,6 +180,13 @@ func _update_rigs() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
+		# Rigs are pooled hidden (#601); this stationary view places them once in
+		# _line_up_rigs and never calls update_rig, so without this reveal the
+		# shooters never appear at all (#790). Reveal only the round's actual
+		# participants (the snapshot's scores keys), so a disconnected member's
+		# rig stays hidden — the same snapshot-driven reveal Quick Draw uses (#780).
+		if _scores.has(slot):
+			reveal_rig(slot)
 		rig.display_name = "%s  %d" % [player_name(slot), int(_scores.get(slot, 0))]
 
 
