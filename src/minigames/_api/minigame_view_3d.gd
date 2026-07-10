@@ -264,7 +264,12 @@ func make_banner(banner_name: StringName, font_size := PartyTheme.SIZE_OVERLAY_B
 ## outline so it stays readable over bright arenas.
 func make_status_label(label_name: StringName, font_size := PartyTheme.SIZE_OVERLAY_TITLE) -> Label:
 	var label := _new_overlay_label(label_name, font_size)
-	label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	# Full-width top band, not a center point: a long status line (memory_match's
+	# round + objective + safe count) at 40px overflowed both screen edges under
+	# the old CENTER_TOP anchor. Anchored wide with autowrap, long text wraps to
+	# a second centered line instead of spilling off-screen (#831 spot-check).
+	label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.position.y += 16.0
 	label.grow_vertical = Control.GROW_DIRECTION_END
 	label.add_theme_constant_override(&"outline_size", 6)
