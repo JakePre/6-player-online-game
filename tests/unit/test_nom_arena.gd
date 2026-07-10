@@ -86,6 +86,38 @@ func test_lunge_dashes_costs_mass_and_goes_on_cooldown() -> void:
 	assert_almost_eq(float(game.masses[0]), mass_after, 0.001, "no double-lunge")
 
 
+## #783: the lunge dashes along the current heading, not a fixed direction. The
+## bug read the lunge packet's own dir — which a separate lunge packet lacks —
+## so every lunge went straight up regardless of where you steered.
+func test_lunge_aims_along_current_heading() -> void:
+	var game := _game()
+	game.positions[0] = Vector2.ZERO
+	# Steer right, then lunge in a packet that carries no direction of its own.
+	game.handle_input(0, {"mx": 1.0, "my": 0.0})
+	game.handle_input(0, {"lunge": true})
+	var tol := Vector2.ONE * 0.001
+	assert_almost_eq(
+		game._lunge_dir[0] as Vector2, Vector2.RIGHT, tol, "aimed along the heading, not up"
+	)
+	# The lunge-only packet must not have stomped the heading to zero either.
+	assert_almost_eq(game.move_dirs[0] as Vector2, Vector2.RIGHT, tol, "heading preserved")
+	game.tick(TICK)
+	assert_gt(float(game.positions[0].x), 0.0, "the dash actually carries you rightward")
+
+
+## Lunging while dead still falls back to a forward dash, not an undefined one.
+func test_lunge_without_a_heading_falls_back_forward() -> void:
+	var game := _game()
+	game.handle_input(0, {"mx": 0.0, "my": 0.0})
+	game.handle_input(0, {"lunge": true})
+	assert_almost_eq(
+		game._lunge_dir[0] as Vector2,
+		Vector2(0.0, -1.0),
+		Vector2.ONE * 0.001,
+		"default forward when idle"
+	)
+
+
 func test_boundary_closes_in_late_and_bleeds_stragglers() -> void:
 	var game := _game()
 	assert_almost_eq(game._boundary_radius(), NomArena.ARENA_HALF, 0.01, "full arena early")

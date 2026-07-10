@@ -94,10 +94,18 @@ func _setup() -> void:
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
-	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
-	move_dirs[slot] = dir.limit_length(1.0)
+	# Only touch the move direction when the packet actually carries one (#783):
+	# a lunge-only packet used to zero move_dir here, stalling movement AND
+	# leaving the lunge with no direction to aim along.
+	if data.has("mx") or data.has("my"):
+		var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
+		move_dirs[slot] = dir.limit_length(1.0)
 	if data.get("lunge", false) and float(_lunge_cd[slot]) <= 0.0:
-		var aim := dir if dir.length() > 0.1 else Vector2(0.0, -1.0)
+		# Aim along the current heading (#783): the bug was reading the packet's
+		# own dir, which a separate lunge packet lacks, so every lunge defaulted
+		# to straight up. The persisted move_dir is the true current heading.
+		var move: Vector2 = move_dirs[slot]
+		var aim := move if move.length() > 0.1 else Vector2(0.0, -1.0)
 		_lunge_dir[slot] = aim.normalized()
 		_lunge_left[slot] = LUNGE_SEC
 		_lunge_cd[slot] = LUNGE_COOLDOWN_SEC

@@ -23,7 +23,10 @@ var _lunge_seen := {}
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
 	if Input.is_action_just_pressed(&"action_primary"):
-		NetManager.send_match_input({"lunge": true})
+		# Carry the current heading with the lunge (#783) so the sim aims it along
+		# where you're steering, not a default direction.
+		var dir := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
+		NetManager.send_match_input({"lunge": true, "mx": dir.x, "my": dir.y})
 
 
 ## Warm food-yellow floor (#589).
@@ -78,7 +81,9 @@ func _build_label() -> Label3D:
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
 	label.fixed_size = true
-	label.pixel_size = 0.006
+	# Nameplate was the largest in any view (#783: "player names too big"); 0.004
+	# brings it in line with the other blob/tag labels (beat_bounce, count_quick).
+	label.pixel_size = 0.004
 	label.font_size = 44
 	label.outline_size = 12
 	label.modulate = Color.WHITE
