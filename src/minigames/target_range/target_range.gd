@@ -82,6 +82,13 @@ static func make_meta() -> MinigameMeta:
 					"Aim — mouse or WASD / left stick · Fire — click or ",
 					{"action": &"action_primary"},
 				],
+				# Structured spec (#832/#844): aim + action template shape, both with
+				# a keyboard-only literal alternative (mouse aim / click to fire).
+				"control_spec":
+				[
+					{"verb": "Aim", "input": InputGlyphs.CLUSTER_MOVE, "alt": "or mouse"},
+					{"verb": "Fire", "input": &"action_primary", "alt": "or click"},
+				],
 			}
 		)
 	)

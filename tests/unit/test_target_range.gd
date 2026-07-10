@@ -110,6 +110,12 @@ func test_meta_caps_at_twenty_four() -> void:
 	assert_eq(TargetRange.make_meta().max_players, 24)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		TargetRange.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 func test_arena_widens_with_the_lobby() -> void:
 	assert_almost_eq(
 		TargetRange.arena_half_for(6), TargetRange.ARENA_HALF, 0.001, "baseline at <=6"
