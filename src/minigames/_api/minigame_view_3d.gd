@@ -14,10 +14,11 @@ extends MinigameView
 const CHARACTER_RIG_SCENE := preload("res://src/characters/character_rig.tscn")
 const ISO_CAMERA_RIG_SCENE := preload("res://src/characters/iso_camera_rig.tscn")
 const FLOOR_TILE_SCENE := preload("res://assets/environment/kenney_platformer_kit/platform.glb")
-## `platform.glb` is a flat 1x1 world-unit tile, ~0.195 units thick (SPEC $10
-## kit is on a 1m grid). Tiles are placed so their top surface sits at y=0.
+## Floor tiles are laid on a 1m grid (SPEC $10 kit). Each tile is seated so its
+## top surface sits at y=0 — the vertical offset is measured from the tile
+## mesh's own AABB in _build_floor (#813), so any block thickness works, from
+## the thin `platform.glb` (~0.195) to a full `block-grass` (~1.0).
 const FLOOR_TILE_SIZE := 1.0
-const FLOOR_TILE_THICKNESS := 0.195
 ## Below this per-snapshot displacement (world units), a rig is treated as
 ## stationary and plays "idle" instead of "walk".
 const MOVE_EPSILON := 0.01
@@ -358,6 +359,17 @@ func _floor_tint() -> Color:
 	return Color.WHITE
 
 
+## Per-game floor tile mesh (#813): override to tile the arena with a different
+## in-repo Kenney block — `block-grass.glb`, `block-snow.glb`, etc. — instead of
+## the default grey `platform.glb`. Any flat 1x1 block from the kits works: the
+## builder measures the mesh's AABB and seats its top surface at y=0, so blocks
+## of any thickness sit right without a per-game offset. A one-liner per game;
+## combine with a matching (or absent) _floor_tint. Games that build their own
+## floor (thin_ice, memory_match override _build_floor) ignore this.
+func _floor_tile_scene() -> PackedScene:
+	return FLOOR_TILE_SCENE
+
+
 func _setup_3d() -> void:
 	pass
 
@@ -438,13 +450,21 @@ func _build_camera() -> void:
 
 
 func _build_floor() -> void:
-	var tile := FLOOR_TILE_SCENE.instantiate()
+	var tile := _floor_tile_scene().instantiate()
 	var tile_meshes := tile.find_children("*", "MeshInstance3D", true, false)
 	var mesh_instance := tile_meshes[0] as MeshInstance3D if not tile_meshes.is_empty() else null
 	var mesh: Mesh = mesh_instance.mesh if mesh_instance != null else null
 	var base_material: Material = (
 		mesh_instance.get_active_material(0) if mesh_instance != null else null
 	)
+	# Seat the tile's top surface at y=0 whatever its thickness (#813): the thin
+	# `platform.glb` (~0.195) and the full `block-grass`/`block-snow` blocks
+	# (~1.0) both sit flush, so a game can swap the mesh with no per-game offset.
+	# The top comes from the mesh's own vertices (not get_aabb(), which reads 0
+	# until the RenderingServer has drawn the mesh — hence the old hardcoded
+	# offset); the multimesh renders this same mesh, so its extent is exact.
+	# Measured before freeing the tile — a freed node's mesh reads no surfaces.
+	var top := _mesh_top(mesh) if mesh != null else 0.0
 	tile.free()
 	if mesh == null:
 		return
@@ -459,9 +479,7 @@ func _build_floor() -> void:
 	var i := 0
 	for x in tiles_per_side:
 		for z in tiles_per_side:
-			var pos := Vector3(
-				start + x * FLOOR_TILE_SIZE, -FLOOR_TILE_THICKNESS, start + z * FLOOR_TILE_SIZE
-			)
+			var pos := Vector3(start + x * FLOOR_TILE_SIZE, -top, start + z * FLOOR_TILE_SIZE)
 			multimesh.set_instance_transform(i, Transform3D(Basis(), pos))
 			i += 1
 
@@ -470,6 +488,18 @@ func _build_floor() -> void:
 	floor_node.multimesh = multimesh
 	floor_node.material_override = _floor_material(base_material)
 	arena.add_child(floor_node)
+
+
+## The highest vertex Y across a mesh's surfaces — its top surface in local
+## space (#813). Read from vertex data so it is correct at setup, unlike
+## Mesh.get_aabb() which returns an empty box until the mesh has been rendered.
+static func _mesh_top(mesh: Mesh) -> float:
+	var top := -INF
+	for surface in mesh.get_surface_count():
+		var verts: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+		for vertex: Vector3 in verts:
+			top = maxf(top, vertex.y)
+	return top if top != -INF else 0.0
 
 
 ## The floor's material, tinted per game (#589). Duplicates the native Kenney
