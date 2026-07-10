@@ -42,7 +42,12 @@ func _attack(me: Vector2, gate: float) -> Dictionary:
 	if gate > 0.0:
 		# Straight down onto the wall; the sim's own clamp keeps us in
 		# battering range without needing exact aim.
-		return move_toward_point(me, Vector2(me.x, FortSiege.GATE_Y), 0.0)
+		var intent := move_toward_point(me, Vector2(me.x, FortSiege.GATE_Y), 0.0)
+		# Battering is now an explicit swing (#808) — hit the gate whenever we're
+		# in range; the sim caps it to the swing cooldown.
+		if me.y - FortSiege.GATE_Y <= FortSiege.GATE_TOUCH:
+			intent["act"] = true
+		return intent
 	return move_toward_point(me, FortSiege.CORE_POS, 0.3)
 
 
@@ -51,7 +56,9 @@ func _defend(me: Vector2, gate: float, players: Dictionary, raiders: Array) -> D
 	var intent := move_toward_point(me, target, 0.5)
 	var nearest := _nearest_of(players, raiders, me)
 	if nearest != Vector2.INF and me.distance_to(nearest) <= FortSiege.SHOVE_RADIUS:
-		intent["act"] = true
+		intent["act"] = true  # a raider's in reach — shove them off
+	elif gate > 0.0 and absf(me.y - FortSiege.GATE_Y) <= FortSiege.GATE_TOUCH:
+		intent["act"] = true  # nobody on us and the gate stands — repair it (#808)
 	return intent
 
 

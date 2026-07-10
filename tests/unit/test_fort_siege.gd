@@ -53,14 +53,14 @@ func test_setup_splits_six_v_six_within_arena_at_twelve_players() -> void:
 		assert_lt(absf(pos.x), FortSiege.ARENA_HALF, "spawn row stays inside the arena")
 
 
-## The gate-battering mechanic has no per-node cap: every attacker touching
-## the gate contributes, so a full team of 6 batters strictly faster than a
-## team of 2.
+## Battering is now an explicit swing (#808), but still has no per-node cap:
+## every attacker at the gate contributes a swing, so a full team of 6 lands
+## strictly more damage per volley than a team of 2.
 func test_more_attackers_batter_the_gate_faster() -> void:
 	var small := _game([0, 1, 2, 3] as Array[int])  # 2v2
 	for raider: int in small.teams[small.attacking]:
 		small.positions[raider] = Vector2(0.0, FortSiege.GATE_Y)
-	small.tick(TICK)
+		small.handle_input(raider, {"act": true})
 	var small_damage := FortSiege.GATE_MAX_HP - small.gate_hp
 
 	var player_slots: Array[int] = []
@@ -69,7 +69,7 @@ func test_more_attackers_batter_the_gate_faster() -> void:
 	var big := _game(player_slots)  # 6v6
 	for raider: int in big.teams[big.attacking]:
 		big.positions[raider] = Vector2(0.0, FortSiege.GATE_Y)
-	big.tick(TICK)
+		big.handle_input(raider, {"act": true})
 	var big_damage := FortSiege.GATE_MAX_HP - big.gate_hp
 
 	assert_gt(big_damage, small_damage, "a full 6-attacker team batters faster than 2")
@@ -110,8 +110,8 @@ func test_battering_drains_and_breaches_the_gate() -> void:
 	var raider := _raider(game)
 	game.positions[raider] = Vector2(0.0, FortSiege.GATE_Y + FortSiege.PLAYER_RADIUS)
 	var before := game.gate_hp
-	game.tick(TICK)
-	assert_lt(game.gate_hp, before, "contact batters the gate")
+	game.handle_input(raider, {"act": true})  # a swing at the gate (#808)
+	assert_lt(game.gate_hp, before, "a swing batters the gate")
 	_breach(game)
 	game.handle_input(raider, {"mx": 0.0, "my": -1.0})
 	for _i in 60:
@@ -119,6 +119,67 @@ func test_battering_drains_and_breaches_the_gate() -> void:
 	assert_lt(
 		(game.positions[raider] as Vector2).y, FortSiege.GATE_Y, "a breached gate lets them in"
 	)
+
+
+## #808: a swing lands one hit then goes on cooldown — mashing can't out-DPS the
+## old proximity rate, so balance holds.
+func test_batter_is_cooldown_gated() -> void:
+	var game := _game()
+	var raider := _raider(game)
+	game.positions[raider] = Vector2(0.0, FortSiege.GATE_Y)
+	game.handle_input(raider, {"act": true})
+	var after_one := game.gate_hp
+	assert_almost_eq(
+		after_one, FortSiege.GATE_MAX_HP - FortSiege.BATTER_DAMAGE, 0.001, "one swing = one hit"
+	)
+	game.handle_input(raider, {"act": true})
+	assert_eq(game.gate_hp, after_one, "a second swing is on cooldown — no extra damage")
+	for _i in int(ceil(FortSiege.BATTER_COOLDOWN_SEC / TICK)) + 1:
+		game.tick(TICK)
+	game.handle_input(raider, {"act": true})
+	assert_lt(game.gate_hp, after_one, "the next swing lands once the cooldown clears")
+
+
+## #808: the defender's one button repairs the gate when unthreatened, but
+## shoves the instant a raider is on them.
+func test_defender_repairs_when_alone_and_shoves_when_raided() -> void:
+	var game := _game()
+	var defender := _defender(game)
+	var raider := _raider(game)
+	game.gate_hp = FortSiege.GATE_MAX_HP - 3.0
+	game.positions[defender] = Vector2(0.0, FortSiege.GATE_Y)
+	game.positions[raider] = Vector2(8.0, 8.0)  # far off
+	game.handle_input(defender, {"act": true})
+	assert_almost_eq(
+		game.gate_hp,
+		FortSiege.GATE_MAX_HP - 3.0 + FortSiege.REPAIR_AMOUNT,
+		0.001,
+		"repairs the gate when unthreatened",
+	)
+	game.positions[raider] = Vector2(0.5, FortSiege.GATE_Y)  # now in reach
+	var hp_before := game.gate_hp
+	game.handle_input(defender, {"act": true})
+	assert_eq(game.gate_hp, hp_before, "a threatened defender shoves, not repairs")
+	assert_gt((game.knocks[raider] as Vector2).length(), 0.0, "the raider is shoved off")
+
+
+## #808: the additive snapshot keys the view reads — contested flag and per-slot
+## action seq/kind — are present and correct.
+func test_snapshot_exposes_contested_and_action_state() -> void:
+	var game := _game()
+	var raider := _raider(game)
+	game.positions[raider] = Vector2(0.0, FortSiege.GATE_Y)
+	game.handle_input(raider, {"act": true})
+	var snap := game.get_snapshot()
+	assert_true(snap.has("contested"), "contested flag is exposed")
+	var state: Array = snap.players[raider]
+	assert_eq(state.size(), FortSiege.PS_COUNT, "player array carries the new fields")
+	assert_gt(int(state[FortSiege.PS_ACT_SEQ]), 0, "a swing bumps the action counter")
+	assert_eq(int(state[FortSiege.PS_ACT_KIND]), FortSiege.Act.BATTER, "and records its kind")
+	game.gate_hp = 0.0
+	game.positions[_defender(game)] = FortSiege.CORE_POS
+	game.tick(TICK)
+	assert_true(game.get_snapshot().contested, "a defender on the core reads as contested")
 
 
 func test_contested_core_stalls_uncontested_fills() -> void:
