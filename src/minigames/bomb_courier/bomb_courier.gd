@@ -85,6 +85,12 @@ static func make_meta() -> MinigameMeta:
 				# Device-aware (#608): the button reads as what the player holds.
 				"control_hints":
 				["Move — WASD / left stick · Swap-dash — ", {"action": &"action_primary"}],
+				# Structured spec (#832/#844): the move + action template shape.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Swap-dash", "input": &"action_primary"},
+				],
 			}
 		)
 	)

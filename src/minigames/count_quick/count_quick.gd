@@ -64,6 +64,12 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"count_quick",
 				"controls": "Move — WASD / left stick (stand on the number you counted)",
+				# Structured spec (#832/#844): a move row plus a plain note row.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"note": "Stand on the number you counted"},
+				],
 				"name": "Count Quick",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

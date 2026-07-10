@@ -71,6 +71,9 @@ static func make_meta() -> MinigameMeta:
 					+ "Wrong pad or off the beat is a strike — two and you're out."
 				),
 				"controls": "Bounce the pads — WASD / D-pad, on the beat",
+				# Structured spec (#832/#844): the pad-bounce template shape.
+				"control_spec":
+				[{"verb": "Bounce", "input": InputGlyphs.CLUSTER_MOVE, "note": "on the beat"}],
 			}
 		)
 	)

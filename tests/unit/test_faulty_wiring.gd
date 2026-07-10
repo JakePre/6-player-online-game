@@ -152,6 +152,12 @@ func test_max_players_raised_to_twelve() -> void:
 	assert_eq(FaultyWiring.make_meta().max_players, 12)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		FaultyWiring.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## M15: a plain bump per the ADR 003 addendum — MAX_STACKED_REPAIRERS (3) x
 ## NODE_POSITIONS (4) is a built-in ceiling of 12 usefully-occupied slots, so
 ## no arena/economy scaling was needed. Verify the fixed single-ring spawn

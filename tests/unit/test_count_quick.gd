@@ -191,6 +191,12 @@ func test_max_players_raised_to_twenty_four() -> void:
 	assert_eq(CountQuick.make_meta().max_players, 24)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		CountQuick.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## The count/guess phases were lengthened (#799, reported twice as too short);
 ## guard against a regression that shrinks them back.
 func test_phases_are_lengthened_for_counting() -> void:
