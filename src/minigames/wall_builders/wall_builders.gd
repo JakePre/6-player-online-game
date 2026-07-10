@@ -51,6 +51,12 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"wall_builders",
 				"controls": "Move — WASD / left stick (touch to grab, walk home to stack)",
+				# Structured spec (#832/#844): a move row plus a plain note row.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"note": "Touch to grab, walk home to stack"},
+				],
 				"name": "Wall Builders",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 4,
