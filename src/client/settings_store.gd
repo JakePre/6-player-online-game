@@ -246,6 +246,9 @@ static func apply_padbinds(settings: Dictionary) -> void:
 			motion.axis = int(bind.axis)
 			motion.axis_value = float(signi(int(bind.sign)))
 			InputMap.action_add_event(action, motion)
+	# Live hints re-read their labels (#832) — same autoload-from-static
+	# pattern as the DiagnosticsLog wiring in apply().
+	InputGlyphs.notify_bindings_changed()
 
 
 ## Keeps only overrides for known actions with a plausible keycode; everything
@@ -336,3 +339,6 @@ static func apply_keybinds(settings: Dictionary) -> void:
 		var rebind := InputEventKey.new()
 		rebind.physical_keycode = int(binds[action])
 		InputMap.action_add_event(action, rebind)
+	# Live hints re-read their labels (#832): a keyboard remap must re-render
+	# control chips immediately, not wait for a device swap.
+	InputGlyphs.notify_bindings_changed()

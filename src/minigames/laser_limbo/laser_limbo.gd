@@ -78,6 +78,13 @@ static func make_meta() -> MinigameMeta:
 					" · Duck — hold ",
 					{"action": &"action_secondary"},
 				],
+				# Structured spec (#832): the move + action + hold template shape.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Jump", "input": &"action_primary"},
+					{"verb": "Duck", "input": &"action_secondary", "hold": true},
+				],
 				"name": "Laser Limbo",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
