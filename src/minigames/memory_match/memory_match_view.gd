@@ -19,6 +19,19 @@ const SAFE_GLOW_MIN := 0.5
 const SAFE_GLOW_MAX := 1.4
 const SAFE_PULSE_HZ := 1.5
 
+## Shove feedback (#784): a play-once swing protected from update_rig for this
+## long, the impact SFX, and the cooldown ring's color (the #792/#808 idiom).
+const ACT_HOLD_SEC := 0.4
+const COOLDOWN_RING_COLOR := Color(0.95, 0.7, 0.35)
+## Crack + fall (#784, scope items 1–2): the tile a loser stood on discolors and
+## drops away, and the loser's rig falls with it into the pit rather than just
+## greying in place. FALL_HIDE_Y is well below the pit plane (y=-0.45).
+const CRACKED_COLOR := Color(0.5, 0.28, 0.24)
+const FALL_SPEED := 7.0
+const TILE_DROP_SPEED := 5.0
+const FALL_HIDE_Y := -6.0
+const TILE_HOME_Y := -TILE_THICKNESS / 2.0
+
 ## Latest replicated state, straight from MemoryMatch.get_snapshot().
 var players := {}
 var phase: int = MemoryMatch.Phase.SHOW
@@ -29,26 +42,62 @@ var round_number := 0
 var _tile_nodes: Array[MeshInstance3D] = []
 var _safe_material: StandardMaterial3D
 var _dark_material: StandardMaterial3D
+var _cracked_material: StandardMaterial3D
 var _phase_label: Label
 var _downed := {}
 # Previous phase for reveal-wave detection (M13-12); -1 = unseeded.
 var _phase_seen := -1
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
+## Shove state (#784): last-seen swing counter + swing-hold expiry per slot, and
+## the pooled cooldown rings.
+var _act_seen := {}
+var _act_hold := {}
+var _rings := {}
+## Fall animation state (#784): downed slots still sinking, and tile indices
+## dropping into the pit (reset when the floor reforms each round).
+var _falling := {}
+var _dropping := {}
 
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"action_primary"):
+		if NetManager.multiplayer.multiplayer_peer != null:
+			NetManager.send_match_input({"shove": true})
+
+
 ## Pulse the safe tiles during SHOW so the green reads as "go here" rather than
 ## a static maze pattern (#586). Phase comes from wall time so the per-snapshot
 ## material reuse never resets it.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_advance_falls(delta)
 	if phase != MemoryMatch.Phase.SHOW or _safe_material == null:
 		return
 	var t := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * SAFE_PULSE_HZ)
 	_safe_material.emission_energy_multiplier = lerpf(SAFE_GLOW_MIN, SAFE_GLOW_MAX, t)
+
+
+## Sink downed rigs and their dropped tiles into the pit (#784). Rigs hide once
+## below the pit; dropped tiles stay sunk until the floor reforms next round.
+func _advance_falls(delta: float) -> void:
+	for slot: int in _falling.keys():
+		var rig := rig_for_slot(slot)
+		if rig == null:
+			_falling.erase(slot)
+			continue
+		rig.position.y -= FALL_SPEED * delta
+		if rig.position.y <= FALL_HIDE_Y:
+			rig.visible = false
+			_falling.erase(slot)
+	for index: int in _dropping.keys():
+		var node: MeshInstance3D = _tile_nodes[index]
+		node.position.y -= TILE_DROP_SPEED * delta
+		if node.position.y <= FALL_HIDE_Y:
+			_dropping.erase(index)
 
 
 func _arena_half() -> float:
@@ -75,6 +124,8 @@ func _build_floor() -> void:
 	_safe_material.emission_energy_multiplier = 0.4
 	_dark_material = StandardMaterial3D.new()
 	_dark_material.albedo_color = TILE_DARK_COLOR
+	_cracked_material = StandardMaterial3D.new()
+	_cracked_material.albedo_color = CRACKED_COLOR
 	var tile_mesh := BoxMesh.new()
 	tile_mesh.size = Vector3(MemoryMatch.TILE_SIZE, TILE_THICKNESS, MemoryMatch.TILE_SIZE)
 
@@ -106,11 +157,25 @@ func _render_3d(game: Dictionary) -> void:
 	safe_tiles = game.get("safe_tiles", [])
 	fallen = game.get("fallen", [])
 	round_number = int(game.get("round", round_number))
+	# The floor reforms for the survivors when a new round shows (#784) — any
+	# tiles that dropped away last round lift back home before they re-light.
+	if _phase_seen == MemoryMatch.Phase.DARK and phase == MemoryMatch.Phase.SHOW:
+		_reform_tiles()
 	_update_phase_label()
 	_update_tiles()
 	_update_players()
 	_reveal_wave_fx()
 	_shake_on_new_downs()
+
+
+## Lift every dropped tile home and clear the drop set — the pit fills back in
+## for the next round (#784). Materials are reset to dark; _update_tiles re-lights
+## the new safe set this same render.
+func _reform_tiles() -> void:
+	_dropping.clear()
+	for node: MeshInstance3D in _tile_nodes:
+		node.position.y = TILE_HOME_Y
+		node.material_override = _dark_material
 
 
 ## Banner names the objective, with round context — and during SHOW the safe
@@ -153,6 +218,9 @@ func _tile_world(index: int) -> Vector2:
 func _update_tiles() -> void:
 	var lit := phase == MemoryMatch.Phase.SHOW
 	for i in _tile_nodes.size():
+		# A dropping tile keeps its cracked look and sunk position until it reforms.
+		if _dropping.has(i):
+			continue
 		_tile_nodes[i].material_override = (
 			_safe_material if lit and i in safe_tiles else _dark_material
 		)
@@ -164,10 +232,75 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		update_rig(slot, Vector2(state[MemoryMatch.PS_X], state[MemoryMatch.PS_Y]))
+		var pos := Vector2(float(state[MemoryMatch.PS_X]), float(state[MemoryMatch.PS_Y]))
+		_play_shove(slot, state, rig)
+		# While the shove swing plays, drive the rig by hand so update_rig's
+		# walk/idle can't overwrite it (#808 idiom); otherwise move normally.
+		if Time.get_ticks_msec() < int(_act_hold.get(slot, 0)):
+			rig.position = to_arena(pos)
+		else:
+			update_rig(slot, pos)
+		_update_cooldown_ring(slot, state, rig)
 	for group: Array in fallen:
 		for slot: int in group:
 			_down_rig(slot)
+
+
+## Play the shove swing once, when the sim's monotonic counter ticks (#784) —
+## a swing pose, the impact SFX, and a burst; guarded for the pre-shove wire
+## shape so an [x, y]-only snapshot (older tests / rejoin) is a no-op.
+func _play_shove(slot: int, state: Array, rig: CharacterRig) -> void:
+	if state.size() <= MemoryMatch.PS_ACT_SEQ:
+		return
+	var seq := int(state[MemoryMatch.PS_ACT_SEQ])
+	var seen: int = _act_seen.get(slot, seq)
+	_act_seen[slot] = seq
+	if seq <= seen:
+		return
+	rig.play(&"attack")
+	_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
+	play_sfx(&"bump")
+	fx_burst(
+		Vector2(float(state[MemoryMatch.PS_X]), float(state[MemoryMatch.PS_Y])),
+		COOLDOWN_RING_COLOR,
+		0.6
+	)
+
+
+## A flat ring under a player showing their shove cooldown (#792/#808): visible
+## and shrinking while cooling, hidden the moment it's ready. Lazily built per
+## rig and reused (rigs are pooled).
+func _update_cooldown_ring(slot: int, state: Array, rig: CharacterRig) -> void:
+	if state.size() <= MemoryMatch.PS_SHOVE_CD:
+		return
+	var cd := float(state[MemoryMatch.PS_SHOVE_CD])
+	var ring: MeshInstance3D = _rings.get(slot)
+	if ring == null:
+		if cd <= 0.0:
+			return
+		ring = _make_cooldown_ring()
+		rig.add_child(ring)
+		_rings[slot] = ring
+	ring.visible = cd > 0.0
+	if ring.visible:
+		(ring.mesh as TorusMesh).outer_radius = 0.35 + 0.35 * (cd / MemoryMatch.SHOVE_COOLDOWN_SEC)
+
+
+func _make_cooldown_ring() -> MeshInstance3D:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.3
+	mesh.outer_radius = 0.7
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = COOLDOWN_RING_COLOR
+	mat.emission_enabled = true
+	mat.emission = COOLDOWN_RING_COLOR
+	mesh.material = mat
+	var node := MeshInstance3D.new()
+	node.name = "CooldownRing"
+	node.mesh = mesh
+	node.position = Vector3(0.0, 0.06, 0.0)
+	return node
 
 
 func _down_rig(slot: int) -> void:
@@ -181,6 +314,36 @@ func _down_rig(slot: int) -> void:
 	rig.player_color = ELIMINATED_COLOR
 	# The drop into the pit splashes (M13-12).
 	fx_splash(Vector2(rig.position.x, rig.position.z))
+	# The tile gives way and the loser falls with it (#784) instead of just
+	# greying in place — the crack/fall the owner asked for.
+	_drop_tile_under(rig)
+	_falling[slot] = true
+
+
+## Row-major tile index under a world position — mirrors MemoryMatch.tile_of on
+## the arena's X/Z plane.
+func tile_index_at(world: Vector3) -> int:
+	var col := clampi(
+		int(floorf((world.x + MemoryMatch.HALF_EXTENT) / MemoryMatch.TILE_SIZE)),
+		0,
+		MemoryMatch.GRID_SIZE - 1
+	)
+	var row := clampi(
+		int(floorf((world.z + MemoryMatch.HALF_EXTENT) / MemoryMatch.TILE_SIZE)),
+		0,
+		MemoryMatch.GRID_SIZE - 1
+	)
+	return row * MemoryMatch.GRID_SIZE + col
+
+
+## Crack + sink the tile the downed rig is standing on (#784). Idempotent per
+## tile — two players sharing a tile only drop it once.
+func _drop_tile_under(rig: CharacterRig) -> void:
+	var index := tile_index_at(rig.position)
+	if _dropping.has(index):
+		return
+	_dropping[index] = true
+	_tile_nodes[index].material_override = _cracked_material
 
 
 func _shake_on_new_downs() -> void:
