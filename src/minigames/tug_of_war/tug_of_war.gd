@@ -27,6 +27,15 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"tug_of_war",
 				"controls": "Alternate LEFT and RIGHT (A / D / left stick) as fast as you can",
+				# Structured spec (#832/#844): the lr-cluster alternate-mash template.
+				"control_spec":
+				[
+					{
+						"verb": "Pull",
+						"input": InputGlyphs.CLUSTER_MOVE_LR,
+						"note": "alternate fast!",
+					}
+				],
 				"name": "Tug of War",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
