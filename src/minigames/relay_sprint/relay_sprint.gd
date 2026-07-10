@@ -54,6 +54,8 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"relay_sprint",
 				"controls": "Move — WASD / left stick",
+				# Structured spec (#832/#844): the bare-movement template shape.
+				"control_spec": [{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE}],
 				"name": "Relay Sprint",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
