@@ -21,6 +21,7 @@ func test_meta() -> void:
 	assert_eq(meta.id, &"heist_night")
 	assert_eq(meta.category, MinigameMeta.Category.SABOTAGE)
 	assert_eq(meta.min_players, 3)
+	assert_false(meta.control_spec.is_empty(), "ships a #832 structured control spec")
 
 
 func test_registered_in_catalog() -> void:

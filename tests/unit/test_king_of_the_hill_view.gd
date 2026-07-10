@@ -156,6 +156,21 @@ func test_anchor_use_does_not_play_the_shove_animation() -> void:
 	assert_ne(view.rig_for_slot(0).current_action(), &"interact")
 
 
+## #844: the held-item prompt used to hardcode "press Space / Ⓐ" for both
+## schemes; it now renders only the active device's binding, live.
+func test_held_item_prompt_is_device_aware() -> void:
+	var saved_device := InputGlyphs.active_device
+	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
+	view.render({"players": {}, "zone": [], "held": {0: KingOfTheHill.Item.SHOVE}})
+	var held_label: Label = view.get_node("BannerLayer/HeldItem")
+	assert_string_contains(held_label.text, InputGlyphs.glyph_for(&"action_primary"))
+	assert_false(held_label.text.contains("Ⓐ"), "no hardcoded pad glyph while on keyboard")
+	InputGlyphs.active_device = InputGlyphs.Device.GAMEPAD
+	view.render({"players": {}, "zone": [], "held": {0: KingOfTheHill.Item.SHOVE}})
+	assert_string_contains(held_label.text, InputGlyphs.glyph_for(&"action_primary"))
+	InputGlyphs.active_device = saved_device
+
+
 ## #800: the shove flourish must never stall movement — the walk switch
 ## fires the instant the player actually moves, even mid-flourish.
 func test_movement_during_the_shove_flourish_is_not_stalled() -> void:

@@ -101,6 +101,12 @@ func test_max_players_raised_to_twenty_four() -> void:
 	assert_eq(MemoryMatch.make_meta().max_players, 24)
 
 
+func test_control_spec_present() -> void:
+	assert_false(
+		MemoryMatch.make_meta().control_spec.is_empty(), "ships a #832 structured control spec"
+	)
+
+
 ## No player collision (M15): the fixed grid is shared freely, so a
 ## 24-player match just tracks 24 independent positions against the same
 ## flashed pattern.

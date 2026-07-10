@@ -47,6 +47,8 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"fish_frenzy",
 				"controls": "Switch lane — W/S / stick up-down",
+				# Structured spec (#832/#844): the up-down lane-switch template shape.
+				"control_spec": [{"verb": "Switch lane", "input": InputGlyphs.CLUSTER_MOVE_UD}],
 				"name": "Fish Frenzy",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,

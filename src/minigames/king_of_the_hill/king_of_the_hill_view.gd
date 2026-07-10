@@ -183,7 +183,12 @@ func _update_held() -> void:
 		return
 	if held.has(my_slot):
 		var item := clampi(int(held[my_slot]), 0, 1)
-		_held_label.text = "%s — press Space / Ⓐ" % ITEM_NAMES[item]
+		# Device-aware (#844): was a hardcoded "Space / Ⓐ" both-scheme string;
+		# now shows only the active device's binding, live on remap/device change
+		# (this label rebuilds every snapshot render, so no extra signal needed).
+		_held_label.text = (
+			"%s — press %s" % [ITEM_NAMES[item], InputGlyphs.glyph_for(&"action_primary")]
+		)
 		_held_label.modulate = ITEM_COLORS[item]
 	else:
 		_held_label.text = ""
