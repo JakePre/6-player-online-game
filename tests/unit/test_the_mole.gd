@@ -132,6 +132,22 @@ func test_votes_only_count_in_the_vote_phase() -> void:
 	assert_eq(int(game.votes[0]), 2, "the last vote counts")
 
 
+## #801: the VOTE snapshot reports WHO has voted (participation, for the view's
+## per-player check), but never who they voted for — that would bandwagon; the
+## accusation graph waits for the reveal.
+func test_vote_snapshot_reports_who_has_voted_not_their_target() -> void:
+	var game := _game()
+	game.phase = TheMole.Phase.VOTE
+	var voter := _crew(game)
+	game.handle_input(voter, {"vote": game.mole})
+	var snapshot := game.get_snapshot()
+	assert_true(voter in snapshot.voted, "the voter shows as having voted")
+	assert_eq(snapshot.voted.size(), 1, "only the one who voted is listed")
+	assert_false(JSON.stringify(snapshot).contains("reveal"), "no accusation targets pre-reveal")
+	# The snapshot carries no map of voter->target anywhere (only the count).
+	assert_eq(int(snapshot.votes_in), 1)
+
+
 func test_everyone_voting_ends_the_vote_early_and_tallies() -> void:
 	var game := _game()
 	game.phase = TheMole.Phase.VOTE
