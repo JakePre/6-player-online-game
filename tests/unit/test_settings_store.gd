@@ -70,6 +70,44 @@ func test_load_sanitizes_hand_edited_file() -> void:
 	assert_eq(settings.server_port, 0)
 
 
+## #821: apply() runs on every slider tick, and it must only ever toggle the
+## fullscreen dimension — a windowed window that's maximized or minimized keeps
+## that sub-state, instead of being force-set to MODE_WINDOWED (which minimized
+## it on Windows on every drag).
+func test_window_mode_preserves_maximized_and_minimized_when_windowed() -> void:
+	# Fullscreen off, and the window isn't fullscreen: leave its exact mode be.
+	assert_eq(
+		SettingsStore.window_mode_for(Window.MODE_MAXIMIZED, false),
+		Window.MODE_MAXIMIZED,
+		"a maximized window is left maximized, not clobbered to windowed (#821)"
+	)
+	assert_eq(
+		SettingsStore.window_mode_for(Window.MODE_MINIMIZED, false),
+		Window.MODE_MINIMIZED,
+		"a minimized window is left alone"
+	)
+	assert_eq(SettingsStore.window_mode_for(Window.MODE_WINDOWED, false), Window.MODE_WINDOWED)
+
+
+## The fullscreen dimension still flips when it actually changes.
+func test_window_mode_toggles_fullscreen_when_it_changes() -> void:
+	assert_eq(
+		SettingsStore.window_mode_for(Window.MODE_MAXIMIZED, true),
+		Window.MODE_FULLSCREEN,
+		"turning fullscreen on goes fullscreen even from maximized"
+	)
+	assert_eq(
+		SettingsStore.window_mode_for(Window.MODE_FULLSCREEN, false),
+		Window.MODE_WINDOWED,
+		"turning fullscreen off returns to a plain window"
+	)
+	assert_eq(
+		SettingsStore.window_mode_for(Window.MODE_FULLSCREEN, true),
+		Window.MODE_FULLSCREEN,
+		"already fullscreen stays put"
+	)
+
+
 func test_apply_sets_bus_volumes_and_mute() -> void:
 	SettingsStore.apply({"music_volume": 0.0, "sfx_volume": 0.5}, null)
 	var music := AudioServer.get_bus_index("Music")
