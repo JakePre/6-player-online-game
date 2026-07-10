@@ -5,6 +5,11 @@ extends MinigameView3D
 ## plunge reads as motion, not a teleport). Air is a hovering bar over each
 ## diver that drains cyan to red (#235 — it was ASCII pipes on the
 ## nameplate); blacking out plays the hit flinch and shakes the screen.
+##
+## The pool is an enclosed square basin (#782): walls rise from the seabed to
+## the water line and the coping/deck rim sits at that line (not flat on the
+## floor), so surfaced swimmers stand clearly at the surface and the back edges
+## are contained. Square, to match the sim's (now per-axis) play clamp.
 
 const SURFACE_HEIGHT := 1.2
 const WATER_COLOR := Color(0.2, 0.45, 0.8, 0.35)
@@ -15,6 +20,11 @@ const POOL_FLOOR_COLOR := Color(0.1, 0.32, 0.5, 0.55)
 const DECK_COLOR := Color(0.72, 0.66, 0.55)
 const DECK_WIDTH := 0.8
 const DECK_HEIGHT := 0.15
+## Pool basin (#782): the sides rise from the seabed to the water line so the
+## pool is enclosed and the coping/deck sits at water level, not the floor —
+## the old deck lay flat on the seabed and the back was an open edge.
+const WALL_COLOR := Color(0.16, 0.4, 0.62)
+const WALL_THICKNESS := 0.3
 const COIN_COLOR := Color(0.96, 0.79, 0.2)
 const COIN_RADIUS := 0.3
 const COIN_HEIGHT := 0.12
@@ -92,6 +102,7 @@ func _arena_half() -> float:
 
 func _setup_3d() -> void:
 	_build_pool_floor()
+	_build_pool_walls()
 	_build_deck_border()
 
 	var water_mesh := PlaneMesh.new()
@@ -100,6 +111,9 @@ func _setup_3d() -> void:
 	water_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	water_material.albedo_color = WATER_COLOR
 	water_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Draw the water before the surfaced rigs' own transparent passes so a
+	# swimmer standing at the surface isn't tinted as if submerged (#782).
+	water_material.render_priority = -1
 	water_mesh.material = water_material
 	var water := MeshInstance3D.new()
 	water.name = "WaterSurface"
@@ -164,29 +178,59 @@ func _build_pool_floor() -> void:
 	arena.add_child(tint)
 
 
-## Four planks framing the swim area like pool coping, so the water reads as
-## a contained pool rather than an open, edgeless floor (#588).
+## The basin sides: four walls rising from the seabed to the water line at the
+## square play boundary, so the pool is enclosed on all edges — the back no
+## longer opens onto nothing (#782). Their inner faces sit exactly on the sim's
+## clamp (±_arena_half), which the players slide along.
+func _build_pool_walls() -> void:
+	var half := _arena_half()
+	var span := half * 2.0 + WALL_THICKNESS * 2.0
+	var material := StandardMaterial3D.new()
+	material.albedo_color = WALL_COLOR
+	var mid := SURFACE_HEIGHT / 2.0
+	var off := half + WALL_THICKNESS / 2.0
+	var sides := [
+		{"size": Vector3(span, SURFACE_HEIGHT, WALL_THICKNESS), "pos": Vector3(0.0, mid, off)},
+		{"size": Vector3(span, SURFACE_HEIGHT, WALL_THICKNESS), "pos": Vector3(0.0, mid, -off)},
+		{"size": Vector3(WALL_THICKNESS, SURFACE_HEIGHT, span), "pos": Vector3(off, mid, 0.0)},
+		{"size": Vector3(WALL_THICKNESS, SURFACE_HEIGHT, span), "pos": Vector3(-off, mid, 0.0)},
+	]
+	for i in sides.size():
+		var mesh := BoxMesh.new()
+		mesh.size = sides[i].size
+		mesh.material = material
+		var wall := MeshInstance3D.new()
+		wall.name = "Wall%d" % i
+		wall.mesh = mesh
+		wall.position = sides[i].pos
+		arena.add_child(wall)
+
+
+## Four planks of coping framing the swim area, raised to the water line so it
+## reads as a pool rim, not a frame lying flat on the seabed (#782/#588). Sits
+## just outside the walls, capping them at the surface.
 func _build_deck_border() -> void:
 	var half := _arena_half()
-	var span := (half + DECK_WIDTH) * 2.0
+	var rim := half + WALL_THICKNESS
+	var span := (rim + DECK_WIDTH) * 2.0
 	var material := StandardMaterial3D.new()
 	material.albedo_color = DECK_COLOR
 	var sides := [
 		{
 			"size": Vector3(span, DECK_HEIGHT, DECK_WIDTH),
-			"pos": Vector3(0.0, 0.0, half + DECK_WIDTH / 2.0)
+			"pos": Vector3(0.0, SURFACE_HEIGHT, rim + DECK_WIDTH / 2.0)
 		},
 		{
 			"size": Vector3(span, DECK_HEIGHT, DECK_WIDTH),
-			"pos": Vector3(0.0, 0.0, -half - DECK_WIDTH / 2.0)
+			"pos": Vector3(0.0, SURFACE_HEIGHT, -rim - DECK_WIDTH / 2.0)
 		},
 		{
-			"size": Vector3(DECK_WIDTH, DECK_HEIGHT, half * 2.0),
-			"pos": Vector3(half + DECK_WIDTH / 2.0, 0.0, 0.0)
+			"size": Vector3(DECK_WIDTH, DECK_HEIGHT, rim * 2.0),
+			"pos": Vector3(rim + DECK_WIDTH / 2.0, SURFACE_HEIGHT, 0.0)
 		},
 		{
-			"size": Vector3(DECK_WIDTH, DECK_HEIGHT, half * 2.0),
-			"pos": Vector3(-half - DECK_WIDTH / 2.0, 0.0, 0.0)
+			"size": Vector3(DECK_WIDTH, DECK_HEIGHT, rim * 2.0),
+			"pos": Vector3(-rim - DECK_WIDTH / 2.0, SURFACE_HEIGHT, 0.0)
 		},
 	]
 	for i in sides.size():

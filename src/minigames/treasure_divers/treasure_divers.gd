@@ -109,7 +109,12 @@ func _tick(delta: float) -> void:
 		if stunned[slot] > 0.0:
 			speed = 0.0
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
-		positions[slot] = pos.limit_length(_play_half)
+		# Square bounds (#782): treasure spawns in a square, so the old circular
+		# clamp (limit_length) left the corner coins unreachable. Per-axis
+		# clamping makes the play area match the square pool the view frames.
+		positions[slot] = pos.clamp(
+			Vector2(-_play_half, -_play_half), Vector2(_play_half, _play_half)
+		)
 		_tick_air(slot, delta)
 	_collect_treasure()
 	_spawn_waves(delta)
