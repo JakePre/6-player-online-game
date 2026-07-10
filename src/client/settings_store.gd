@@ -274,6 +274,22 @@ static func effective_keybinds(settings: Dictionary) -> Dictionary:
 	return binds
 
 
+## The window mode to hold for the given fullscreen preference, changing ONLY
+## the fullscreen dimension (#821). A windowed window may legitimately be
+## maximized or minimized, so those sub-states are left untouched when
+## fullscreen already matches — apply() runs on every slider tick, and the old
+## code force-set MODE_WINDOWED each time, un-maximizing (minimizing, on
+## Windows) the window on every drag. Pure, so the decision is unit-testable
+## without a real Window.
+static func window_mode_for(current: int, is_fullscreen: bool) -> int:
+	var currently_fullscreen := (
+		current == Window.MODE_FULLSCREEN or current == Window.MODE_EXCLUSIVE_FULLSCREEN
+	)
+	if is_fullscreen == currently_fullscreen:
+		return current
+	return Window.MODE_FULLSCREEN if is_fullscreen else Window.MODE_WINDOWED
+
+
 ## Applies audio volumes, window mode, accessibility flags, and key rebinds.
 ## `window` is the tree's root window (pass null to skip window changes, e.g.
 ## from tests).
@@ -287,8 +303,7 @@ static func apply(settings: Dictionary, window: Window) -> void:
 		AudioServer.set_bus_volume_db(bus_index, linear_to_db(maxf(volume, 0.0001)))
 		AudioServer.set_bus_mute(bus_index, volume < 0.005)
 	if window != null:
-		var is_fullscreen: bool = clean.fullscreen
-		var wanted := Window.MODE_FULLSCREEN if is_fullscreen else Window.MODE_WINDOWED
+		var wanted := window_mode_for(window.mode, clean.fullscreen)
 		if window.mode != wanted:
 			window.mode = wanted
 	# Accessibility (M12-03): the flags live as statics on the classes that
