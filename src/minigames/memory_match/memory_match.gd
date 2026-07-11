@@ -20,10 +20,26 @@ const SAFE_START_FRACTION := 0.5
 const SAFE_SHRINK := 0.75
 const SAFE_MIN := 3
 
+## Shove (#784, owner-approved Option B): action_primary radial shove on a
+## cooldown, plus soft body separation so players can never stack on one tile.
+## Tuned so a shove is recoverable with >½s left in the dark window (~2.5u of
+## travel ≈ 1.25 tiles, and MOVE_SPEED walks it back in ~0.4s) but lethal at
+## the buzzer — timing, not spam (the cooldown caps it at ~2 per dark phase).
+const SHOVE_RADIUS := 1.2
+const SHOVE_COOLDOWN_SEC := 1.5
+const SHOVE_KNOCK := 5.5
+const KNOCK_DECAY := 6.0
+
 ## get_snapshot() wire shape (#708): named indices for the players positional
-## array. Array SHAPE on the wire is unchanged — additive only.
+## array. Array SHAPE on the wire is append-only — PS_ACT_SEQ/PS_SHOVE_CD were
+## added for the shove (#784), keeping x/y at the same indices.
 const PS_X := 0
 const PS_Y := 1
+## Monotonic per-slot shove counter — the view plays the swing once when it
+## ticks (#808 act_seq convention).
+const PS_ACT_SEQ := 2
+## Seconds of shove cooldown left, for the view's cooldown ring (#792/#808).
+const PS_SHOVE_CD := 3
 
 var positions := {}
 var move_dirs := {}
@@ -33,6 +49,12 @@ var safe_tiles: Array = []
 var round_number := 0
 ## Slots in down order; same-check failures share a tie group.
 var down_order: Array = []
+
+## Shove state (#784): active knockback velocity, cooldown-left, and the
+## play-once swing counter, per slot.
+var knocks := {}
+var shove_cd := {}
+var act_seq := {}
 
 var _phase_left := SHOW_SEC
 
@@ -44,8 +66,14 @@ static func make_meta() -> MinigameMeta:
 			{
 				"id": &"memory_match",
 				"controls": "Move — WASD / left stick",
-				# Structured spec (#832/#844): the bare-movement template shape.
-				"control_spec": [{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE}],
+				"control_hints":
+				["Move — WASD / left stick · Shove — ", {"action": &"action_primary"}],
+				# Structured spec (#832/#844): the move + action template shape.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{"verb": "Shove", "input": &"action_primary"},
+				],
 				"name": "Memory Match",
 				"category": MinigameMeta.Category.SKILL,
 				"min_players": 2,
@@ -66,14 +94,22 @@ func _setup() -> void:
 		var angle := TAU * i / slots.size()
 		positions[slots[i]] = Vector2(cos(angle), sin(angle)) * HALF_EXTENT * 0.5
 		move_dirs[slots[i]] = Vector2.ZERO
+		knocks[slots[i]] = Vector2.ZERO
+		shove_cd[slots[i]] = 0.0
+		act_seq[slots[i]] = 0
 	_deal_pattern()
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
 	if not _is_in(slot):
 		return
-	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
-	move_dirs[slot] = dir.limit_length(1.0)
+	# Move is gated on mx/my being present so a shove-only message (no axes)
+	# doesn't zero the player's heading for that tick.
+	if data.has("mx") or data.has("my"):
+		var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
+		move_dirs[slot] = dir.limit_length(1.0)
+	if data.get("shove", false):
+		_shove(slot)
 
 
 func _tick(delta: float) -> void:
@@ -85,21 +121,69 @@ func _tick(delta: float) -> void:
 	# fresh — it must see the roster *after* this tick's eliminations land.
 	var alive := _in_slots()
 	for slot: int in alive:
-		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
+		shove_cd[slot] = maxf(float(shove_cd[slot]) - delta, 0.0)
+		var knock: Vector2 = knocks[slot]
+		var pos: Vector2 = positions[slot] + (move_dirs[slot] * MOVE_SPEED + knock) * delta
 		positions[slot] = pos.clamp(
 			Vector2(-HALF_EXTENT, -HALF_EXTENT), Vector2(HALF_EXTENT, HALF_EXTENT)
 		)
+		knocks[slot] = knock.move_toward(Vector2.ZERO, KNOCK_DECAY * delta)
+	_resolve_separation(alive)
 	_phase_left -= delta
 	if _phase_left <= 0.0:
 		_advance_phase(alive)
 	_check_end()
 
 
+## Radial shove (#784): every other standing player within SHOVE_RADIUS gets
+## knocked away, and the swing plays once (act_seq) whether or not it connects.
+## No-op while on cooldown.
+func _shove(slot: int) -> void:
+	if float(shove_cd[slot]) > 0.0:
+		return
+	shove_cd[slot] = SHOVE_COOLDOWN_SEC
+	act_seq[slot] = int(act_seq[slot]) + 1
+	for other: int in _in_slots():
+		if other == slot:
+			continue
+		var away: Vector2 = positions[other] - positions[slot]
+		if away.length() > SHOVE_RADIUS:
+			continue
+		var dir := away.normalized() if away.length() > 0.001 else Vector2.UP
+		knocks[other] = dir * SHOVE_KNOCK
+
+
+## Soft body separation (#784): overlapping players are pushed apart so a crowd
+## can never stack invisibly on one safe tile. Position-based (each moves half
+## the overlap), so it always resolves in one pass without adding momentum.
+func _resolve_separation(active: Array) -> void:
+	var min_gap := PLAYER_RADIUS * 2.0
+	for i in active.size():
+		for j in range(i + 1, active.size()):
+			var a: int = active[i]
+			var b: int = active[j]
+			var apart: Vector2 = positions[b] - positions[a]
+			var dist := apart.length()
+			if dist >= min_gap:
+				continue
+			var axis := apart.normalized() if dist > 0.001 else Vector2.RIGHT
+			var push := (min_gap - dist) * 0.5
+			var lo := Vector2(-HALF_EXTENT, -HALF_EXTENT)
+			var hi := Vector2(HALF_EXTENT, HALF_EXTENT)
+			positions[a] = (positions[a] - axis * push).clamp(lo, hi)
+			positions[b] = (positions[b] + axis * push).clamp(lo, hi)
+
+
 func get_snapshot() -> Dictionary:
 	var players := {}
 	for slot: int in _in_slots():
 		var pos: Vector2 = positions[slot]
-		players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01)]
+		players[slot] = [
+			snappedf(pos.x, 0.01),
+			snappedf(pos.y, 0.01),
+			int(act_seq[slot]),
+			snappedf(shove_cd[slot], 0.01),
+		]
 	return {
 		"players": players,
 		"phase": phase,

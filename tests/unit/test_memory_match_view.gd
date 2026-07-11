@@ -129,3 +129,60 @@ func test_safe_tiles_pulse_during_show() -> void:
 	view._process(0.0)
 	var glow: float = view._safe_material.emission_energy_multiplier
 	assert_between(glow, view.SAFE_GLOW_MIN, view.SAFE_GLOW_MAX, "pulse stays in range")
+
+
+func _p(x: float, y: float, act_seq: int, cd: float) -> Array:
+	return [x, y, act_seq, cd]
+
+
+## #784: the shove swing plays once when the sim's act_seq ticks, and a cooldown
+## ring appears while the player is cooling.
+func test_shove_swing_plays_once_and_shows_a_cooldown_ring() -> void:
+	view.render(
+		{"players": {0: _p(0.0, 0.0, 0, 0.0)}, "phase": MemoryMatch.Phase.DARK, "fallen": []}
+	)
+	view.render(
+		{"players": {0: _p(0.0, 0.0, 1, 1.5)}, "phase": MemoryMatch.Phase.DARK, "fallen": []}
+	)
+	assert_eq(
+		view.rig_for_slot(0).current_action(), &"attack", "the swing fires on the act_seq tick"
+	)
+	var ring: MeshInstance3D = view.rig_for_slot(0).get_node_or_null("CooldownRing")
+	assert_not_null(ring, "a cooldown ring appears while cooling")
+	assert_true(ring.visible)
+	view.render(
+		{"players": {0: _p(0.0, 0.0, 1, 0.0)}, "phase": MemoryMatch.Phase.DARK, "fallen": []}
+	)
+	assert_false(ring.visible, "the ring hides once the shove is ready again")
+
+
+## #784: a downed player's tile cracks and both the tile and the rig sink into
+## the pit, rather than the rig just greying in place.
+func test_failed_tile_cracks_and_the_loser_falls() -> void:
+	view.render(
+		{"players": {0: _p(0.0, 0.0, 0, 0.0)}, "phase": MemoryMatch.Phase.DARK, "fallen": []}
+	)
+	var rig: CharacterRig = view.rig_for_slot(0)
+	var tile_y_before: float = view._tile_nodes[view.tile_index_at(rig.position)].position.y
+	view.render({"players": {}, "phase": MemoryMatch.Phase.DARK, "fallen": [[0]]})
+	var tile: MeshInstance3D = view._tile_nodes[view.tile_index_at(rig.position)]
+	assert_eq(tile.material_override, view._cracked_material, "the failed tile cracks")
+	var rig_y_before: float = rig.position.y
+	view._process(0.2)
+	assert_lt(rig.position.y, rig_y_before, "the loser sinks into the pit")
+	assert_lt(tile.position.y, tile_y_before, "the tile drops away")
+
+
+## #784: when the next round shows, the pit fills back in for the survivors.
+func test_tiles_reform_when_the_next_round_shows() -> void:
+	view.render(
+		{"players": {0: _p(0.0, 0.0, 0, 0.0)}, "phase": MemoryMatch.Phase.DARK, "fallen": []}
+	)
+	var tile: MeshInstance3D = view._tile_nodes[view.tile_index_at(view.rig_for_slot(0).position)]
+	view.render({"players": {}, "phase": MemoryMatch.Phase.DARK, "fallen": [[0]]})
+	view._process(0.5)  # let it start dropping
+	assert_lt(tile.position.y, view.TILE_HOME_Y, "tile has dropped")
+	view.render(
+		{"players": {}, "phase": MemoryMatch.Phase.SHOW, "safe_tiles": [1], "fallen": [[0]]}
+	)
+	assert_almost_eq(tile.position.y, view.TILE_HOME_Y, 0.001, "the floor reforms next round")
