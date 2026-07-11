@@ -11,6 +11,10 @@ const CUP_RING_COLOR := Color(0.95, 0.85, 0.3)
 const AIM_COLOR := Color(1.0, 1.0, 1.0, 0.7)
 ## Seconds of held charge for a full-power putt.
 const CHARGE_SEC := 1.1
+## Real flagstick model (#793/#911, MDL-008): base-pivoted, planted right at
+## the cup — a real mini-golf hole always has one, and the sim never had a
+## flag before this, only the flat hole + ring.
+const FLAGSTICK_SCENE := preload("res://assets/generated/models/golf-flagstick.glb")
 
 var players := {}
 
@@ -132,6 +136,10 @@ func _build_cup(cup: Vector2) -> void:
 	var ring := _disc(PuttPanic.CUP_RADIUS * 1.3, CUP_RING_COLOR, 0.01, true)
 	ring.position = to_arena(cup, 0.01)
 	arena.add_child(ring)
+	var flagstick := FLAGSTICK_SCENE.instantiate() as Node3D
+	flagstick.name = "Flagstick"
+	flagstick.position = to_arena(cup, 0.0)
+	arena.add_child(flagstick)
 
 
 func _disc(radius: float, color: Color, height: float, emissive := false) -> MeshInstance3D:

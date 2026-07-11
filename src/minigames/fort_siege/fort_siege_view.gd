@@ -6,16 +6,25 @@ extends MinigameView3D
 ## a cooldown ring, a CONTESTED core tag, and state-driven objective prompts.
 ## The sim's scoring/phases are untouched; this renders get_snapshot() only.
 
-const GATE_COLOR := Color(0.5, 0.48, 0.45)
+## Real gate + wall-segment models (#808/#911, MDL-004/005): both are
+## base-pivoted single pieces meant to be placed/tiled, not stretched — the
+## gate is a realistic doorway width (~2.5u), so the front wall is now the
+## gate flanked by tiled stone, matching the two requests as they were meant
+## to pair.
+const GATE_SCENE := preload("res://assets/generated/models/castle-gate.glb")
+const WALL_SCENE := preload("res://assets/generated/models/castle-wall-segment.glb")
+## Measured from the delivered models (#911's probe) — the gate's own width
+## and each wall segment's tileable length.
+const GATE_WIDTH := 2.5
+const WALL_SEGMENT_LENGTH := 4.0
+## The wall segment model's actual height (probed), for banner placement —
+## its crenellated top is baked in, so the old procedural merlon teeth are gone.
+const WALL_MODEL_HEIGHT := 1.6
 const GATE_HOT_COLOR := Color(0.85, 0.3, 0.2)
-const GATE_HEIGHT := 1.4
-const GATE_THICKNESS := 0.5
-## The enclosing fort walls — darker, cooler stone than the gate so the breach
-## point stands out as the one thing that changes.
-const WALL_COLOR := Color(0.34, 0.36, 0.42)
-const WALL_HEIGHT := 1.8
-const WALL_THICKNESS := 0.6
-const MERLON_COUNT := 7
+const GATE_REPAIR_COLOR := Color(0.75, 0.7, 0.62)
+## The gate model's actual height (probed) — sparkle FX placement only, the
+## geometry itself needs no height const since it's base-pivoted.
+const GATE_MODEL_HEIGHT := 2.7
 const CORE_COLOR := Color(0.96, 0.79, 0.2)
 const PLINTH_COLOR := Color(0.28, 0.29, 0.34)
 const PLINTH_HEIGHT := 0.5
@@ -38,8 +47,10 @@ var players := {}
 var teams: Array = []
 var times: Array = []
 
-var _gate_node: MeshInstance3D
-var _gate_material: StandardMaterial3D
+var _gate_node: Node3D
+## Duplicated per-instance so the gate's damage glow never touches the shared
+## cached material (or, hypothetically, another gate instance).
+var _gate_materials: Array[StandardMaterial3D] = []
 var _gate_rest := Vector3.ZERO
 ## Recoil magnitude from the last batter, decayed in _process so the shake plays
 ## out across frames instead of being reset the same render it's set (#808).
@@ -107,82 +118,86 @@ func _setup_3d() -> void:
 
 
 func _build_gate() -> void:
-	var wall := BoxMesh.new()
-	wall.size = Vector3(FortSiege.ARENA_HALF * 2.0, GATE_HEIGHT, GATE_THICKNESS)
-	_gate_material = StandardMaterial3D.new()
-	_gate_material.albedo_color = GATE_COLOR
-	wall.material = _gate_material
-	_gate_node = MeshInstance3D.new()
+	_gate_node = GATE_SCENE.instantiate() as Node3D
 	_gate_node.name = "Gate"
-	_gate_node.mesh = wall
-	_gate_rest = to_arena(Vector2(0.0, FortSiege.GATE_Y), GATE_HEIGHT / 2.0)
+	_gate_rest = to_arena(Vector2(0.0, FortSiege.GATE_Y), 0.0)
 	_gate_node.position = _gate_rest
 	arena.add_child(_gate_node)
+	_gate_materials = _duplicate_materials(_gate_node)
 
 
-## The fort proper (#808): stone walls down both sides and across the back,
-## crenellated, enclosing the core — so the gate reads as the one way in. A
+## The fort proper (#808/#911): the gate flanked by tiled stone-wall-segment
+## models filling the rest of the front, plus the two side walls and the back
+## wall — enclosing the core so the gate reads as the one way in. A
 ## team-colored banner rides each wall and flips to the defenders on the swap.
 func _build_walls() -> void:
 	var half := FortSiege.ARENA_HALF
 	var back_y := -half
-	var depth := absf(FortSiege.GATE_Y - back_y)
+	var gate_half := GATE_WIDTH / 2.0
+	# Front wall: two flanks either side of the gate. The model's outward face
+	# is single-sided (#911 probe), so a mirrored run needs its rotation
+	# flipped 180° on top of the heading — same absolute rotation at a
+	# mirrored position turns its face away from the fixed-azimuth iso camera.
+	_tile_wall(Vector2(-half, FortSiege.GATE_Y), Vector2(-gate_half, FortSiege.GATE_Y), true)
+	_tile_wall(Vector2(gate_half, FortSiege.GATE_Y), Vector2(half, FortSiege.GATE_Y), false)
 	# Left and right walls run from the gate line to the back wall.
 	for side in [-1.0, 1.0]:
-		var wall := _stone_wall(Vector3(WALL_THICKNESS, WALL_HEIGHT, depth))
-		wall.position = to_arena(
-			Vector2(side * half, (FortSiege.GATE_Y + back_y) / 2.0), WALL_HEIGHT / 2.0
-		)
-		arena.add_child(wall)
-		_add_merlons(wall, depth, Vector3(0.0, 0.0, 1.0))
+		_tile_wall(Vector2(side * half, FortSiege.GATE_Y), Vector2(side * half, back_y), side < 0.0)
 		_wall_banners.append(
 			_add_wall_banner(Vector2(side * half, (FortSiege.GATE_Y + back_y) / 2.0))
 		)
 	# Back wall spans the full width behind the core.
-	var back := _stone_wall(Vector3(half * 2.0 + WALL_THICKNESS, WALL_HEIGHT, WALL_THICKNESS))
-	back.position = to_arena(Vector2(0.0, back_y), WALL_HEIGHT / 2.0)
-	arena.add_child(back)
-	_add_merlons(back, half * 2.0, Vector3(1.0, 0.0, 0.0))
+	_tile_wall(Vector2(-half, back_y), Vector2(half, back_y), false)
 	_wall_banners.append(_add_wall_banner(Vector2(0.0, back_y + 0.4)))
 
 
-func _stone_wall(size: Vector3) -> MeshInstance3D:
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = WALL_COLOR
-	mesh.material = mat
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	return node
+## Places WALL_SCENE copies end-to-end along the straight run from `from` to
+## `to`, oriented to face along it (same heading convention as Turbo Lap's
+## track strips) — real tiled stone instead of one stretched box. `flip`
+## adds a 180° turn for the mirrored side of a left/right pair (#911).
+func _tile_wall(from: Vector2, to: Vector2, flip: bool) -> void:
+	var span := from.distance_to(to)
+	if span < 0.01:
+		return
+	var count := int(ceil(span / WALL_SEGMENT_LENGTH))
+	var rot := -(to - from).angle() + (PI if flip else 0.0)
+	for i in count:
+		var t := (float(i) + 0.5) / float(count)
+		var segment := WALL_SCENE.instantiate() as Node3D
+		segment.position = to_arena(from.lerp(to, t), 0.0)
+		segment.rotation.y = rot
+		arena.add_child(segment)
 
 
-## Crenellation teeth along a wall's top edge (castle silhouette), spaced along
-## `axis` (unit X or Z) over `span` world units.
-func _add_merlons(wall: MeshInstance3D, span: float, axis: Vector3) -> void:
-	for i in MERLON_COUNT:
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(WALL_THICKNESS * 0.9, 0.4, WALL_THICKNESS * 0.9)
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = WALL_COLOR.lightened(0.08)
-		mesh.material = mat
-		var tooth := MeshInstance3D.new()
-		tooth.mesh = mesh
-		var t := (float(i) / float(MERLON_COUNT - 1) - 0.5) * span
-		tooth.position = axis * t + Vector3(0.0, WALL_HEIGHT / 2.0 + 0.2, 0.0)
-		wall.add_child(tooth)
+## Duplicates every mesh surface material under `node` so runtime tweaks (the
+## gate's damage glow) never mutate the shared cached resource other
+## instances/reloads would see.
+func _duplicate_materials(node: Node) -> Array[StandardMaterial3D]:
+	var materials: Array[StandardMaterial3D] = []
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		if mi.mesh != null:
+			for surface in mi.mesh.get_surface_count():
+				var mat := mi.mesh.surface_get_material(surface)
+				if mat is StandardMaterial3D:
+					var dup := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+					mi.set_surface_override_material(surface, dup)
+					materials.append(dup)
+	for child in node.get_children():
+		materials.append_array(_duplicate_materials(child))
+	return materials
 
 
 func _add_wall_banner(world: Vector2) -> MeshInstance3D:
 	var mesh := BoxMesh.new()
-	mesh.size = Vector3(0.12, WALL_HEIGHT * 0.7, 1.2)
+	mesh.size = Vector3(0.12, WALL_MODEL_HEIGHT * 0.7, 1.2)
 	var mat := StandardMaterial3D.new()
 	mat.emission_enabled = true
 	mesh.material = mat
 	var node := MeshInstance3D.new()
 	node.name = "WallBanner"
 	node.mesh = mesh
-	node.position = to_arena(world, WALL_HEIGHT * 0.55)
+	node.position = to_arena(world, WALL_MODEL_HEIGHT * 0.55)
 	arena.add_child(node)
 	return node
 
@@ -268,13 +283,13 @@ func _play_action(slot: int, state: Array, rig: CharacterRig) -> void:
 		FortSiege.Act.BATTER:
 			rig.play(&"attack")
 			_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
-			fx_sparkle(Vector2(0.0, FortSiege.GATE_Y), GATE_HOT_COLOR, GATE_HEIGHT * 0.6)
+			fx_sparkle(Vector2(0.0, FortSiege.GATE_Y), GATE_HOT_COLOR, GATE_MODEL_HEIGHT * 0.6)
 			_gate_shake = 0.18  # recoil, played out in _process
 			play_sfx(&"thud")
 		FortSiege.Act.REPAIR:
 			rig.play(&"interact")
 			_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
-			fx_sparkle(at, GATE_COLOR.lightened(0.3), 0.8)
+			fx_sparkle(at, GATE_REPAIR_COLOR, 0.8)
 			play_sfx(&"click")
 		FortSiege.Act.SHOVE:
 			rig.play(&"attack")
@@ -322,7 +337,14 @@ func _make_cooldown_ring() -> MeshInstance3D:
 
 func _update_gate() -> void:
 	_gate_node.visible = gate > 0.0
-	_gate_material.albedo_color = GATE_HOT_COLOR.lerp(GATE_COLOR, gate)
+	# Damage now glows through the gate's own wood/iron texture (an emission
+	# overlay) rather than recoloring it flat, so the real model reads instead
+	# of flattening into a solid tint.
+	var heat := clampf(1.0 - gate, 0.0, 1.0)
+	for mat in _gate_materials:
+		mat.emission_enabled = heat > 0.0
+		mat.emission = GATE_HOT_COLOR
+		mat.emission_energy_multiplier = heat * 1.5
 	# Crack the gate harder at each damage third (#808), so progress reads even
 	# before it falls.
 	var cracks := int((1.0 - gate) * 3.0)
