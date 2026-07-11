@@ -21,6 +21,11 @@ var _power_bar: ProgressBar
 var _charge := 0.0
 var _charging := false
 var _sunk_seen := {}
+## The course is seeded per round (#793), so it's built from the first snapshot
+## that carries it (like KotH's pillars) rather than from consts. _cup caches the
+## replicated cup for the hole-out burst.
+var _course_built := false
+var _cup := Vector2.ZERO
 
 
 ## A real putting green (#813): the Kenney grass block replaces the grey
@@ -35,9 +40,8 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
-	_build_cup()
-	_build_blocks()
-	_build_bar()
+	# The cup/blocks/bar are seeded per round (#793) and built from the first
+	# snapshot; balls and the aim UI are course-independent, so build them now.
 	_build_balls()
 	_build_aim_and_meter()
 
@@ -71,8 +75,10 @@ func _process(delta: float) -> void:
 
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
-	var bar: Array = game.get("bar", [0.0, PuttPanic.BAR_Y])
-	if _bar != null:
+	if not _course_built and game.has("cup"):
+		_build_course(game)
+	var bar: Array = game.get("bar", [])
+	if _bar != null and bar.size() >= 2:
 		_bar.position = to_arena(Vector2(float(bar[0]), float(bar[1])), 0.35)
 	for slot: int in players:
 		var state: Array = players[slot]
@@ -85,7 +91,7 @@ func _render_3d(game: Dictionary) -> void:
 		)
 		var just_sunk := int(state[PuttPanic.PS_SUNK]) == 1
 		if just_sunk and not bool(_sunk_seen.get(slot, false)):
-			fx_burst(PuttPanic.CUP_POS, CUP_RING_COLOR, 0.6)
+			fx_burst(_cup, CUP_RING_COLOR, 0.6)
 			# Signature cue (#728, docs/AUDIO_GUIDE.md — Water): a sunk putt is
 			# a target hit, not currency — `bell`'s literal meaning.
 			play_sfx(&"bell")
@@ -96,12 +102,35 @@ func _render_3d(game: Dictionary) -> void:
 			rig.display_name = "%s  %d" % [player_name(slot), int(state[PuttPanic.PS_STROKES])]
 
 
-func _build_cup() -> void:
+## Build the seeded course from the first snapshot that carries it (#793): the
+## cup, the two gate blocks, and the sliding bar — all replicated so the client
+## draws exactly the layout the server generated.
+func _build_course(game: Dictionary) -> void:
+	_course_built = true
+	var cup: Array = game.get("cup", [0.0, 6.5])
+	_cup = Vector2(float(cup[0]), float(cup[1]))
+	_build_cup(_cup)
+	for block: Array in game.get("blocks", []):
+		if block.size() < 4:
+			continue
+		var node := _box(Vector3(float(block[2]) * 2.0, 0.7, float(block[3]) * 2.0), BLOCK_COLOR)
+		node.position = to_arena(Vector2(float(block[0]), float(block[1])), 0.35)
+		arena.add_child(node)
+	var bar: Array = game.get("bar", [0.0, 3.6, 1.6, 0.5])
+	var bar_half_x := float(bar[2]) if bar.size() >= 4 else 1.6
+	var bar_half_y := float(bar[3]) if bar.size() >= 4 else 0.5
+	_bar = _box(Vector3(bar_half_x * 2.0, 0.7, bar_half_y * 2.0), BAR_COLOR)
+	_bar.name = "Bar"
+	_bar.position = to_arena(Vector2(float(bar[0]), float(bar[1])), 0.35)
+	arena.add_child(_bar)
+
+
+func _build_cup(cup: Vector2) -> void:
 	var hole := _disc(PuttPanic.CUP_RADIUS, CUP_COLOR, 0.02)
-	hole.position = to_arena(PuttPanic.CUP_POS, 0.02)
+	hole.position = to_arena(cup, 0.02)
 	arena.add_child(hole)
 	var ring := _disc(PuttPanic.CUP_RADIUS * 1.3, CUP_RING_COLOR, 0.01, true)
-	ring.position = to_arena(PuttPanic.CUP_POS, 0.01)
+	ring.position = to_arena(cup, 0.01)
 	arena.add_child(ring)
 
 
@@ -120,21 +149,6 @@ func _disc(radius: float, color: Color, height: float, emissive := false) -> Mes
 	var node := MeshInstance3D.new()
 	node.mesh = mesh
 	return node
-
-
-func _build_blocks() -> void:
-	for block: Dictionary in PuttPanic.BLOCKS:
-		var half: Vector2 = block.half
-		var node := _box(Vector3(half.x * 2.0, 0.7, half.y * 2.0), BLOCK_COLOR)
-		node.position = to_arena(block.pos, 0.35)
-		arena.add_child(node)
-
-
-func _build_bar() -> void:
-	_bar = _box(Vector3(PuttPanic.BAR_HALF.x * 2.0, 0.7, PuttPanic.BAR_HALF.y * 2.0), BAR_COLOR)
-	_bar.name = "Bar"
-	_bar.position = to_arena(Vector2(0.0, PuttPanic.BAR_Y), 0.35)
-	arena.add_child(_bar)
 
 
 func _box(size: Vector3, color: Color) -> MeshInstance3D:

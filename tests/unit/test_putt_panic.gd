@@ -86,13 +86,13 @@ func test_block_bounce_pushes_out_and_reflects() -> void:
 func test_slow_ball_sinks_but_a_fast_one_rolls_over() -> void:
 	# Slow arrival drops.
 	var slow := _game()
-	slow.positions[0] = PuttPanic.CUP_POS + Vector2(0.2, 0.0)
+	slow.positions[0] = slow.cup_pos + Vector2(0.2, 0.0)
 	slow.velocities[0] = Vector2(-2.0, 0.0)
 	slow._roll(0, TICK)
 	assert_true(bool(slow.sunk[0]), "a gentle ball drops in")
 	# Fast arrival lips out.
 	var fast := _game()
-	fast.positions[1] = PuttPanic.CUP_POS + Vector2(0.2, 0.0)
+	fast.positions[1] = fast.cup_pos + Vector2(0.2, 0.0)
 	fast.velocities[1] = Vector2(-12.0, 0.0)
 	fast._roll(1, TICK)
 	assert_false(bool(fast.sunk[1]), "too fast rolls over the lip")
@@ -111,8 +111,8 @@ func test_ranking_sunk_by_strokes_then_unsunk_by_distance() -> void:
 	game.strokes[0] = 2
 	game.sunk[1] = true
 	game.strokes[1] = 3
-	game.positions[2] = PuttPanic.CUP_POS + Vector2(1.0, 0.0)  # unsunk, close
-	game.positions[3] = PuttPanic.CUP_POS + Vector2(5.0, 0.0)  # unsunk, far
+	game.positions[2] = game.cup_pos + Vector2(1.0, 0.0)  # unsunk, close
+	game.positions[3] = game.cup_pos + Vector2(5.0, 0.0)  # unsunk, far
 	assert_eq(
 		game._rank_players(), [[0], [1], [2], [3]], "fewest strokes first, then the nearest unsunk"
 	)
@@ -124,3 +124,49 @@ func test_all_sunk_finishes_the_round() -> void:
 	game.sunk[1] = true
 	game.tick(TICK)
 	assert_true(game.finished)
+
+
+## #793: the same seed reproduces the same course, so every peer agrees.
+func test_course_is_deterministic_for_a_seed() -> void:
+	var a := PuttPanic.new()
+	a.meta = PuttPanic.make_meta()
+	a.setup([0, 1] as Array[int], 123)
+	var b := PuttPanic.new()
+	b.meta = PuttPanic.make_meta()
+	b.setup([0, 1] as Array[int], 123)
+	assert_eq(a.cup_pos, b.cup_pos, "same seed = same cup")
+	assert_eq(a.bar_y, b.bar_y, "same seed = same bar")
+	assert_eq(a.blocks.size(), b.blocks.size(), "same seed = same block set")
+
+
+## #793: different seeds give different courses — the point of the feature.
+func test_course_varies_across_seeds() -> void:
+	var a := PuttPanic.new()
+	a.meta = PuttPanic.make_meta()
+	a.setup([0, 1] as Array[int], 1)
+	var b := PuttPanic.new()
+	b.meta = PuttPanic.make_meta()
+	b.setup([0, 1] as Array[int], 2)
+	assert_ne(a.cup_pos, b.cup_pos, "a different seed moves the cup")
+
+
+## #793 fairness: whatever the seed, the cup is up-field within bounds and the
+## gate leaves a clear central lane wider than the ball, so every course is
+## solvable and roughly equal in difficulty.
+func test_generated_course_stays_within_fair_bounds() -> void:
+	for seed_value in [0, 7, 42, 99, 500, 2024]:
+		var game := PuttPanic.new()
+		game.meta = PuttPanic.make_meta()
+		game.setup([0, 1] as Array[int], seed_value)
+		assert_between(
+			game.cup_pos.x, -PuttPanic.CUP_X_RANGE, PuttPanic.CUP_X_RANGE, "cup x in bounds"
+		)
+		assert_between(game.cup_pos.y, PuttPanic.CUP_Y_MIN, PuttPanic.CUP_Y_MAX, "cup up-field")
+		assert_eq(game.blocks.size(), 2, "a two-block gate")
+		# Inner edges of the flanking blocks — the clear lane between them.
+		var left: Dictionary = game.blocks[0]
+		var lane_half: float = absf(float(left.pos.x)) - float(left.half.x)
+		assert_gte(
+			lane_half, PuttPanic.GATE_GAP_MIN - 0.001, "the central lane clears the gate blocks"
+		)
+		assert_gt(lane_half, PuttPanic.BALL_RADIUS, "and it is wider than the ball")
