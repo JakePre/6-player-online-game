@@ -9,7 +9,6 @@ extends MinigameBase
 
 const ARENA_HALF := 9.0
 const BALL_RADIUS := 0.3
-const CUP_POS := Vector2(0.0, 6.5)
 const CUP_RADIUS := 0.55
 const MAX_POWER := 14.0
 ## Speed lost per second (rolling friction), and the speed below which the
@@ -23,16 +22,29 @@ const RESTITUTION := 0.7
 const SHOT_CLOCK_SEC := 30.0
 const AUTO_PUTT_POWER := 0.35
 
-## Static blocks flanking the approach: {pos, half}.
-const BLOCKS: Array[Dictionary] = [
-	{"pos": Vector2(-3.5, 1.0), "half": Vector2(1.0, 0.6)},
-	{"pos": Vector2(3.5, 1.0), "half": Vector2(1.0, 0.6)},
-]
-## Sliding bar guarding the cup: oscillates in x.
-const BAR_HALF := Vector2(1.6, 0.5)
-const BAR_Y := 3.6
-const BAR_RANGE := 4.0
-const BAR_SPEED := 1.1
+## Seeded course generation (#793): each round's cup, flanking gate blocks, and
+## guard bar are drawn from the round seed within these fair bounds, so the
+## layout is different every play but the challenge stays balanced — the cup is
+## always up-field, the gate always leaves a clear central lane (its blocks sit
+## at ±(gap + block-half), so the lane spans ±gap ≥ GATE_GAP_MIN), and the bar
+## always sweeps across between the gate and the cup.
+const CUP_X_RANGE := 2.5
+const CUP_Y_MIN := 5.5
+const CUP_Y_MAX := 7.5
+const GATE_Y_MIN := -0.5
+const GATE_Y_MAX := 2.5
+const GATE_GAP_MIN := 2.2
+const GATE_GAP_MAX := 3.4
+const GATE_HALF_MIN := 0.8
+const GATE_HALF_MAX := 1.3
+const BAR_Y_MIN := 3.2
+const BAR_Y_MAX := 4.6
+const BAR_HALF_X_MIN := 1.3
+const BAR_HALF_X_MAX := 1.9
+const BAR_RANGE_MIN := 3.0
+const BAR_RANGE_MAX := 4.5
+const BAR_SPEED_MIN := 0.8
+const BAR_SPEED_MAX := 1.35
 
 ## get_snapshot() wire shape (#708): named indices for the players positional
 ## array. Array SHAPE on the wire is unchanged — additive only.
@@ -51,6 +63,16 @@ var aims := {}
 var strokes := {}
 var sunk := {}
 var rest_time := {}
+## The seeded course (#793): cup, static gate blocks ({pos, half}), and the
+## sliding bar's geometry — set once in _setup() and replicated so every peer
+## and the view agree on the same layout.
+var cup_pos := Vector2(0.0, 6.5)
+var blocks: Array = []
+var bar_half := Vector2(1.6, 0.5)
+var bar_y := 3.6
+var bar_range := 4.0
+var bar_speed := 1.1
+var bar_phase := 0.0
 ## Sliding bar centre this tick (replicated so the view need not recompute).
 var bar_x := 0.0
 
@@ -91,15 +113,38 @@ static func make_meta() -> MinigameMeta:
 
 
 func _setup() -> void:
+	_generate_course()
 	for i in slots.size():
 		var slot: int = slots[i]
 		var spread := (i - (slots.size() - 1) / 2.0) * 1.6
 		positions[slot] = Vector2(spread, -7.0)
 		velocities[slot] = Vector2.ZERO
-		aims[slot] = (CUP_POS - positions[slot]).normalized()
+		aims[slot] = (cup_pos - positions[slot]).normalized()
 		strokes[slot] = 0
 		sunk[slot] = false
 		rest_time[slot] = 0.0
+
+
+## Draw a fresh course from the round seed (#793). The two-block gate always
+## leaves a clear central lane and the cup always sits up-field, so every seed
+## is solvable and roughly equal in difficulty — only the look and the required
+## line change from round to round.
+func _generate_course() -> void:
+	cup_pos = Vector2(
+		rng.randf_range(-CUP_X_RANGE, CUP_X_RANGE), rng.randf_range(CUP_Y_MIN, CUP_Y_MAX)
+	)
+	var gate_y := rng.randf_range(GATE_Y_MIN, GATE_Y_MAX)
+	var gap := rng.randf_range(GATE_GAP_MIN, GATE_GAP_MAX)
+	var half := Vector2(rng.randf_range(GATE_HALF_MIN, GATE_HALF_MAX), rng.randf_range(0.5, 0.8))
+	blocks = [
+		{"pos": Vector2(-(gap + half.x), gate_y), "half": half},
+		{"pos": Vector2(gap + half.x, gate_y), "half": half},
+	]
+	bar_half = Vector2(rng.randf_range(BAR_HALF_X_MIN, BAR_HALF_X_MAX), 0.5)
+	bar_y = rng.randf_range(BAR_Y_MIN, BAR_Y_MAX)
+	bar_range = rng.randf_range(BAR_RANGE_MIN, BAR_RANGE_MAX)
+	bar_speed = rng.randf_range(BAR_SPEED_MIN, BAR_SPEED_MAX)
+	bar_phase = rng.randf_range(0.0, TAU)
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
@@ -113,7 +158,7 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 
 func _tick(delta: float) -> void:
-	bar_x = BAR_RANGE * sin(elapsed * BAR_SPEED)
+	bar_x = bar_range * sin(elapsed * bar_speed + bar_phase)
 	for slot: int in slots:
 		if bool(sunk[slot]):
 			continue
@@ -140,10 +185,18 @@ func get_snapshot() -> Dictionary:
 			snappedf(aim.y, 0.01),
 			1 if _at_rest(slot) else 0,
 		]
+	var block_list: Array = []
+	for block: Dictionary in blocks:
+		var half: Vector2 = block.half
+		block_list.append(
+			[snappedf(block.pos.x, 0.01), snappedf(block.pos.y, 0.01), half.x, half.y]
+		)
 	return {
 		"players": players,
-		"cup": [CUP_POS.x, CUP_POS.y],
-		"bar": [snappedf(bar_x, 0.01), BAR_Y],
+		"cup": [snappedf(cup_pos.x, 0.01), snappedf(cup_pos.y, 0.01)],
+		# Bar carries its geometry now (#793): [x, y, half_x, half_y].
+		"bar": [snappedf(bar_x, 0.01), snappedf(bar_y, 0.01), bar_half.x, bar_half.y],
+		"blocks": block_list,
 		"shot_clock": SHOT_CLOCK_SEC,
 	}
 
@@ -168,7 +221,7 @@ func _rank_players() -> Array:
 		placements.append(by_strokes[value])
 	unsunk.sort_custom(
 		func(a: int, b: int) -> bool:
-			return positions[a].distance_to(CUP_POS) < positions[b].distance_to(CUP_POS)
+			return positions[a].distance_to(cup_pos) < positions[b].distance_to(cup_pos)
 	)
 	for slot: int in unsunk:
 		placements.append([slot])
@@ -199,9 +252,9 @@ func _roll(slot: int, delta: float) -> void:
 	positions[slot] = pos
 	velocities[slot] = vel
 	# Obstacles.
-	for block: Dictionary in BLOCKS:
+	for block: Dictionary in blocks:
 		_bounce_box(slot, block.pos, block.half)
-	_bounce_box(slot, Vector2(bar_x, BAR_Y), BAR_HALF)
+	_bounce_box(slot, Vector2(bar_x, bar_y), bar_half)
 	# Friction.
 	var speed := (velocities[slot] as Vector2).length()
 	speed = maxf(0.0, speed - FRICTION * delta)
@@ -211,11 +264,11 @@ func _roll(slot: int, delta: float) -> void:
 		velocities[slot] = (velocities[slot] as Vector2).normalized() * speed
 	# Sink check.
 	if (
-		(positions[slot] as Vector2).distance_to(CUP_POS) <= CUP_RADIUS
+		(positions[slot] as Vector2).distance_to(cup_pos) <= CUP_RADIUS
 		and (velocities[slot] as Vector2).length() <= SINK_MAX_SPEED
 	):
 		sunk[slot] = true
-		positions[slot] = CUP_POS
+		positions[slot] = cup_pos
 		velocities[slot] = Vector2.ZERO
 
 
