@@ -22,6 +22,10 @@ const MUSIC := {
 		"res://assets/audio/incompetech/round_loop_duck.mp3",
 		"res://assets/audio/incompetech/round_loop_amok.mp3",
 		"res://assets/audio/incompetech/round_loop_weasel.mp3",
+		# Lud and Schlatt's Musical Emporium tracks (#830, owner-supplied).
+		"res://assets/audio/lud_and_schlatt/grand_opening.mp3",
+		"res://assets/audio/lud_and_schlatt/2pm.mp3",
+		"res://assets/audio/lud_and_schlatt/10am.mp3",
 	],
 	&"finale": ["res://assets/audio/incompetech/finale_loop.mp3"],
 }
