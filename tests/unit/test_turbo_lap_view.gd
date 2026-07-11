@@ -88,6 +88,25 @@ func test_shell_and_oil_pools_track_snapshot() -> void:
 	assert_false(shell.visible, "a landed shell disappears")
 
 
+## #785: the finish line crosses the track perpendicular to the racing
+## direction — rotated to the track heading at the line, not axis-aligned.
+func test_finish_line_crosses_perpendicular() -> void:
+	var points := TurboLap.waypoints()
+	var start: MeshInstance3D = view.arena.get_node("StartLine")
+	var expected := -(points[1] - points[0]).angle()
+	assert_almost_eq(start.rotation.y, expected, 0.001, "rotated to the track heading at the line")
+	var strip: MeshInstance3D = view.arena.get_node("Track0")
+	assert_almost_eq(
+		start.rotation.y, strip.rotation.y, 0.001, "aligned with the ribbon at the line"
+	)
+	assert_almost_eq(
+		(start.mesh as BoxMesh).size.z,
+		TurboLap.TRACK_HALF_WIDTH * 2.0,
+		0.001,
+		"spans the full width"
+	)
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)

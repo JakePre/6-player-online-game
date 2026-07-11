@@ -1,18 +1,29 @@
 class_name TurboLap
 extends MinigameBase
-## Turbo Lap (M14-02, PHASE2.md §8): a kart racer — exactly one lap. Drift
+## Turbo Lap (M14-02, PHASE2.md §8): a kart racer over LAP_COUNT laps. Drift
 ## to bank a mini-turbo, ride the boost pads, and lob what the item pads
 ## hand you (homing shell, oil slick, boost). Finish order is placement;
 ## the timeout ranks stragglers by lap progress. Server-side sim only.
 ##
-## The track is a waypoint loop (ellipse centerline + half-width). Handling
-## is arcade-simple by design: heading + scalar speed, steering scaled by
-## speed, drift multiplying turn rate while it charges the release boost.
+## The track is a waypoint loop (a shaped centerline + half-width, #785).
+## Handling is arcade-simple by design: heading + scalar speed, steering scaled
+## by speed, drift multiplying turn rate while it charges the release boost.
 
-const WAYPOINT_COUNT := 16
+const WAYPOINT_COUNT := 28
+## Laps per race (#785): the owner asked for more than one. Finish after
+## capturing every waypoint this many times.
+const LAP_COUNT := 3
 const TRACK_RX := 11.0
 const TRACK_RY := 7.0
 const TRACK_HALF_WIDTH := 2.2
+## Shaped-course modulation (#785): smooth deterministic tweaks to the base
+## ellipse radius so the circuit reads as a real track with varied corners — a
+## couple of sweepers and a tighter turn — instead of a plain oval. Kept well
+## under the base radii so the loop never pinches or self-intersects.
+const COURSE_RX_WOBBLE := 0.13
+const COURSE_RX_WOBBLE2 := 0.05
+const COURSE_RY_WOBBLE := 0.12
+const COURSE_RY_TILT := 0.06
 ## Reaching this close to the next waypoint captures it (generous — the
 ## checkpoint ring spans the whole track width).
 const CAPTURE_RADIUS := 2.6
@@ -70,6 +81,10 @@ const PD_X := 0
 const PD_Y := 1
 const PD_AVAILABLE := 2
 
+## The shaped centerline is the same every round, so it's built once and cached
+## (every kart's on-track / progress / capture check calls waypoints() per tick).
+static var _waypoint_cache: PackedVector2Array
+
 ## Kart state per slot: pos/heading/speed plus drift, boost, spin, item,
 ## and checkpoint progress.
 var karts := {}
@@ -120,25 +135,51 @@ static func make_meta() -> MinigameMeta:
 	)
 
 
-## Ellipse centerline, counterclockwise from the rightmost point (the
-## start/finish line). Static so the view draws the identical ribbon.
+## Shaped centerline (#785), counterclockwise from the start/finish waypoint
+## (index 0). An ellipse base with smooth radius modulations gives it varied
+## corners without a plain-oval look; it stays a valid non-self-intersecting loop
+## because the wobble is well under the base radii. Static + cached so the view
+## draws the identical ribbon and the per-tick checks stay cheap.
 static func waypoints() -> PackedVector2Array:
+	if _waypoint_cache.size() == WAYPOINT_COUNT:
+		return _waypoint_cache
 	var points := PackedVector2Array()
 	for i in WAYPOINT_COUNT:
 		var angle := TAU * float(i) / float(WAYPOINT_COUNT)
-		points.append(Vector2(cos(angle) * TRACK_RX, sin(angle) * TRACK_RY))
+		var rx := (
+			TRACK_RX
+			* (
+				1.0
+				+ COURSE_RX_WOBBLE * cos(2.0 * angle)
+				+ COURSE_RX_WOBBLE2 * cos(3.0 * angle + 0.6)
+			)
+		)
+		var ry := (
+			TRACK_RY * (1.0 + COURSE_RY_WOBBLE * sin(2.0 * angle) - COURSE_RY_TILT * cos(angle))
+		)
+		points.append(Vector2(cos(angle) * rx, sin(angle) * ry))
+	_waypoint_cache = points
 	return points
 
 
-## Boost pads sit on the two long straights; item pads a quarter-lap apart.
+## Largest world-space extent of the course, for sizing the arena floor/camera.
+static func course_bound() -> float:
+	var bound := 0.0
+	for point: Vector2 in waypoints():
+		bound = maxf(bound, maxf(absf(point.x), absf(point.y)))
+	return bound
+
+
+## Boost pads on two of the straights; item pads spread roughly evenly around
+## the lap. Indices chosen for the wider (28-waypoint) shaped course.
 static func boost_pad_positions() -> Array[Vector2]:
 	var points := waypoints()
-	return [points[3], points[11]]
+	return [points[6], points[20]]
 
 
 static func item_pad_positions() -> Array[Vector2]:
 	var points := waypoints()
-	return [points[1], points[6], points[13]]
+	return [points[2], points[12], points[23]]
 
 
 func _setup() -> void:
@@ -278,7 +319,7 @@ func _rank_players() -> Array:
 func _progress(slot: int) -> float:
 	var kart: Dictionary = karts[slot]
 	if bool(kart.finished):
-		return float(WAYPOINT_COUNT) + 1.0
+		return float(WAYPOINT_COUNT * LAP_COUNT) + 1.0
 	var points := waypoints()
 	var next: Vector2 = points[int(kart.next_wp) % WAYPOINT_COUNT]
 	var prev: Vector2 = points[(int(kart.next_wp) - 1 + WAYPOINT_COUNT) % WAYPOINT_COUNT]
@@ -386,7 +427,8 @@ func _capture_waypoints(slot: int, kart: Dictionary) -> void:
 		return
 	kart.captured = int(kart.captured) + 1
 	kart.next_wp = int(kart.next_wp) + 1
-	if int(kart.captured) >= WAYPOINT_COUNT + 1:
+	# Finished after LAP_COUNT full laps around the waypoint loop (#785).
+	if int(kart.captured) >= WAYPOINT_COUNT * LAP_COUNT:
 		kart.finished = true
 		_finished_this_tick.append(slot)
 
