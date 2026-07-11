@@ -10,6 +10,14 @@ const HOOP_ALPHA := 0.4
 const BALL_RADIUS := 0.35
 const CARRY_HEIGHT := 2.0
 const HOOP_DISC_HEIGHT := 0.05
+## Real hoop + basketball models (#803, MDL-001/002): the hoop rides its post so
+## a shot arcs up INTO a raised rim, and the ball is an actual basketball.
+const BALL_SCENE := preload("res://assets/generated/models/basketball.glb")
+const HOOP_SCENE := preload("res://assets/generated/models/basketball-hoop.glb")
+## The .glb rim sits about here (MDL-001 spec) — the top of a shot's arc lands on it.
+const RIM_HEIGHT := 2.6
+## A shot lofts this far above the straight launch→rim line at the peak.
+const SHOT_ARC_PEAK := 2.2
 
 ## Latest replicated state, straight from BasketBrawl.get_snapshot().
 var players := {}
@@ -18,8 +26,8 @@ var scores: Array = [0, 0]
 var teams: Array = []
 var hoops: Array = []
 
-var _ball_node: MeshInstance3D
-var _hoop_nodes: Array[MeshInstance3D] = []
+var _ball_node: Node3D
+var _hoop_tint_nodes: Array[MeshInstance3D] = []
 var _hoop_materials: Array[StandardMaterial3D] = []
 var _hoops_tinted := false
 var _score_label: Label
@@ -27,6 +35,11 @@ var _score_label: Label
 # fumble dust.
 var _scores_seen: Array = []
 var _holder_seen := -1
+## Shot-arc state (#803): the launch point recorded on the shot's rising edge,
+## the enemy hoop it targets, and whether a shot is currently in flight.
+var _shot_flying := false
+var _shot_launch := Vector2.ZERO
+var _shot_target := Vector2.ZERO
 
 
 func _physics_process(_delta: float) -> void:
@@ -34,9 +47,12 @@ func _physics_process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if NetManager.multiplayer.multiplayer_peer == null:
+		return
 	if event.is_action_pressed(&"action_primary"):
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"act": true})
+		NetManager.send_match_input({"act": true})
+	elif event.is_action_pressed(&"action_secondary"):
+		NetManager.send_match_input({"shoot": true})
 
 
 ## Warm hardwood-court floor (#589).
@@ -49,20 +65,14 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
-	var ball_mesh := SphereMesh.new()
-	ball_mesh.radius = BALL_RADIUS
-	ball_mesh.height = BALL_RADIUS * 2.0
-	var ball_material := StandardMaterial3D.new()
-	ball_material.albedo_color = BALL_COLOR
-	ball_material.emission_enabled = true
-	ball_material.emission = BALL_COLOR
-	ball_material.emission_energy_multiplier = 0.25
-	ball_mesh.material = ball_material
-	_ball_node = MeshInstance3D.new()
+	# The ball is now an actual basketball model (#803).
+	_ball_node = BALL_SCENE.instantiate()
 	_ball_node.name = "Ball"
-	_ball_node.mesh = ball_mesh
 	arena.add_child(_ball_node)
 	for i in 2:
+		var side := -1.0 if i == 0 else 1.0
+		# A translucent team-tinted disc on the floor still reads "this hoop is
+		# ours to defend" at a glance (tinted in _tint_hoops).
 		var disc := CylinderMesh.new()
 		disc.top_radius = BasketBrawl.HOOP_RADIUS
 		disc.bottom_radius = BasketBrawl.HOOP_RADIUS
@@ -72,13 +82,20 @@ func _setup_3d() -> void:
 		material.albedo_color = Color(0.6, 0.6, 0.6, HOOP_ALPHA)
 		disc.material = material
 		_hoop_materials.append(material)
-		var node := MeshInstance3D.new()
-		node.name = "Hoop%d" % i
-		node.mesh = disc
-		var side := -1.0 if i == 0 else 1.0
-		node.position = to_arena(Vector2(side * BasketBrawl.HOOP_X, 0.0), HOOP_DISC_HEIGHT / 2.0)
-		arena.add_child(node)
-		_hoop_nodes.append(node)
+		var tint := MeshInstance3D.new()
+		tint.name = "Hoop%d" % i
+		tint.mesh = disc
+		tint.position = to_arena(Vector2(side * BasketBrawl.HOOP_X, 0.0), HOOP_DISC_HEIGHT / 2.0)
+		arena.add_child(tint)
+		_hoop_tint_nodes.append(tint)
+		# The real hoop assembly (#803), raised on its post, rim facing the court
+		# so a shot arcs up into it.
+		var hoop := HOOP_SCENE.instantiate() as Node3D
+		hoop.name = "HoopModel%d" % i
+		hoop.position = to_arena(Vector2(side * BasketBrawl.HOOP_X, 0.0), 0.0)
+		# Face the rim toward center: mirror the two hoops so both open inward.
+		hoop.rotation.y = PI / 2.0 if side < 0.0 else -PI / 2.0
+		arena.add_child(hoop)
 	_score_label = make_banner(&"Score", 28)
 
 
@@ -117,18 +134,52 @@ func _update_ball() -> void:
 	if ball.size() < BasketBrawl.BALL_COUNT:
 		return
 	var ball_holder := int(ball[BasketBrawl.BALL_HOLDER])
-	var height := CARRY_HEIGHT if ball_holder >= 0 else BALL_RADIUS
+	var shooting := int(ball[BasketBrawl.BALL_SHOT]) == 1
 	var ball_pos := Vector2(float(ball[BasketBrawl.BALL_X]), float(ball[BasketBrawl.BALL_Y]))
+	_track_shot(shooting, ball_pos)
+	var height := BALL_RADIUS
+	if ball_holder >= 0:
+		height = CARRY_HEIGHT
+	elif shooting:
+		height = _shot_arc_height(ball_pos)
 	_ball_node.position = to_arena(ball_pos, height)
-	# Fumble dust (juice): the holder vanishing without a score change means
-	# the ball just popped loose. Seeded via _holder_seen/_scores_seen.
-	if _holder_seen >= 0 and ball_holder == -1 and scores == _scores_seen:
+	# Fumble dust (juice): the holder vanishing without a score change means the
+	# ball popped loose — but a shot launch also clears the holder, so a live
+	# shot is not a fumble. Seeded via _holder_seen/_scores_seen.
+	if _holder_seen >= 0 and ball_holder == -1 and scores == _scores_seen and not shooting:
 		fx_dust(ball_pos)
 		# Signature cue (#728): heard by the player who got shoved off the
 		# ball — a `bump`, not a score/UI sound.
 		if _holder_seen == my_slot:
 			play_sfx(&"bump")
 	_holder_seen = ball_holder
+
+
+## Records a shot's launch point on its rising edge (so the arc has a start),
+## and clangs the rim on a miss — a shot ending in flight with no score change
+## rebounded (#803). A made shot ends via the score tick, handled in _update_score.
+func _track_shot(shooting: bool, ball_pos: Vector2) -> void:
+	if shooting and not _shot_flying:
+		_shot_flying = true
+		_shot_launch = ball_pos
+		var far := Vector2(BasketBrawl.HOOP_X, 0.0)
+		var near := Vector2(-BasketBrawl.HOOP_X, 0.0)
+		_shot_target = far if ball_pos.distance_to(far) > ball_pos.distance_to(near) else near
+	elif _shot_flying and not shooting:
+		_shot_flying = false
+		if scores == _scores_seen:
+			fx_burst(_shot_target, Color(0.7, 0.7, 0.72), RIM_HEIGHT)
+			play_sfx(&"bump")
+
+
+## A shot rises from the ball's height to the rim, cresting SHOT_ARC_PEAK above
+## the straight line at the midpoint — a real basketball arc into a raised hoop.
+func _shot_arc_height(ball_pos: Vector2) -> float:
+	var total := _shot_launch.distance_to(_shot_target)
+	if total < 0.01:
+		return RIM_HEIGHT
+	var progress := clampf(1.0 - ball_pos.distance_to(_shot_target) / total, 0.0, 1.0)
+	return lerpf(BALL_RADIUS, RIM_HEIGHT, progress) + SHOT_ARC_PEAK * sin(progress * PI)
 
 
 func _update_score() -> void:

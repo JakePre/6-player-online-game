@@ -25,8 +25,23 @@ const SHOVE_COOLDOWN_SEC := 1.5
 ## otherwise the passer instantly re-grabs their own ball.
 const NO_CATCH_SEC := 0.25
 
+## Aimed shooting (#803, owner-approved): action_secondary while carrying lofts
+## the ball at the enemy hoop. It flies a real arc across the court (the view
+## renders the height), then either drops through for a score or clangs off and
+## rebounds live for a scramble. The make chance is the skill/balance surface —
+## near-automatic up close, a coin-flip-or-worse from downtown — so shooting
+## adds a risk/reward call the carry-and-dunk game lacked; the dunk stays as the
+## guaranteed close finish.
+const SHOT_SPEED := 16.0
+const MAKE_CHANCE_NEAR := 0.9
+const MAKE_CHANCE_FAR := 0.3
+const SHOT_NEAR_DIST := 3.0
+const SHOT_FAR_DIST := 8.0
+## A missed shot rebounds off the rim at this speed, back into live play.
+const REBOUND_SPEED := 7.0
+
 ## get_snapshot() wire shapes (#708): named indices for the positional arrays
-## the view and brain read. Array SHAPE on the wire is unchanged — additive.
+## the view and brain read. Array SHAPE on the wire is append-only.
 const PS_X := 0
 const PS_Y := 1
 const PS_HAS_BALL := 2
@@ -35,7 +50,9 @@ const PS_COUNT := 3
 const BALL_X := 0
 const BALL_Y := 1
 const BALL_HOLDER := 2
-const BALL_COUNT := 3
+## 1 while the ball is a shot in flight (the view arcs it up to the hoop).
+const BALL_SHOT := 3
+const BALL_COUNT := 4
 
 const HP_X := 0
 const HP_Y := 1
@@ -52,6 +69,12 @@ var ball_vel := Vector2.ZERO
 var holder := -1
 
 var _no_catch := {}
+## Shot-in-flight state (#803): while active the ball is a committed shot flying
+## to `_shot_target`, uncatchable, and resolves make/miss on arrival.
+var _shot_active := false
+var _shot_make := false
+var _shot_team := -1
+var _shot_target := Vector2.ZERO
 
 
 static func make_meta() -> MinigameMeta:
@@ -72,18 +95,25 @@ static func make_meta() -> MinigameMeta:
 					+ " Carriers are slow and shovable — pass to keep it moving,"
 					+ " but a flying ball is anyone's ball."
 				),
-				"controls": "Move — WASD / left stick · Pass (carrying) / Shove — SPACE / pad A",
+				"controls":
+				(
+					"Move — WASD / left stick · Pass (carrying) / Shove — SPACE / pad A"
+					+ " · Shoot (carrying) — E / pad X"
+				),
 				# Device-aware (#608): the button reads as what the player holds.
 				"control_hints":
 				[
 					"Move — WASD / left stick · Pass (carrying) / Shove — ",
 					{"action": &"action_primary"},
+					" · Shoot (carrying) — ",
+					{"action": &"action_secondary"},
 				],
-				# Structured spec (#832/#844): move + role-qualified action.
+				# Structured spec (#832/#844): move + role-qualified actions.
 				"control_spec":
 				[
 					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
 					{"verb": "Pass (carrying) / Shove", "input": &"action_primary"},
+					{"verb": "Shoot (carrying)", "input": &"action_secondary"},
 				],
 			}
 		)
@@ -110,6 +140,7 @@ func _setup() -> void:
 	ball_pos = Vector2.ZERO
 	ball_vel = Vector2.ZERO
 	holder = -1
+	_shot_active = false
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
@@ -120,6 +151,8 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 			_pass_ball(slot)
 		elif float(shove_cooldowns[slot]) <= 0.0:
 			_try_shove(slot)
+	if data.get("shoot", false) and holder == slot:
+		_shoot(slot)
 
 
 func _tick(delta: float) -> void:
@@ -131,7 +164,9 @@ func _tick(delta: float) -> void:
 		positions[slot] = pos.clamp(
 			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
 		)
-	if holder == -1:
+	if _shot_active:
+		_tick_shot(delta)
+	elif holder == -1:
 		ball_pos += ball_vel * delta
 		ball_pos = ball_pos.clamp(
 			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
@@ -150,7 +185,8 @@ func get_snapshot() -> Dictionary:
 		players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), 1 if holder == slot else 0]
 	return {
 		"players": players,
-		"ball": [snappedf(ball_pos.x, 0.01), snappedf(ball_pos.y, 0.01), holder],
+		"ball":
+		[snappedf(ball_pos.x, 0.01), snappedf(ball_pos.y, 0.01), holder, 1 if _shot_active else 0],
 		"scores": scores.duplicate(),
 		"teams": teams.duplicate(true),
 		"hoops": [[-HOOP_X, 0.0], [HOOP_X, 0.0]],
@@ -193,6 +229,49 @@ func _pass_ball(slot: int) -> void:
 	var dir: Vector2 = positions[nearest] - positions[slot]
 	ball_vel = (dir.normalized() if dir.length() > 0.001 else Vector2.RIGHT) * PASS_SPEED
 	_no_catch[slot] = NO_CATCH_SEC
+
+
+## Loft the carried ball at the enemy hoop (#803). The make is rolled from the
+## distance-based chance curve now; the ball still flies the full arc so the
+## outcome only lands when it reaches the rim (a make drops in, a miss rebounds
+## live). Close range is near-automatic; downtown is a gamble.
+func _shoot(slot: int) -> void:
+	var target := attack_hoop(slot)
+	var dist: float = positions[slot].distance_to(target)
+	var chance := lerpf(
+		MAKE_CHANCE_NEAR,
+		MAKE_CHANCE_FAR,
+		clampf((dist - SHOT_NEAR_DIST) / (SHOT_FAR_DIST - SHOT_NEAR_DIST), 0.0, 1.0)
+	)
+	_shot_make = rng.randf() < chance
+	_shot_team = _team_of(slot)
+	_shot_target = target
+	_shot_active = true
+	holder = -1
+	ball_pos = positions[slot]
+	var dir := target - ball_pos
+	ball_vel = (dir.normalized() if dir.length() > 0.001 else Vector2.RIGHT) * SHOT_SPEED
+	_no_catch[slot] = NO_CATCH_SEC
+
+
+## Advance a shot in flight; it can't be caught mid-air. When it reaches the
+## rim, a made shot scores and resets, a miss clangs off into a live rebound.
+func _tick_shot(delta: float) -> void:
+	ball_pos += ball_vel * delta
+	if ball_pos.distance_to(_shot_target) > HOOP_RADIUS:
+		return
+	_shot_active = false
+	if _shot_make:
+		scores[_shot_team] = int(scores[_shot_team]) + 1
+		ball_pos = Vector2.ZERO
+		ball_vel = Vector2.ZERO
+	else:
+		# Clang: scatter back into the court, away from the rim, as a live ball.
+		var away := ball_pos - _shot_target
+		if away.length() <= 0.001:
+			away = Vector2(-signf(_shot_target.x), 0.0)
+		var jitter := rng.randf_range(-0.6, 0.6)
+		ball_vel = away.normalized().rotated(jitter) * REBOUND_SPEED
 
 
 ## Shoving an adjacent enemy carrier pops the ball loose away from the

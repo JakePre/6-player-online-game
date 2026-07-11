@@ -22,7 +22,15 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	if team_index == -1:
 		return {}
 	if int(state[BasketBrawl.PS_HAS_BALL]) == 1:
-		return move_toward_point(me, _attack_hoop(game, team_index), BasketBrawl.HOOP_RADIUS * 0.5)
+		var hoop := _attack_hoop(game, team_index)
+		var intent := move_toward_point(me, hoop, BasketBrawl.HOOP_RADIUS * 0.5)
+		# Take a makeable mid-range shot rather than always driving for the dunk
+		# (#803): in range but past point-blank, loft it — this fires once per
+		# possession (shooting releases the ball) and adds the risk/reward call.
+		var dist := me.distance_to(hoop)
+		if dist > BasketBrawl.HOOP_RADIUS * 1.5 and dist <= BasketBrawl.SHOT_NEAR_DIST + 2.0:
+			intent["shoot"] = true
+		return intent
 	return _react_to_the_ball(game, players, teams, team_index, me)
 
 
