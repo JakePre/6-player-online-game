@@ -151,3 +151,51 @@ func test_snapshot_shape_and_junk_input() -> void:
 	assert_eq(snapshot.scores, [0, 0])
 	assert_eq(snapshot.hoops.size(), 2)
 	assert_eq(snapshot.teams.size(), 2)
+
+
+## #803: you can only shoot the ball you're carrying.
+func test_shoot_requires_carrying_the_ball() -> void:
+	var game := _game()
+	var slot: int = game.teams[0][0]
+	game.handle_input(slot, {"shoot": true})
+	assert_false(game._shot_active, "no ball, no shot")
+	assert_eq(game.holder, -1)
+
+
+## #803: a made shot flies the full arc to the enemy hoop, then drops in for a
+## score and resets. The ball is uncatchable in flight and carries the shot flag.
+func test_made_shot_arcs_in_and_scores() -> void:
+	var game := _game()
+	var slot: int = game.teams[0][0]
+	game.positions[slot] = Vector2.ZERO
+	game.tick(TICK)
+	assert_eq(game.holder, slot, "picked up")
+	game.handle_input(slot, {"shoot": true})
+	assert_true(game._shot_active, "the shot launches")
+	game._shot_make = true  # force the outcome; the roll itself is tuning
+	assert_eq(int(game.get_snapshot().ball[BasketBrawl.BALL_SHOT]), 1, "the shot flag replicates")
+	for _i in 60:
+		game.tick(TICK)
+		if not game._shot_active:
+			break
+	assert_eq(int(game.scores[0]), 1, "the made shot scores")
+	assert_eq(game.ball_pos, Vector2.ZERO, "ball resets to center")
+	assert_eq(game.holder, -1)
+
+
+## #803: a missed shot clangs off the rim into a live, catchable rebound —
+## no score, ball loose with speed.
+func test_missed_shot_rebounds_live() -> void:
+	var game := _game()
+	var slot: int = game.teams[0][0]
+	game.positions[slot] = Vector2.ZERO
+	game.tick(TICK)
+	game.handle_input(slot, {"shoot": true})
+	game._shot_make = false  # force a miss
+	for _i in 60:
+		game.tick(TICK)
+		if not game._shot_active:
+			break
+	assert_eq(int(game.scores[0]), 0, "a miss does not score")
+	assert_eq(game.holder, -1, "the rebound is loose")
+	assert_gt(game.ball_vel.length(), 0.0, "it scatters live for the scramble")

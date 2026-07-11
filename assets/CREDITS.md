@@ -13,6 +13,8 @@ screen (task M7-04).
 | Kenney Food Kit (200 GLB models: dishes, ingredients, tableware — for Poison Feast, #15) | `assets/environment/kenney_food_kit/` | Kenney (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/food-kit |
 | Kenney Nature Kit (329 GLB models: trees, rocks, bridges, fences — vertex-colored, no textures) | `assets/environment/kenney_nature_kit/` | Kenney (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/nature-kit |
 | Kenney City Kit: Commercial 2.1 (41 GLB models: buildings, storefronts — for Heist Night, #17) | `assets/environment/kenney_city_kit_commercial/` | Kenney (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/city-kit-commercial |
+| Basketball (MDL-002, #803 Basket Brawl) | `assets/generated/models/basketball.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
+| Basketball Hoop (MDL-001, #803 Basket Brawl) | `assets/generated/models/basketball-hoop.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 
 
 
