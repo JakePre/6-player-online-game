@@ -39,7 +39,7 @@ static func register_builtins() -> void:
 	register(BulletWaltz.make_meta(), BulletWaltz)
 	register(SimonStomp.make_meta(), SimonStomp)
 	register(TargetRange.make_meta(), TargetRange)
-	register(BeatBounce.make_meta(), BeatBounce)
+	register(TiltDeck.make_meta(), TiltDeck)  # #794: Tilt Deck retired Beat Bounce
 	register(MusicalPlatforms.make_meta(), MusicalPlatforms)
 	register(ShockTag.make_meta(), ShockTag)
 	register(TreasureDivers.make_meta(), TreasureDivers)

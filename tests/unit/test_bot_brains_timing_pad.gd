@@ -1,137 +1,14 @@
 extends GutTest
-## Timing / pad-selection bot brains (M19-02, #686): beat_bounce, simon_stomp,
-## count_quick, shred_session — steering/pressing assertions on crafted
-## snapshots. Split from test_bot_brains.gd per gdlint's public-method cap
-## (same precedent as test_match_controller_finale_only.gd). (ro_sham_bo's
-## brain retired with the game in #791 — dodgeball has its own brain test.)
+## Timing / pad-selection bot brains (M19-02, #686): simon_stomp, count_quick,
+## shred_session — steering/pressing assertions on crafted snapshots. Split from
+## test_bot_brains.gd per gdlint's public-method cap (same precedent as
+## test_match_controller_finale_only.gd). (ro_sham_bo's brain retired with the
+## game in #791; beat_bounce's retired with the Tilt Deck remake in #794 —
+## tilt_deck has its own brain test.)
 
 
 func _play_state(id: String, game: Dictionary) -> Dictionary:
 	return {"state": MatchController.State.PLAY, "minigame": id, "game": game}
-
-
-# --- beat_bounce ----------------------------------------------------------------
-
-
-func test_beat_bounce_brain_remembers_the_sequence_during_watch() -> void:
-	var brain := BotBrains.brain_for(&"beat_bounce", 0, 1)
-	var watch := {
-		"phase": BeatBounce.Phase.WATCH,
-		"sequence": [2, 0, 3],
-		"alive": {0: true},
-		"step": 0,
-		"next_in": 0.9,
-		"interval": 0.9,
-	}
-	assert_eq(brain.think(_play_state("beat_bounce", watch), {}), {}, "no input while watching")
-
-
-func test_beat_bounce_brain_presses_the_current_step_right_after_a_beat() -> void:
-	var brain := BotBrains.brain_for(&"beat_bounce", 0, 1)
-	(
-		brain
-		. think(
-			_play_state(
-				"beat_bounce",
-				{
-					"phase": BeatBounce.Phase.WATCH,
-					"sequence": [2, 0, 3],
-					"alive": {0: true},
-					"step": -1,
-					"next_in": 0.9,
-					"interval": 0.9,
-				}
-			),
-			{}
-		)
-	)
-	# Beat just fired (since_last_beat = interval - next_in = 0.05, inside the
-	# HIT_WINDOW): press the flagged step's remembered pad.
-	var repeat := {
-		"phase": BeatBounce.Phase.REPEAT,
-		"sequence": [],
-		"alive": {0: true},
-		"step": 0,
-		"next_in": 0.85,
-		"interval": 0.9,
-	}
-	var intent := brain.think(_play_state("beat_bounce", repeat), {})
-	assert_eq(int(intent.get("pad", -1)), 2, "presses remembered[0]")
-
-
-func test_beat_bounce_brain_presses_early_for_the_next_step() -> void:
-	var brain := BotBrains.brain_for(&"beat_bounce", 0, 1)
-	(
-		brain
-		. think(
-			_play_state(
-				"beat_bounce",
-				{
-					"phase": BeatBounce.Phase.WATCH,
-					"sequence": [2, 0, 3],
-					"alive": {0: true},
-					"step": -1,
-					"next_in": 0.9,
-					"interval": 0.9,
-				}
-			),
-			{}
-		)
-	)
-	# Next beat imminent (next_in inside HIT_WINDOW): early-press step+1.
-	var repeat := {
-		"phase": BeatBounce.Phase.REPEAT,
-		"sequence": [],
-		"alive": {0: true},
-		"step": 0,
-		"next_in": 0.05,
-		"interval": 0.9,
-	}
-	var intent := brain.think(_play_state("beat_bounce", repeat), {})
-	assert_eq(int(intent.get("pad", -1)), 0, "presses remembered[1] early")
-
-
-func test_beat_bounce_brain_stays_quiet_mid_window() -> void:
-	var brain := BotBrains.brain_for(&"beat_bounce", 0, 1)
-	(
-		brain
-		. think(
-			_play_state(
-				"beat_bounce",
-				{
-					"phase": BeatBounce.Phase.WATCH,
-					"sequence": [2, 0, 3],
-					"alive": {0: true},
-					"step": -1,
-					"next_in": 0.9,
-					"interval": 0.9,
-				}
-			),
-			{}
-		)
-	)
-	var repeat := {
-		"phase": BeatBounce.Phase.REPEAT,
-		"sequence": [],
-		"alive": {0: true},
-		"step": 0,
-		"next_in": 0.45,
-		"interval": 0.9,
-	}
-	assert_eq(brain.think(_play_state("beat_bounce", repeat), {}), {}, "no window is open")
-
-
-func test_beat_bounce_brain_eliminated_sends_nothing() -> void:
-	var brain := BotBrains.brain_for(&"beat_bounce", 0, 1)
-	var game := {
-		"phase": BeatBounce.Phase.REPEAT,
-		"sequence": [],
-		"alive": {0: false},
-		"step": 0,
-		"next_in": 0.05,
-		"interval": 0.9,
-	}
-	assert_eq(brain.think(_play_state("beat_bounce", game), {}), {})
 
 
 # --- simon_stomp ------------------------------------------------------------------
