@@ -118,6 +118,51 @@ func test_render_tracks_daises_and_shots_for_drawing() -> void:
 	assert_eq(int(view.dais_states[0][2]), LoadoutDuel.Kind.HAMMER)
 
 
+## #788: every pickup a dais can hand out carries a readable name and a color,
+## so players can tell what each weapon does — not decode a bare color.
+func test_every_pickup_has_a_distinct_name_and_color() -> void:
+	var seen_names := {}
+	for kind: int in LoadoutDuel.DAIS_KINDS:
+		var name_text: String = view.kind_label(kind)
+		assert_false(name_text.is_empty(), "kind %d has a readable name" % kind)
+		assert_false(seen_names.has(name_text), "names are distinct (%s)" % name_text)
+		seen_names[name_text] = true
+		assert_true(view.KIND_COLORS.has(kind), "kind %d has a color too" % kind)
+	assert_eq(view.kind_label(LoadoutDuel.Kind.NONE), "", "empty hands have no label")
+
+
+## #788: a board of daises plus a held weapon all resolve to a name + color, so
+## everything on screen is decodable (an empty pad stays label-less).
+func test_rendered_pickups_all_resolve_to_a_name() -> void:
+	(
+		view
+		. render(
+			{
+				"players": {0: _fighter(0.0, 0.5, 1, 3, LoadoutDuel.Kind.HAMMER)},
+				"shots": [],
+				"daises":
+				[
+					[3.0, 0.5, LoadoutDuel.Kind.BLASTER],
+					[5.0, 2.6, LoadoutDuel.Kind.SHIELD],
+					[-3.0, 0.5, LoadoutDuel.Kind.NONE],
+				],
+				"phase": LoadoutDuel.Phase.FIGHT,
+				"scores": {0: 0}
+			}
+		)
+	)
+	assert_eq(view.dais_states.size(), 3, "all daises tracked for drawing")
+	for dais: Array in view.dais_states:
+		var kind := int(dais[LoadoutDuel.DS_KIND])
+		if kind == LoadoutDuel.Kind.NONE:
+			assert_eq(view.kind_label(kind), "", "an empty pad shows no name")
+		else:
+			assert_false(view.kind_label(kind).is_empty(), "a live pad names its weapon")
+	assert_string_contains(
+		view.kind_label(LoadoutDuel.Kind.HAMMER), "HAMMER", "held weapon reads too"
+	)
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
