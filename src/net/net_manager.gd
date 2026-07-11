@@ -782,7 +782,7 @@ func _drive_bots(delta: float) -> void:
 					"brain": BotBrains.brain_for(active_id, member.slot, hash(key)),
 				}
 				_bot_brains[key] = entry
-			var intent: Dictionary = (entry.brain as BotBrain).think(
+			var intent: Dictionary = (entry.brain as BotBrain).think_with_error(
 				match_state, controller.private_snapshot_for(member.slot)
 			)
 			if not intent.is_empty():
