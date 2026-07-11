@@ -96,10 +96,50 @@ func test_render_tolerates_missing_keys() -> void:
 
 ## M13-13: beams shimmer across snapshots, hits burst electric.
 func test_beams_shimmer_across_snapshots() -> void:
+	var low_material: StandardMaterial3D = view._beam_materials[LaserLimbo.WallKind.LOW]
 	view.render({"players": {}, "walls": [[0.0, 1, LaserLimbo.WallKind.LOW, 0.0]], "fallen": []})
-	var glow_a: float = view._beam_material.emission_energy_multiplier
+	var glow_a: float = low_material.emission_energy_multiplier
 	view.render({"players": {}, "walls": [[0.5, 1, LaserLimbo.WallKind.LOW, 0.0]], "fallen": []})
-	assert_ne(view._beam_material.emission_energy_multiplier, glow_a, "the hum advances")
+	assert_ne(low_material.emission_energy_multiplier, glow_a, "the hum advances")
+
+
+## #779: each wall kind reads in its own color — the core "can't tell high vs
+## low" fix — so a LOW (jump) and a HIGH (duck) beam are never the same hue.
+func test_wall_kinds_are_color_coded() -> void:
+	var low: StandardMaterial3D = view._beam_materials[LaserLimbo.WallKind.LOW]
+	var high: StandardMaterial3D = view._beam_materials[LaserLimbo.WallKind.HIGH]
+	var gap: StandardMaterial3D = view._beam_materials[LaserLimbo.WallKind.GAP]
+	assert_ne(low.albedo_color, high.albedo_color, "jump and duck beams differ in hue")
+	assert_ne(low.albedo_color, gap.albedo_color)
+	assert_ne(high.albedo_color, gap.albedo_color)
+
+
+## #779: a floor stripe under each beam carries the kind's color on the ground
+## plane, where the iso camera can't foreshorten it away.
+func test_beam_has_a_kind_colored_floor_stripe() -> void:
+	view.render({"players": {}, "walls": [[1.0, 1, LaserLimbo.WallKind.HIGH, 0.0]], "fallen": []})
+	var stripe: MeshInstance3D = view.arena.get_node("Wall0/FloorStripe")
+	assert_almost_eq(
+		stripe.position.y, view.FLOOR_STRIPE_THICKNESS / 2.0, 0.01, "flat on the floor"
+	)
+	assert_eq(
+		(stripe.mesh as BoxMesh).material,
+		view._beam_materials[LaserLimbo.WallKind.HIGH],
+		"stripe wears the beam's kind color"
+	)
+
+
+## #779: a back wall gives beam height a fixed reference the camera can't flatten.
+func test_back_wall_reference_exists() -> void:
+	var back: MeshInstance3D = view.arena.get_node("BackWall")
+	assert_not_null(back)
+	assert_almost_eq((back.mesh as BoxMesh).size.y, view.BACK_WALL_HEIGHT, 0.001, "a tall backstop")
+
+
+## #779: a jumping rig holds the jump pose, not a floating walk cycle.
+func test_airborne_rig_holds_the_jump_pose() -> void:
+	view.render({"players": {0: _player(2.0, 0.0, 3, 1, 0)}, "walls": [], "fallen": []})
+	assert_eq(view.rig_for_slot(0).current_action(), &"jump_idle", "airborne holds the jump")
 
 
 func test_life_loss_bursts_at_the_player() -> void:
