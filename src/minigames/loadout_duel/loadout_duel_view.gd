@@ -14,6 +14,18 @@ const KIND_COLORS := {
 	LoadoutDuel.Kind.HAMMER: Color(0.75, 0.6, 0.95),
 	LoadoutDuel.Kind.SHIELD: Color(0.4, 0.85, 0.55),
 }
+## Readable name per pickup (#788): color alone didn't say what a weapon *does*,
+## so every dais and held marker now carries its short label (and a distinct
+## drawn glyph, below) — the "drawn primitives with labels" identity.
+const KIND_LABELS := {
+	LoadoutDuel.Kind.BLASTER: "BLAST",
+	LoadoutDuel.Kind.SCATTER: "SPRAY",
+	LoadoutDuel.Kind.BOOMER: "BOOM",
+	LoadoutDuel.Kind.HAMMER: "HAMMER",
+	LoadoutDuel.Kind.SHIELD: "SHIELD",
+}
+const LABEL_SIZE := 13
+const GLYPH_COLOR := Color(0.1, 0.1, 0.13)
 const KO_MODULATE := Color(0.4, 0.4, 0.45, 0.75)
 
 var players := {}
@@ -124,21 +136,30 @@ func _update_hud(scores: Dictionary) -> void:
 	_hud.text = "%s    %s" % [banner, "  ·  ".join(parts)]
 
 
-## Daises (colored pads with an icon, dimmed while cooling), then projectiles
-## and per-fighter held/shield markers — all in world→screen space.
+## Short readable name for a pickup kind (#788) — empty for NONE.
+func kind_label(kind: int) -> String:
+	return KIND_LABELS.get(kind, "")
+
+
+## Daises (colored pads with a per-kind glyph + name, dimmed while cooling),
+## then projectiles and per-fighter held/shield markers — world→screen space.
 func _draw_fx() -> void:
 	for dais in dais_states:
 		var kind := int(dais[LoadoutDuel.DS_KIND])
 		var at := world_to_screen(
 			Vector2(float(dais[LoadoutDuel.DS_X]), float(dais[LoadoutDuel.DS_Y]))
 		)
-		var color: Color = KIND_COLORS.get(kind, PartyTheme.BG_RAISED)
-		if kind == LoadoutDuel.Kind.NONE:
-			color = PartyTheme.BG_RAISED
-		var radius := 10.0 * _world_scale() / 20.0 + 6.0
-		_fx_layer.draw_circle(
-			at, radius, Color(color, 0.9 if kind != LoadoutDuel.Kind.NONE else 0.4)
+		var active := kind != LoadoutDuel.Kind.NONE
+		var color: Color = (
+			KIND_COLORS.get(kind, PartyTheme.BG_RAISED) if active else PartyTheme.BG_RAISED
 		)
+		var radius := 10.0 * _world_scale() / 20.0 + 6.0
+		_fx_layer.draw_circle(at, radius, Color(color, 0.9 if active else 0.4))
+		if active:
+			# The glyph on the pad + the name under it say what it does, not just
+			# a color the owner couldn't decode (#788).
+			_draw_kind_glyph(at, kind, radius * 0.6)
+			_draw_kind_name(Vector2(at.x, at.y + radius + 3.0), kind, color)
 	for shot in shots:
 		var at := world_to_screen(
 			Vector2(float(shot[LoadoutDuel.SH_X]), float(shot[LoadoutDuel.SH_Y]))
@@ -165,5 +186,54 @@ func _draw_fighter_markers(state: Array) -> void:
 	if held != LoadoutDuel.Kind.NONE:
 		var muzzle := center + Vector2(float(facing) * 18.0, -2.0)
 		_fx_layer.draw_circle(muzzle, 5.0, KIND_COLORS.get(held, PartyTheme.TEXT))
+		# Name what they're holding above their head (#788), so a duck knows its
+		# own loadout at a glance — not just a colored dot.
+		_draw_kind_name(center - Vector2(0.0, 34.0), held, KIND_COLORS.get(held, PartyTheme.TEXT))
 	if int(state[LoadoutDuel.PS_FLAGS]) & 2 > 0:
 		_fx_layer.draw_arc(center, 22.0, 0.0, TAU, 20, KIND_COLORS[LoadoutDuel.Kind.SHIELD], 3.0)
+
+
+## The pickup's name, centered at `pos`.
+func _draw_kind_name(pos: Vector2, kind: int, color: Color) -> void:
+	var text := kind_label(kind)
+	if text.is_empty():
+		return
+	var font := ThemeDB.fallback_font
+	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SIZE).x
+	# A dark plate keeps the label legible over any arena color.
+	_fx_layer.draw_string(
+		font,
+		pos - Vector2(width / 2.0, 0.0),
+		text,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1,
+		LABEL_SIZE,
+		color
+	)
+
+
+## A distinct drawn glyph per weapon kind, so the pad reads at a glance even
+## before the name (#788): a bolt, a spray fan, a boomerang arc, a hammer head,
+## a shield ring.
+func _draw_kind_glyph(at: Vector2, kind: int, size: float) -> void:
+	match kind:
+		LoadoutDuel.Kind.BLASTER:
+			var tip := at + Vector2(size, 0.0)
+			var back := at - Vector2(size * 0.6, 0.0)
+			_fx_layer.draw_colored_polygon(
+				PackedVector2Array(
+					[tip, back + Vector2(0.0, -size * 0.7), back + Vector2(0.0, size * 0.7)]
+				),
+				GLYPH_COLOR
+			)
+		LoadoutDuel.Kind.SCATTER:
+			for dx in [-size * 0.6, 0.0, size * 0.6]:
+				_fx_layer.draw_circle(at + Vector2(dx, 0.0), size * 0.28, GLYPH_COLOR)
+		LoadoutDuel.Kind.BOOMER:
+			_fx_layer.draw_arc(at, size, -PI * 0.7, PI * 0.7, 12, GLYPH_COLOR, 3.0)
+		LoadoutDuel.Kind.HAMMER:
+			_fx_layer.draw_rect(
+				Rect2(at - Vector2(size, size * 0.5), Vector2(size * 2.0, size)), GLYPH_COLOR
+			)
+		LoadoutDuel.Kind.SHIELD:
+			_fx_layer.draw_arc(at, size, 0.0, TAU, 18, GLYPH_COLOR, 3.0)
