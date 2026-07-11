@@ -5,8 +5,13 @@ extends MinigameView3D
 ## "CAUGHT!" and reflects — the round's clip moment. Renders get_snapshot()
 ## only; the sim owns all outcomes.
 
+## Real dodgeball model (#791/#911, MDL-003): a two-tone rubber ball replacing
+## the flat sphere. Base-pivoted (probed AABB: y 0..0.4, matching the
+## generated-models convention), so positioning needs no radius offset — a
+## LOOSE ball sits right on the floor.
+const BALL_SCENE := preload("res://assets/generated/models/dodgeball.glb")
+## Still used for the KO burst FX color, matching the model's dominant red.
 const BALL_COLOR := Color(0.9, 0.32, 0.28)
-const BALL_RADIUS := 0.3
 const BALL_CARRY_HEIGHT := 1.3
 const FLYING_HEIGHT := 1.0
 ## Team-half tints + center line (team mode); mirrors Tug of War's side tints.
@@ -23,8 +28,7 @@ var ball_states: Array = []
 var teams: Array = []
 var half := Dodgeball.ARENA_HALF
 
-var _ball_pool: Array[MeshInstance3D] = []
-var _ball_mesh: SphereMesh
+var _ball_pool: Array[Node3D] = []
 var _objective_label: Label
 var _event_label: Label
 var _event_until := 0.0
@@ -61,14 +65,6 @@ func _arena_half() -> float:
 func _setup_3d() -> void:
 	half = _arena_half()
 	_build_court()
-	_ball_mesh = SphereMesh.new()
-	_ball_mesh.radius = BALL_RADIUS
-	_ball_mesh.height = BALL_RADIUS * 2.0
-	var ball_material := StandardMaterial3D.new()
-	ball_material.albedo_color = BALL_COLOR
-	ball_material.emission_enabled = true
-	ball_material.emission = BALL_COLOR * 0.35
-	_ball_mesh.material = ball_material
 	_objective_label = make_status_label(&"ObjectiveLabel")
 	_event_label = make_status_label(&"EventLabel")
 	_event_label.position.y = 84.0
@@ -169,7 +165,8 @@ func _update_balls() -> void:
 		var pos := Vector2(float(ball[Dodgeball.BL_X]), float(ball[Dodgeball.BL_Y]))
 		var state := int(ball[Dodgeball.BL_STATE])
 		var holder := int(ball[Dodgeball.BL_HOLDER])
-		var height := BALL_RADIUS + 0.05
+		# LOOSE (resting/rolling): the base-pivoted model sits right on the floor.
+		var height := 0.05
 		if state == Dodgeball.BallState.HELD and players.has(holder):
 			# Float the carried ball ahead of and above its holder, along their
 			# aim, so "who's armed" and "which way" both read at a glance.
@@ -189,11 +186,10 @@ func _update_balls() -> void:
 		_ball_pool[i].visible = false
 
 
-func _ball_node(index: int) -> MeshInstance3D:
+func _ball_node(index: int) -> Node3D:
 	while index >= _ball_pool.size():
-		var node := MeshInstance3D.new()
+		var node := BALL_SCENE.instantiate() as Node3D
 		node.name = "Ball%d" % _ball_pool.size()
-		node.mesh = _ball_mesh
 		node.visible = false
 		arena.add_child(node)
 		_ball_pool.append(node)

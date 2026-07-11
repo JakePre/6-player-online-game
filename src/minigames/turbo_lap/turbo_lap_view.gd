@@ -6,8 +6,13 @@ extends MinigameView3D
 ## locally. Drift is action_primary (held), the item is action_secondary.
 
 const TRACK_COLOR := Color(0.16, 0.17, 0.21)
-const EDGE_COLOR := Color(0.9, 0.9, 0.92)
 const START_COLOR := Color(0.96, 0.79, 0.2)
+## Real finish arch + edge barriers (#785/#911, MDL-006/007): both base-pivoted,
+## meant to be placed/tiled rather than stretched. The arch stands over the
+## existing gold start-line slab (kept as the functional ground marker); the
+## barrier is tiled once per waypoint along both track edges.
+const FINISH_ARCH_SCENE := preload("res://assets/generated/models/finish-arch.glb")
+const TRACK_BARRIER_SCENE := preload("res://assets/generated/models/track-barrier.glb")
 const BOOST_PAD_COLOR := Color(0.3, 0.75, 1.0)
 const ITEM_PAD_COLOR := Color(0.96, 0.79, 0.2)
 const SHELL_COLOR := Color(0.35, 0.9, 0.45)
@@ -78,12 +83,14 @@ func _setup_3d() -> void:
 
 
 ## One flat strip per centerline segment approximates the ellipse ribbon;
-## the start line gets a gold slab across the width.
+## the start line gets a gold slab across the width, a real arch stands over
+## it, and a barrier is tiled along both edges at every waypoint (#911).
 func _build_track() -> void:
 	var points := TurboLap.waypoints()
 	for i in points.size():
 		var a := points[i]
 		var b := points[(i + 1) % points.size()]
+		var heading := (b - a).angle()
 		var strip := MeshInstance3D.new()
 		strip.name = "Track%d" % i
 		var mesh := BoxMesh.new()
@@ -93,8 +100,9 @@ func _build_track() -> void:
 		strip.mesh = mesh
 		var mid := (a + b) / 2.0
 		strip.position = Vector3(mid.x, 0.03, mid.y)
-		strip.rotation.y = -(b - a).angle()
+		strip.rotation.y = -heading
 		arena.add_child(strip)
+		_add_edge_barriers(mid, heading)
 	var start := MeshInstance3D.new()
 	start.name = "StartLine"
 	var start_mesh := BoxMesh.new()
@@ -104,9 +112,27 @@ func _build_track() -> void:
 	start_mesh.size = Vector3(0.5, 0.08, TurboLap.TRACK_HALF_WIDTH * 2.0)
 	start_mesh.material = _flat_material(START_COLOR)
 	start.mesh = start_mesh
+	var start_heading := (points[1] - points[0]).angle()
 	start.position = Vector3(points[0].x, 0.05, points[0].y)
-	start.rotation.y = -(points[1] - points[0]).angle()
+	start.rotation.y = -start_heading
 	arena.add_child(start)
+	var arch := FINISH_ARCH_SCENE.instantiate() as Node3D
+	arch.name = "FinishArch"
+	arch.position = Vector3(points[0].x, 0.0, points[0].y)
+	arch.rotation.y = -start_heading
+	arena.add_child(arch)
+
+
+## One barrier segment per track edge at this centerline midpoint, offset
+## perpendicular to `heading` by the track's half-width.
+func _add_edge_barriers(mid: Vector2, heading: float) -> void:
+	var perp := Vector2(sin(heading), -cos(heading))
+	for side: float in [-1.0, 1.0]:
+		var edge: Vector2 = mid + perp * side * TurboLap.TRACK_HALF_WIDTH
+		var barrier := TRACK_BARRIER_SCENE.instantiate() as Node3D
+		barrier.position = Vector3(edge.x, 0.0, edge.y)
+		barrier.rotation.y = -heading
+		arena.add_child(barrier)
 
 
 func _add_pad(world_pos: Vector2, color: Color, node_name: String) -> MeshInstance3D:

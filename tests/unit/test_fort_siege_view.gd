@@ -53,7 +53,7 @@ func test_render_replaces_replicated_state() -> void:
 
 func test_gate_hides_when_breached_and_bursts_once() -> void:
 	view.render({"gate": 0.4, "players": {}, "teams": [], "times": []})
-	var gate_node: MeshInstance3D = view.arena.get_node("Gate")
+	var gate_node: Node3D = view.arena.get_node("Gate")
 	assert_true(gate_node.visible)
 	var before: int = view.arena.get_child_count()
 	view.render({"gate": 0.0, "players": {}, "teams": [], "times": []})
