@@ -5,6 +5,18 @@ extends MinigameView3D
 ## nameplate as pips, and losing one flinches + shakes.
 
 const LASER_COLOR := Color(0.95, 0.15, 0.1, 0.7)
+## Per-kind beam colors (#779): the required action reads by hue, not just by a
+## height the iso camera foreshortens — amber = JUMP the low bar, cyan = DUCK the
+## high bar, violet = slip through the GAP wall.
+const LOW_COLOR := Color(1.0, 0.72, 0.15, 0.85)
+const HIGH_COLOR := Color(0.3, 0.82, 1.0, 0.85)
+const GAP_COLOR := Color(0.85, 0.3, 0.95, 0.85)
+## A dim vertical backstop the beams read their height against (#779, owner's
+## "wall on back?"), and a flat floor stripe under each beam so its danger line
+## and kind stay legible on the ground plane whatever the camera angle.
+const BACK_WALL_COLOR := Color(0.14, 0.1, 0.22, 0.5)
+const BACK_WALL_HEIGHT := 2.6
+const FLOOR_STRIPE_THICKNESS := 0.04
 const WALL_POOL := 8
 const LOW_BAR_HEIGHT := 0.45
 const HIGH_BAR_HEIGHT := 1.5
@@ -19,8 +31,9 @@ var fallen: Array = []
 
 var _wall_pool: Array[Node3D] = []
 var _lives_seen := {}
-# Shared beam material for the shimmer throb + snapshot counter (M13-13).
-var _beam_material: StandardMaterial3D
+## Per-kind beam materials (#779), keyed by LaserLimbo.WallKind; all share the
+## M13-13 shimmer throb, driven together each snapshot.
+var _beam_materials := {}
 var _pulse_ticks := 0
 var _downed := {}
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
@@ -56,33 +69,65 @@ func _gap_half() -> float:
 	return LaserLimbo.GAP_HALF_WIDTH * _arena_half() / LaserLimbo.ARENA_HALF
 
 
-## Each pooled wall is a root with three beam segments; kind decides which
-## show: LOW = the low bar, HIGH = the high bar, GAP = two tall halves whose
-## sizes are set per snapshot around the gap.
+## Each pooled wall is a root with the beam segments plus a floor stripe; kind
+## decides which show: LOW = the low bar, HIGH = the high bar, GAP = two tall
+## halves around the opening. Each segment carries its kind's colored material
+## (#779), and a per-kind FloorStripe reads the danger line on the ground.
 func _setup_3d() -> void:
-	# One shared beam material (M13-13): the shimmer throb below drives every
-	# segment at once.
-	_beam_material = _laser_material()
+	_beam_materials = {
+		LaserLimbo.WallKind.LOW: _laser_material(LOW_COLOR),
+		LaserLimbo.WallKind.HIGH: _laser_material(HIGH_COLOR),
+		LaserLimbo.WallKind.GAP: _laser_material(GAP_COLOR),
+	}
+	_build_back_wall()
 	for i in WALL_POOL:
 		var root := Node3D.new()
 		root.name = "Wall%d" % i
 		root.visible = false
-		for segment_name: String in ["Low", "High", "GapNear", "GapFar"]:
+		# Segment → the kind whose material colors it.
+		var seg_kind := {
+			"Low": LaserLimbo.WallKind.LOW,
+			"High": LaserLimbo.WallKind.HIGH,
+			"GapNear": LaserLimbo.WallKind.GAP,
+			"GapFar": LaserLimbo.WallKind.GAP,
+		}
+		for segment_name: String in ["Low", "High", "GapNear", "GapFar", "FloorStripe"]:
 			var node := MeshInstance3D.new()
 			node.name = segment_name
 			node.mesh = BoxMesh.new()
-			(node.mesh as BoxMesh).material = _beam_material
+			# FloorStripe's material is set per snapshot (its kind changes as the
+			# pooled root is reused); the beam segments are fixed per kind.
+			if seg_kind.has(segment_name):
+				(node.mesh as BoxMesh).material = _beam_materials[seg_kind[segment_name]]
 			root.add_child(node)
 		arena.add_child(root)
 		_wall_pool.append(root)
 
 
-func _laser_material() -> StandardMaterial3D:
+## A dim translucent panel across the far edge so a HIGH beam reads near its top
+## and a LOW beam near its base — a fixed vertical reference the iso camera can't
+## foreshorten away (#779, the owner's "wall on back?").
+func _build_back_wall() -> void:
+	var half := _arena_half()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(half * 2.0, BACK_WALL_HEIGHT, 0.2)
 	var material := StandardMaterial3D.new()
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.albedo_color = LASER_COLOR
+	material.albedo_color = BACK_WALL_COLOR
+	mesh.material = material
+	var node := MeshInstance3D.new()
+	node.name = "BackWall"
+	node.mesh = mesh
+	node.position = Vector3(0.0, BACK_WALL_HEIGHT / 2.0, -half - 0.3)
+	arena.add_child(node)
+
+
+func _laser_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = color
 	material.emission_enabled = true
-	material.emission = Color(LASER_COLOR, 1.0)
+	material.emission = Color(color, 1.0)
 	material.emission_energy_multiplier = 1.2
 	return material
 
@@ -94,9 +139,12 @@ func _render_3d(game: Dictionary) -> void:
 	_update_players()
 	_update_walls()
 	_shake_on_new_downs()
-	# Beam shimmer (M13-13): a snapshot-cadence hum, same on every client.
+	# Beam shimmer (M13-13): a snapshot-cadence hum, same on every client — driven
+	# across all three per-kind materials at once (#779).
 	_pulse_ticks += 1
-	_beam_material.emission_energy_multiplier = 1.2 + 0.4 * sin(_pulse_ticks * TAU / 10.0)
+	var glow := 1.2 + 0.4 * sin(_pulse_ticks * TAU / 10.0)
+	for material: StandardMaterial3D in _beam_materials.values():
+		material.emission_energy_multiplier = glow
 
 
 func _update_players() -> void:
@@ -107,11 +155,16 @@ func _update_players() -> void:
 			continue
 		var is_airborne := int(state[LaserLimbo.PS_AIRBORNE]) == 1
 		var is_ducking := int(state[LaserLimbo.PS_DUCKING]) == 1
+		# While airborne, drive position by hand (force_animate off) and hold the
+		# jump pose (#779) so the leap reads as a leap, not a floating walk cycle.
 		update_rig(
 			slot,
 			Vector2(state[LaserLimbo.PS_X], state[LaserLimbo.PS_Y]),
-			JUMP_HEIGHT if is_airborne else 0.0
+			JUMP_HEIGHT if is_airborne else 0.0,
+			not is_airborne
 		)
+		if is_airborne and rig.current_action() != &"jump_idle":
+			rig.play(&"jump_idle")
 		rig.scale.y = DUCK_SCALE if is_ducking else 1.0
 		var current_lives := int(state[LaserLimbo.PS_LIVES])
 		rig.display_name = "%s  %s" % [player_name(slot), "+".repeat(current_lives)]
@@ -160,6 +213,12 @@ func _update_walls() -> void:
 		high.visible = kind == LaserLimbo.WallKind.HIGH
 		near.visible = kind == LaserLimbo.WallKind.GAP
 		far.visible = kind == LaserLimbo.WallKind.GAP
+		# Floor danger-stripe under the beam (#779), colored by kind — the read
+		# that survives the iso camera's foreshortening of beam height.
+		var stripe: MeshInstance3D = root.get_node("FloorStripe")
+		(stripe.mesh as BoxMesh).size = Vector3(0.28, FLOOR_STRIPE_THICKNESS, half * 2.0)
+		(stripe.mesh as BoxMesh).material = _beam_materials[kind]
+		stripe.position = Vector3(0.0, FLOOR_STRIPE_THICKNESS / 2.0, 0.0)
 		if low.visible:
 			(low.mesh as BoxMesh).size = Vector3(0.15, LOW_BAR_HEIGHT, half * 2.0)
 			low.position = Vector3(0.0, LOW_BAR_HEIGHT / 2.0, 0.0)
