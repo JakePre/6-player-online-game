@@ -207,7 +207,7 @@ func _brain_intent() -> Dictionary:
 	if _bot_brain == null or brain_id != _brain_id:
 		_brain_id = brain_id
 		_bot_brain = BotBrains.brain_for(brain_id, _slot, hash("%s:%d" % [_room_code, _slot]))
-	return _bot_brain.think(match_state, _latest_snapshot.get("private", {}))
+	return _bot_brain.think_with_error(match_state, _latest_snapshot.get("private", {}))
 
 
 func _on_connected() -> void:
