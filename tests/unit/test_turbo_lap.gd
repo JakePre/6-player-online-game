@@ -175,11 +175,11 @@ func test_grass_is_slower_than_track() -> void:
 	)
 
 
-func test_full_lap_finishes_in_order() -> void:
+func test_full_race_finishes_in_order() -> void:
 	var game := _game()
-	_drive(game, 0, 400)
+	_drive(game, 0, 1600)  # enough to complete every lap
 	var kart: Dictionary = game.karts[0]
-	assert_true(bool(kart.finished), "one driven lap crosses the line")
+	assert_true(bool(kart.finished), "driving the whole race crosses the line")
 	assert_eq(game.finish_order.size(), 1)
 	assert_eq(game.finish_order[0], [0])
 	var snap := game.get_snapshot()
@@ -189,8 +189,8 @@ func test_full_lap_finishes_in_order() -> void:
 
 func test_all_finished_ends_the_race_with_placements() -> void:
 	var game := _game()
-	_drive(game, 0, 400)
-	_drive(game, 1, 400)
+	_drive(game, 0, 1600)
+	_drive(game, 1, 1600)
 	assert_true(game.finished, "everyone home ends the round early")
 	var results := game.get_results()
 	assert_eq(results.placements[0], [0], "first across the line wins")
@@ -208,6 +208,53 @@ func test_timeout_ranks_by_lap_progress() -> void:
 		game.tick(TICK)
 	assert_true(game.finished, "the clock ran out")
 	assert_eq(game.get_results().placements[0], [1], "further along ranks higher")
+
+
+## #785: the race is more than one lap now — finishing takes a full LAP_COUNT
+## passes around the waypoint loop, not a single circuit.
+func test_race_is_multiple_laps() -> void:
+	assert_gte(TurboLap.LAP_COUNT, 2, "more than one lap")
+	var game := _game()
+	var kart: Dictionary = game.karts[0]
+	# One lap's worth of captures is not a finish...
+	kart.captured = TurboLap.WAYPOINT_COUNT
+	kart.next_wp = TurboLap.WAYPOINT_COUNT
+	kart.pos = TurboLap.waypoints()[0]
+	game.tick(TICK)
+	assert_false(bool(kart.finished), "one lap is not the whole race")
+	# ...the final lap's last waypoint is.
+	kart.captured = TurboLap.WAYPOINT_COUNT * TurboLap.LAP_COUNT - 1
+	kart.next_wp = TurboLap.WAYPOINT_COUNT * TurboLap.LAP_COUNT
+	kart.pos = TurboLap.waypoints()[
+		(TurboLap.WAYPOINT_COUNT * TurboLap.LAP_COUNT) % TurboLap.WAYPOINT_COUNT
+	]
+	game.tick(TICK)
+	assert_true(bool(kart.finished), "the last lap's final checkpoint ends the race")
+
+
+## #785: the shaped course is a valid closed loop — waypoints are distinct,
+## evenly-ish spaced, and advance monotonically around the center (so the ribbon
+## never crosses itself), while reaching past the base ellipse (varied corners).
+func test_shaped_course_is_a_valid_loop() -> void:
+	var points := TurboLap.waypoints()
+	assert_eq(points.size(), TurboLap.WAYPOINT_COUNT)
+	var reaches_past_base := false
+	var last_angle: float = points[0].angle()
+	var turned := 0.0
+	for i in points.size():
+		var here: Vector2 = points[i]
+		var next: Vector2 = points[(i + 1) % points.size()]
+		assert_gt(here.distance_to(next), 0.5, "no doubled-up waypoints")
+		if absf(here.x) > TurboLap.TRACK_RX or absf(here.y) > TurboLap.TRACK_RY:
+			reaches_past_base = true
+		# Accumulated turn should be one clean revolution (monotonic winding =
+		# no self-intersection).
+		var step := wrapf(next.angle() - last_angle, -PI, PI)
+		assert_gt(step, 0.0, "waypoints wind one consistent direction")
+		turned += step
+		last_angle = next.angle()
+	assert_almost_eq(turned, TAU, 0.001, "exactly one loop")
+	assert_true(reaches_past_base, "the shaped course bulges past a plain ellipse")
 
 
 func test_snapshot_shape_and_junk_input() -> void:

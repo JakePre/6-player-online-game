@@ -57,7 +57,8 @@ func _floor_tint() -> Color:
 
 
 func _arena_half() -> float:
-	return TurboLap.TRACK_RX + TurboLap.TRACK_HALF_WIDTH + 1.0
+	# The shaped course (#785) can reach past TRACK_RX, so size to its real extent.
+	return TurboLap.course_bound() + TurboLap.TRACK_HALF_WIDTH + 1.0
 
 
 func _setup_3d() -> void:
@@ -97,10 +98,14 @@ func _build_track() -> void:
 	var start := MeshInstance3D.new()
 	start.name = "StartLine"
 	var start_mesh := BoxMesh.new()
+	# Thin along the track, spanning the full width across it (#785): rotated to
+	# the track's heading at the line so it crosses perpendicular to the racing
+	# direction instead of sitting axis-aligned.
 	start_mesh.size = Vector3(0.5, 0.08, TurboLap.TRACK_HALF_WIDTH * 2.0)
 	start_mesh.material = _flat_material(START_COLOR)
 	start.mesh = start_mesh
 	start.position = Vector3(points[0].x, 0.05, points[0].y)
+	start.rotation.y = -(points[1] - points[0]).angle()
 	arena.add_child(start)
 
 
