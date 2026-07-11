@@ -41,6 +41,9 @@ const TOTALS_ROW_MAX_HEIGHT := TOTALS_CHIP_ROW_HEIGHT * 2 + PartyTheme.SPACE_SM
 const KEY_ART_DIR := "res://assets/generated/keyart/"
 ## The inter-round wipe covers this fraction of the screen width as a band.
 const WIPE_BAND_FRACTION := 0.4
+## Newest match-log lines kept for the hold-Tab overlay (#814) — older lines
+## scroll off so a long match never grows the feed unbounded.
+const MATCH_LOG_MAX := 40
 
 ## Seconds an emote stays in the feed; tests shorten it.
 var emote_lifetime := 3.0
@@ -67,6 +70,11 @@ var _round_view_flags: Array = []
 var _minigame_view: MinigameView
 ## In-match pause/options overlay (M18-03), mounted on top in _ready.
 var _pause_overlay: PauseOverlay
+## Hold-Tab match-log overlay (#814) and its accumulating feed of match events
+## (round intros/results, leaderboards, the winner) — built client-side from the
+## events already received, capped so a long match never grows unbounded.
+var _log_overlay: MatchLogOverlay
+var _match_log: Array[String] = []
 ## Controller emote wheel (#608 part 3), mounted below the pause overlay.
 var _emote_radial: EmoteRadial
 ## Device-aware "how to react" hint under the emote bar (#608).
@@ -127,6 +135,10 @@ func _ready() -> void:
 	_emote_radial = EmoteRadial.new()
 	add_child(_emote_radial)
 	set_process(true)
+	# Match-log overlay (#814) sits below the pause overlay so pause draws on top;
+	# both leave the live match running behind them.
+	_log_overlay = MatchLogOverlay.new()
+	add_child(_log_overlay)
 	# Pause overlay (M18-03) sits above the HUD; the match keeps running behind.
 	_pause_overlay = PauseOverlay.new()
 	add_child(_pause_overlay)
@@ -150,8 +162,11 @@ func _on_match_event(event: Dictionary) -> void:
 	match String(event.type):
 		"match_started":
 			_totals.clear()
+			_match_log.clear()
+			_log_line("▶ Match started")
 			_rebuild_totals_row()
 		"round_intro":
+			_log_line("Round %d — %s" % [int(event.round), String(event.minigame.name)])
 			# Rotate the round music from round 2 on (#711): round 1 keeps the
 			# loop the match mount started, later intros crossfade to the next
 			# loop in the pool so rounds stop all sharing one track.
@@ -187,6 +202,7 @@ func _on_match_event(event: Dictionary) -> void:
 			AudioManager.play_sfx(_result_sfx(event))
 			_show_results(event)
 			_record_round_history(event.placements)
+			_log_round_result(event)
 		"leaderboard":
 			AudioManager.play_sfx(&"leaderboard")
 			_unmount_view()
@@ -211,6 +227,14 @@ func _on_match_event(event: Dictionary) -> void:
 			_unmount_view()
 			_show_podium(event.standings, event.get("series", {}))
 			_record_match_stats(event.standings)
+			var standings: Array = event.standings
+			if not standings.is_empty():
+				_log_line(
+					"🏆 %s wins the match!" % MatchFormat.player_name(_names, int(standings[0].slot))
+				)
+	# The log overlay refreshes live if it's being held open as the event lands.
+	if _log_overlay != null and _log_overlay.is_open():
+		_open_log()
 
 
 func _on_snapshot(snapshot: Dictionary) -> void:
@@ -267,6 +291,8 @@ func _on_skip_pressed() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _handle_emote_input(event):
 		return
+	if _handle_match_log_input(event):
+		return
 	var toggles := event.is_action_pressed(&"ui_cancel")
 	if not toggles and event is InputEventJoypadButton:
 		var pad := event as InputEventJoypadButton
@@ -279,6 +305,49 @@ func _unhandled_input(event: InputEvent) -> void:
 		_emote_radial.close()  # pause takes over; drop any open wheel
 		_pause_overlay.open()
 	get_viewport().set_input_as_handled()
+
+
+## Hold the match-log button (Tab / pad Select) to overlay the roster + event
+## feed; release to return (#814). Muted while the pause menu owns input — the
+## server sim keeps running behind either overlay. Returns true when consumed.
+func _handle_match_log_input(event: InputEvent) -> bool:
+	if _log_overlay == null:
+		return false
+	var paused := _pause_overlay != null and _pause_overlay.is_open()
+	if event.is_action_pressed(&"match_log") and not paused:
+		_open_log()
+		get_viewport().set_input_as_handled()
+		return true
+	if event.is_action_released(&"match_log") and _log_overlay.is_open():
+		_log_overlay.close()
+		get_viewport().set_input_as_handled()
+		return true
+	return false
+
+
+func _open_log() -> void:
+	if _log_overlay == null:
+		return
+	_log_overlay.open_with(MatchFormat.standings_lines(_totals, _names), _match_log)
+
+
+## Append a feed line, capping the history so a long match never grows unbounded.
+func _log_line(line: String) -> void:
+	_match_log.append(line)
+	if _match_log.size() > MATCH_LOG_MAX:
+		_match_log = _match_log.slice(_match_log.size() - MATCH_LOG_MAX)
+
+
+## A concise winner line per round for the feed — the results panel already
+## showed the full breakdown, so the log just records who took it.
+func _log_round_result(event: Dictionary) -> void:
+	var placements: Array = event.placements
+	if placements.is_empty():
+		return
+	var winners: Array[String] = []
+	for slot: int in placements[0]:
+		winners.append(MatchFormat.player_name(_names, int(slot)))
+	_log_line("   🥇 %s" % ", ".join(winners))
 
 
 ## Controller emote wheel (#608 part 3): hold the emote button to open, release
