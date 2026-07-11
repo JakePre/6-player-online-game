@@ -100,7 +100,7 @@ A task's PR may create/edit files only in the areas the plan's repo layout (IMPL
 | `docs/SPEC.md` | Locked (§2 decisions). Deviations are flagged in PR descriptions, not edited in. |
 | `src/ui/party_theme.gd`, `docs/STYLE_GUIDE.md` (once M16-01 lands) | Additive only: new tokens/variations get added, existing ones never change meaning mid-milestone. A change that would restyle other surfaces goes through an issue on M16-01's claim, not a drive-by edit. |
 | `docs/IMAGE_REQUESTS.md` | Append rows only, never edit/reorder another task's rows (same rule as `CREDITS.md`). Status flips (`requested`→`generated`→`landed`) touch only your own row. |
-| `docs/MODEL_REQUESTS.md` | Same rules as `IMAGE_REQUESTS.md`: append-only rows, status flips touch only your own row. Agents never generate or download models themselves (#817). |
+| docs/MODEL_REQUESTS.md | Same rules as `IMAGE_REQUESTS.md`: append-only rows, status flips touch only your own row. Antigravity can now run automated local generations via the Modly pipeline. |
 
 ## 5. Branch, PR, and serialized merge procedure
 

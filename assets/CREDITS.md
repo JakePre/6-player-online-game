@@ -14,6 +14,14 @@ screen (task M7-04).
 | Kenney Nature Kit (329 GLB models: trees, rocks, bridges, fences — vertex-colored, no textures) | `assets/environment/kenney_nature_kit/` | Kenney (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/nature-kit |
 | Kenney City Kit: Commercial 2.1 (41 GLB models: buildings, storefronts — for Heist Night, #17) | `assets/environment/kenney_city_kit_commercial/` | Kenney (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/city-kit-commercial |
 
+
+
+
+
+
+
+
+| Golf Flagstick | `assets/generated/models/golf-flagstick.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Track Barrier | `assets/generated/models/track-barrier.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Finish Arch | `assets/generated/models/finish-arch.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Castle Wall Segment | `assets/generated/models/castle-wall-segment.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Castle Gate | `assets/generated/models/castle-gate.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Basketball | `assets/generated/models/basketball.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Basketball Hoop | `assets/generated/models/basketball-hoop.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Dodgeball | `assets/generated/models/dodgeball.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 Import note for the four Kenney packs above (M8-02, `docs/adr/002-iso-arena-rendering.md`): only
 the `Models/GLB format/` (or `Models/GLTF format/` — same content, Kenney's
 older zip naming) subfolder was kept, flattened into the pack's asset

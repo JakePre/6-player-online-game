@@ -39,8 +39,7 @@ and the fallbacks remain shipped — nothing breaks.
 - **Orientation/scale:** Y-up, -Z forward (Godot convention). State the
   intended in-game size in the row; the landing agent scales on import, but a
   model exported near-correct avoids 100× surprises.
-- **No rigging or animation** — static props only. Anything that must animate
-  gets built from primitives/kit pieces by the game's own view code.
+- **Rigging & animation support:** Static props are the default. However, rigged/animated requests (e.g. characters, enemies, dynamic hazards) can now also be filed. If requesting an animated asset, specify the required animation loops (e.g. walk, jump, attack, idle) in the prompt so they can be processed through the local Puppeteer rigging and animation pipeline.
 - **Destination:** `assets/generated/models/<kebab-name>.glb`.
 - **Row must name its consumer** (which game/issue) so the landing agent knows
   what to wire and can flip the row to `landed`.
@@ -63,11 +62,11 @@ Image-to-3D output is rarely game-ready. Before a model lands in the repo:
 
 | ID | Task / issue | Prompt | Target size | Destination | Status |
 |---|---|---|---|---|---|
-| MDL-001 | #803 Basket Brawl 3D | Basketball hoop assembly: pole, backboard, orange rim with a simple low-poly net (solid geometry, not cloth). Chunky low-poly party-game style matching Kenney kits, readable silhouette from an isometric camera. Pivot at pole base. | ~3.5u tall, rim at ~2.6u | `assets/generated/models/basketball-hoop.glb` | requested |
-| MDL-002 | #803 Basket Brawl 3D | Basketball: classic orange ball with black seam lines (painted-on albedo, not grooves). Low-poly sphere, reads as a basketball at distance. | ~0.35u diameter | `assets/generated/models/basketball.glb` | requested |
-| MDL-003 | #791 Dodgeball | Dodgeball: soft rubber playground ball, two-tone (red with a pale equator band). Low-poly, distinct from MDL-002 at a glance. | ~0.4u diameter | `assets/generated/models/dodgeball.glb` | requested |
-| MDL-004 | #808 Readable Siege | Castle gate: wooden double door with iron banding set in a stone arch frame, closed. Chunky low-poly, damage states handled in-engine (don't model cracks). Pivot at base center. | ~2.5u wide, ~3u tall | `assets/generated/models/castle-gate.glb` | requested |
-| MDL-005 | #808 Readable Siege | Castle wall segment: straight stone wall with crenellated top, tileable end-to-end (flat square ends, no returns). Chunky low-poly, mid-tone stone. | ~4u long, ~2.5u tall | `assets/generated/models/castle-wall-segment.glb` | requested |
-| MDL-006 | #785 Turbo Lap real course | Start/finish arch: checkered banner arch spanning a track, two simple pylons. Chunky low-poly, coin-gold + white checker accents. | ~8u span, ~3u tall | `assets/generated/models/finish-arch.glb` | requested |
-| MDL-007 | #785 Turbo Lap real course | Track barrier: low red-and-white striped crash barrier segment, tileable end-to-end. Chunky low-poly. | ~2u long, ~0.6u tall | `assets/generated/models/track-barrier.glb` | requested |
-| MDL-008 | #793 Putt Panic random course | Golf flagstick: thin pole with a triangular flag, small cup ring at the base. Chunky low-poly, coin-gold flag. | ~1.5u tall | `assets/generated/models/golf-flagstick.glb` | requested |
+| MDL-001 | #803 Basket Brawl 3D | Basketball hoop assembly: pole, backboard, orange rim with a simple low-poly net (solid geometry, not cloth). Chunky low-poly party-game style matching Kenney kits, readable silhouette from an isometric camera. Pivot at pole base. | ~3.5u tall, rim at ~2.6u | `assets/generated/models/basketball-hoop.glb` | generated |
+| MDL-002 | #803 Basket Brawl 3D | Basketball: classic orange ball with black seam lines (painted-on albedo, not grooves). Low-poly sphere, reads as a basketball at distance. | ~0.35u diameter | `assets/generated/models/basketball.glb` | generated |
+| MDL-003 | #791 Dodgeball | Dodgeball: soft rubber playground ball, two-tone (red with a pale equator band). Low-poly, distinct from MDL-002 at a glance. | ~0.4u diameter | `assets/generated/models/dodgeball.glb` | generated |
+| MDL-004 | #808 Readable Siege | Castle gate: wooden double door with iron banding set in a stone arch frame, closed. Chunky low-poly, damage states handled in-engine (don't model cracks). Pivot at base center. | ~2.5u wide, ~3u tall | `assets/generated/models/castle-gate.glb` | generated |
+| MDL-005 | #808 Readable Siege | Castle wall segment: straight stone wall with crenellated top, tileable end-to-end (flat square ends, no returns). Chunky low-poly, mid-tone stone. | ~4u long, ~2.5u tall | `assets/generated/models/castle-wall-segment.glb` | generated |
+| MDL-006 | #785 Turbo Lap real course | Start/finish arch: checkered banner arch spanning a track, two simple pylons. Chunky low-poly, coin-gold + white checker accents. | ~8u span, ~3u tall | `assets/generated/models/finish-arch.glb` | generated |
+| MDL-007 | #785 Turbo Lap real course | Track barrier: low red-and-white striped crash barrier segment, tileable end-to-end. Chunky low-poly. | ~2u long, ~0.6u tall | `assets/generated/models/track-barrier.glb` | generated |
+| MDL-008 | #793 Putt Panic random course | Golf flagstick: thin pole with a triangular flag, small cup ring at the base. Chunky low-poly, coin-gold flag. | ~1.5u tall | `assets/generated/models/golf-flagstick.glb` | generated |
