@@ -46,6 +46,9 @@ const PS_X := 0
 const PS_Y := 1
 const PS_HAS_BALL := 2
 const PS_COUNT := 3
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT]
 
 const BALL_X := 0
 const BALL_Y := 1
