@@ -35,6 +35,11 @@ const PS_Y := 1
 const PS_RANGE := 2
 const PS_MAX_BOMBS := 3
 const PS_COUNT := 4
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. test_snapshot_schema validates every row against this — length
+## and per-slot kind — so a reinterpreted or added/removed slot fails loudly
+## instead of surfacing later as a cross-version desync.
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT]
 
 const BM_CELL := 0
 const BM_FUSE := 1
