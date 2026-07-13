@@ -500,7 +500,10 @@ func _rpc_match_input(data: Dictionary) -> void:
 		return
 	var member := room.find_by_peer(peer_id)
 	if member != null:
-		controller.handle_input(member.slot, data)
+		# Sanitize at the trust boundary (#970): sims trust their input values,
+		# so hostile payloads (INF/NaN, "1e999", containers) are stopped here —
+		# once, for every game — before they can poison the replicated snapshot.
+		controller.handle_input(member.slot, SafeInput.sanitize(data))
 
 
 @rpc("any_peer", "call_remote", "reliable")
