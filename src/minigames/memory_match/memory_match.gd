@@ -40,6 +40,9 @@ const PS_Y := 1
 const PS_ACT_SEQ := 2
 ## Seconds of shove cooldown left, for the view's cooldown ring (#792/#808).
 const PS_SHOVE_CD := 3
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_FLOAT]
 
 var positions := {}
 var move_dirs := {}
