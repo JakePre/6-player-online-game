@@ -29,6 +29,7 @@ func test_memory_match_brain_heads_for_a_safe_tile_while_shown() -> void:
 
 func test_memory_match_brain_remembers_the_pattern_after_dark() -> void:
 	var brain := BotBrains.brain_for(&"memory_match", 0, 1)
+	brain.error_rate = 0.0  # test clean recall; the slip has its own test (#962)
 	# Show the pattern once so the brain can memorise it...
 	var shown := {
 		"players": {0: [5.0, 5.0]},
@@ -67,6 +68,36 @@ func test_memory_match_brain_holds_once_on_a_safe_tile() -> void:
 	var intent := brain.think(_play_state("memory_match", game), {})
 	assert_almost_eq(float(intent.get("mx", 0.0)), 0.0, 0.01, "already safe -> hold x")
 	assert_almost_eq(float(intent.get("my", 0.0)), 0.0, 0.01, "already safe -> hold y")
+
+
+## #962: perfect recall makes every memory-game bot survive → full-survivor
+## ties. Under the #818 error knob the bot sometimes blanks and commits to a
+## single wrongly-recalled tile when the lights go out — producing the human
+## failures that spread placements. (The generic aim-jitter can't do this: the
+## remembered tile is a destination, not an aim it can wobble.)
+func test_memory_match_brain_can_misremember_under_the_error_knob() -> void:
+	var brain := BotBrains.brain_for(&"memory_match", 0, 1)
+	brain.error_rate = 1.0  # force the slip every round
+	var shown := {
+		"players": {0: [5.0, 5.0]},
+		"phase": MemoryMatch.Phase.SHOW,
+		"safe_tiles": [0, 35],
+		"grid_size": MemoryMatch.GRID_SIZE,
+		"round": 0,
+		"fallen": [],
+	}
+	brain.think(_play_state("memory_match", shown), {})
+	assert_eq(brain._known_safe, [0, 35], "both tiles memorized cleanly while shown")
+	var dark := {
+		"players": {0: [5.0, 5.0]},
+		"phase": MemoryMatch.Phase.DARK,
+		"safe_tiles": [],
+		"grid_size": MemoryMatch.GRID_SIZE,
+		"round": 0,
+		"fallen": [],
+	}
+	brain.think(_play_state("memory_match", dark), {})
+	assert_eq(brain._known_safe.size(), 1, "blanked to a single wrongly-recalled tile in the dark")
 
 
 # --- poison_feast --------------------------------------------------------------

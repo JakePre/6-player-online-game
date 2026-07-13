@@ -13,6 +13,8 @@ extends BotBrain
 
 ## Cached row-major safe-tile indices from the most recent SHOW phase.
 var _known_safe: Array = []
+## Whether this round's memory slip has been rolled (once, at the SHOW→DARK edge).
+var _slip_rolled := false
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -22,13 +24,24 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	if state.size() <= MemoryMatch.PS_Y:
 		return {}  # eliminated or not yet in the snapshot
 	var me := Vector2(float(state[MemoryMatch.PS_X]), float(state[MemoryMatch.PS_Y]))
+	var grid := int(game.get("grid_size", MemoryMatch.GRID_SIZE))
 	# Memorise the pattern whenever it is on show; it blanks out in the dark.
 	var shown: Array = game.get("safe_tiles", [])
 	if not shown.is_empty():
 		_known_safe = shown.duplicate()
+		_slip_rolled = false
 	if _known_safe.is_empty():
 		return {}  # first frame before any pattern has been shown
-	var grid := int(game.get("grid_size", MemoryMatch.GRID_SIZE))
+	# A human sometimes blanks and commits to the wrong tile when the lights go
+	# out (#962). The #818 knob only jitters the *path* to the remembered tile —
+	# the bot still arrives safe — so without this every bot survives and the
+	# round is a full tie. Rolled once, at the SHOW→DARK edge.
+	if (
+		int(game.get("phase", MemoryMatch.Phase.SHOW)) == MemoryMatch.Phase.DARK
+		and not _slip_rolled
+	):
+		_slip_rolled = true
+		_maybe_misremember(grid * grid)
 	var intent := move_toward_point(me, _nearest_safe_center(me, grid), 0.25)
 	# Jostle for tiles in the dark: shove a rival crowding into reach when the
 	# cooldown is up (#784). Pairs naturally with #818's later imperfection knob.
@@ -39,6 +52,17 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 		if cd <= 0.0 and _rival_in_reach(players, me):
 			intent["shove"] = true
 	return intent
+
+
+## With error_rate probability, blank on the pattern this round and commit to a
+## single wrongly-recalled tile — mostly unsafe, so the bot walks off and falls.
+## Overwritten by the next SHOW, so the slip only costs this one round.
+func _maybe_misremember(total: int) -> void:
+	if error_rate <= 0.0 or total <= 0 or _known_safe.is_empty():
+		return
+	if _error_rng.randf() >= error_rate:
+		return
+	_known_safe = [_error_rng.randi() % total]
 
 
 ## True when a standing rival is within shove range — the cue to swing.
