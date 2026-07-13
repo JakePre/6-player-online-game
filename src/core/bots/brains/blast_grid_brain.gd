@@ -33,7 +33,7 @@ func _act(game: Dictionary, players: Dictionary, me: Array, grid: Array) -> Dict
 	# 1. Survival: if our cell is deadly, step to the safest neighbor (or hold
 	# and hope a wall shielded us when boxed in).
 	if danger.has(my_cell):
-		var escape := _safest_neighbor(my_cell, grid, danger)
+		var escape := _escape_step(my_cell, grid, danger)
 		return _move_to_cell(my_pos, escape) if escape != -1 else {}
 	# 2. Offense: bomb a soft wall / rival in reach, but only with an escape.
 	if (
@@ -113,11 +113,33 @@ func _neighbors(cell: int) -> Array:
 	return out
 
 
-## The adjacent walkable cell that is out of danger; -1 if none.
-func _safest_neighbor(cell: int, grid: Array, danger: Dictionary) -> int:
-	for n: int in _neighbors(cell):
-		if _walkable(n, grid) and not danger.has(n):
-			return n
+## The first step of the shortest walkable path to a cell OUT of danger — a BFS,
+## not a single hop (#961). A bomb's blast covers all four orthogonal neighbors
+## of its cell, so right after dropping one (or when a passing cross catches us)
+## there is never an immediately-safe neighbor to hop to; the escape is to step
+## ALONG the blast line and turn the corner out — exactly the 2-step route
+## _has_escape checks before bombing. Transit through in-danger cells is
+## therefore allowed: that IS the escape, and a single-hop check (the old
+## behavior) left the bot frozen on its own live bomb until it detonated.
+## Returns -1 only when no safe cell is reachable at all (truly boxed), where
+## holding and hoping a wall shields us is all that is left.
+func _escape_step(cell: int, grid: Array, danger: Dictionary) -> int:
+	var frontier: Array = [cell]
+	var came_from := {cell: -1}
+	var head := 0
+	while head < frontier.size():
+		var cur: int = frontier[head]
+		head += 1
+		if cur != cell and not danger.has(cur):
+			# Walk the parent chain back to the first step taken from `cell`.
+			var step := cur
+			while came_from[step] != cell:
+				step = came_from[step]
+			return step
+		for n: int in _neighbors(cur):
+			if _walkable(n, grid) and not came_from.has(n):
+				came_from[n] = cur
+				frontier.append(n)
 	return -1
 
 

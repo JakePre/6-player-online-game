@@ -143,6 +143,31 @@ func test_blast_grid_brain_avoids_stepping_into_a_live_bombs_blast() -> void:
 	assert_lte(float(intent.get("my", 0.0)), 0.0001, "never step up toward the bomb")
 
 
+## #961 regression: standing on our OWN live bomb, every orthogonal neighbor is
+## inside the blast cross, so there is no immediately-safe hop. The bot must
+## still MOVE — stepping along the blast line toward the corner escape — not
+## freeze on the bomb until it detonates (the round-length-collapse bug: bots
+## mass-froze on their opening bombs and every round ended in ~3s).
+func test_blast_grid_brain_flees_its_own_bomb_via_the_corner() -> void:
+	var brain := BotBrains.brain_for(&"blast_grid", 0, 1)
+	# Center, open grid, our own bomb underfoot. A safe cell exists two steps out
+	# (any perpendicular turn off the cross), so the escape is reachable.
+	var center := 5 * BlastGrid.GRID + 5
+	var game := {
+		"players": {0: [0.0, 0.0, 2, 1]},
+		"grid": _empty_grid(),
+		"bombs": [[center, BlastGrid.BOMB_FUSE]],
+		"flames": [],
+		"powerups": [],
+		"fallen": [],
+	}
+	var intent := brain.think(_play_state("blast_grid", game), {})
+	assert_false(
+		intent.is_empty(), "on our own bomb -> step toward the corner escape, never freeze"
+	)
+	assert_true(intent.has("mx") and intent.has("my"), "produces a real move off the bomb cell")
+
+
 # --- laser_limbo ---------------------------------------------------------------
 
 
