@@ -32,6 +32,10 @@ const PS_LIVES := 2
 const PS_AIRBORNE := 3
 const PS_DUCKING := 4
 const PS_COUNT := 5
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row (airborne/ducking ship as 0/1 ints). Validated by
+## test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT, TYPE_INT]
 
 const WL_X := 0
 const WL_DIR := 1
