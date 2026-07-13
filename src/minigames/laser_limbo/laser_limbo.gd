@@ -46,12 +46,12 @@ var ducking := {}
 var invuln := {}
 ## Sweeping walls: {x, dir (+1/-1), kind, gap_y, speed}.
 var walls: Array = []
-## Slots in down order; same-tick knockouts share a tie group.
-var down_order: Array = []
+## Elimination + placement bookkeeping (#940): same-tick knockouts share a tie
+## group, placements rank in reverse down order. `.order` is the fallen groups.
+var _elim := EliminationTracker.new()
 
 var _jump_cooldown := {}
 var _spawn_left := WALL_INTERVAL_START
-var _pending_downs: Array = []
 
 ## Play area, gap, and wall speed scale with the lobby size (M15, ADR 003).
 ## The gap scales *with the arena* so the safe fraction — and thus the
@@ -115,7 +115,7 @@ func _setup() -> void:
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
-	if not _is_in(slot):
+	if not _elim.is_in(slot, slots):
 		return
 	if data.has("mx"):
 		var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
@@ -132,9 +132,9 @@ func _tick(delta: float) -> void:
 		return
 	# Alive-set cache (cleanup #467): computed once, shared by the movement
 	# loop and _sweep_walls(), which both run before this tick's own downs
-	# are finalized. _check_end() still calls _in_slots() fresh — it must
-	# see the roster *after* _flush_downs() applies this tick's eliminations.
-	var alive := _in_slots()
+	# are finalized. _check_end() still calls _elim.in_slots(slots) fresh — it must
+	# see the roster *after* _elim.flush() applies this tick's eliminations.
+	var alive := _elim.in_slots(slots)
 	for slot: int in alive:
 		airborne[slot] = maxf(airborne[slot] - delta, 0.0)
 		invuln[slot] = maxf(invuln[slot] - delta, 0.0)
@@ -144,13 +144,13 @@ func _tick(delta: float) -> void:
 		positions[slot] = pos.limit_length(_play_half)
 	_sweep_walls(delta, alive)
 	_spawn_walls(delta)
-	_flush_downs()
+	_elim.flush()
 	_check_end()
 
 
 func get_snapshot() -> Dictionary:
 	var players := {}
-	for slot: int in _in_slots():
+	for slot: int in _elim.in_slots(slots):
 		var pos: Vector2 = positions[slot]
 		players[slot] = [
 			snappedf(pos.x, 0.01),
@@ -162,13 +162,13 @@ func get_snapshot() -> Dictionary:
 	var wall_list: Array = []
 	for wall: Dictionary in walls:
 		wall_list.append([snappedf(wall.x, 0.01), wall.dir, wall.kind, snappedf(wall.gap_y, 0.01)])
-	return {"players": players, "walls": wall_list, "fallen": down_order}
+	return {"players": players, "walls": wall_list, "fallen": _elim.order}
 
 
 ## Timeout: survivors rank by lives left (ties share), then the fallen.
 func _rank_players() -> Array:
 	var by_lives := {}
-	for slot: int in _in_slots():
+	for slot: int in _elim.in_slots(slots):
 		var count: int = lives[slot]
 		if not by_lives.has(count):
 			by_lives[count] = []
@@ -179,7 +179,7 @@ func _rank_players() -> Array:
 	var placements: Array = []
 	for count: int in counts:
 		placements.append(by_lives[count])
-	return placements + _out_placements()
+	return placements + _elim.out_placements()
 
 
 ## A wall hits when it crosses a player's x this tick in the wrong stance:
@@ -199,7 +199,7 @@ func _sweep_walls(delta: float, alive: Array) -> void:
 				lives[slot] -= 1
 				invuln[slot] = HIT_INVULN_SEC
 				if lives[slot] <= 0:
-					_pending_downs.append(slot)
+					_elim.mark(slot)
 		if absf(wall.x) <= _play_half + 1.0:
 			remaining.append(wall)
 	walls = remaining
@@ -240,43 +240,13 @@ func _spawn_walls(delta: float) -> void:
 	)
 
 
-func _flush_downs() -> void:
-	if _pending_downs.is_empty():
-		return
-	var group: Array = []
-	for slot: int in _pending_downs:
-		if slot not in group:
-			group.append(slot)
-	down_order.append(group)
-	_pending_downs.clear()
-
-
 func _check_end() -> void:
 	if finished:
 		return
-	var survivors := _in_slots()
+	var survivors := _elim.in_slots(slots)
 	if survivors.size() > 1:
 		return
 	var placements: Array = []
 	if not survivors.is_empty():
 		placements.append(survivors)
-	finish(placements + _out_placements())
-
-
-func _is_in(slot: int) -> bool:
-	if slot not in slots:
-		return false
-	for group: Array in down_order:
-		if slot in group:
-			return false
-	return slot not in _pending_downs
-
-
-func _in_slots() -> Array:
-	return slots.filter(_is_in)
-
-
-func _out_placements() -> Array:
-	var placements := down_order.duplicate(true)
-	placements.reverse()
-	return placements
+	finish(placements + _elim.out_placements())

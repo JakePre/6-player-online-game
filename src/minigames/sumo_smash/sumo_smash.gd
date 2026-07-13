@@ -28,10 +28,9 @@ var move_dirs := {}
 var knocks := {}
 var dash_left := {}
 var cooldown_left := {}
-## Slots in ring-out order; same-tick ring-outs share a tie group.
-var ringout_order: Array = []
-
-var _pending_outs: Array = []
+## Elimination + placement bookkeeping (#940): same-tick ring-outs share a tie
+## group, placements rank in reverse ring-out order. `.order` is the out groups.
+var _elim := EliminationTracker.new()
 
 
 static func make_meta() -> MinigameMeta:
@@ -74,7 +73,7 @@ func _setup() -> void:
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
-	if not _is_in(slot):
+	if not _elim.is_in(slot, slots):
 		return
 	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
 	move_dirs[slot] = dir.limit_length(1.0)
@@ -90,9 +89,9 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	# Alive-set cache (cleanup #467): computed once, shared by every helper
 	# below that runs before this tick's own ring-outs are finalized.
-	# _check_end() still calls _in_slots() fresh — it must see the roster
-	# *after* _flush_ringouts() applies this tick's eliminations.
-	var alive := _in_slots()
+	# _check_end() still calls _elim.in_slots(slots) fresh — it must see the roster
+	# *after* _elim.flush() applies this tick's eliminations.
+	var alive := _elim.in_slots(slots)
 	for slot: int in alive:
 		cooldown_left[slot] = maxf(float(cooldown_left[slot]) - delta, 0.0)
 		dash_left[slot] = maxf(float(dash_left[slot]) - delta, 0.0)
@@ -101,14 +100,14 @@ func _tick(delta: float) -> void:
 		knocks[slot] = knock.move_toward(Vector2.ZERO, KNOCK_DECAY * delta)
 	_resolve_shoves(alive)
 	_check_ringouts(alive)
-	_flush_ringouts()
+	_elim.flush()
 	_check_end()
 
 
 func get_snapshot() -> Dictionary:
 	var players := {}
 	for slot: int in slots:
-		if not _is_in(slot):
+		if not _elim.is_in(slot, slots):
 			continue
 		var pos: Vector2 = positions[slot]
 		players[slot] = [
@@ -117,16 +116,16 @@ func get_snapshot() -> Dictionary:
 			snappedf(cooldown_left[slot], 0.01),
 			1 if dash_left[slot] > 0.0 else 0,
 		]
-	return {"radius": PLATFORM_RADIUS, "players": players, "out": ringout_order}
+	return {"radius": PLATFORM_RADIUS, "players": players, "out": _elim.order}
 
 
 ## Timeout: everyone still on the platform ties ahead of the rung-out.
 func _rank_players() -> Array:
-	var survivors := _in_slots()
+	var survivors := _elim.in_slots(slots)
 	var placements: Array = []
 	if not survivors.is_empty():
 		placements.append(survivors)
-	return placements + _out_placements()
+	return placements + _elim.out_placements()
 
 
 func _resolve_shoves(active: Array) -> void:
@@ -149,41 +148,16 @@ func _shove_strength(shover: int) -> float:
 func _check_ringouts(alive: Array) -> void:
 	for slot: int in alive:
 		if positions[slot].length() > PLATFORM_RADIUS:
-			_pending_outs.append(slot)
-
-
-func _flush_ringouts() -> void:
-	if not _pending_outs.is_empty():
-		ringout_order.append(_pending_outs.duplicate())
-		_pending_outs.clear()
+			_elim.mark(slot)
 
 
 func _check_end() -> void:
 	if finished:
 		return
-	var survivors := _in_slots()
+	var survivors := _elim.in_slots(slots)
 	if survivors.size() > 1:
 		return
 	var placements: Array = []
 	if not survivors.is_empty():
 		placements.append(survivors)
-	finish(placements + _out_placements())
-
-
-func _is_in(slot: int) -> bool:
-	if slot not in slots:
-		return false
-	for group: Array in ringout_order:
-		if slot in group:
-			return false
-	return slot not in _pending_outs
-
-
-func _in_slots() -> Array:
-	return slots.filter(_is_in)
-
-
-func _out_placements() -> Array:
-	var placements := ringout_order.duplicate(true)
-	placements.reverse()
-	return placements
+	finish(placements + _elim.out_placements())
