@@ -25,6 +25,13 @@ const ACTIONS := {
 	&"pickup": {"anim": &"PickUp", "loop": false},
 	# Weapon swing (#584): the radial spin, present on all 9 shipped characters.
 	&"attack": {"anim": &"2H_Melee_Attack_Spin", "loop": false},
+	# Battleaxe side swing: the horizontal two-handed slice from the base pack.
+	&"attack_side": {"anim": &"2H_Melee_Attack_Slice", "loop": false},
+	# Whirlwind: the looping variant of the spin — hold to keep spinning.
+	&"whirlwind": {"anim": &"2H_Melee_Attack_Spinning", "loop": true},
+	# Duck: crouch-and-hold, authored by the asset pipeline and injected into
+	# every roster GLB (rig_tools.py in the generating-assets workspace).
+	&"duck": {"anim": &"Duck", "loop": true},
 }
 
 ## Base nameplate font size from the scene; scaled by the nameplate_scale
