@@ -46,6 +46,14 @@ const ENTRIES: Array[Dictionary] = [
 		"display_name": "Skeleton Warrior",
 		"scene_path": "res://assets/characters/kaykit_skeletons/Skeleton_Warrior.glb",
 	},
+	{
+		# First pipeline-generated character (generating-assets workspace):
+		# Trellis mesh skinned onto the shared KayKit skeleton, so it runs the
+		# same 77-animation set as every other roster entry.
+		"id": &"dog",
+		"display_name": "Dog",
+		"scene_path": "res://assets/characters/generated/Dog.glb",
+	},
 ]
 
 ## SPEC $8 calls for a roster of 8; Skeleton_Minion is held back as the first
