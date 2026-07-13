@@ -25,7 +25,11 @@ screen (task M7-04).
 
 
 
-| Anchor | `assets/generated/models/anchor.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Shove Horn | `assets/generated/models/shove-horn.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Hill Crest | `assets/generated/models/hill-crest.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Meteor | `assets/generated/models/meteor.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
+
+
+
+
+
 Import note for the four Kenney packs above (M8-02, `docs/adr/002-iso-arena-rendering.md`): only
 the `Models/GLB format/` (or `Models/GLTF format/` — same content, Kenney's
 older zip naming) subfolder was kept, flattened into the pack's asset
