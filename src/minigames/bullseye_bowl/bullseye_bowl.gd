@@ -28,6 +28,9 @@ const PS_BALLS_LEFT := 1
 const PS_FLIGHT_T := 2
 const PS_TARGET_OFFSET := 3
 const PS_COUNT := 4
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_INT, TYPE_INT, TYPE_FLOAT, TYPE_FLOAT]
 
 var scores := {}
 var balls_left := {}

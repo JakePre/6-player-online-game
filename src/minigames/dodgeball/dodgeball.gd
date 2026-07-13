@@ -49,6 +49,9 @@ const PS_FACING_Y := 3
 const PS_HOLDING := 4  # 1 while carrying a ball
 const PS_TEAM := 5  # team index, or -1 in FFA
 const PS_COUNT := 6
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT]
 
 ## Snapshot ball-array indices.
 const BL_X := 0
