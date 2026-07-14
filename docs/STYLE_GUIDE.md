@@ -100,3 +100,25 @@ are fine but must be **named consts** on the view/sim — never inline
 distance), `outline_size >= font_size / 4` so text survives bright floors.
 Don't scale with `pixel_size` — mixed pixel densities are what made in-world
 text look incoherent across games.
+
+## Sim state typing (#952)
+
+Sim state is Dictionary-as-struct throughout (`kart.speed`, `fighter.percent`,
+…) — stringly-typed, zero rename safety, the largest latent-bug source in the
+codebase (109+ `float(dict.field)` casts in `src/minigames` alone). Two
+failure modes to avoid, both costly: letting the dict-accretion keep growing
+forever, and someone burning a week converting all 46 games at once (churn
+the whole test suite pays for, for a codebase that mostly isn't touched
+again).
+
+The rule: **convert opportunistically, never as a sweep.**
+
+- A sim getting a **real rework anyway** (not a one-line tuning PR) converts
+  its state dicts to a typed inner `RefCounted` class as part of that PR —
+  the rework already re-touches every read/write site, so the conversion
+  rides for free and the PR's own tests catch mistakes immediately.
+- **New games start typed** from `_setup()` — there's no dict-era code to
+  match, so there's no reason to write the stringly-typed version first.
+- **Never file (or accept) a repo-wide conversion sweep.** A dict-state game
+  nobody is touching is not a bug sitting on the board — it's stable,
+  tested, and shipping. Converting it earns nothing but risk.

@@ -74,5 +74,3 @@ tracks the routing tier, never re-derive scope from it.
 | #930 | Polish batch: vote circle, corpse fade, banners, pit row, 2D color, board fit |
 | #937 | Quality-weighted playlist draft |
 | #938 | Bullseye Bowl ball drip-feed |
-| #951 | CI lint for assets/CREDITS.md table integrity |
-| #952 | Codify the typed-state conversion policy (docs-only) |
