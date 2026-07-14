@@ -2,7 +2,7 @@ class_name MinigameCatalog
 extends RefCounted
 ## Registry of playable minigames and the playlist builder (SPEC $4 selection
 ## rules: player-count constraints, category variety, no repeats until the
-## eligible pool is exhausted).
+## eligible pool is exhausted, weak-tier games down-weighted per #937).
 
 ## Maximum consecutive rounds of the same category.
 const MAX_CATEGORY_STREAK := 2
@@ -140,10 +140,29 @@ static func build_playlist(
 		if just_refilled and not playlist.is_empty() and candidates.size() > 1:
 			candidates = candidates.duplicate()
 			candidates.erase(playlist[-1])
-		var pick: StringName = candidates[rng.randi_range(0, candidates.size() - 1)]
+		var pick := _weighted_pick(rng, candidates)
 		pool.erase(pick)
 		playlist.append(pick)
 	return playlist
+
+
+## Draws one id from `candidates` with probability proportional to
+## QualityWeights.weight_of (#937) -- an unweighted (all-1.0) catalog
+## degrades to the old uniform draw exactly.
+static func _weighted_pick(rng: RandomNumberGenerator, candidates: Array) -> StringName:
+	var weights: Array[float] = []
+	var total := 0.0
+	for id: StringName in candidates:
+		var weight := QualityWeights.weight_of(id)
+		weights.append(weight)
+		total += weight
+	var draw := rng.randf() * total
+	var cumulative := 0.0
+	for i in candidates.size():
+		cumulative += weights[i]
+		if draw < cumulative:
+			return candidates[i]
+	return candidates[-1]  # floating-point rounding fallback
 
 
 static func _without_streak_violations(pool: Array, playlist: Array) -> Array:

@@ -1,6 +1,7 @@
 extends GutTest
 ## Playlist selection rules (SPEC $4): player-count eligibility, no repeats
-## until the eligible pool is exhausted, and category variety.
+## until the eligible pool is exhausted, category variety, and per-game draft
+## weighting (#937).
 
 
 func before_each() -> void:
@@ -229,3 +230,68 @@ func test_build_playlist_unaffected_when_excluded_empty() -> void:
 		MinigameCatalog.build_playlist(_seeded_rng(), 8, 4),
 		MinigameCatalog.build_playlist(_seeded_rng(), 8, 4, [])
 	)
+
+
+## #937: unlisted ids default to a full 1.0 weight.
+func test_quality_weight_defaults_to_one_for_unlisted_games() -> void:
+	assert_eq(QualityWeights.weight_of(&"some_unlisted_game"), 1.0)
+
+
+## #937 seed list: cart_push is down-weighted while its Payload Race rework
+## (#932) is in flight.
+func test_quality_weight_cart_push_is_down_weighted() -> void:
+	assert_eq(QualityWeights.weight_of(&"cart_push"), 0.25)
+
+
+## #937: no weight may reach zero — every eligible game must stay reachable.
+func test_quality_weight_never_reaches_zero() -> void:
+	assert_gt(QualityWeights.weight_of(&"cart_push"), 0.0)
+	assert_gte(QualityWeights.FLOOR_WEIGHT, 0.0)
+
+
+## #937: a down-weighted game is drafted markedly less often than a
+## full-weight one, but the guarantees (below) still hold on top of it.
+func test_weighted_games_drafted_proportionally_less_often() -> void:
+	_register(&"heavy", MinigameMeta.Category.FFA)  # default weight 1.0
+	_register(&"cart_push", MinigameMeta.Category.FFA)  # seeded weight 0.25
+	var heavy_count := 0
+	var light_count := 0
+	for seed_value in 400:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		var playlist: Array = MinigameCatalog.build_playlist(rng, 1, 4)
+		if playlist[0] == &"heavy":
+			heavy_count += 1
+		else:
+			light_count += 1
+	# Weights 1.0 vs 0.25 -> an 80/20 split; a uniform draw would be ~50/50,
+	# so a wide margin below that still confirms the weighting took effect.
+	assert_lt(
+		float(light_count), heavy_count / 2.0, "cart_push must draft markedly less than heavy"
+	)
+	assert_gt(light_count, 0, "the floor weight must keep cart_push reachable, not starved to zero")
+
+
+## #937: down-weighting must not break the pre-existing selection guarantees
+## (no repeats until the pool exhausts, still-distinct rounds).
+func test_weighting_preserves_no_repeat_guarantee() -> void:
+	_register(&"heavy", MinigameMeta.Category.FFA)
+	_register(&"cart_push", MinigameMeta.Category.SKILL)
+	_register(&"other", MinigameMeta.Category.TEAM)
+	for seed_value in 100:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		var playlist: Array = MinigameCatalog.build_playlist(rng, 6, 4)
+		for start in [0, 3]:
+			var window: Array = playlist.slice(start, start + 3).map(
+				func(id: StringName) -> String: return String(id)
+			)
+			window.sort()
+			assert_eq(
+				window,
+				["cart_push", "heavy", "other"],
+				(
+					"seed %d: rounds %d-%d must stay distinct despite weighting"
+					% [seed_value, start, start + 2]
+				)
+			)
