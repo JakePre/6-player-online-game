@@ -24,11 +24,11 @@ func _pin_target(game: BullseyeBowl, slot: int) -> void:
 func test_roll_spends_a_ball_and_launches_one_flight() -> void:
 	var game := _game_with(2)
 	game.handle_input(0, {"roll": true})
-	assert_eq(game.balls_left[0], BullseyeBowl.BALLS - 1)
+	assert_eq(game.balls_left[0], BullseyeBowl.BALLS_START - 1)
 	assert_eq(game.flights.size(), 1)
 	game.handle_input(0, {"roll": true})
 	assert_eq(game.flights.size(), 1, "one ball in flight at a time")
-	assert_eq(game.balls_left[0], BullseyeBowl.BALLS - 1, "the blocked roll costs nothing")
+	assert_eq(game.balls_left[0], BullseyeBowl.BALLS_START - 1, "the blocked roll costs nothing")
 
 
 func test_no_rolls_when_out_of_balls() -> void:
@@ -61,7 +61,10 @@ func test_flight_scores_against_target_at_arrival() -> void:
 
 func test_match_ends_when_every_ball_is_spent() -> void:
 	var game := _game_with(2)
+	# Exhaust the budget outright (no more regen coming) rather than just
+	# emptying the held count, or the drip would keep the round alive.
 	game.balls_left = {0: 0, 1: 1}
+	game._balls_issued = {0: BullseyeBowl.BALLS_TOTAL, 1: BullseyeBowl.BALLS_TOTAL}
 	game.handle_input(1, {"roll": true})
 	assert_false(game.finished)
 	var ticks := int(ceilf(BullseyeBowl.FLIGHT_SEC / TICK)) + 1
@@ -74,6 +77,9 @@ func test_ranking_by_total_with_ties() -> void:
 	var game := _game_with(3)
 	game.scores = {0: 12, 1: 20, 2: 12}
 	game.balls_left = {0: 0, 1: 0, 2: 0}
+	game._balls_issued = {
+		0: BullseyeBowl.BALLS_TOTAL, 1: BullseyeBowl.BALLS_TOTAL, 2: BullseyeBowl.BALLS_TOTAL
+	}
 	game.tick(TICK)
 	assert_true(game.finished)
 	assert_eq(game.get_results().placements, [[1], [0, 2]])
@@ -125,4 +131,56 @@ func test_setup_handles_twenty_four_players() -> void:
 	assert_eq(game.scores.size(), 24)
 	for slot in 24:
 		assert_eq(game.scores[slot], 0)
-		assert_eq(game.balls_left[slot], BullseyeBowl.BALLS)
+		assert_eq(game.balls_left[slot], BullseyeBowl.BALLS_START)
+
+
+## Drip-feed throw budget (#938): starts short of the cap, regenerates on a
+## fixed cadence, never exceeds the cap, and never exceeds the total budget.
+func test_starts_with_fewer_balls_than_the_cap() -> void:
+	var game := _game_with(2)
+	assert_lt(BullseyeBowl.BALLS_START, BullseyeBowl.BALLS_CAP + 1)
+	assert_eq(game.balls_left[0], BullseyeBowl.BALLS_START)
+
+
+func test_regen_grants_a_ball_after_the_interval_once_a_slot_opens() -> void:
+	var game := _game_with(2)
+	game.handle_input(0, {"roll": true})
+	assert_eq(game.balls_left[0], BullseyeBowl.BALLS_START - 1, "opened up a held slot")
+	game.tick(BullseyeBowl.REGEN_INTERVAL_SEC - 0.01)
+	assert_eq(game.balls_left[0], BullseyeBowl.BALLS_START - 1, "not yet — interval hasn't elapsed")
+	game.tick(0.02)
+	assert_eq(game.balls_left[0], BullseyeBowl.BALLS_START, "interval elapsed, one ball granted")
+
+
+func test_regen_never_exceeds_the_held_cap() -> void:
+	var game := _game_with(2)
+	# Full at the cap already (BALLS_START == BALLS_CAP) — ticking well past
+	# several regen intervals must not push balls_left above the cap.
+	for _i in 5:
+		game.tick(BullseyeBowl.REGEN_INTERVAL_SEC)
+	assert_eq(game.balls_left[0], BullseyeBowl.BALLS_CAP)
+
+
+func test_regen_stops_once_the_total_budget_is_issued() -> void:
+	var game := _game_with(2)
+	# Throw every ball as it becomes available and let regen keep refilling —
+	# the running total granted must stop climbing at BALLS_TOTAL.
+	for _i in 40:
+		game.handle_input(0, {"roll": true})
+		game.tick(BullseyeBowl.REGEN_INTERVAL_SEC)
+	assert_eq(game._balls_issued[0], BullseyeBowl.BALLS_TOTAL)
+	assert_lte(game.balls_left[0], BullseyeBowl.BALLS_CAP)
+
+
+func test_bot_stays_idle_with_no_balls_held() -> void:
+	var brain: BotBrain = BotBrains.brain_for(&"bullseye_bowl", 0, 1)
+	var match_state := {
+		"state": MatchController.State.PLAY,
+		"minigame": "bullseye_bowl",
+		"game": {"players": {0: [0, 0, -1.0, 0.0]}},
+	}
+	# First call just seeds the direction sample; the empty-handed case (0
+	# balls, PS_BALLS_LEFT) is what's under test regardless of the sample.
+	brain.think(match_state, {})
+	var intent := brain.think(match_state, {})
+	assert_eq(intent, {}, "no balls held, so no roll intent")
