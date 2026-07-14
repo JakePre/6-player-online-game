@@ -229,3 +229,54 @@ func test_zone_throbs_across_snapshots() -> void:
 	var glow_a: float = view._zone_material.emission_energy_multiplier
 	view.render({"players": {}, "zone": [0.0, 0.0, 3.0]})
 	assert_ne(view._zone_material.emission_energy_multiplier, glow_a, "shimmer advances")
+
+
+## #919: the zone disc caps a real hill-crest model instead of floating at
+## ground level — both track the snapshot position and hide together.
+func test_hill_crest_tracks_the_zone() -> void:
+	var crest: Node3D = view.arena.get_node("HillCrest")
+	assert_false(crest.visible, "no zone in the seeding snapshot")
+	view.render({"players": {}, "zone": [2.0, -3.0, 1.5]})
+	assert_true(crest.visible)
+	assert_almost_eq(crest.position.x, 2.0, 0.001)
+	assert_almost_eq(crest.position.z, -3.0, 0.001)
+	assert_almost_eq(crest.position.y, 0.0, 0.001, "base-pivoted — sits on the ground")
+	assert_almost_eq(
+		crest.scale.x, 1.5 / view.HILL_CREST_HALF_WIDTH, 0.001, "footprint scales with radius"
+	)
+	var zone_node: MeshInstance3D = view.arena.get_node("Zone")
+	assert_almost_eq(
+		zone_node.position.y,
+		view.HILL_CREST_HEIGHT + view.ZONE_DISC_HEIGHT / 2.0,
+		0.001,
+		"the disc rides on top of the crest, not at ground level"
+	)
+	view.render({"players": {}, "zone": []})
+	assert_false(crest.visible, "hides together with the disc when the zone is gone")
+
+
+## #919: item pickups are real shove-horn/anchor models sharing one pool node,
+## swapped by visibility rather than rebuilt when a slot's item type changes.
+func test_item_pickups_show_the_matching_model() -> void:
+	(
+		view
+		. render(
+			{
+				"players": {},
+				"zone": [],
+				"items":
+				[[0.0, 0.0, KingOfTheHill.Item.SHOVE], [1.0, 1.0, KingOfTheHill.Item.ANCHOR]],
+			}
+		)
+	)
+	var item0: Node3D = view._item_nodes[0]
+	var item1: Node3D = view._item_nodes[1]
+	assert_true((item0.get_node("Horn") as Node3D).visible)
+	assert_false((item0.get_node("Anchor") as Node3D).visible)
+	assert_false((item1.get_node("Horn") as Node3D).visible)
+	assert_true((item1.get_node("Anchor") as Node3D).visible)
+	assert_almost_eq(item0.position.y, 0.0, 0.001, "base-pivoted — sits on the ground")
+	# The same pool node flips shape when a slot's item type changes next spawn.
+	view.render({"players": {}, "zone": [], "items": [[0.0, 0.0, KingOfTheHill.Item.ANCHOR]]})
+	assert_true((item0.get_node("Anchor") as Node3D).visible)
+	assert_false((item0.get_node("Horn") as Node3D).visible)
