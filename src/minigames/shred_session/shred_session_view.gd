@@ -170,7 +170,8 @@ func _build_hud() -> void:
 	_streak_label = make_status_label(&"StreakLabel")
 	_streak_label.add_theme_font_override(&"font", PartyTheme.FONT_DISPLAY)
 	_streak_label.add_theme_color_override(&"font_color", PartyTheme.ACCENT_BRIGHT)
-	_streak_label.position.y = 120.0
+	# #924: gap below the primary line, relative to the chrome-cleared baseline.
+	_streak_label.position.y = MinigameView3D.CHROME_CLEARANCE_Y + 104.0
 	_streak_label.visible = false
 
 	_scoreboard = VBoxContainer.new()

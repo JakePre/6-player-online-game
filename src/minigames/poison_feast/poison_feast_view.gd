@@ -50,7 +50,10 @@ func _arena_half() -> float:
 func _setup_3d() -> void:
 	_pot_label = make_status_label(&"PotLabel")
 	_pot_label.add_theme_color_override(&"font_color", TIER_COLORS[PoisonFeast.Tier.GOLDEN])
-	_pot_label.position.y = 40.0
+	# #924: preserves the original +24px offset below the framework baseline
+	# (was 40.0 against the pre-fix 16.0 default), now relative so it still
+	# clears the chrome.
+	_pot_label.position.y = MinigameView3D.CHROME_CLEARANCE_Y + 24.0
 	_pot_label.visible = false
 
 

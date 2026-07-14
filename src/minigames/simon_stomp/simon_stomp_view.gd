@@ -184,7 +184,8 @@ func _build_pads() -> void:
 func _build_labels() -> void:
 	_phase_label = make_status_label(&"PhaseLabel")
 	_round_label = make_status_label(&"RoundLabel", PartyTheme.SIZE_OVERLAY_BODY)
-	_round_label.position.y = 72.0
+	# #924: gap below the primary line, relative to the chrome-cleared baseline.
+	_round_label.position.y = MinigameView3D.CHROME_CLEARANCE_Y + 56.0
 
 
 func _update_labels() -> void:

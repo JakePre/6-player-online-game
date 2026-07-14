@@ -67,7 +67,10 @@ func _setup_3d() -> void:
 	_build_court()
 	_objective_label = make_status_label(&"ObjectiveLabel")
 	_event_label = make_status_label(&"EventLabel")
-	_event_label.position.y = 84.0
+	# #924: offset relative to the chrome-cleared baseline, not a bare pixel
+	# value — keeps a fixed gap below the primary line regardless of the
+	# baseline's position.
+	_event_label.position.y = MinigameView3D.CHROME_CLEARANCE_Y + 68.0
 	_event_label.visible = false
 
 

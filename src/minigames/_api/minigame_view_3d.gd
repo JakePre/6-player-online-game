@@ -44,6 +44,10 @@ const BLACKOUT_LIGHT_SEC := 8.0
 const BLACKOUT_DARK_SEC := 5.0
 const BLACKOUT_DIM := Color(0.0, 0.0, 0.02, 0.88)
 
+## make_status_label's top band clears the match-chrome header (HudBar renders
+## to ~90px in match_screen.tscn) instead of drawing under it (#924).
+const CHROME_CLEARANCE_Y := 110.0
+
 ## Arena root all per-minigame 3D content (props, extra geometry) should
 ## parent to; populated by _build_scene_tree() before _setup_3d() runs.
 var arena: Node3D
@@ -318,7 +322,10 @@ func make_status_label(label_name: StringName, font_size := PartyTheme.SIZE_OVER
 	# a second centered line instead of spilling off-screen (#831 spot-check).
 	label.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.position.y += 16.0
+	# Below the match-chrome header (HudBar renders to ~90px), not under it
+	# (#924 — the old y=16 default drew status text straight over the game
+	# name/timer whenever a game showed one).
+	label.position.y += CHROME_CLEARANCE_Y
 	label.grow_vertical = Control.GROW_DIRECTION_END
 	label.add_theme_constant_override(&"outline_size", 6)
 	label.add_theme_color_override(&"font_outline_color", Color(0, 0, 0, 0.85))

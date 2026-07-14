@@ -253,4 +253,7 @@ func _build_ore_mesh(node_name: String) -> MeshInstance3D:
 func _build_labels() -> void:
 	_push_label = make_status_label(&"PushLabel")
 	_bonus_label = make_status_label(&"BonusLabel", PartyTheme.SIZE_OVERLAY_BODY)
-	_bonus_label.position.y = 56.0
+	# #924: offset relative to the framework's chrome-cleared baseline, not a
+	# bare pixel value — stays a fixed gap below the primary line however the
+	# baseline moves.
+	_bonus_label.position.y = MinigameView3D.CHROME_CLEARANCE_Y + 40.0
