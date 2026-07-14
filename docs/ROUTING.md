@@ -72,5 +72,3 @@ tracks the routing tier, never re-derive scope from it.
 | #715 | Brain quality pass — data gate lifted; overlaps #926/#962, coordinate before claiming |
 | #929 | Art dressing batch: cart/court/powerups/zones/water/rocks/rim |
 | #930 | Polish batch: vote circle, corpse fade, banners, pit row, 2D color, board fit |
-| #937 | Quality-weighted playlist draft |
-| #938 | Bullseye Bowl ball drip-feed |
