@@ -43,6 +43,18 @@ const PS_INVULN := 5
 const PS_FACING_X := 6
 const PS_FACING_Y := 7
 const PS_COUNT := 8
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [
+	TYPE_FLOAT,
+	TYPE_FLOAT,
+	TYPE_INT,
+	TYPE_INT,
+	TYPE_INT,
+	TYPE_FLOAT,
+	TYPE_FLOAT,
+	TYPE_FLOAT,
+]
 
 const CN_X := 0
 const CN_Y := 1
