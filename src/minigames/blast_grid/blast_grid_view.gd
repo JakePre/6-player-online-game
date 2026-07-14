@@ -13,6 +13,13 @@ const FLAME_COLOR := Color(1.0, 0.55, 0.15)
 const RANGE_COLOR := Color(1.0, 0.5, 0.35)
 const BOMB_POWER_COLOR := Color(0.45, 0.75, 1.0)
 const BLOCK_HEIGHT := 1.1
+## Landed crate texture for soft walls (#929) — pillars stay flat-colored,
+## only the destructible crates get the wood-panel face.
+const SOFT_WALL_TEXTURE := preload("res://assets/generated/textures/crate-face.png")
+## Powerups read as billboard icons (#929) instead of plain colored blobs —
+## the same glyphs the nameplate already uses for range/bomb count.
+const RANGE_ICON := "🔥"
+const BOMB_ICON := "💣"
 
 var players := {}
 var grid: Array = []
@@ -27,8 +34,7 @@ var _bombs: Array = []
 var _flame_mesh: BoxMesh
 var _flame_nodes: Array[MeshInstance3D] = []
 var _flame_cells: Array = []
-var _power_nodes: Array[MeshInstance3D] = []
-var _power_materials: Array[StandardMaterial3D] = []
+var _power_nodes: Array[Label3D] = []
 var _powerups: Array = []
 var _flames_seen := {}
 ## Snapshot counter drives the fuse pulse without a local clock.
@@ -98,6 +104,11 @@ func _make_block(cell: int, solid: bool) -> MeshInstance3D:
 	var color := PILLAR_COLOR if solid else SOFT_COLOR
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
+	# Destructible crates wear the landed crate-face texture (#929); pillars
+	# stay flat-colored — they're structural, not a crate.
+	if not solid:
+		material.albedo_texture = SOFT_WALL_TEXTURE
+		material.albedo_color = Color.WHITE
 	# Metallic/roughness + a modest emission (#786) give the block a real
 	# specular highlight and lift it clear of ambient shadow, instead of
 	# reading as a flat, dark silhouette (the coin_scramble/treasure_divers
@@ -181,28 +192,25 @@ func _update_powerups(power_list: Array) -> void:
 	sync_pool(_power_nodes, power_list.size(), _make_powerup, _place_powerup)
 
 
+## Billboard icon (#929) — readable at iso distance, unlike a plain color blob.
 func _make_powerup() -> Node3D:
-	var mesh := SphereMesh.new()
-	mesh.radius = BlastGrid.CELL_SIZE * 0.22
-	mesh.height = mesh.radius * 2.0
-	var material := StandardMaterial3D.new()
-	material.emission_enabled = true
-	material.emission_energy_multiplier = 0.8
-	mesh.material = material
-	_power_materials.append(material)
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	return node
+	var label := Label3D.new()
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.fixed_size = true
+	label.pixel_size = 0.002
+	label.font_size = 44
+	label.outline_size = 12
+	return label
 
 
 func _place_powerup(node: Node3D, index: int) -> void:
 	var entry: Array = _powerups[index]
-	var color := (
-		RANGE_COLOR if int(entry[BlastGrid.PW_KIND]) == BlastGrid.Power.RANGE else BOMB_POWER_COLOR
-	)
-	_power_materials[index].albedo_color = color
-	_power_materials[index].emission = color
-	node.position = to_arena(_cell_pos(int(entry[BlastGrid.PW_CELL])), 0.4)
+	var label := node as Label3D
+	var is_range := int(entry[BlastGrid.PW_KIND]) == BlastGrid.Power.RANGE
+	label.text = RANGE_ICON if is_range else BOMB_ICON
+	label.modulate = RANGE_COLOR if is_range else BOMB_POWER_COLOR
+	label.position = to_arena(_cell_pos(int(entry[BlastGrid.PW_CELL])), 0.4)
 
 
 func _update_players() -> void:

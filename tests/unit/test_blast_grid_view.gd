@@ -59,6 +59,35 @@ func test_destroyed_soft_wall_frees_its_block_and_puffs() -> void:
 	assert_gt(view.arena.get_child_count(), before - 1, "a dust puff spawns")
 
 
+## #929: only soft (destructible) crates wear the landed crate texture —
+## indestructible pillars stay flat-colored, they're structural, not crates.
+func test_soft_walls_wear_the_crate_texture_pillars_do_not() -> void:
+	var g := _full_grid()
+	g[_cell(2, 2)] = BlastGrid.Cell.SOLID
+	g[_cell(3, 3)] = BlastGrid.Cell.SOFT
+	view.render({"grid": g, "players": {}, "bombs": [], "flames": [], "powerups": []})
+	var pillar_mat := (view._blocks[_cell(2, 2)].mesh as BoxMesh).material as StandardMaterial3D
+	var soft_mat := (view._blocks[_cell(3, 3)].mesh as BoxMesh).material as StandardMaterial3D
+	assert_null(pillar_mat.albedo_texture, "pillars stay flat-colored")
+	assert_eq(soft_mat.albedo_texture, view.SOFT_WALL_TEXTURE)
+
+
+## #929: powerups read as a billboard icon (flame=range, bomb=extra bomb)
+## instead of a plain colored blob.
+func test_powerup_icons_match_their_kind() -> void:
+	view.render(
+		{
+			"grid": _full_grid(),
+			"players": {},
+			"bombs": [],
+			"flames": [],
+			"powerups": [[_cell(1, 1), BlastGrid.Power.RANGE], [_cell(2, 2), BlastGrid.Power.BOMB]]
+		}
+	)
+	assert_eq(view._power_nodes[0].text, view.RANGE_ICON)
+	assert_eq(view._power_nodes[1].text, view.BOMB_ICON)
+
+
 func test_a_new_flame_bursts_and_shakes() -> void:
 	watch_signals(view)
 	view.render({"grid": _full_grid(), "players": {}, "bombs": [], "flames": [], "powerups": []})

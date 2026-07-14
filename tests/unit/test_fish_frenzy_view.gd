@@ -80,3 +80,21 @@ func test_arena_half_scales_for_a_deep_queue_at_eight_players() -> void:
 	# the scaled arena.
 	var deepest_x := absf(big.STAND_X - 7.0 * big.QUEUE_SPACING)
 	assert_lte(deepest_x, big._arena_half(), "the deepest queued player fits the scaled arena")
+
+
+## #929: the water lanes used to run a fixed length regardless of headcount,
+## overhanging past the (headcount-scaled) floor edge into the void.
+func test_lane_strips_stay_within_the_arena_bounds() -> void:
+	for lane_index in FishFrenzy.LANES:
+		var lane: MeshInstance3D = view.arena.get_node("Lane%d" % lane_index)
+		var half_len: float = (lane.mesh as BoxMesh).size.x / 2.0
+		var half := view._arena_half()
+		assert_lte(lane.position.x + half_len, half, "the lane's far edge stays on the floor")
+		assert_gte(lane.position.x - half_len, -half, "the lane's near edge stays on the floor")
+
+
+## #929: the landed pool-water texture replaces the flat translucent tint.
+func test_lane_strips_wear_the_water_texture() -> void:
+	var lane: MeshInstance3D = view.arena.get_node("Lane0")
+	var material := (lane.mesh as BoxMesh).material as StandardMaterial3D
+	assert_eq(material.albedo_texture, view.WATER_TEXTURE)

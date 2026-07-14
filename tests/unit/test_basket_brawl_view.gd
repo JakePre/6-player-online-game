@@ -32,6 +32,19 @@ func test_setup_builds_arena_ball_and_hoops() -> void:
 	assert_not_null(view.arena.get_node("HoopModel1"))
 
 
+## #929: the wood-court texture over the floor, plus painted lines so the
+## court reads as a real basketball court rather than a plain tint.
+func test_court_surface_wears_the_wood_texture() -> void:
+	var surface: MeshInstance3D = view.arena.get_node("CourtSurface")
+	var material := (surface.mesh as PlaneMesh).material as StandardMaterial3D
+	assert_eq(material.albedo_texture, view.COURT_TEXTURE)
+
+
+## #929: the basketball model reads small next to a full-size rig — scaled up.
+func test_ball_is_scaled_up() -> void:
+	assert_eq(view._ball_node.scale, Vector3.ONE * view.BALL_SCALE)
+
+
 func test_render_replaces_replicated_state() -> void:
 	(
 		view
