@@ -119,6 +119,25 @@ func test_timeout_fails_the_crew() -> void:
 	assert_false(game.success)
 
 
+## #930: WORK ends with everyone clustered near the machine mid-delivery — the
+## vote must fan them out into a jury circle instead of leaving that smear.
+func test_vote_start_arranges_players_in_a_circle_around_the_machine() -> void:
+	var game := _game()
+	for slot: int in game.slots:
+		game.positions[slot] = TheMole.MACHINE_POS
+	game.progress = TheMole.CELL_TARGET
+	game.tick(TICK)
+	assert_eq(game.phase, TheMole.Phase.VOTE)
+	var min_radius := TheMole.VOTE_CIRCLE_RADIUS - TheMole.VOTE_CIRCLE_RADIUS_JITTER
+	var max_radius := TheMole.VOTE_CIRCLE_RADIUS + TheMole.VOTE_CIRCLE_RADIUS_JITTER
+	for slot: int in game.slots:
+		var radius: float = game.positions[slot].length()
+		assert_gt(radius, TheMole.MACHINE_RADIUS, "must clear the machine, not stand inside it")
+		assert_between(
+			radius, min_radius, max_radius, "slot %d must land on the jury circle" % slot
+		)
+
+
 func test_votes_only_count_in_the_vote_phase() -> void:
 	var game := _game()
 	game.handle_input(0, {"vote": 1})

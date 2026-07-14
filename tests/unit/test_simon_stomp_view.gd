@@ -132,3 +132,14 @@ func test_audience_cheers_when_a_stage_player_clears_the_round() -> void:
 		)
 	)
 	assert_eq(view.rig_for_slot(0).current_action(), &"cheer", "the audience cheers a clear too")
+
+
+## #930: SHOW's own banners live on the never-hidden BannerLayer, so a match
+## ending mid-sequence otherwise leaves "Round 2/8 · Length 3" floating over
+## the results overlay — the results celebration must clear them.
+func test_celebrate_clears_the_round_banner() -> void:
+	view.render({"phase": SimonStomp.Phase.SHOW, "round": 1, "rounds_total": 8, "length": 3})
+	assert_false(view._round_label.text.is_empty(), "the banner shows mid-round")
+	view.celebrate([[0]])
+	assert_true(view._phase_label.text.is_empty(), "the phase banner clears on finish")
+	assert_true(view._round_label.text.is_empty(), "the round banner clears on finish")

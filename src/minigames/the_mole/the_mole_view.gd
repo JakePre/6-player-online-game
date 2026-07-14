@@ -179,6 +179,11 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		update_rig(slot, Vector2(state[TheMole.PS_X], state[TheMole.PS_Y]))
+		if phase == TheMole.Phase.VOTE or phase == TheMole.Phase.REVEAL:
+			# #930: the jury circle only reads as a jury if everyone faces the
+			# machine at the center — update_rig only turns rigs while moving,
+			# and nobody moves once voting starts.
+			rig.rotation.y = atan2(-float(state[TheMole.PS_X]), -float(state[TheMole.PS_Y]))
 		# Per-phase nameplate + tint so the vote/reveal reads at a glance (#801).
 		match phase:
 			TheMole.Phase.VOTE:
