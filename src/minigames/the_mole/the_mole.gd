@@ -24,6 +24,13 @@ const CELL_PICKUP_RADIUS := 0.8
 const CELL_TARGET := 10
 const MAX_LOOSE_CELLS := 5
 const CELL_WAVE_SEC := 2.0
+## Vote-start formation (#930): WORK ends with everyone clustered near the
+## machine mid-delivery, which reads as a glitchy smear once movement stops.
+## A jury circle around the machine reads clearly instead; small jitter keeps
+## it a crowd, not a robotic ring.
+const VOTE_CIRCLE_RADIUS := 3.5
+const VOTE_CIRCLE_ANGLE_JITTER := 0.35
+const VOTE_CIRCLE_RADIUS_JITTER := 0.4
 const SABOTAGE_COOLDOWN_SEC := 6.0
 ## The unattributed tell: the machine sparks for this long after sabotage.
 const SPARK_SEC := 1.2
@@ -188,6 +195,21 @@ func _start_vote() -> void:
 	votes.clear()
 	for slot: int in slots:
 		move_dirs[slot] = Vector2.ZERO
+	_arrange_vote_circle()
+
+
+func _arrange_vote_circle() -> void:
+	for i in slots.size():
+		var slot: int = slots[i]
+		var angle := (
+			TAU * i / slots.size()
+			+ rng.randf_range(-VOTE_CIRCLE_ANGLE_JITTER, VOTE_CIRCLE_ANGLE_JITTER)
+		)
+		var radius := (
+			VOTE_CIRCLE_RADIUS
+			+ rng.randf_range(-VOTE_CIRCLE_RADIUS_JITTER, VOTE_CIRCLE_RADIUS_JITTER)
+		)
+		positions[slot] = Vector2(cos(angle), sin(angle)) * radius
 
 
 ## #819: only the humans need to vote — a bot's vote counts toward the tally

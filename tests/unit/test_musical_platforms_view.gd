@@ -110,6 +110,22 @@ func test_downed_player_collapses_and_shake_fires_once_seeded() -> void:
 	assert_eq(view.rig_for_slot(1).current_action(), &"ko")
 
 
+## #930: a downed rig sinks out of view instead of lying in the field mid-
+## round (memory_match's #784 fall idiom).
+func test_downed_player_sinks_and_hides() -> void:
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "phase": 0, "platforms": [], "fallen": []}
+	)
+	var rig: CharacterRig = view.rig_for_slot(1)
+	var y_before := rig.position.y
+	view.render({"players": {0: [0.0, 0.0]}, "phase": 0, "platforms": [], "fallen": [[1]]})
+	view._process(0.2)
+	assert_lt(rig.position.y, y_before, "the loser sinks")
+	assert_true(rig.visible, "still sinking, not hidden yet")
+	view._process(10.0)
+	assert_false(rig.visible, "hides once fully sunk")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)

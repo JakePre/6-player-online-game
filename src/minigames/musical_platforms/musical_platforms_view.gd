@@ -10,6 +10,11 @@ const PLATFORM_DISC_HEIGHT := 0.06
 const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
 const MUSIC_TEXT := "DANCE!"
 const STOP_TEXT := "GRAB A PLATFORM!"
+## Sink + fade a KO'd rig into the floor instead of leaving it standing mid-
+## round (#930 — memory_match's #784 fall idiom). FALL_HIDE_Y is well below
+## the floor plane.
+const FALL_SPEED := 7.0
+const FALL_HIDE_Y := -6.0
 
 ## Latest replicated state, straight from MusicalPlatforms.get_snapshot().
 var players := {}
@@ -20,6 +25,8 @@ var fallen: Array = []
 var _platform_pool: Array[MeshInstance3D] = []
 var _phase_label: Label
 var _downed := {}
+## Slots still sinking into the floor after elimination (#930).
+var _falling := {}
 # pool index -> claimant from the previous snapshot (M13-08 claim flashes).
 var _claims_seen := {}
 # Wave tracking for drop-in dust (M13-08): platforms empty last render, and
@@ -34,6 +41,23 @@ var _phase_seen := -1
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
+
+
+func _process(delta: float) -> void:
+	_advance_falls(delta)
+
+
+## Sink downed rigs into the floor (#930); each hides once below it.
+func _advance_falls(delta: float) -> void:
+	for slot: int in _falling.keys():
+		var rig := rig_for_slot(slot)
+		if rig == null:
+			_falling.erase(slot)
+			continue
+		rig.position.y -= FALL_SPEED * delta
+		if rig.position.y <= FALL_HIDE_Y:
+			rig.visible = false
+			_falling.erase(slot)
 
 
 ## Soft lavender floor for the musical whimsy (#589).
@@ -116,6 +140,8 @@ func _down_rig(slot: int) -> void:
 	rig.player_color = ELIMINATED_COLOR
 	# Dust where they drop (M13-08).
 	fx_dust(Vector2(rig.position.x, rig.position.z))
+	# Sink out of view instead of lying in the field mid-round (#930).
+	_falling[slot] = true
 
 
 ## Free platforms are neutral gray; claimed ones take the claimant's color so

@@ -193,6 +193,16 @@ func _update_labels() -> void:
 	_round_label.text = "Round %d / %d  ·  Length %d" % [_round + 1, _rounds_total, _length]
 
 
+## #930: these banners live on the never-hidden BannerLayer (gameplay-critical
+## text must survive over the arena), so a match ending mid-SHOW otherwise
+## leaves "Round 2/8 · Length 3" floating over the results overlay. Clear
+## them once the match itself is over.
+func _celebrate(placements: Array) -> void:
+	_phase_label.text = ""
+	_round_label.text = ""
+	super(placements)
+
+
 ## During SHOW, light the pad whose flash window we're inside — after a lead-in
 ## beat so the very first flash doesn't land before eyes settle on the pads
 ## (#588). The framework replays the sequence at SHOW_PER_PAD_SEC per step and
