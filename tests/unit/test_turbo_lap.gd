@@ -187,6 +187,31 @@ func test_full_race_finishes_in_order() -> void:
 	assert_eq(int(snap.standings[0]), 0, "the finisher tops the standings")
 
 
+## #930: a finished kart used to coast dead-ahead on whatever heading it
+## crossed the line with, sometimes carrying it off-track into the infield.
+## It now eases into a parking slot beside the start line and stops there.
+func test_finished_kart_parks_in_its_pit_slot() -> void:
+	var game := _game()
+	_drive(game, 0, 1600)  # enough to finish, then coast all the way to the pit
+	var kart: Dictionary = game.karts[0]
+	assert_true(bool(kart.finished))
+	var target: Vector2 = game._pit_slot(0)
+	assert_lt(
+		(kart.pos as Vector2).distance_to(target),
+		TurboLap.PIT_ARRIVE_RADIUS + 0.01,
+		"parks at its pit slot"
+	)
+	assert_almost_eq(float(kart.speed), 0.0, 0.01, "comes to a stop once parked")
+	assert_false(game._on_track(target), "the pit row sits off the racing line")
+
+
+func test_pit_slots_are_distinct_per_finish_rank() -> void:
+	var game := _game()
+	var first: Vector2 = game._pit_slot(0)
+	var second: Vector2 = game._pit_slot(1)
+	assert_gt(first.distance_to(second), 1.0, "each finisher gets a distinct parking spot")
+
+
 func test_all_finished_ends_the_race_with_placements() -> void:
 	var game := _game()
 	_drive(game, 0, 1600)

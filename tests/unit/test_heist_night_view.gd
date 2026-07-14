@@ -93,6 +93,19 @@ func test_steal_pulses_expire() -> void:
 	assert_eq(view._pulses.size(), 0, "pulses free themselves after their lifetime")
 
 
+## #930: the board used to center on the full viewport, so its top vaults
+## clipped under the match-chrome header. It must now render fully below it.
+func test_board_fits_below_the_chrome_header() -> void:
+	view.size = Vector2(1280, 720)
+	var px_per_unit: float = view._pixels_per_unit()
+	var arena: Rect2 = view._arena_rect(px_per_unit)
+	assert_gte(
+		arena.position.y,
+		view.CHROME_CLEARANCE_Y,
+		"the board's top edge must not sit under the chrome header"
+	)
+
+
 func test_scanline_freezes_while_feed_is_lost() -> void:
 	view.render({"dark": false})
 	view._process(0.5)

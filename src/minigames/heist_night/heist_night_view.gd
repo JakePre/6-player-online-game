@@ -22,6 +22,10 @@ const NAME_OFFSET := 14.0
 const ALARM_COLOR := Color(0.95, 0.3, 0.3)
 const SCAN_PERIOD_SEC := 6.0
 const PULSE_DURATION := 0.7
+## #930: the board used to center on the full viewport, so its top vaults
+## clipped under the match-chrome header. Reuses the 3D views' named chrome
+## clearance (#924) even though this view is 2D — it's the same header.
+const CHROME_CLEARANCE_Y := MinigameView3D.CHROME_CLEARANCE_Y
 
 ## Latest replicated state, straight from HeistNight.get_snapshot().
 var dark := false
@@ -197,9 +201,11 @@ func _draw() -> void:
 	if dark:
 		var banner := "◼ FEED LOST — LIGHTS OUT — go rob someone! ◼"
 		var banner_size := font.get_string_size(banner, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+		# #930: sits below the chrome header, not under it.
+		var banner_pos := Vector2((size.x - banner_size.x) / 2.0, CHROME_CLEARANCE_Y + 16.0)
 		draw_string_outline(
 			font,
-			Vector2((size.x - banner_size.x) / 2.0, 26.0),
+			banner_pos,
 			banner,
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1,
@@ -208,13 +214,7 @@ func _draw() -> void:
 			Color(0, 0, 0, 0.9)
 		)
 		draw_string(
-			font,
-			Vector2((size.x - banner_size.x) / 2.0, 26.0),
-			banner,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			-1,
-			font_size,
-			BLUEPRINT_LINE
+			font, banner_pos, banner, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, BLUEPRINT_LINE
 		)
 	_draw_reveal(font, font_size)
 
@@ -231,7 +231,8 @@ func _draw_reveal(font: Font, font_size: int) -> void:
 			)
 			draw_string(
 				font,
-				Vector2(size.x / 2.0 - 110.0, 44.0 + row * 18.0),
+				# #930: below the chrome header, not under it.
+				Vector2(size.x / 2.0 - 110.0, CHROME_CLEARANCE_Y + 34.0 + row * 18.0),
 				line,
 				HORIZONTAL_ALIGNMENT_CENTER,
 				220,
@@ -241,15 +242,22 @@ func _draw_reveal(font: Font, font_size: int) -> void:
 			row += 1
 
 
+## Center of the board, offset down so it renders in the viewport below the
+## chrome header instead of centering on the full viewport (#930).
+func _board_center() -> Vector2:
+	return Vector2(size.x / 2.0, CHROME_CLEARANCE_Y + (size.y - CHROME_CLEARANCE_Y) / 2.0)
+
+
 func _pixels_per_unit() -> float:
-	var side := minf(size.x, size.y) - 2.0 * NAME_OFFSET
+	var usable_height := size.y - CHROME_CLEARANCE_Y
+	var side := minf(size.x, usable_height) - 2.0 * NAME_OFFSET
 	return maxf(side, 100.0) / (HeistNight.ARENA_HALF * 2.0)
 
 
 func _arena_rect(px_per_unit: float) -> Rect2:
 	var half := HeistNight.ARENA_HALF * px_per_unit
-	return Rect2(size / 2.0 - Vector2(half, half), Vector2(half, half) * 2.0)
+	return Rect2(_board_center() - Vector2(half, half), Vector2(half, half) * 2.0)
 
 
 func _to_px(world: Vector2, px_per_unit: float) -> Vector2:
-	return size / 2.0 + world * px_per_unit
+	return _board_center() + world * px_per_unit

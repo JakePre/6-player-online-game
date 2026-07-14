@@ -57,6 +57,15 @@ const MAX_OILS := 6
 const PAD_RESPAWN_SEC := 4.0
 const PAD_RADIUS := 1.0
 
+## Pit row (#930): a finished kart used to just coast dead-ahead on whatever
+## heading it crossed the line with, which could carry it straight off the
+## track into the infield. Instead it eases toward a parking slot beside the
+## start line, one per finish order, so finishers read as a tidy row.
+const PIT_ROW_SIDE_OFFSET := TRACK_HALF_WIDTH + 3.0
+const PIT_ROW_SPACING := 1.6
+const PIT_ARRIVE_RADIUS := 0.4
+const PIT_EASE_SPEED := 4.0
+
 const ITEM_NONE := 0
 const ITEM_SHELL := 1
 const ITEM_OIL := 2
@@ -332,9 +341,7 @@ func _tick_kart(slot: int, kart: Dictionary, delta: float) -> void:
 	kart.oil_grace = maxf(0.0, float(kart.oil_grace) - delta)
 	kart.boost_left = maxf(0.0, float(kart.boost_left) - delta)
 	if bool(kart.finished):
-		# Coast across the line, easing to a stop.
-		kart.speed = move_toward(float(kart.speed), 0.0, COAST_DECEL * delta)
-		_integrate(kart, delta)
+		_ease_to_pit(slot, kart, delta)
 		return
 	if float(kart.spin_left) > 0.0:
 		kart.spin_left = float(kart.spin_left) - delta
@@ -407,6 +414,44 @@ func _throttle(kart: Dictionary, delta: float) -> void:
 func _integrate(kart: Dictionary, delta: float) -> void:
 	var dir := Vector2.from_angle(float(kart.heading))
 	kart.pos = (kart.pos as Vector2) + dir * float(kart.speed) * delta
+
+
+## Steers a finished kart toward its pit slot and eases to a stop there,
+## instead of coasting dead-ahead off whatever heading it finished on (#930).
+func _ease_to_pit(slot: int, kart: Dictionary, delta: float) -> void:
+	var target := _pit_slot(_finish_rank_index(slot))
+	var to_target: Vector2 = target - (kart.pos as Vector2)
+	if to_target.length() <= PIT_ARRIVE_RADIUS:
+		kart.pos = target
+		kart.speed = 0.0
+		return
+	kart.heading = to_target.angle()
+	kart.speed = move_toward(float(kart.speed), PIT_EASE_SPEED, ACCEL * delta)
+	_integrate(kart, delta)
+
+
+## This slot's place in the parking row, beside the start line. Offsets
+## radially outward from the course center (not perpendicular to the start
+## tangent) — the shaped course (#785) isn't a circle, so a fixed-length
+## tangent-perpendicular offset from a wide point can still land back inside
+## TRACK_HALF_WIDTH of a different stretch of the loop.
+func _pit_slot(rank_index: int) -> Vector2:
+	var points := waypoints()
+	var start := points[0]
+	var outward := start.normalized()
+	var tangent := (points[1] - points[0]).normalized()
+	return start + outward * PIT_ROW_SIDE_OFFSET - tangent * float(rank_index) * PIT_ROW_SPACING
+
+
+## Index into finish_order's flattened arrival sequence (ties keep group
+## order, but each still gets a distinct parking slot).
+func _finish_rank_index(slot: int) -> int:
+	var index := 0
+	for group: Array in finish_order:
+		if slot in group:
+			return index + group.find(slot)
+		index += group.size()
+	return index
 
 
 func _on_track(pos: Vector2) -> bool:

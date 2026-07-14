@@ -5,9 +5,16 @@ extends MinigameView
 ## M13-30 FX pass (2D juice per PHASE2.md §7 — deliberately flat): speed
 ## lines trail moving runners, and clipping a hurdle throws a spark burst.
 
-const LANE_COLOR := Color(0.15, 0.16, 0.19)
 const LANE_BORDER := Color(0.34, 0.37, 0.44)
+## #930: split each lane into a dusk-sky band and a packed-dirt ground band
+## instead of one flat charcoal fill — stays within the deliberately-flat 2D
+## style (§7), just with color instead of shading. GROUND_FRACTION is how
+## much of the lane height, from the bottom, reads as ground.
+const SKY_COLOR := Color(0.13, 0.15, 0.24)
+const GROUND_COLOR := Color(0.22, 0.17, 0.13)
+const GROUND_FRACTION := 0.4
 const HURDLE_COLOR := Color(0.85, 0.55, 0.25)
+const HURDLE_TIP_COLOR := Color(0.97, 0.9, 0.75)
 const FINISH_COLOR := Color(0.4, 0.85, 0.4)
 const STUN_COLOR := Color(0.9, 0.3, 0.25)
 const SPEED_LINE_COLOR := Color(1.0, 1.0, 1.0, 0.35)
@@ -104,11 +111,22 @@ func _draw() -> void:
 		var state: Array = players[slot]
 		var lane_top := top + row * (lane_height + lane_gap)
 		var ground := lane_top + lane_height - 10.0 * fit
-		draw_rect(Rect2(left, lane_top, width, lane_height), LANE_COLOR)
+		var ground_band_height := lane_height * GROUND_FRACTION
+		draw_rect(Rect2(left, lane_top, width, lane_height - ground_band_height), SKY_COLOR)
+		draw_rect(
+			Rect2(left, lane_top + lane_height - ground_band_height, width, ground_band_height),
+			GROUND_COLOR
+		)
 		draw_rect(Rect2(left, lane_top, width, lane_height), LANE_BORDER, false, 1.5)
 		for hurdle: Variant in hurdles:
 			var x := left + float(hurdle) * px_per_unit
 			draw_line(Vector2(x, ground), Vector2(x, ground - 14.0 * fit), HURDLE_COLOR, 4.0)
+			draw_line(
+				Vector2(x, ground - 14.0 * fit),
+				Vector2(x, ground - 10.0 * fit),
+				HURDLE_TIP_COLOR,
+				4.0
+			)
 		draw_line(
 			Vector2(left + width, lane_top),
 			Vector2(left + width, lane_top + lane_height),
