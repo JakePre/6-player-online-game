@@ -26,6 +26,9 @@ const PS_AIRBORNE := 1
 const PS_STUN := 2
 const PS_FINISHED := 3
 const PS_COUNT := 4
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_INT, TYPE_FLOAT, TYPE_BOOL]
 
 ## Same hurdle x positions for every lane (fair course).
 var hurdles: Array[float] = []
