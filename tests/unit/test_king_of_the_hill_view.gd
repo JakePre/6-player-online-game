@@ -85,6 +85,19 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.zone.size(), 0)
 
 
+## #929: obstacles are real rock models, base-pivoted and scaled so their
+## visual footprint matches PL_RADIUS — not a plain grey primitive cylinder.
+func test_obstacles_are_scaled_rock_models() -> void:
+	var before: int = view.arena.get_child_count()
+	view.render({"pillars": [[3.0, -2.0, 0.8], [5.0, 1.0, 1.6]]})
+	assert_eq(view.arena.get_child_count(), before + 2, "one rock node per pillar")
+	var rocks: Array = view.arena.get_children().slice(before)
+	var first: Node3D = rocks[0]
+	var expected_scale: float = 0.8 / view.OBSTACLE_ROCK_HALF_WIDTHS[0]
+	assert_almost_eq(first.scale.x, expected_scale, 0.001, "scaled to match PL_RADIUS")
+	assert_almost_eq(first.position.y, 0.0, 0.001, "base-pivoted, sits on the ground")
+
+
 ## #813 demonstrator: the grassy hilltop is ringed with scenery via the shared
 ## scatter_rim_props helper, dressing the arena edge.
 func test_hilltop_is_ringed_with_scenery() -> void:

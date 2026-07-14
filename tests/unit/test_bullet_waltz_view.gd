@@ -25,6 +25,20 @@ func test_setup_builds_turret_and_bullet_pool() -> void:
 	assert_not_null(view.rig_for_slot(0))
 
 
+## #929: the real MDL-014 emitter model replaces the flat grey cylinder.
+func test_turret_uses_the_emitter_model() -> void:
+	var turret: Node3D = view.arena.get_node("Turret")
+	assert_gt(turret.get_child_count(), 0, "the real model has its own mesh hierarchy")
+
+
+## #929: the dark stage overlay swallowed the floor edge — a bright ring at
+## the arena boundary sells where the stage actually ends.
+func test_arena_rim_is_brightened() -> void:
+	var rim: MeshInstance3D = view.arena.get_node("RimGlow")
+	var mesh := rim.mesh as TorusMesh
+	assert_almost_eq(mesh.outer_radius, view._arena_half(), 0.001, "sits at the floor boundary")
+
+
 func test_bullets_show_from_the_pool_and_kos_hide_rigs() -> void:
 	(
 		view

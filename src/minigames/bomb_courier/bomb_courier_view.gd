@@ -264,3 +264,21 @@ func _build_zone(node_name: String, pos: Vector2, color: Color) -> void:
 	node.mesh = mesh
 	node.position = to_arena(pos, 0.04)
 	arena.add_child(node)
+	_build_zone_label(node_name, pos, color)
+
+
+## A floating name tag over each zone (#929) — the three colored rings alone
+## didn't say which was which.
+func _build_zone_label(node_name: String, pos: Vector2, color: Color) -> void:
+	var label := Label3D.new()
+	label.name = "%sLabel" % node_name
+	label.text = node_name.to_upper()
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.fixed_size = true
+	label.pixel_size = 0.002
+	label.font_size = 40
+	label.outline_size = 12
+	label.modulate = color.lightened(0.4)
+	label.position = to_arena(pos, 1.4)
+	arena.add_child(label)
