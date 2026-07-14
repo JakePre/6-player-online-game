@@ -2,18 +2,35 @@ extends MinigameView3D
 ## King of the Hill client view (M8-04): renders the replicated arena in the
 ## shared 2.5D iso-arena (M8-01, MinigameView3D) — players as CharacterRig
 ## instances (position/facing/walk-idle from the snapshot, points on the
-## nameplate), the shrinking scoring zone as a translucent gold disc on the
-## floor. Presentation-tier swap only: state storage and the render contract
-## are unchanged from the 2D pass (M4-01).
+## nameplate), the shrinking scoring zone as a translucent gold disc capping a
+## real hill-crest model (#919), and shove-horn/anchor pickups as their own
+## shapes rather than colored boxes. Presentation-tier swap only: state
+## storage and the render contract are unchanged from the 2D pass (M4-01).
 
 const ZONE_COLOR := Color(0.96, 0.79, 0.2, 0.35)
 const ZONE_ANCHORED_COLOR := Color(0.3, 0.75, 0.95, 0.45)
 const PILLAR_COLOR := Color(0.4, 0.38, 0.45)
 const PILLAR_HEIGHT := 1.6
+## Held-item label tint only now — the world pickups (#919) read by shape
+## (horn vs anchor), not color.
 const ITEM_COLORS: Array[Color] = [Color(0.95, 0.4, 0.25), Color(0.3, 0.75, 0.95)]
 const ITEM_NAMES: Array[String] = ["SHOVE", "ANCHOR"]
 ## Unit-radius disc; the node's X/Z scale is the zone radius from the snapshot.
 const ZONE_DISC_HEIGHT := 0.04
+
+## Real hill-crest model (#919, MDL-010): a low grassy mound the zone disc
+## caps. Base-pivoted (probed AABB: y 0..0.6459, x/z half-width 1.5, matching
+## the generated-models convention) — sits at ground level and scales its
+## footprint with the zone radius, same treatment the disc already got; the
+## disc rides on top of it instead of floating at ground level.
+const HILL_CREST_SCENE := preload("res://assets/generated/models/hill-crest.glb")
+const HILL_CREST_HALF_WIDTH := 1.5
+const HILL_CREST_HEIGHT := 0.6459
+## Real item models (#919, MDL-011/012): a shove horn and an anchor, both
+## base-pivoted. Shape now carries identity — the pickups no longer need a
+## color tint to tell them apart.
+const SHOVE_HORN_SCENE := preload("res://assets/generated/models/shove-horn.glb")
+const ANCHOR_SCENE := preload("res://assets/generated/models/anchor.glb")
 ## How long a fired shove's rig animation is protected from update_rig()'s
 ## walk/idle overwrite (#587) — the same _reaction_hold idiom rumble_ring
 ## uses for hit/ko, ported here since KotH detects item-use by diffing
@@ -41,6 +58,7 @@ var anchored := false
 
 var _zone_node: MeshInstance3D
 var _zone_material: StandardMaterial3D
+var _hill_crest: Node3D
 # M13-03 FX state: zone center for relocation bursts, per-slot points for
 # scoring sparkles, snapshot counter for the shimmer throb.
 var _zone_center_seen := Vector2.INF
@@ -48,8 +66,7 @@ var _points_seen := {}
 var _pulse_ticks := 0
 var _pillars_built := false
 # Pooled (#709): reused across snapshots, hiding surplus instead of freeing.
-var _item_nodes: Array[MeshInstance3D] = []
-var _item_materials: Array[StandardMaterial3D] = []
+var _item_nodes: Array[Node3D] = []
 var _items: Array = []
 var _held_label: Label
 ## Last-seen held map, for pickup-moment detection (#260).
@@ -93,6 +110,10 @@ func _setup_3d() -> void:
 	_zone_node.mesh = mesh
 	_zone_node.visible = false
 	arena.add_child(_zone_node)
+	_hill_crest = HILL_CREST_SCENE.instantiate() as Node3D
+	_hill_crest.name = "HillCrest"
+	_hill_crest.visible = false
+	arena.add_child(_hill_crest)
 	# Ring the grassy hilltop with pines and rocks (#813) — the demonstrator for
 	# the shared scatter_rim_props helper.
 	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
@@ -148,26 +169,29 @@ func _update_items() -> void:
 	sync_pool(_item_nodes, items.size(), _make_item, _place_item)
 
 
+## Both real models ride the same pool node (#919), one visible at a time —
+## `sync_pool` reuses a node's factory across any index, so a slot that was a
+## horn one spawn can be an anchor the next; toggling visibility avoids
+## rebuilding the node every time an item's type changes.
 func _make_item() -> Node3D:
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(0.5, 0.5, 0.5)
-	var material := StandardMaterial3D.new()
-	material.emission_enabled = true
-	material.emission_energy_multiplier = 0.4
-	mesh.material = material
-	_item_materials.append(material)
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	return node
+	var root := Node3D.new()
+	var horn := SHOVE_HORN_SCENE.instantiate()
+	horn.name = "Horn"
+	root.add_child(horn)
+	var anchor := ANCHOR_SCENE.instantiate()
+	anchor.name = "Anchor"
+	root.add_child(anchor)
+	return root
 
 
 func _place_item(node: Node3D, index: int) -> void:
 	var item: Array = _items[index]
-	var color: Color = ITEM_COLORS[clampi(int(item[KingOfTheHill.IT_TYPE]), 0, 1)]
-	_item_materials[index].albedo_color = color
-	_item_materials[index].emission = color
+	var kind := clampi(int(item[KingOfTheHill.IT_TYPE]), 0, 1)
+	(node.get_node("Horn") as Node3D).visible = kind == KingOfTheHill.Item.SHOVE
+	(node.get_node("Anchor") as Node3D).visible = kind == KingOfTheHill.Item.ANCHOR
+	# Base-pivoted models sit right on the ground, unlike the old floating box.
 	node.position = to_arena(
-		Vector2(float(item[KingOfTheHill.IT_X]), float(item[KingOfTheHill.IT_Y])), 0.4
+		Vector2(float(item[KingOfTheHill.IT_X]), float(item[KingOfTheHill.IT_Y])), 0.0
 	)
 
 
@@ -244,6 +268,7 @@ func _update_players() -> void:
 
 func _update_zone() -> void:
 	_zone_node.visible = zone.size() == KingOfTheHill.ZN_COUNT
+	_hill_crest.visible = _zone_node.visible
 	if not _zone_node.visible:
 		return
 	# Shimmer throb + relocation FX (M13-03): the disc breathes on a snapshot
@@ -256,10 +281,13 @@ func _update_zone() -> void:
 		fx_burst(_zone_center_seen, ZONE_COLOR, 0.3)
 		fx_dust(center)
 	_zone_center_seen = center
-	_zone_node.position = to_arena(
-		Vector2(zone[KingOfTheHill.ZN_X], zone[KingOfTheHill.ZN_Y]), ZONE_DISC_HEIGHT / 2.0
-	)
 	# The sim never shrinks below ZONE_MIN_RADIUS; the floor only guards a
 	# malformed snapshot from producing a degenerate (zero-scale) basis.
 	var radius := maxf(float(zone[KingOfTheHill.ZN_RADIUS]), 0.001)
+	# The disc caps the hill crest (#919) instead of floating at ground level —
+	# same footprint scaling the disc already used, now shared with the model.
+	_zone_node.position = to_arena(center, HILL_CREST_HEIGHT + ZONE_DISC_HEIGHT / 2.0)
 	_zone_node.scale = Vector3(radius, 1.0, radius)
+	_hill_crest.position = to_arena(center, 0.0)
+	var crest_scale := radius / HILL_CREST_HALF_WIDTH
+	_hill_crest.scale = Vector3(crest_scale, 1.0, crest_scale)

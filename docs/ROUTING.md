@@ -70,8 +70,6 @@ tracks the routing tier, never re-derive scope from it.
 | Issue | Task |
 |---|---|
 | #715 | Brain quality pass — data gate lifted; overlaps #926/#962, coordinate before claiming |
-| #919 | King of the Hill — land generated props (hill crest/horn/anchor) once delivered |
-| #924 | Status band draws over match chrome — framework one-liner + offset sweep |
 | #929 | Art dressing batch: cart/court/powerups/zones/water/rocks/rim |
 | #930 | Polish batch: vote circle, corpse fade, banners, pit row, 2D color, board fit |
 | #937 | Quality-weighted playlist draft |
