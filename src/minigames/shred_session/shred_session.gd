@@ -42,6 +42,9 @@ const PS_LAST_JUDGMENT := 2
 const PS_LAST_LANE := 3
 const PS_EVENT_COUNT := 4
 const PS_COUNT := 5
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT]
 
 ## "notes" (upcoming chart) entries: [time, lane].
 const NT_TIME := 0

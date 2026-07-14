@@ -33,6 +33,9 @@ const PLACEMENT_ATTEMPTS_PER_PLATFORM := 40
 ## the view and brain read. Array SHAPE on the wire is unchanged — additive.
 const PS_X := 0
 const PS_Y := 1
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT]
 
 const PT_X := 0
 const PT_Y := 1

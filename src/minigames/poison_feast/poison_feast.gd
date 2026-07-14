@@ -45,6 +45,9 @@ const PS_Y := 1
 const PS_SCORE := 2
 const PS_STAGGERED := 3
 const PS_COUNT := 4
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT]
 
 const DL_ID := 0
 const DL_X := 1
