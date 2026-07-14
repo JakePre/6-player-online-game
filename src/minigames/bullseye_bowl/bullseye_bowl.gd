@@ -7,7 +7,13 @@ extends MinigameBase
 
 const LANE_LENGTH := 12.0
 const LANE_SPACING := 3.0
-const BALLS := 8
+## Throw budget (#938): drip-fed instead of handed out all at once, so the
+## opening seconds don't dump every ball at once and leave dead air after.
+## Total stays close to the old flat 8 so M12-01 scoring comparability holds.
+const BALLS_TOTAL := 8
+const BALLS_START := 3
+const BALLS_CAP := 3
+const REGEN_INTERVAL_SEC := 3.0
 const FLIGHT_SEC := 1.2
 const ROLL_COOLDOWN_SEC := 0.4
 ## Target oscillation across the lane.
@@ -33,12 +39,17 @@ const PS_COUNT := 4
 const PLAYER_SCHEMA := [TYPE_INT, TYPE_INT, TYPE_FLOAT, TYPE_FLOAT]
 
 var scores := {}
+## Balls currently in hand, ready to throw (0..BALLS_CAP).
 var balls_left := {}
 ## In-flight balls: {slot, t (0..1 progress)}. One per player at most.
 var flights: Array = []
 
 var _cooldowns := {}
 var _phases := {}
+## Total balls granted so far (start + regen), caps at BALLS_TOTAL — tracks
+## the budget separately from balls_left since held balls drain on throw.
+var _balls_issued := {}
+var _regen_timers := {}
 
 
 static func make_meta() -> MinigameMeta:
@@ -72,7 +83,9 @@ static func make_meta() -> MinigameMeta:
 func _setup() -> void:
 	for slot: int in slots:
 		scores[slot] = 0
-		balls_left[slot] = BALLS
+		balls_left[slot] = BALLS_START
+		_balls_issued[slot] = BALLS_START
+		_regen_timers[slot] = REGEN_INTERVAL_SEC
 		_cooldowns[slot] = 0.0
 		_phases[slot] = rng.randf_range(0.0, TAU)
 
@@ -92,6 +105,7 @@ func _tick(delta: float) -> void:
 		return
 	for slot: int in slots:
 		_cooldowns[slot] = maxf(_cooldowns[slot] - delta, 0.0)
+		_advance_regen(slot, delta)
 	var remaining: Array = []
 	for flight: Dictionary in flights:
 		flight.t += delta / FLIGHT_SEC
@@ -160,10 +174,25 @@ func _has_flight(slot: int) -> bool:
 	return false
 
 
+## Grants a new ball on a fixed ~REGEN_INTERVAL_SEC cadence, once the budget
+## allows and the player isn't already holding the cap. Accumulates rather
+## than resetting to the constant so a slow tick can't stall the cadence.
+func _advance_regen(slot: int, delta: float) -> void:
+	if _balls_issued[slot] >= BALLS_TOTAL:
+		return
+	_regen_timers[slot] -= delta
+	if _regen_timers[slot] > 0.0:
+		return
+	_regen_timers[slot] += REGEN_INTERVAL_SEC
+	if balls_left[slot] < BALLS_CAP:
+		balls_left[slot] += 1
+		_balls_issued[slot] += 1
+
+
 func _all_balls_spent() -> bool:
 	if not flights.is_empty():
 		return false
 	for slot: int in slots:
-		if balls_left[slot] > 0:
+		if balls_left[slot] > 0 or _balls_issued[slot] < BALLS_TOTAL:
 			return false
 	return true
