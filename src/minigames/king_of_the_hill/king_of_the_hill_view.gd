@@ -9,8 +9,14 @@ extends MinigameView3D
 
 const ZONE_COLOR := Color(0.96, 0.79, 0.2, 0.35)
 const ZONE_ANCHORED_COLOR := Color(0.3, 0.75, 0.95, 0.45)
-const PILLAR_COLOR := Color(0.4, 0.38, 0.45)
-const PILLAR_HEIGHT := 1.6
+## Real rock obstacles (#929) instead of grey primitive cylinders. Half-widths
+## are each model's horizontal AABB extent / 2 (the #919 probe technique),
+## used to scale a rock so its visual footprint matches PILLAR_RADIUS.
+const OBSTACLE_ROCK_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/rock_tallC.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_tallD.glb"),
+]
+const OBSTACLE_ROCK_HALF_WIDTHS: Array[float] = [0.2281, 0.2307]
 ## Held-item label tint only now — the world pickups (#919) read by shape
 ## (horn vs anchor), not color.
 const ITEM_COLORS: Array[Color] = [Color(0.95, 0.4, 0.25), Color(0.3, 0.75, 0.95)]
@@ -129,24 +135,23 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 ## Pillars are static per round; built once from the first snapshot carrying
-## them (#139).
+## them (#139). Real rocks (#929) instead of grey primitive cylinders —
+## base-pivoted like the item pickups, scaled per-model so the visual
+## footprint matches PL_RADIUS.
 func _build_pillars(pillar_list: Array) -> void:
 	_pillars_built = true
-	for pillar: Array in pillar_list:
-		var mesh := CylinderMesh.new()
-		mesh.top_radius = float(pillar[KingOfTheHill.PL_RADIUS])
-		mesh.bottom_radius = float(pillar[KingOfTheHill.PL_RADIUS]) * 1.15
-		mesh.height = PILLAR_HEIGHT
-		var material := StandardMaterial3D.new()
-		material.albedo_color = PILLAR_COLOR
-		mesh.material = material
-		var node := MeshInstance3D.new()
-		node.mesh = mesh
-		node.position = to_arena(
-			Vector2(float(pillar[KingOfTheHill.PL_X]), float(pillar[KingOfTheHill.PL_Y])),
-			PILLAR_HEIGHT / 2.0
+	for i in pillar_list.size():
+		var pillar: Array = pillar_list[i]
+		var variant := i % OBSTACLE_ROCK_SCENES.size()
+		var rock := OBSTACLE_ROCK_SCENES[variant].instantiate() as Node3D
+		rock.scale = (
+			Vector3.ONE
+			* (float(pillar[KingOfTheHill.PL_RADIUS]) / OBSTACLE_ROCK_HALF_WIDTHS[variant])
 		)
-		arena.add_child(node)
+		rock.position = to_arena(
+			Vector2(float(pillar[KingOfTheHill.PL_X]), float(pillar[KingOfTheHill.PL_Y])), 0.0
+		)
+		arena.add_child(rock)
 
 
 func _render_3d(game: Dictionary) -> void:

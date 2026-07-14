@@ -3,7 +3,8 @@ extends MinigameView3D
 ## pooled glowing spheres, graze count on nameplates, KO'd rigs hidden.
 ## Renders the replicated snapshot in the shared iso-arena.
 
-const TURRET_COLOR := Color(0.35, 0.32, 0.4)
+## Real emitter model (#929, MDL-014), base-pivoted (probed AABB: y 0..1.2).
+const EMITTER_SCENE := preload("res://assets/generated/models/music-box-emitter.glb")
 const BULLET_COLOR := Color(1.0, 0.45, 0.3)
 const BULLET_HEIGHT := 0.6
 ## Pool size covers the densest late-game pattern overlap.
@@ -21,6 +22,11 @@ const FLOOR_DIM_COLOR := Color(0.04, 0.05, 0.1, 0.78)
 const TRACER_STRETCH := 2.6
 const TRACER_MIN_RADIUS := 0.5
 const GRAZE_COLOR := Color(0.55, 0.9, 1.0)
+## The dark stage overlay (#208) swallowed the floor edge into the
+## background — a bright ring at the arena boundary (#929) sells where the
+## stage actually ends.
+const RIM_GLOW_COLOR := Color(0.78, 0.68, 0.95)
+const RIM_RING_THICKNESS := 0.4
 
 ## Latest replicated state, straight from BulletWaltz.get_snapshot().
 var players := {}
@@ -61,18 +67,11 @@ func _setup_3d() -> void:
 	dim.position.y = 0.02
 	arena.add_child(dim)
 
-	var turret_mesh := CylinderMesh.new()
-	turret_mesh.top_radius = 0.5
-	turret_mesh.bottom_radius = 0.7
-	turret_mesh.height = 1.2
-	var turret_material := StandardMaterial3D.new()
-	turret_material.albedo_color = TURRET_COLOR
-	turret_mesh.material = turret_material
-	var turret := MeshInstance3D.new()
+	var turret := EMITTER_SCENE.instantiate() as Node3D
 	turret.name = "Turret"
-	turret.mesh = turret_mesh
-	turret.position = Vector3(0.0, 0.6, 0.0)
 	arena.add_child(turret)
+
+	_build_rim_glow()
 
 	var bullet_mesh := SphereMesh.new()
 	bullet_mesh.radius = BULLET_VIEW_RADIUS
@@ -89,6 +88,27 @@ func _setup_3d() -> void:
 		node.visible = false
 		arena.add_child(node)
 		_bullet_pool.append(node)
+
+
+## A bright ring at the arena boundary (#929) — the dark stage overlay
+## otherwise swallows the floor edge into the background.
+func _build_rim_glow() -> void:
+	var half := _arena_half()
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = half - RIM_RING_THICKNESS
+	mesh.outer_radius = half
+	var material := StandardMaterial3D.new()
+	material.albedo_color = RIM_GLOW_COLOR
+	material.emission_enabled = true
+	material.emission = RIM_GLOW_COLOR
+	material.emission_energy_multiplier = 1.4
+	mesh.material = material
+	var node := MeshInstance3D.new()
+	node.name = "RimGlow"
+	node.mesh = mesh
+	node.rotation.x = PI / 2.0
+	node.position.y = 0.03
+	arena.add_child(node)
 
 
 ## Stretches a bullet into a short tracer streak pointing the way it travels,

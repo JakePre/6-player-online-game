@@ -70,4 +70,3 @@ tracks the routing tier, never re-derive scope from it.
 | Issue | Task |
 |---|---|
 | #715 | Brain quality pass — data gate lifted; overlaps #926/#962, coordinate before claiming |
-| #929 | Art dressing batch: cart/court/powerups/zones/water/rocks/rim |

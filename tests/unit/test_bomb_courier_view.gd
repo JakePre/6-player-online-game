@@ -51,6 +51,16 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_not_null(view.arena.get_node("Pile"))
 
 
+## #929: the three zone rings alone didn't say which was which.
+func test_zones_carry_a_readable_label() -> void:
+	var pile_label: Label3D = view.arena.get_node("PileLabel")
+	var depot_label: Label3D = view.arena.get_node("DepotLabel")
+	var defuse_label: Label3D = view.arena.get_node("DefuseLabel")
+	assert_eq(pile_label.text, "PILE")
+	assert_eq(depot_label.text, "DEPOT")
+	assert_eq(defuse_label.text, "DEFUSE")
+
+
 ## M13-24: taking possession pops a handoff burst; an unchanged carry state does not.
 func test_taking_a_bomb_pops_a_handoff_burst() -> void:
 	view.render(_snapshot(-1.0, 0))
