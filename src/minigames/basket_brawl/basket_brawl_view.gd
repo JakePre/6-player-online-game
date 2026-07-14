@@ -14,6 +14,21 @@ const HOOP_DISC_HEIGHT := 0.05
 ## a shot arcs up INTO a raised rim, and the ball is an actual basketball.
 const BALL_SCENE := preload("res://assets/generated/models/basketball.glb")
 const HOOP_SCENE := preload("res://assets/generated/models/basketball-hoop.glb")
+## Reads a little small at iso distance next to a full-size CharacterRig (#929).
+const BALL_SCALE := 1.5
+## Court dressing (#929): the landed IMG-054 wood texture over the tile floor,
+## plus painted lines (center line/circle, key, free-throw circle) as flat
+## quad/disc meshes so the court reads as a real basketball court, not a tint.
+const COURT_TEXTURE := preload("res://assets/generated/textures/wood-court.png")
+const COURT_HALF_WIDTH := 6.0
+const COURT_TEXTURE_TILES := 4.0
+const COURT_LINE_COLOR := Color(0.95, 0.95, 0.92)
+const COURT_LINE_WIDTH := 0.12
+const COURT_LINE_HEIGHT := 0.02
+const CENTER_CIRCLE_RADIUS := 2.0
+const KEY_WIDTH := 4.6
+const KEY_DEPTH := 3.2
+const FREE_THROW_CIRCLE_RADIUS := 1.8
 ## The .glb rim sits about here (MDL-001 spec) — the top of a shot's arc lands on it.
 const RIM_HEIGHT := 2.6
 ## A shot lofts this far above the straight launch→rim line at the peak.
@@ -65,9 +80,12 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
-	# The ball is now an actual basketball model (#803).
+	_build_court()
+	# The ball is now an actual basketball model (#803), scaled up (#929) so
+	# it doesn't read small next to a full-size rig at iso distance.
 	_ball_node = BALL_SCENE.instantiate()
 	_ball_node.name = "Ball"
+	_ball_node.scale = Vector3.ONE * BALL_SCALE
 	arena.add_child(_ball_node)
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
@@ -97,6 +115,75 @@ func _setup_3d() -> void:
 		hoop.rotation.y = PI / 2.0 if side < 0.0 else -PI / 2.0
 		arena.add_child(hoop)
 	_score_label = make_banner(&"Score", 28)
+
+
+## The wood-court texture over the play area, plus painted lines (#929).
+func _build_court() -> void:
+	var half_x := BasketBrawl.HOOP_X + 0.5
+	var surface_mesh := PlaneMesh.new()
+	surface_mesh.size = Vector2(half_x * 2.0, COURT_HALF_WIDTH * 2.0)
+	var surface_material := StandardMaterial3D.new()
+	surface_material.albedo_texture = COURT_TEXTURE
+	surface_material.uv1_scale = Vector3(COURT_TEXTURE_TILES, COURT_TEXTURE_TILES, 1.0)
+	surface_mesh.material = surface_material
+	var surface := MeshInstance3D.new()
+	surface.name = "CourtSurface"
+	surface.mesh = surface_mesh
+	surface.position = to_arena(Vector2.ZERO, 0.015)
+	arena.add_child(surface)
+	_add_court_line(Vector2.ZERO, Vector2(COURT_LINE_WIDTH, COURT_HALF_WIDTH * 2.0))
+	_add_court_ring(Vector2.ZERO, CENTER_CIRCLE_RADIUS)
+	for side: float in [-1.0, 1.0]:
+		var key_inner_x := side * (BasketBrawl.HOOP_X - KEY_DEPTH)
+		var key_center_x := side * (BasketBrawl.HOOP_X - KEY_DEPTH / 2.0)
+		_add_court_line(
+			Vector2(key_center_x, KEY_WIDTH / 2.0), Vector2(KEY_DEPTH, COURT_LINE_WIDTH)
+		)
+		_add_court_line(
+			Vector2(key_center_x, -KEY_WIDTH / 2.0), Vector2(KEY_DEPTH, COURT_LINE_WIDTH)
+		)
+		_add_court_line(Vector2(key_inner_x, 0.0), Vector2(COURT_LINE_WIDTH, KEY_WIDTH))
+		_add_court_ring(Vector2(key_inner_x, 0.0), FREE_THROW_CIRCLE_RADIUS)
+
+
+## A straight painted line as a thin flat box, `size` in (x-length, y-length).
+func _add_court_line(pos: Vector2, size: Vector2) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(size.x, COURT_LINE_HEIGHT, size.y)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = COURT_LINE_COLOR
+	mesh.material = material
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = to_arena(pos, COURT_LINE_HEIGHT / 2.0 + 0.02)
+	arena.add_child(node)
+
+
+## A painted ring: a line-colored disc with a smaller court-textured disc on
+## top, so only the border shows — cheaper than building real ring geometry.
+func _add_court_ring(pos: Vector2, radius: float) -> void:
+	var outer := CylinderMesh.new()
+	outer.top_radius = radius
+	outer.bottom_radius = radius
+	outer.height = COURT_LINE_HEIGHT
+	var outer_material := StandardMaterial3D.new()
+	outer_material.albedo_color = COURT_LINE_COLOR
+	outer.material = outer_material
+	var outer_node := MeshInstance3D.new()
+	outer_node.mesh = outer
+	outer_node.position = to_arena(pos, COURT_LINE_HEIGHT / 2.0 + 0.02)
+	arena.add_child(outer_node)
+	var inner := CylinderMesh.new()
+	inner.top_radius = radius - COURT_LINE_WIDTH
+	inner.bottom_radius = radius - COURT_LINE_WIDTH
+	inner.height = COURT_LINE_HEIGHT
+	var inner_material := StandardMaterial3D.new()
+	inner_material.albedo_texture = COURT_TEXTURE
+	inner.material = inner_material
+	var inner_node := MeshInstance3D.new()
+	inner_node.mesh = inner
+	inner_node.position = to_arena(pos, COURT_LINE_HEIGHT / 2.0 + 0.03)
+	arena.add_child(inner_node)
 
 
 func _render_3d(game: Dictionary) -> void:

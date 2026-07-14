@@ -10,8 +10,12 @@ const LANE_SPACING := 2.4
 const RUNWAY_LEN := 10.0
 const FISH_COLOR := Color(0.4, 0.7, 0.95)
 const LINE_COLOR := Color(0.4, 0.85, 0.4)
-const LANE_COLOR := Color(0.16, 0.32, 0.5, 0.55)
 const LANE_DIVIDER := Color(0.55, 0.8, 1.0, 0.6)
+## Landed pool-water texture (#929) for the lanes, replacing the flat
+## translucent tint. A margin keeps the strips inside the floor bounds —
+## they used to overhang past the arena edge into the void at every headcount.
+const WATER_TEXTURE := preload("res://assets/generated/textures/water-pool.png")
+const LANE_EDGE_MARGIN := 0.4
 const FISH_POOL := 12
 ## Swim motion (M13-19): tail-wag cycles across one lane run, wag angles.
 const WAG_CYCLES := 6.0
@@ -92,31 +96,36 @@ func _setup_3d() -> void:
 		root.visible = false
 		arena.add_child(root)
 		_fish_pool.append(root)
-	# The three lanes are visible water strips with dividers (#238).
+	# The three lanes are visible water strips with dividers (#238), clamped
+	# to the actual (headcount-scaled) floor bounds (#929) instead of a fixed
+	# length that could run past the arena edge.
+	var half := _arena_half()
+	var near_x := -half + LANE_EDGE_MARGIN
+	var far_x := half - LANE_EDGE_MARGIN
+	var lane_len := far_x - near_x
+	var lane_center_x := (near_x + far_x) / 2.0
 	for lane_index in FishFrenzy.LANES:
 		var strip := BoxMesh.new()
-		strip.size = Vector3(RUNWAY_LEN + 3.0, 0.02, LANE_SPACING * 0.92)
+		strip.size = Vector3(lane_len, 0.02, LANE_SPACING * 0.92)
 		var strip_material := StandardMaterial3D.new()
-		strip_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		strip_material.albedo_color = LANE_COLOR
+		strip_material.albedo_texture = WATER_TEXTURE
+		strip_material.uv1_scale = Vector3(lane_len / LANE_SPACING, 1.0, 1.0)
 		strip.material = strip_material
 		var strip_node := MeshInstance3D.new()
 		strip_node.name = "Lane%d" % lane_index
 		strip_node.mesh = strip
-		strip_node.position = Vector3(RUNWAY_LEN / 2.0 - 1.0, 0.01, _lane_z(lane_index))
+		strip_node.position = Vector3(lane_center_x, 0.01, _lane_z(lane_index))
 		arena.add_child(strip_node)
 	for divider_index in FishFrenzy.LANES + 1:
 		var divider := BoxMesh.new()
-		divider.size = Vector3(RUNWAY_LEN + 3.0, 0.025, 0.08)
+		divider.size = Vector3(lane_len, 0.025, 0.08)
 		var divider_material := StandardMaterial3D.new()
 		divider_material.albedo_color = LANE_DIVIDER
 		divider.material = divider_material
 		var divider_node := MeshInstance3D.new()
 		divider_node.mesh = divider
 		divider_node.position = Vector3(
-			RUNWAY_LEN / 2.0 - 1.0,
-			0.02,
-			_lane_z(0) - LANE_SPACING / 2.0 + divider_index * LANE_SPACING
+			lane_center_x, 0.02, _lane_z(0) - LANE_SPACING / 2.0 + divider_index * LANE_SPACING
 		)
 		arena.add_child(divider_node)
 	var line_mesh := BoxMesh.new()
