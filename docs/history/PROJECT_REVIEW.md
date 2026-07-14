@@ -1,3 +1,7 @@
+> **Archived (2026-07-13, #953).** A dated snapshot audit — every finding
+> below has a tracking issue, and all of them closed. Kept as a historical
+> record only. Live task routing lives in [docs/ROUTING.md](../ROUTING.md).
+
 # Project Review — 2026-07-07 (Fable exit review)
 
 A full-project audit performed as the Fable tier retires: architecture, net
@@ -6,9 +10,9 @@ docs, and product-level gaps. Supersedes the 2026-07-05 review (whose findings
 all closed: #462 fixed, #463 measured→#479 fixed, #464 capped, #465 gated).
 
 Every actionable finding below has a tracking issue and a model tier
-(complexity signal per [MODEL_ROUTING.md](MODEL_ROUTING.md), not an
+(complexity signal per [ROUTING.md](../ROUTING.md), not an
 assignment). Jobs are filed as **unclaimed backlog specs** — claim per
-[AGENT_COORDINATION.md](AGENT_COORDINATION.md) §2 before starting.
+[AGENT_COORDINATION.md](../AGENT_COORDINATION.md) §2 before starting.
 
 ## Where the project stands
 

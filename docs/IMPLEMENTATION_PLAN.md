@@ -77,7 +77,7 @@ class_name MinigameMeta extends Resource
 
 ## 5. Milestones & task board
 
-Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on. Every remaining task also carries a recommended model tier (complexity signal, not an assignment) in [MODEL_ROUTING.md](MODEL_ROUTING.md).
+Sizes: S (≲half day), M (≈1 day), L (multi-day). `⛓` = depends on. Every remaining task also carries a recommended model tier (complexity signal, not an assignment) in [ROUTING.md](ROUTING.md).
 
 ### M0 — Repo & toolchain bootstrap
 - [x] **M0-01** (M) Godot 4.4 project scaffold at repo root, folder layout §3, project settings (window, physics tick 30 Hz, input map for WASD/gamepad/mouse)
@@ -192,7 +192,7 @@ Sabotage — [x] **M13-25** Poison Feast (S — coordinate with #174 rework) · 
 Action & finale — [x] **M13-28** Rumble Ring (S, swing arc FX; pairs with #263) · [x] **M13-29** Bullet Waltz (S, bullet tracers + graze sparks) · [x] **M13-30** Hurdle Dash (S, 2D: speed lines, hurdle clip spark) · [x] **M13-31** Gauntlet finale (S, hazard telegraphs + platform crumble)
 
 ### M14 — Genre Hop (PHASE2.md §8) — ✅ OPEN: v0.6.0 was cut at this boundary (2026-07-05); Genre Hop is claimable under normal rules
-> **Release cut — hold lifted (2026-07-05).** [v0.6.0](https://github.com/JakePre/6-player-online-game/releases/tag/v0.6.0) shipped the feature-complete base game (roster, 24-player scaling, series, mutators, animation/FX pass) at the M14 boundary. All pre-M14 work is done, so the prior RELEASE HOLD is lifted and Genre Hop (M14) is now open — claim per the normal coordination rules. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+> **Release cut — hold lifted (2026-07-05).** [v0.6.0](https://github.com/JakePre/6-player-online-game/releases/tag/v0.6.0) shipped the feature-complete base game (roster, 24-player scaling, series, mutators, animation/FX pass) at the M14 boundary. All pre-M14 work is done, so the prior RELEASE HOLD is lifted and Genre Hop (M14) is now open — claim per the normal coordination rules. See [RELEASE_CHECKLIST.md](history/RELEASE_CHECKLIST.md).
 Framework — [x] **M14-00** (L) side-view platformer base (owner-approved on #509): `SideScrollSim` — pure-math server 2D platforming at 30 Hz (gravity, run, buffered+coyote jump, solid/one-way platform AABBs, knockback impulses, data-driven stage layouts) — + `SideScrollView` — 2D presentation base with PartyTheme-styled stage, parallax, 2D rigs, and M12-04-style snapshot interpolation for the 2D tier (`src/minigames/_api/`). Gates M14-01; M14-03/-09 build on it ⛓ none
 Owner-requested — [x] **M14-01** Loadout Duel (L, true 2D side-view per owner ruling on #509; design approved, build ⛓ M14-00) · [x] **M14-02** Turbo Lap (L) · [x] **M14-03** Knock-Off (L) · [x] **M14-04** Shred Session (M) · [x] **M14-05** Ro-Sham-Bo Royale (S)
 Approved — [x] **M14-06** Blast Grid (M) · [x] **M14-08** Putt Panic (M) · [x] **M14-09** Tumble Run (L) · [x] **M14-10** Nom Arena (M, 60 s hard cap — owner wants it QUICK) · ~~M14-07 cut by owner~~
@@ -231,7 +231,7 @@ gamepad parity across the pre-M14 roster. M17 closes what's left: device
 *coverage* (controllers Godot 4.4.1's frozen built-in DB doesn't recognize),
 controller rebinding, menu navigation, and parity for everything shipped
 after M12-05. Recommended model tiers are designated per task in
-[MODEL_ROUTING.md](MODEL_ROUTING.md); one task = one claim = one PR as usual.
+[ROUTING.md](ROUTING.md); one task = one claim = one PR as usual.
 
 - [x] **M17-01** (M, Opus) Controller compatibility layer: bundle the community SDL `gamecontrollerdb.txt` (zlib license → `assets/CREDITS.md` row), load it at boot via `Input.add_joy_mapping` for all desktop platforms, handle `joy_connection_changed` (hot-plug toast via M6-03 toasts; log unknown GUIDs so unmapped pads are diagnosable), and document a refresh cadence (the DB is a text file — updating it is a Sonnet chore) ⛓ none
 - [x] **M17-02** (M, Opus) Post-M12-05 gamepad parity audit: the 9 M14 games (incl. SideScrollSim jump/dash feel on stick+buttons), the finale buy-in shop, and Gauntlet sabotage/grudge targeting — each playable gamepad-only and kb/mouse-only; fix on sight, per-game notes on the claim issue ⛓ none
@@ -245,7 +245,7 @@ after M12-05. Recommended model tiers are designated per task in
 The structural asks from the 2026-07-06 owner batch. The same batch's
 per-game playtest notes are standalone issues (#577–#592), claimable
 individually — M18 is the framework work. Model tiers designated here and in
-[MODEL_ROUTING.md](MODEL_ROUTING.md).
+[ROUTING.md](ROUTING.md).
 
 - [x] **M18-01** (L, Opus) Settings 2.0: rebuild the settings screen into sectioned pages (Gameplay / Video / Audio / Controls / Network) on the M16 design system; add a `schema_version` to SettingsStore with forward migrations so user choices are **guaranteed** to survive updates and key renames (today's per-key DEFAULTS fallback silently drops renamed keys); per-section and global **Reset to defaults**; the server-address default becomes **`celestrum.com`** (Advanced/dev override to localhost stays one field away); every change applies live ⛓ none
 - [x] **M18-02** (M, Opus) Fix disconnected-player ghosts (#601 — diagnosis in the issue): pool rigs hidden, reveal on first `update_rig`, survey the 42 `rig_for_slot` views + verify the 2D tier, regression tests ⛓ none

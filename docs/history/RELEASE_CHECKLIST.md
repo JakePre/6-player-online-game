@@ -1,3 +1,7 @@
+> **Archived (2026-07-13, #953).** Historical record of the v0.6.0 release
+> boundary — every item below is closed. Live task routing lives in
+> [docs/ROUTING.md](../ROUTING.md).
+
 # Release Checklist — the M14 boundary cut
 
 > ## ✅ SHIPPED — [v0.6.0](https://github.com/JakePre/6-player-online-game/releases/tag/v0.6.0) (2026-07-05)

@@ -1,3 +1,8 @@
+> **Archived (2026-07-13, #953).** This file grew to be dominated by ✅-done
+> rows that agents kept mistaking for a live work queue. Historical record
+> only — every row below is closed/superseded. Live routing (the tier rubric
+> + open rows only) lives in [docs/ROUTING.md](../ROUTING.md).
+
 # Model routing — recommended model tier per remaining task
 
 Owner-requested (2026-07-04): every remaining task carries a recommended model
