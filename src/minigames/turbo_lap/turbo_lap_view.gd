@@ -103,6 +103,7 @@ func _build_track() -> void:
 		strip.rotation.y = -heading
 		arena.add_child(strip)
 		_add_edge_barriers(mid, heading)
+	_add_corner_barriers(points)
 	var start := MeshInstance3D.new()
 	start.name = "StartLine"
 	var start_mesh := BoxMesh.new()
@@ -133,6 +134,21 @@ func _add_edge_barriers(mid: Vector2, heading: float) -> void:
 		barrier.position = Vector3(edge.x, 0.0, edge.y)
 		barrier.rotation.y = -heading
 		arena.add_child(barrier)
+
+
+## #930: each segment's barrier is straight and only ~2u long (MDL-007), so
+## two segments meeting at an angle leave a jagged gap at the vertex between
+## them. One more barrier pair at each vertex, oriented along the bisector of
+## the two flanking headings, bridges the seam.
+func _add_corner_barriers(points: PackedVector2Array) -> void:
+	for i in points.size():
+		var prev := points[(i - 1 + points.size()) % points.size()]
+		var curr := points[i]
+		var next := points[(i + 1) % points.size()]
+		var heading_in := (curr - prev).angle()
+		var heading_out := (next - curr).angle()
+		var bisector := (Vector2.from_angle(heading_in) + Vector2.from_angle(heading_out)).angle()
+		_add_edge_barriers(curr, bisector)
 
 
 func _add_pad(world_pos: Vector2, color: Color, node_name: String) -> MeshInstance3D:

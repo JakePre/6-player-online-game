@@ -5,9 +5,13 @@ extends MinigameView
 ## M13-26 FX pass (2D juice per PHASE2.md §7): the trapper's armed tiles
 ## pulse while trapping, and a trap going off fires an expanding burst ring.
 
-const CORRIDOR_COLOR := Color(0.15, 0.14, 0.17)
 const CORRIDOR_BORDER := Color(0.4, 0.36, 0.45)
 const GRID_LINE := Color(0.1, 0.1, 0.12)
+## #930: a checkerboard of two close charcoal-purple tints instead of one flat
+## fill — the tiles read as tiles even before anything happens on them, while
+## staying within the deliberately-flat 2D style (§7, no gradients/shading).
+const TILE_COLOR_A := Color(0.17, 0.16, 0.2)
+const TILE_COLOR_B := Color(0.13, 0.12, 0.16)
 const REVEALED_COLOR := Color(0.9, 0.3, 0.25)
 const MY_TRAP_COLOR := Color(0.9, 0.6, 0.2, 0.55)
 const FINISH_COLOR := Color(0.4, 0.85, 0.4)
@@ -155,7 +159,7 @@ func _render(game: Dictionary) -> void:
 func _draw() -> void:
 	var rect := _corridor_rect()
 	var tile := Vector2(rect.size.x / TrapCorridor.COLS, rect.size.y / TrapCorridor.ROWS)
-	draw_rect(rect, CORRIDOR_COLOR)
+	_draw_tile_checkerboard(rect, tile)
 	for index: int in revealed:
 		draw_rect(_tile_rect(rect, tile, index), REVEALED_COLOR)
 	if my_slot == trapper:
@@ -218,6 +222,13 @@ func _banner_text() -> String:
 			% [traps_left, phase_left]
 		)
 	return "%s is setting traps (%0.1fs)..." % [player_name(trapper), phase_left]
+
+
+func _draw_tile_checkerboard(rect: Rect2, tile: Vector2) -> void:
+	for col in TrapCorridor.COLS:
+		for row in TrapCorridor.ROWS:
+			var color := TILE_COLOR_A if (col + row) % 2 == 0 else TILE_COLOR_B
+			draw_rect(_tile_rect(rect, tile, col * TrapCorridor.ROWS + row), color)
 
 
 func _corridor_rect() -> Rect2:

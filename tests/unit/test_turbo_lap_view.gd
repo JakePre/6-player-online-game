@@ -36,6 +36,15 @@ func test_setup_builds_track_pads_and_karts() -> void:
 	assert_not_null(view.rig_for_slot(0).get_node("KartBody"), "every racer rides a kart")
 
 
+## #930: two straight ~2u barrier segments meeting at an angled waypoint
+## vertex leave a jagged gap — one bridging pair per vertex closes it.
+func test_corner_barriers_bridge_every_waypoint_seam() -> void:
+	var before := view.arena.get_child_count()
+	view._add_corner_barriers(TurboLap.waypoints())
+	var after := view.arena.get_child_count()
+	assert_eq(after - before, TurboLap.WAYPOINT_COUNT * 2, "one bridging pair per waypoint vertex")
+
+
 func test_render_moves_rigs_and_dims_cooling_pads() -> void:
 	(
 		view

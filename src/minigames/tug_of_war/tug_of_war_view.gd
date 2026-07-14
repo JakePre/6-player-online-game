@@ -13,8 +13,9 @@ const ROPE_HEIGHT := 0.9
 const ROPE_THICKNESS := 0.3
 ## Rope world length is a little longer than the two win offsets.
 const ROPE_EXTRA := 4.0
-## Where teams stand relative to the rope line.
-const TEAM_ROW_Z := 1.6
+## Where teams stand relative to the rope line. #930: nudged out from 1.6 so
+## the front rank doesn't crowd the knot marker at the iso camera angle.
+const TEAM_ROW_Z := 2.3
 const TEAMMATE_SPACING := 1.4
 ## Big teams (M15-07): a single file of 12 pullers would stretch past the win
 ## lines, so files cap at this many and spill into parallel files further
@@ -25,7 +26,10 @@ const FILE_GAP := 1.2
 ## owns -x, team B +x.
 const TEAM_A_COLOR := Color(0.35, 0.72, 1.0)
 const TEAM_B_COLOR := Color(1.0, 0.42, 0.1)
-const SIDE_TINT_ALPHA := 0.24
+## #930: the #813 grass floor washed the tints out — blue-over-grass read
+## teal, orange-over-grass read yellow-green. Re-punched from 0.24 so the
+## team color dominates the blend instead of mixing evenly with the green.
+const SIDE_TINT_ALPHA := 0.55
 ## HUD tug bar geometry (drawn on the Control layer).
 const BAR_WIDTH := 480.0
 const BAR_HEIGHT := 14.0
