@@ -22,12 +22,11 @@ screen (task M7-04).
 | Track Barrier (MDL-007, #785 Turbo Lap) | `assets/generated/models/track-barrier.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Golf Flagstick (MDL-008, #793 Putt Panic) | `assets/generated/models/golf-flagstick.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Hill Crest (MDL-010, #919 King of the Hill) | `assets/generated/models/hill-crest.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
-
 | Shove Horn (MDL-011, #919 King of the Hill) | `assets/generated/models/shove-horn.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Anchor (MDL-012, #919 King of the Hill) | `assets/generated/models/anchor.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Music Box Emitter (MDL-014, #929 Bullet Waltz) | `assets/generated/models/music-box-emitter.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
-
-| Wooden Crate | `assets/generated/models/wooden-crate.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — || Power Pellet (MDL-017, #954 Nom Arena) | `assets/generated/models/power-pellet.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
+| Wooden Crate (MDL-018, #817) | `assets/generated/models/wooden-crate.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
+| Power Pellet (MDL-017, #954 Nom Arena) | `assets/generated/models/power-pellet.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 Import note for the four Kenney packs above (M8-02, `docs/adr/002-iso-arena-rendering.md`): only
 the `Models/GLB format/` (or `Models/GLTF format/` — same content, Kenney's
 older zip naming) subfolder was kept, flattened into the pack's asset

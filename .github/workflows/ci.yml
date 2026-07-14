@@ -32,6 +32,8 @@ jobs:
         run: gdformat --check src tests
       - name: gdlint
         run: gdlint src tests
+      - name: CREDITS.md integrity (#951)
+        run: python scripts/check_credits.py assets/CREDITS.md
 
   test:
     name: Unit tests (GUT)
