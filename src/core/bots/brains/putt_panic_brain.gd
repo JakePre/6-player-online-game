@@ -28,6 +28,15 @@ const POWER_MAX := 0.75
 ## bot incompetent up close.
 const AIM_JITTER_RAD := 0.1
 const POWER_JITTER := 0.05
+## Putt pacing (#961). The bot keeps lining up every tick but only strikes on a
+## random ready beat, not the instant the ball rests — a human takes a moment to
+## read the line and charge. Without this the bots machine-gunned a putt every
+## time they came to rest (~0.45s), grinding a whole round out in ~6s of a 90s
+## hole; the readiness beat paces strokes to a human cadence and desyncs the
+## field so the shots (and their stroke totals) stop landing in lockstep ties.
+## Seeded via `rng` like the rest of the bot's noise; ~1/PUTT_READINESS ticks
+## between strokes on average (at the sim's fixed 30 Hz, ~2.5s).
+const PUTT_READINESS := 0.011
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -42,8 +51,10 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var to_cup := cup - me
 	var aim := to_cup.normalized().rotated(rng.randf_range(-AIM_JITTER_RAD, AIM_JITTER_RAD))
 	var intent := {"ax": aim.x, "ay": aim.y}
-	# Strike only when at rest; power scales with the distance left to the cup.
-	if int(state[PuttPanic.PS_AT_REST]) == 1:
+	# Strike only when at rest AND on a random ready beat (#961 pacing), so the
+	# bot lines up for a human moment instead of machine-gunning the instant it
+	# stops rolling.
+	if int(state[PuttPanic.PS_AT_REST]) == 1 and rng.randf() < PUTT_READINESS:
 		var power := clampf(
 			to_cup.length() * POWER_PER_UNIT + rng.randf_range(-POWER_JITTER, POWER_JITTER),
 			POWER_MIN,

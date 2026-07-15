@@ -481,6 +481,17 @@ func test_target_range_brain_holds_fire_on_cooldown() -> void:
 	assert_false(intent.get("fire", false), "still cooling down -> no fire")
 
 
+## Putt Panic bots pace their strokes (#961): they line up every tick but only
+## strike on a random ready beat, so drive think() until the bot takes its shot.
+func _putt_when_ready(brain: BotBrain, game: Dictionary) -> Dictionary:
+	var intent := {}
+	for _i in 1000:
+		intent = brain.think(_play_state("putt_panic", game), {})
+		if intent.get("putt", false):
+			break
+	return intent
+
+
 func test_putt_panic_brain_aims_at_the_cup_and_putts_at_rest() -> void:
 	var brain := BotBrains.brain_for(&"putt_panic", 0, 1)
 	# [x, y, strokes, sunk, aim_x, aim_y, at_rest]; me below the cup at (0, 6.5).
@@ -490,12 +501,12 @@ func test_putt_panic_brain_aims_at_the_cup_and_putts_at_rest() -> void:
 		"bar": [0.0, 0.0],
 		"shot_clock": 5.0,
 	}
-	var intent := brain.think(_play_state("putt_panic", game), {})
+	var intent := _putt_when_ready(brain, game)
 	# #715: a seeded per-shot wobble (AIM_JITTER_RAD) now perturbs the once-exact
 	# aim, so the tolerance covers the worst case instead of pixel-perfect.
 	assert_almost_eq(float(intent.ay), 1.0, 0.02, "aims up the green at the cup, plus wobble")
 	assert_almost_eq(float(intent.ax), 0.0, 0.11)
-	assert_true(intent.get("putt", false), "at rest -> take the stroke")
+	assert_true(intent.get("putt", false), "at rest -> eventually takes the stroke")
 	assert_gt(float(intent.power), 0.0, "with real power")
 
 
@@ -510,8 +521,8 @@ func test_putt_panic_brain_wobbles_aim_and_power_per_seed() -> void:
 		"bar": [0.0, 0.0],
 		"shot_clock": 5.0,
 	}
-	var a := BotBrains.brain_for(&"putt_panic", 0, 1).think(_play_state("putt_panic", game), {})
-	var b := BotBrains.brain_for(&"putt_panic", 0, 99).think(_play_state("putt_panic", game), {})
+	var a := _putt_when_ready(BotBrains.brain_for(&"putt_panic", 0, 1), game)
+	var b := _putt_when_ready(BotBrains.brain_for(&"putt_panic", 0, 99), game)
 	assert_true(
 		(
 			not is_equal_approx(float(a.ax), float(b.ax))
