@@ -239,3 +239,38 @@ func test_untinted_game_keeps_the_neutral_white_floor() -> void:
 	assert_almost_eq(albedo.r, 1.0, 0.01, "un-overridden floor stays the native white")
 	assert_almost_eq(albedo.g, 1.0, 0.01)
 	assert_almost_eq(albedo.b, 1.0, 0.01)
+
+
+## #945: the shared cooldown-ring chrome — builds an unshaded torus in the
+## given color, seated just above the floor.
+func test_make_cooldown_ring_builds_a_seated_unshaded_torus() -> void:
+	var ring := view.make_cooldown_ring(Color.RED)
+	assert_true(ring.mesh is TorusMesh, "a torus")
+	assert_almost_eq(ring.position.y, 0.06, 0.001, "seated just above the floor")
+	var mat := (ring.mesh as TorusMesh).material as StandardMaterial3D
+	assert_eq(mat.shading_mode, BaseMaterial3D.SHADING_MODE_UNSHADED)
+	assert_eq(mat.albedo_color, Color.RED)
+	ring.free()
+
+
+## #945: update_cooldown_ring lazily builds under a rig, shrinks while cooling,
+## and hides the instant it's ready — driven by a 0..1 fraction.
+func test_update_cooldown_ring_builds_shrinks_and_hides() -> void:
+	var rig := view.rig_for_slot(0)
+	var rings := {}
+	# Ready and no ring yet: nothing is built.
+	view.update_cooldown_ring(rings, 0, rig, 0.0, Color.RED)
+	assert_eq(rings.size(), 0, "no ring built while ready")
+	# Just used: builds, shows, at full radius.
+	view.update_cooldown_ring(rings, 0, rig, 1.0, Color.RED)
+	var ring: MeshInstance3D = rings[0]
+	assert_true(ring.visible, "shows while cooling")
+	assert_almost_eq((ring.mesh as TorusMesh).outer_radius, 0.7, 0.001, "full at fraction 1")
+	# Half-cooled: shrinks.
+	view.update_cooldown_ring(rings, 0, rig, 0.5, Color.RED)
+	assert_almost_eq(
+		(ring.mesh as TorusMesh).outer_radius, 0.525, 0.001, "shrinks with the fraction"
+	)
+	# Ready again: hidden, ring kept for reuse.
+	view.update_cooldown_ring(rings, 0, rig, 0.0, Color.RED)
+	assert_false(ring.visible, "hidden the instant it's ready")

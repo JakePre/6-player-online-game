@@ -401,6 +401,52 @@ static func reconcile_pool(
 			update.call(node, i)
 
 
+# --- Cooldown ring chrome (#945) ---------------------------------------------
+# The shrinking "ability on cooldown" ring under a rig (#792/#808 idiom),
+# copied verbatim across fort_siege and memory_match before this. Build one
+# per rig, key it in a caller-owned pool, and drive it each render.
+
+
+## Builds the flat cooldown ring — an unshaded torus in `color`, seated just
+## above the floor. Parent it under a rig, then drive it with
+## update_cooldown_ring().
+func make_cooldown_ring(color: Color) -> MeshInstance3D:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.3
+	mesh.outer_radius = 0.7
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color
+	mesh.material = mat
+	var node := MeshInstance3D.new()
+	node.name = "CooldownRing"
+	node.mesh = mesh
+	node.position = Vector3(0.0, 0.06, 0.0)
+	return node
+
+
+## Drives a lazily-built, rig-parented cooldown ring from `fraction` (1 = just
+## used, 0 = ready). Builds and parents the ring under `rig` on first need,
+## keyed by `slot` in the caller's `rings` pool; shows and shrinks its outer
+## radius while cooling, hides it the instant it's ready. No-op (and builds
+## nothing) while `fraction <= 0` and no ring exists yet.
+func update_cooldown_ring(
+	rings: Dictionary, slot: int, rig: Node3D, fraction: float, color: Color
+) -> void:
+	var ring: MeshInstance3D = rings.get(slot)
+	if ring == null:
+		if fraction <= 0.0:
+			return
+		ring = make_cooldown_ring(color)
+		rig.add_child(ring)
+		rings[slot] = ring
+	ring.visible = fraction > 0.0
+	if ring.visible:
+		(ring.mesh as TorusMesh).outer_radius = 0.35 + 0.35 * fraction
+
+
 # --- Overridables ------------------------------------------------------------
 
 

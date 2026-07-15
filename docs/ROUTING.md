@@ -55,7 +55,6 @@ tracks the routing tier, never re-derive scope from it.
 | #939 | Stage shell — themed backdrop replacing the grey void (L) |
 | #942 | CharacterRig.play_protected() — unify 4 animation-hold idioms |
 | #943 | Split match_screen.gd (928 lines) |
-| #945 | Part 1 (SimGeometry: bounce/polyline/separation) landed; Part 2 = act_seq + cooldown-ring on MinigameView3D (Opus, claimed) → Sonnet fan-out |
 | #946 | Snapshot schema tripwire — design done, Sonnet fan-out in progress (batches 1-3 merged) |
 | #947 | Declarative INPUT_MAP on view bases (Opus) → Sonnet fan-out |
 | #948 | Extract arena-dressing from minigame_view_3d.gd (601 lines) |

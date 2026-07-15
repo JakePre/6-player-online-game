@@ -62,9 +62,9 @@ var _scores: Label
 ## Team-colored banner strips on the fort walls — recolored to the defending
 ## team so "whose fort this is" reads and flips on the swap.
 var _wall_banners: Array[MeshInstance3D] = []
-## Per-slot: the last action counter seen (play each once), the ticks_msec a
+## Per-slot: the play-once action-counter edge (#945), the ticks_msec a
 ## swing/shove owns the rig, and a lazily-built shove cooldown ring.
-var _act_seen := {}
+var _act_edges := EdgeTracker.new()
 var _act_hold := {}
 var _rings := {}
 # FX seeds: last-seen gate for the breach burst and crack thirds, last-seen
@@ -273,9 +273,7 @@ func _play_action(slot: int, state: Array, rig: CharacterRig) -> void:
 	if state.size() <= FortSiege.PS_ACT_KIND:
 		return
 	var seq := int(state[FortSiege.PS_ACT_SEQ])
-	var seen: int = _act_seen.get(slot, seq)
-	_act_seen[slot] = seq
-	if seq <= seen:
+	if not _act_edges.rose(slot, seq):
 		return
 	var kind := int(state[FortSiege.PS_ACT_KIND])
 	var at := Vector2(float(state[FortSiege.PS_X]), float(state[FortSiege.PS_Y]))
@@ -304,35 +302,11 @@ func _play_action(slot: int, state: Array, rig: CharacterRig) -> void:
 func _update_cooldown_ring(slot: int, state: Array, rig: CharacterRig) -> void:
 	if state.size() <= FortSiege.PS_SHOVE_CD:
 		return
-	var cd := float(state[FortSiege.PS_SHOVE_CD])
-	var ring: MeshInstance3D = _rings.get(slot)
-	if ring == null:
-		if cd <= 0.0:
-			return
-		ring = _make_cooldown_ring()
-		rig.add_child(ring)
-		_rings[slot] = ring
-	ring.visible = cd > 0.0
-	if ring.visible:
-		var mesh := ring.mesh as TorusMesh
-		mesh.outer_radius = 0.35 + 0.35 * cd
-
-
-func _make_cooldown_ring() -> MeshInstance3D:
-	var mesh := TorusMesh.new()
-	mesh.inner_radius = 0.3
-	mesh.outer_radius = 0.7
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = COOLDOWN_RING_COLOR
-	mat.emission_enabled = true
-	mat.emission = COOLDOWN_RING_COLOR
-	mesh.material = mat
-	var node := MeshInstance3D.new()
-	node.name = "CooldownRing"
-	node.mesh = mesh
-	node.position = Vector3(0.0, 0.06, 0.0)
-	return node
+	# PS_SHOVE_CD is already a 0..1 fraction (normalized sim-side). Shared
+	# cooldown-ring chrome (#945).
+	update_cooldown_ring(
+		_rings, slot, rig, float(state[FortSiege.PS_SHOVE_CD]), COOLDOWN_RING_COLOR
+	)
 
 
 func _update_gate() -> void:
