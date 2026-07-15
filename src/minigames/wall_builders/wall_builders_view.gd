@@ -61,7 +61,10 @@ func _setup_3d() -> void:
 		material.albedo_color = WALL_COLORS[team_index]
 		wall_mesh.material = material
 		var pool: Array[MeshInstance3D] = []
-		for i in WallBuilders.WIN_HEIGHT + 4:
+		# Pool tall enough for this lobby's scaled target (#961), plus headroom
+		# for blocks pried above it — the win target now scales with team size.
+		var pool_size := WallBuilders.WIN_PER_BUILDER * maxi(1, names.size() / 2) + 4
+		for i in pool_size:
 			var node := MeshInstance3D.new()
 			node.mesh = wall_mesh
 			node.visible = false

@@ -13,7 +13,12 @@ const PLAYER_RADIUS := 0.45
 ## Team walls sit at x = ±WALL_X; deliveries land within WALL_REACH of it.
 const WALL_X := 8.0
 const WALL_REACH := 1.6
-const WIN_HEIGHT := 10
+## Win target PER BUILDER on a team (#961). The old fixed target (10 total) let
+## a bigger crew blitz it — round length shrank from ~13s at 2v2 to ~9s at 4v4.
+## Scaling the target with team size (see _win_height) holds per-builder work
+## constant, so the race lasts the same however many are hauling, and long
+## enough to be a real round rather than a few-second sprint.
+const WIN_PER_BUILDER := 13
 const BLOCK_PICKUP_RADIUS := 0.7
 const BLOCK_WAVE_SEC := 2.5
 const MAX_FLOOR_BLOCKS := 6
@@ -37,6 +42,9 @@ var carrying := {}
 ## Two teams; team 0 owns the -x wall, team 1 the +x wall.
 var teams: Array = []
 var wall_heights: Array = [0, 0]
+## Blocks a team must stack to win — WIN_PER_BUILDER × builders on the team, set
+## in _setup so per-builder work stays constant across lobby sizes (#961).
+var win_height := WIN_PER_BUILDER
 ## Floor blocks up for grabs, each a Vector2.
 var blocks: Array[Vector2] = []
 
@@ -78,6 +86,7 @@ func _setup() -> void:
 		shuffled[i] = shuffled[j]
 		shuffled[j] = swap
 	teams = [shuffled.slice(0, shuffled.size() / 2), shuffled.slice(shuffled.size() / 2)]
+	win_height = WIN_PER_BUILDER * maxi(1, (teams[0] as Array).size())
 	for team_index in teams.size():
 		for i in teams[team_index].size():
 			var slot: int = teams[team_index][i]
@@ -109,7 +118,7 @@ func _tick(delta: float) -> void:
 	if _wave_accum >= BLOCK_WAVE_SEC:
 		_wave_accum = 0.0
 		_spawn_blocks()
-	if int(wall_heights[0]) >= WIN_HEIGHT or int(wall_heights[1]) >= WIN_HEIGHT:
+	if int(wall_heights[0]) >= win_height or int(wall_heights[1]) >= win_height:
 		finish(_rank_players())
 
 
@@ -126,6 +135,7 @@ func get_snapshot() -> Dictionary:
 		"blocks": block_list,
 		"walls": wall_heights.duplicate(),
 		"wall_x": WALL_X,
+		"win_height": win_height,
 		"teams": teams.duplicate(true),
 	}
 
