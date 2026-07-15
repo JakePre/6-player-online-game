@@ -455,14 +455,8 @@ func _finish_rank_index(slot: int) -> int:
 
 
 func _on_track(pos: Vector2) -> bool:
-	var points := waypoints()
-	var best := INF
-	for i in points.size():
-		var a := points[i]
-		var b := points[(i + 1) % points.size()]
-		var closest := Geometry2D.get_closest_point_to_segment(pos, a, b)
-		best = minf(best, pos.distance_to(closest))
-	return best <= TRACK_HALF_WIDTH
+	# Distance to the closed waypoint loop — shared math (#945).
+	return SimGeometry.distance_to_polyline(pos, waypoints(), true) <= TRACK_HALF_WIDTH
 
 
 func _capture_waypoints(slot: int, kart: Dictionary) -> void:
