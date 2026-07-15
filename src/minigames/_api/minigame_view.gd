@@ -44,6 +44,10 @@ var private_state: Dictionary = {}
 ## membership — never every snapshot.
 var _team_synced := false
 
+## Cached subclass INPUT_ACTIONS const (#947), resolved once via reflection.
+var _input_actions_cache: Dictionary
+var _input_actions_resolved := false
+
 
 func setup(player_names: Dictionary, local_slot: int) -> void:
 	names = player_names
@@ -101,6 +105,73 @@ func send_move_intent() -> void:
 		return
 	var dir := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 	NetManager.send_match_input({"mx": dir.x, "my": dir.y})
+
+
+## Sends a one-off match input (a button press), guarded exactly like
+## send_move_intent — dropped while disconnected so a stray press can't RPC
+## through the offline peer. Views route declarative button actions here (and
+## may call it directly from a custom _unhandled_input / _process).
+func send_action(data: Dictionary) -> void:
+	var peer := NetManager.multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer:
+		return
+	NetManager.send_match_input(data)
+
+
+# --- Declarative button input (#947) -----------------------------------------
+# A view with only simple button actions declares them once as a const and
+# skips _unhandled_input entirely:
+#
+#   const INPUT_ACTIONS := {
+#       &"action_primary": "jump",                          # press -> {jump = true}
+#       &"action_secondary": {"key": "duck", "held": true}, # press -> {duck = true},
+#   }                                                       # release -> {duck = false}
+#
+# The base's _unhandled_input maps events against it and sends via send_action
+# (the guard is now structural — no per-view null-peer check to forget).
+# Custom cases (charge-release, radial aim, flag-plus-move-vector, stateful
+# lane) keep their own _unhandled_input / _process; if such a view ALSO wants
+# declarative actions it calls super._unhandled_input(event).
+
+
+## The subclass's INPUT_ACTIONS const (or `{}` if it declares none), read once
+## via script reflection and cached — consts aren't visible to the base class
+## by name, so this is how the base reaches a subclass's declaration.
+func input_actions() -> Dictionary:
+	if not _input_actions_resolved:
+		_input_actions_resolved = true
+		var script := get_script() as Script
+		if script != null:
+			_input_actions_cache = script.get_script_constant_map().get(&"INPUT_ACTIONS", {})
+	return _input_actions_cache
+
+
+## The match-input payloads `event` should produce against INPUT_ACTIONS — a
+## pure mapping (sends nothing), so the edge/held logic is unit-testable with
+## synthetic InputEventActions. A plain string value fires `{value = true}` on
+## the press edge; a `{"key", "held": true}` value also fires `{key = false}`
+## on release.
+func input_sends_for_event(event: InputEvent) -> Array[Dictionary]:
+	var sends: Array[Dictionary] = []
+	for action: StringName in input_actions():
+		var spec: Variant = input_actions()[action]
+		var key := ""
+		var held := false
+		if spec is Dictionary:
+			key = String(spec.get("key", ""))
+			held = bool(spec.get("held", false))
+		else:
+			key = String(spec)
+		if event.is_action_pressed(action):
+			sends.append({key: true})
+		elif held and event.is_action_released(action):
+			sends.append({key: false})
+	return sends
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	for data in input_sends_for_event(event):
+		send_action(data)
 
 
 ## Juice hook (M6-02): the match screen calls this on round_results while the

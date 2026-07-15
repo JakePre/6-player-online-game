@@ -56,7 +56,6 @@ tracks the routing tier, never re-derive scope from it.
 | #942 | CharacterRig.play_protected() — unify 4 animation-hold idioms |
 | #943 | Split match_screen.gd (928 lines) |
 | #946 | Snapshot schema tripwire — design done, Sonnet fan-out in progress (batches 1-3 merged) |
-| #947 | Declarative INPUT_MAP on view bases (Opus) → Sonnet fan-out |
 | #948 | Extract arena-dressing from minigame_view_3d.gd (601 lines) |
 | #944 | [EPIC] Homage wave — 8 child issues, parallel claims: #949 Blast Grid, #950 Snake Chain, #954 Nom Arena, #955 Color Clash, #956 Turbo Lap, #957 Shred Session, #958 The Mole, #959 Bullet Waltz |
 | #961 | Round-length collapse cluster — 8 games, diagnose-then-tune, per-game claims |
@@ -69,3 +68,4 @@ tracks the routing tier, never re-derive scope from it.
 |---|---|
 | #715 | Brain quality pass — data gate lifted; overlaps #926/#962, coordinate before claiming |
 | #941 | EdgeTracker fan-out — helper + 3 reference views landed; convert the remaining ~8 seen-edge views |
+| #947 | INPUT_ACTIONS fan-out — base machinery + 4 reference views landed; convert the remaining ~16 simple-button views (see the issue's fan-out note) |

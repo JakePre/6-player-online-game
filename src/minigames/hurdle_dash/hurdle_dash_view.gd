@@ -5,6 +5,8 @@ extends MinigameView
 ## M13-30 FX pass (2D juice per PHASE2.md §7 — deliberately flat): speed
 ## lines trail moving runners, and clipping a hurdle throws a spark burst.
 
+## Declarative button input (#947): jump the hurdles (run is the held move axis).
+const INPUT_ACTIONS := {&"action_primary": "jump"}
 const LANE_BORDER := Color(0.34, 0.37, 0.44)
 ## #930: split each lane into a dusk-sky band and a packed-dirt ground band
 ## instead of one flat charcoal fill — stays within the deliberately-flat 2D
@@ -52,12 +54,6 @@ func _process(delta: float) -> void:
 	_sparks = alive
 	if not _sparks.is_empty():
 		queue_redraw()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"action_primary"):
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"jump": true})
 
 
 func _render(game: Dictionary) -> void:

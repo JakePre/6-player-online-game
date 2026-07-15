@@ -4,6 +4,12 @@ extends MinigameView3D
 ## gap. Jumps arc via update_rig height, ducks squash the rig, lives ride the
 ## nameplate as pips, and losing one flinches + shakes.
 
+## Declarative button input (#947): jump the low bars; hold to duck the high
+## ones (press ducks, release stands back up).
+const INPUT_ACTIONS := {
+	&"action_primary": "jump",
+	&"action_secondary": {"key": "duck", "held": true},
+}
 const LASER_COLOR := Color(0.95, 0.15, 0.1, 0.7)
 ## Per-kind beam colors (#779): the required action reads by hue, not just by a
 ## height the iso camera foreshortens — amber = JUMP the low bar, cyan = DUCK the
@@ -42,15 +48,6 @@ var _fallen_seen := -1
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"action_primary"):
-		NetManager.send_match_input({"jump": true})
-	elif event.is_action_pressed(&"action_secondary"):
-		NetManager.send_match_input({"duck": true})
-	elif event.is_action_released(&"action_secondary"):
-		NetManager.send_match_input({"duck": false})
 
 
 ## Neon violet floor under the sweeping lasers (#589).
