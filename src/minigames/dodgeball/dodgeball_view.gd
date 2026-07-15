@@ -35,8 +35,9 @@ var _event_until := 0.0
 var _center_line: MeshInstance3D
 var _side_tints: Array[MeshInstance3D] = []
 var _downed := {}
-# -1 = unseeded, so a mid-match rejoin doesn't shake/flash on its first snapshot.
-var _fallen_seen := -1
+## Rejoin-quiet rising edge on the fallen count (#941): the first snapshot
+## seeds and never shakes/flashes.
+var _edges := EdgeTracker.new()
 # Ball index -> holder from the previous snapshot, for catch detection: a ball
 # going FLYING (no holder) -> HELD (a live holder) is a catch.
 var _ball_holder_seen := {}
@@ -232,10 +233,9 @@ func _shake_on_new_downs(fallen: Array) -> void:
 	var fallen_count := 0
 	for group: Array in fallen:
 		fallen_count += group.size()
-	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
+	if _edges.rose(&"fallen", fallen_count):
 		request_shake(8.0)
 		play_sfx(&"ko")
-	_fallen_seen = fallen_count
 
 
 func _down_rig(slot: int) -> void:

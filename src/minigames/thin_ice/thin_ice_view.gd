@@ -38,8 +38,9 @@ var _view_half := 0.0
 var _prev_tiles: Array = []
 ## Last standing position per slot, so the splash lands where they fell.
 var _last_seen_pos := {}
-# -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
-var _fallen_seen := -1
+## Rejoin-quiet rising edge on the fallen count (#941): the first snapshot
+## seeds and never shakes.
+var _edges := EdgeTracker.new()
 
 
 func _physics_process(_delta: float) -> void:
@@ -149,7 +150,7 @@ func _shake_on_new_falls() -> void:
 	var fallen_count := 0
 	for group: Array in fallen:
 		fallen_count += group.size()
-	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
+	if _edges.rose(&"fallen", fallen_count):
 		request_shake(10.0)
 		# Signature cues (#711 pilot): the body hitting the water plus the
 		# shared elimination cue, replacing the generic UI `error`.
@@ -162,7 +163,6 @@ func _shake_on_new_falls() -> void:
 					# Droplets on top of the ring: the body going under (M13-05).
 					fx_splash(_last_seen_pos[slot])
 					_last_seen_pos.erase(slot)
-	_fallen_seen = fallen_count
 
 
 ## Expanding, fading ring at the water surface where a player went under.

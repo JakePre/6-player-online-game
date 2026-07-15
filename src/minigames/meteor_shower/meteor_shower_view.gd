@@ -32,8 +32,9 @@ var _meteor_pool: Array[Node3D] = []
 # [x, y, left] rows from the previous snapshot, to spot landings.
 var _meteors_seen: Array = []
 var _downed := {}  # slot (int) -> true, once the ko pose + dim have been applied
-# -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
-var _fallen_seen := -1
+## Rejoin-quiet rising edge on the fallen count (#941): the first snapshot
+## seeds and never shakes.
+var _edges := EdgeTracker.new()
 
 
 func _physics_process(_delta: float) -> void:
@@ -239,8 +240,7 @@ func _shake_on_new_downs() -> void:
 	var fallen_count := 0
 	for group: Array in fallen:
 		fallen_count += group.size()
-	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
+	if _edges.rose(&"fallen", fallen_count):
 		request_shake(11.0)
 		# The shared elimination cue, replacing the generic UI `error`.
 		play_sfx(&"ko")
-	_fallen_seen = fallen_count

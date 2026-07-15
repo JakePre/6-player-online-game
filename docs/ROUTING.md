@@ -53,7 +53,6 @@ tracks the routing tier, never re-derive scope from it.
 | #935 | Hat shop — persistent cosmetics (L) |
 | #936 | Finale variety — Storm Court/Kingslayer/Magma Ascent locked; Storm Court buildable now |
 | #939 | Stage shell — themed backdrop replacing the grey void (L) |
-| #941 | EdgeTracker helper (Opus) → Sonnet fan-out across 11 views |
 | #942 | CharacterRig.play_protected() — unify 4 animation-hold idioms |
 | #943 | Split match_screen.gd (928 lines) |
 | #945 | SimGeometry + cooldown-ring helpers (Opus) → Sonnet call-site fan-out |
@@ -70,3 +69,4 @@ tracks the routing tier, never re-derive scope from it.
 | Issue | Task |
 |---|---|
 | #715 | Brain quality pass — data gate lifted; overlaps #926/#962, coordinate before claiming |
+| #941 | EdgeTracker fan-out — helper + 3 reference views landed; convert the remaining ~8 seen-edge views |
