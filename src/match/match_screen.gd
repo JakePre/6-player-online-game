@@ -17,12 +17,6 @@ const SHAKE_PATTERN: Array[Vector2] = [
 	Vector2(-0.3, -0.4),
 ]
 const SHAKE_STEP_SEC := 0.04
-const COIN_FLY_SEC := 0.6
-## Large-room UI (M15-06): coin chips fly to a grid that fits the screen width,
-## and the results list packs several entries per row past this many players,
-## so nothing runs off-screen at up to 24 players.
-const COIN_GRID_SPACING := Vector2(80.0, 30.0)
-const RESULTS_MAX_ROWS := 12
 ## In-match HUD score strip (#571): the totals row scrolls instead of growing
 ## the HUD panel past two chip-rows, and past this many players chips pack
 ## several players together (SmallLabel keeps each pill compact too) so most
@@ -56,6 +50,9 @@ var _round_history: Array[Dictionary] = []
 ## The intro card's content presenter (#943): key art, title/rules, control
 ## hints/chips, mutator banner. This screen keeps panel visibility + the HUD.
 var _intro_card_ctrl: IntroCard
+## The results panel's presenter (#943): ranked lines + coin flights. This
+## screen keeps the totals HUD row those coins fly toward, plus panel + stats.
+var _results_presenter: ResultsPresenter
 var _round_view_flags: Array = []
 var _minigame_view: MinigameView
 ## In-match pause/options overlay (M18-03), mounted on top in _ready.
@@ -111,6 +108,9 @@ func _ready() -> void:
 	_intro_card_ctrl = IntroCard.new(
 		_intro_key_art, _intro_title, _intro_category, _intro_rules, _intro_controls, _intro_mutator
 	)
+	# Results panel + coin flights (#943 part 2); coins are parented to this
+	# root and fly toward the totals HUD row.
+	_results_presenter = ResultsPresenter.new(_results_title, _results_list, self, _totals_row)
 	# Intro hints and the emote hint re-render live on a device switch (#608)
 	# and on a keyboard/pad rebind (#832) — a remap shows immediately.
 	InputGlyphs.device_changed.connect(
@@ -553,13 +553,11 @@ func _record_match_stats(standings: Array) -> void:
 func _show_results(event: Dictionary) -> void:
 	_totals = event.totals
 	_rebuild_totals_row()
-	_results_title.text = "Round %d results" % event.round
-	_fill_list(
-		_results_list,
-		_fit_result_lines(MatchFormat.result_lines(event.placements, event.awards, _names))
-	)
+	# The presenter (#943) owns the results panel + coin decoration; this screen
+	# keeps the totals HUD, panel visibility, and stats.
+	_results_presenter.render(int(event.round), event.placements, event.awards, _names)
 	_show_panel(_results_panel, _minigame_view != null)
-	_fly_coins(event.awards)
+	_results_presenter.fly_coins(event.awards)
 
 
 func _show_standings(title: String, totals: Dictionary, subtitle := "") -> void:
@@ -674,64 +672,9 @@ func _on_shake_requested(strength: float) -> void:
 	_shake_tween.tween_property(_play_area, "position", origin, SHAKE_STEP_SEC)
 
 
-## "+N" coin chips fly from mid-screen to the running-total row (M6-02).
-## Pure decoration: totals are already correct before the flight starts, so
-## reduced motion (M12-03) skips the flight outright — nothing to show at rest.
-func _fly_coins(awards: Dictionary) -> void:
-	if ArenaFX.reduced_motion:
-		return
-	var slots: Array = awards.keys()
-	slots.sort()
-	var earners := slots.filter(func(s: int) -> bool: return int(awards.get(s, 0)) > 0)
-	var placed := 0
-	for slot: int in earners:
-		var coin := Label.new()
-		coin.name = "CoinFly%d" % slot
-		coin.text = "+%d" % int(awards[slot])
-		# The chunky display face makes the +N read as it flies (M16-08).
-		coin.theme_type_variation = &"HeaderLabel"
-		coin.add_theme_color_override("font_color", PlayerPalette.color_for_slot(slot))
-		add_child(coin)
-		var offset := _coin_grid_offset(placed, earners.size(), size.x)
-		coin.position = size / 2.0 + offset - Vector2(size.x * 0.25, 0.0)
-		# global_position (not local .position) so the target stays correct no
-		# matter how many containers now sit between TotalsRow and this root
-		# (#571 added a ScrollContainer wrapper to cap the HUD's height).
-		var target := _totals_row.global_position - global_position + offset
-		var tween := create_tween()
-		# EASE_IN is deliberate — chips accelerate away; the curve stays on-token.
-		tween.set_ease(Tween.EASE_IN).set_trans(PartyTheme.TRANS_DEFAULT)
-		tween.tween_property(coin, "position", target, COIN_FLY_SEC)
-		tween.tween_callback(coin.queue_free)
-		placed += 1
-
-
-## Grid slot for coin chip `index` of `count`, packed into as many columns as
-## fit `width` so no chip flies off-screen at large player counts (M15-06).
-## Offset is relative to the totals row's left edge.
-func _coin_grid_offset(index: int, count: int, width: float) -> Vector2:
-	var cols := maxi(1, mini(count, int((width - 48.0) / COIN_GRID_SPACING.x)))
-	return Vector2(
-		24.0 + (index % cols) * COIN_GRID_SPACING.x, (index / cols) * COIN_GRID_SPACING.y
-	)
-
-
-## Packs ranked result lines into at most RESULTS_MAX_ROWS rows (several entries
-## per row for large lobbies) so the list never overflows the panel; small
-## lobbies keep one entry per row (M15-06).
-func _fit_result_lines(lines: Array[String]) -> Array[String]:
-	if lines.size() <= RESULTS_MAX_ROWS:
-		return lines
-	var per_row := int(ceil(float(lines.size()) / float(RESULTS_MAX_ROWS)))
-	var packed: Array[String] = []
-	for i in range(0, lines.size(), per_row):
-		packed.append("     ".join(lines.slice(i, i + per_row)))
-	return packed
-
-
 ## Groups sorted slots into at most TOTALS_MAX_CHIPS pill-groups (several
-## players sharing one pill past that many), the same multi-per-row trick
-## _fit_result_lines uses for the results panel (#571): the HUD's chip *count*
+## players sharing one pill past that many), the same multi-per-row trick the
+## ResultsPresenter uses for the results panel (#571): the HUD's chip *count*
 ## stays bounded so two rows is always enough, instead of letting the
 ## HFlowContainer wrap into as many rows as it needs. No player's name/score
 ## is ever dropped, only grouped — and a group of one keeps its own color.
@@ -781,13 +724,3 @@ func _make_total_chip(group: Array) -> PanelContainer:
 		chip.add_theme_color_override(&"font_color", PlayerPalette.color_for_slot(group[0]))
 	pill.add_child(chip)
 	return pill
-
-
-func _fill_list(list: VBoxContainer, lines: Array[String]) -> void:
-	for child in list.get_children():
-		child.queue_free()
-	for line in lines:
-		var label := Label.new()
-		label.text = line
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		list.add_child(label)
