@@ -41,7 +41,6 @@ tracks the routing tier, never re-derive scope from it.
 |---|---|
 | #759 | M12-01 balance — stage 1 (classification) done; stage 2 is per-game tuning through #961/#962, each with owner sign-off |
 | #918 | Meteor Shower — staged circle shrink (Gauntlet pattern) + meteor model |
-| #920 | Gauntlet — swing-while-walking teleport fix (root-caused) + range telegraph |
 | #923 | Framework: nameplate declutter in crowds |
 | #925 | Side-scroll tier (knock_off/loadout_duel/tumble_run) presentation pass (L) |
 | #926 | Bot degeneracies: corner-camping, tilt_deck stalemate, meteor dodge-into-danger — coordinate with #715/#962 before claiming |

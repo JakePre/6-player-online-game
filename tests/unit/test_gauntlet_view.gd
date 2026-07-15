@@ -512,14 +512,38 @@ func test_arming_shows_the_axe_and_the_nameplate_counts_swings() -> void:
 	assert_false(rig.display_name.contains("⚔"))
 
 
-func test_swing_seq_plays_the_attack_once_and_holds_it() -> void:
+func test_swing_seq_plays_the_attack_once_and_holds_while_stationary() -> void:
 	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 3, 0, 0)}, "hazards": []})
 	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 2, 1, 0)}, "hazards": []})
 	var rig: CharacterRig = view.rig_for_slot(0)
 	assert_eq(rig.current_action(), &"attack")
-	# The reaction hold keeps update_rig's walk/idle from stomping the swing.
-	view.render({"radius": 10.0, "players": {0: _armed_state(0.2, 0.0, 2, 1, 0)}, "hazards": []})
-	assert_eq(rig.current_action(), &"attack", "same seq replays nothing and holds")
+	# play_protected (#942) holds the swing pose while the swinger stays put —
+	# the same seq replays nothing.
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 2, 1, 0)}, "hazards": []})
+	assert_eq(rig.current_action(), &"attack", "same seq replays nothing and holds when still")
+
+
+## #920: swinging while walking must NOT hold the pose (that was the teleport
+## bug) — real movement mid-swing switches to walk immediately (#800), so
+## positions keep flowing through the interpolator instead of snapping.
+func test_swing_yields_to_walk_the_instant_the_swinger_moves() -> void:
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 3, 0, 0)}, "hazards": []})
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 2, 1, 0)}, "hazards": []})
+	var rig: CharacterRig = view.rig_for_slot(0)
+	assert_eq(rig.current_action(), &"attack", "the swing pose plays first")
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.6, 0.0, 2, 1, 0)}, "hazards": []})
+	assert_eq(rig.current_action(), &"walk", "moving mid-swing switches to walk — no teleport hold")
+
+
+## #920: a swing spawns a short-lived range ring so reach reads at a glance.
+func test_swing_spawns_a_range_telegraph_ring() -> void:
+	var saved := ArenaFX.reduced_motion
+	ArenaFX.reduced_motion = false
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 3, 0, 0)}, "hazards": []})
+	assert_eq(view._swing_arcs.size(), 0, "no ring before a swing")
+	view.render({"radius": 10.0, "players": {0: _armed_state(0.0, 0.0, 2, 1, 0)}, "hazards": []})
+	assert_eq(view._swing_arcs.size(), 1, "the swing telegraphs its reach")
+	ArenaFX.reduced_motion = saved
 
 
 func test_hit_seq_staggers_the_victim() -> void:
