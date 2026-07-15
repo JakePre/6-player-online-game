@@ -54,6 +54,14 @@ const ENTRIES: Array[Dictionary] = [
 		"display_name": "Dog",
 		"scene_path": "res://assets/characters/generated/Dog.glb",
 	},
+	{
+		# Pipeline-generated, first fully-autonomous character build: screened
+		# FLUX concepts, voxel-solidified Trellis mesh, bone-heat weights,
+		# concept-projected texture — same skeleton, all 77 animations.
+		"id": &"fox",
+		"display_name": "Fox",
+		"scene_path": "res://assets/characters/generated/Fox.glb",
+	},
 ]
 
 ## SPEC $8 calls for a roster of 8; Skeleton_Minion is held back as the first
