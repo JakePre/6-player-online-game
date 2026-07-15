@@ -49,9 +49,9 @@ var _downed := {}
 var _phase_seen := -1
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
-## Shove state (#784): last-seen swing counter + swing-hold expiry per slot, and
-## the pooled cooldown rings.
-var _act_seen := {}
+## Shove state (#784): play-once swing edge (#945) + swing-hold expiry per
+## slot, and the pooled cooldown rings.
+var _act_edges := EdgeTracker.new()
 var _act_hold := {}
 var _rings := {}
 ## Fall animation state (#784): downed slots still sinking, and tile indices
@@ -253,9 +253,7 @@ func _play_shove(slot: int, state: Array, rig: CharacterRig) -> void:
 	if state.size() <= MemoryMatch.PS_ACT_SEQ:
 		return
 	var seq := int(state[MemoryMatch.PS_ACT_SEQ])
-	var seen: int = _act_seen.get(slot, seq)
-	_act_seen[slot] = seq
-	if seq <= seen:
+	if not _act_edges.rose(slot, seq):
 		return
 	rig.play(&"attack")
 	_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
@@ -273,34 +271,10 @@ func _play_shove(slot: int, state: Array, rig: CharacterRig) -> void:
 func _update_cooldown_ring(slot: int, state: Array, rig: CharacterRig) -> void:
 	if state.size() <= MemoryMatch.PS_SHOVE_CD:
 		return
-	var cd := float(state[MemoryMatch.PS_SHOVE_CD])
-	var ring: MeshInstance3D = _rings.get(slot)
-	if ring == null:
-		if cd <= 0.0:
-			return
-		ring = _make_cooldown_ring()
-		rig.add_child(ring)
-		_rings[slot] = ring
-	ring.visible = cd > 0.0
-	if ring.visible:
-		(ring.mesh as TorusMesh).outer_radius = 0.35 + 0.35 * (cd / MemoryMatch.SHOVE_COOLDOWN_SEC)
-
-
-func _make_cooldown_ring() -> MeshInstance3D:
-	var mesh := TorusMesh.new()
-	mesh.inner_radius = 0.3
-	mesh.outer_radius = 0.7
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = COOLDOWN_RING_COLOR
-	mat.emission_enabled = true
-	mat.emission = COOLDOWN_RING_COLOR
-	mesh.material = mat
-	var node := MeshInstance3D.new()
-	node.name = "CooldownRing"
-	node.mesh = mesh
-	node.position = Vector3(0.0, 0.06, 0.0)
-	return node
+	# PS_SHOVE_CD is raw seconds here — normalize to a 0..1 fraction for the
+	# shared cooldown-ring chrome (#945).
+	var fraction := float(state[MemoryMatch.PS_SHOVE_CD]) / MemoryMatch.SHOVE_COOLDOWN_SEC
+	update_cooldown_ring(_rings, slot, rig, fraction, COOLDOWN_RING_COLOR)
 
 
 func _down_rig(slot: int) -> void:
