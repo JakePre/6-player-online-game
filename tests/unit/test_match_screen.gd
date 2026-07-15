@@ -389,32 +389,6 @@ func test_coin_fly_target_stays_near_totals_row() -> void:
 	assert_not_null(coin)
 
 
-## Coin chips fly to a grid that stays within the screen width at any count.
-func test_coin_grid_stays_within_screen_width() -> void:
-	var width := 1152.0
-	for i in 24:
-		var offset: Vector2 = screen._coin_grid_offset(i, 24, width)
-		assert_between(offset.x, 0.0, width - float(screen.COIN_GRID_SPACING.x))
-
-
-## A small lobby's coins stay on one row (no needless wrapping).
-func test_coin_grid_single_row_for_small_lobbies() -> void:
-	for i in 6:
-		assert_almost_eq(float(screen._coin_grid_offset(i, 6, 1152.0).y), 0.0, 0.001)
-
-
-## Results pack into at most RESULTS_MAX_ROWS rows for large lobbies; small
-## lobbies are unchanged (one entry per row).
-func test_results_condense_for_large_lobbies() -> void:
-	var many: Array[String] = []
-	for i in 24:
-		many.append("place %d" % i)
-	var packed: Array[String] = screen._fit_result_lines(many)
-	assert_true(packed.size() <= 12, "24 players pack into <=12 rows, got %d" % packed.size())
-	var few: Array[String] = ["1st", "2nd", "3rd"]
-	assert_eq(screen._fit_result_lines(few), few, "small lobbies unchanged")
-
-
 ## M16-07: the intro card's key-art slot stays hidden (styled text fallback) when
 ## no art file has been delivered for the round's minigame.
 func test_intro_key_art_hidden_without_art() -> void:

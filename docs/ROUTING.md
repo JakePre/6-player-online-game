@@ -53,7 +53,6 @@ tracks the routing tier, never re-derive scope from it.
 | #935 | Hat shop — persistent cosmetics (L) |
 | #936 | Finale variety — Storm Court/Kingslayer/Magma Ascent locked; Storm Court buildable now |
 | #939 | Stage shell — themed backdrop replacing the grey void (L) |
-| #943 | Split match_screen.gd — Part 1 (IntroCard, 928→793 lines) landed; Part 2 = results/podium presenter (Opus, claimed) |
 | #946 | Snapshot schema tripwire — design done, Sonnet fan-out in progress (batches 1-3 merged) |
 | #944 | [EPIC] Homage wave — 8 child issues, parallel claims: #949 Blast Grid, #950 Snake Chain, #954 Nom Arena, #955 Color Clash, #956 Turbo Lap, #957 Shred Session, #958 The Mole, #959 Bullet Waltz |
 | #961 | Round-length collapse cluster — 8 games, diagnose-then-tune, per-game claims |
