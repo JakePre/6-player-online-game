@@ -107,8 +107,8 @@ func test_mesh_top_measures_each_tile_thickness() -> void:
 	# The thin default platform vs the full grass block — very different tops, so
 	# a fixed offset would sink or float one of them; the per-mesh measure seats
 	# both. (These are the exact values _build_floor negates for the instance Y.)
-	assert_almost_eq(MinigameView3D._mesh_top(platform), 0.195, 0.01, "thin platform top")
-	assert_almost_eq(MinigameView3D._mesh_top(grass), 1.0, 0.01, "full grass block top")
+	assert_almost_eq(ArenaDresser._mesh_top(platform), 0.195, 0.01, "thin platform top")
+	assert_almost_eq(ArenaDresser._mesh_top(grass), 1.0, 0.01, "full grass block top")
 
 
 func _tile_mesh(scene_path: String) -> Mesh:

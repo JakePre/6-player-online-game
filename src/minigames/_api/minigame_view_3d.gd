@@ -14,20 +14,6 @@ extends MinigameView
 const CHARACTER_RIG_SCENE := preload("res://src/characters/character_rig.tscn")
 const ISO_CAMERA_RIG_SCENE := preload("res://src/characters/iso_camera_rig.tscn")
 const FLOOR_TILE_SCENE := preload("res://assets/environment/kenney_platformer_kit/platform.glb")
-## Floor tiles are laid on a 1m grid (SPEC $10 kit). Each tile is seated so its
-## top surface sits at y=0 — the vertical offset is measured from the tile
-## mesh's own AABB in _build_floor (#813), so any block thickness works, from
-## the thin `platform.glb` (~0.195) to a full `block-grass` (~1.0).
-const FLOOR_TILE_SIZE := 1.0
-## Rim-prop placement (#813): scatter_rim_props rings the arena with scenery in
-## this band of _arena_half() (just past the play area, inside the camera's
-## margin), with this much per-prop angle and scale jitter so a repeated mesh
-## doesn't read as a stamped pattern.
-const RIM_PROP_INNER := 1.1
-const RIM_PROP_OUTER := 1.28
-const RIM_PROP_ANGLE_JITTER := 0.22
-const RIM_PROP_SCALE_MIN := 0.8
-const RIM_PROP_SCALE_MAX := 1.2
 ## Below this per-snapshot displacement (world units), a rig is treated as
 ## stationary and plays "idle" instead of "walk".
 const MOVE_EPSILON := 0.01
@@ -51,6 +37,9 @@ const CHROME_CLEARANCE_Y := 110.0
 ## Arena root all per-minigame 3D content (props, extra geometry) should
 ## parent to; populated by _build_scene_tree() before _setup_3d() runs.
 var arena: Node3D
+## Arena-dressing helper (#948): owns floor-building + rim props. Created once
+## `arena` exists, in _setup().
+var _dresser: ArenaDresser
 
 var _banner_layer: CanvasLayer
 
@@ -71,6 +60,7 @@ var _rig_samples := {}
 
 func _setup() -> void:
 	_build_scene_tree()
+	_dresser = ArenaDresser.new(arena)
 	_build_lighting()
 	_build_camera()
 	_build_floor()
@@ -122,42 +112,13 @@ func to_arena(pos: Vector2, height: float = 0.0) -> Vector3:
 
 
 ## Decorative rim props (#813): scatter non-interactive scenery — trees, rocks,
-## fences from the in-repo Kenney kits — in a ring just outside the play area,
-## parented to `arena` so it can never touch gameplay (the scenes are plain
-## MeshInstances with no collision bodies, and they sit past _arena_half()).
-## Ground-seated (base at y=0), spread evenly around the ring with a per-slot
-## angle jitter, at a radius in [RIM_PROP_INNER, RIM_PROP_OUTER] × _arena_half(),
-## each with a random yaw and gentle scale jitter so a repeated mesh doesn't
-## read as a stamped pattern. Seeded off `prop_seed` so the layout is stable
-## frame-to-frame and reproducible in tests — call once from _setup_3d().
-## Returns the container node (named "RimProps"). This is the shared half of the
-## props sweep: a game dresses its arena with one call, e.g.
+## fences from the in-repo Kenney kits — in a ring just outside the play area
+## so it can never touch gameplay. The dressing logic lives in ArenaDresser
+## (#948); this forwards the view's _arena_half() into it. Seeded off
+## `prop_seed` for a reproducible layout — call once from _setup_3d(), e.g.
 ##   scatter_rim_props([preload("…/tree_pineRoundA.glb")], 16, 7)
 func scatter_rim_props(scenes: Array[PackedScene], count: int, prop_seed: int = 0) -> Node3D:
-	var container := Node3D.new()
-	container.name = "RimProps"
-	arena.add_child(container)
-	if scenes.is_empty() or count <= 0:
-		return container
-	var rng := RandomNumberGenerator.new()
-	rng.seed = prop_seed
-	var half := _arena_half()
-	for i in count:
-		var scene := scenes[rng.randi() % scenes.size()]
-		var prop := scene.instantiate() as Node3D
-		if prop == null:
-			continue
-		var angle := (
-			TAU * float(i) / float(count)
-			+ rng.randf_range(-RIM_PROP_ANGLE_JITTER, RIM_PROP_ANGLE_JITTER)
-		)
-		var radius := half * rng.randf_range(RIM_PROP_INNER, RIM_PROP_OUTER)
-		prop.position = to_arena(Vector2(cos(angle), sin(angle)) * radius, 0.0)
-		prop.rotation.y = rng.randf() * TAU
-		var jitter := rng.randf_range(RIM_PROP_SCALE_MIN, RIM_PROP_SCALE_MAX)
-		prop.scale = Vector3(jitter, jitter, jitter)
-		container.add_child(prop)
-	return container
+	return _dresser.scatter_rim_props(scenes, count, prop_seed, _arena_half())
 
 
 func rig_for_slot(slot: int) -> CharacterRig:
@@ -560,68 +521,13 @@ func _build_camera() -> void:
 	(_camera_rig.get_node("Camera3D") as Camera3D).current = true
 
 
+## Overridable floor hook (#813): the default dresses the arena with a tinted
+## tile floor via ArenaDresser (#948), seated by the tile's own top surface so
+## any block thickness sits flush. Games with a floor that IS the gameplay
+## (thin_ice's vanishing tiles, memory_match's grid) override this to build
+## their own — they don't call super.
 func _build_floor() -> void:
-	var tile := _floor_tile_scene().instantiate()
-	var tile_meshes := tile.find_children("*", "MeshInstance3D", true, false)
-	var mesh_instance := tile_meshes[0] as MeshInstance3D if not tile_meshes.is_empty() else null
-	var mesh: Mesh = mesh_instance.mesh if mesh_instance != null else null
-	var base_material: Material = (
-		mesh_instance.get_active_material(0) if mesh_instance != null else null
-	)
-	# Seat the tile's top surface at y=0 whatever its thickness (#813): the thin
-	# `platform.glb` (~0.195) and the full `block-grass`/`block-snow` blocks
-	# (~1.0) both sit flush, so a game can swap the mesh with no per-game offset.
-	# The top comes from the mesh's own vertices (not get_aabb(), which reads 0
-	# until the RenderingServer has drawn the mesh — hence the old hardcoded
-	# offset); the multimesh renders this same mesh, so its extent is exact.
-	# Measured before freeing the tile — a freed node's mesh reads no surfaces.
-	var top := _mesh_top(mesh) if mesh != null else 0.0
-	tile.free()
-	if mesh == null:
-		return
-
-	var tiles_per_side := int(ceil(_arena_half() * 2.0 / FLOOR_TILE_SIZE))
-	var multimesh := MultiMesh.new()
-	multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	multimesh.mesh = mesh
-	multimesh.instance_count = tiles_per_side * tiles_per_side
-
-	var start := -_arena_half() + FLOOR_TILE_SIZE * 0.5
-	var i := 0
-	for x in tiles_per_side:
-		for z in tiles_per_side:
-			var pos := Vector3(start + x * FLOOR_TILE_SIZE, -top, start + z * FLOOR_TILE_SIZE)
-			multimesh.set_instance_transform(i, Transform3D(Basis(), pos))
-			i += 1
-
-	var floor_node := MultiMeshInstance3D.new()
-	floor_node.name = "Floor"
-	floor_node.multimesh = multimesh
-	floor_node.material_override = _floor_material(base_material)
-	arena.add_child(floor_node)
-
-
-## The highest vertex Y across a mesh's surfaces — its top surface in local
-## space (#813). Read from vertex data so it is correct at setup, unlike
-## Mesh.get_aabb() which returns an empty box until the mesh has been rendered.
-static func _mesh_top(mesh: Mesh) -> float:
-	var top := -INF
-	for surface in mesh.get_surface_count():
-		var verts: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
-		for vertex: Vector3 in verts:
-			top = maxf(top, vertex.y)
-	return top if top != -INF else 0.0
-
-
-## The floor's material, tinted per game (#589). Duplicates the native Kenney
-## tile material so its texture/look is preserved, then multiplies in
-## _floor_tint() — white by default, so an un-overridden game is unchanged.
-func _floor_material(base: Material) -> Material:
-	var mat: StandardMaterial3D = (
-		base.duplicate() if base is StandardMaterial3D else StandardMaterial3D.new()
-	)
-	mat.albedo_color = mat.albedo_color * _floor_tint()
-	return mat
+	_dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
 
 
 func _build_character_rigs() -> void:
