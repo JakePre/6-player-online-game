@@ -49,10 +49,9 @@ var _downed := {}
 var _phase_seen := -1
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
 var _fallen_seen := -1
-## Shove state (#784): play-once swing edge (#945) + swing-hold expiry per
-## slot, and the pooled cooldown rings.
+## Shove state (#784): play-once swing edge (#945); the swing-hold now lives on
+## the rig (#942). Plus the pooled cooldown rings.
 var _act_edges := EdgeTracker.new()
-var _act_hold := {}
 var _rings := {}
 ## Fall animation state (#784): downed slots still sinking, and tile indices
 ## dropping into the pit (reset when the floor reforms each round).
@@ -236,7 +235,7 @@ func _update_players() -> void:
 		_play_shove(slot, state, rig)
 		# While the shove swing plays, drive the rig by hand so update_rig's
 		# walk/idle can't overwrite it (#808 idiom); otherwise move normally.
-		if Time.get_ticks_msec() < int(_act_hold.get(slot, 0)):
+		if rig.is_pose_protected():
 			rig.position = to_arena(pos)
 		else:
 			update_rig(slot, pos)
@@ -255,8 +254,8 @@ func _play_shove(slot: int, state: Array, rig: CharacterRig) -> void:
 	var seq := int(state[MemoryMatch.PS_ACT_SEQ])
 	if not _act_edges.rose(slot, seq):
 		return
-	rig.play(&"attack")
-	_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
+	# The rig owns its own swing hold now (#942).
+	rig.play_protected(&"attack", ACT_HOLD_SEC)
 	play_sfx(&"bump")
 	fx_burst(
 		Vector2(float(state[MemoryMatch.PS_X]), float(state[MemoryMatch.PS_Y])),

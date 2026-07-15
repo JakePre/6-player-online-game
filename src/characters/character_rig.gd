@@ -82,6 +82,9 @@ var _plate_base_y := 0.0
 ## Kept as data so a character swap (_rebuild_character) re-arms the new body.
 var _held_weapon := {}
 var _held_weapon_node: BoneAttachment3D
+## Msec (Time.get_ticks_msec) through which this rig's one-shot pose is
+## protected from update_rig's stationary walk/idle overwrite (#942).
+var _pose_protected_until := 0
 
 @onready var _nameplate: Label3D = $Nameplate
 
@@ -135,6 +138,27 @@ func play(action: StringName) -> bool:
 
 func current_action() -> StringName:
 	return _current_action
+
+
+## Plays a one-shot action and protects its pose for `hold_sec` (#942): while
+## the hold is active AND the rig is stationary, MinigameView3D.update_rig
+## won't overwrite the pose with idle — but the walk switch still fires the
+## instant the rig actually moves, so movement never stalls (#800). This is
+## the msec-expiry idiom four views (fort_siege/king_of_the_hill/memory_match/
+## sumo_smash) each hand-rolled with a private `_*_hold` dict. Returns play()'s
+## result (false if the action is unknown / unavailable — no hold is set then).
+func play_protected(action: StringName, hold_sec: float) -> bool:
+	var played := play(action)
+	if played:
+		_pose_protected_until = Time.get_ticks_msec() + int(hold_sec * 1000.0)
+	return played
+
+
+## Whether play_protected()'s hold is still active. update_rig consults this to
+## keep the pose while stationary; views that drive the rig by hand during a
+## hold query it directly.
+func is_pose_protected() -> bool:
+	return Time.get_ticks_msec() < _pose_protected_until
 
 
 func set_character_scene(scene: PackedScene) -> void:
