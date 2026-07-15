@@ -5,6 +5,11 @@ extends GutTest
 ## purpose, so there is no arena/spawn scaling to wire in.
 
 const TICK := 1.0 / 30.0
+## #927 regression floor: a full 6-bot field should brawl for a real stretch,
+## not evaporate in ~2s from an overtuned dash-shove flinging everyone off spawn.
+const MIN_BOT_ROUND_SEC := 6.0
+## The universal "not a 2-second farce" floor applied to every player count.
+const ANTI_WIPE_SEC := 2.5
 
 
 func _game(player_slots: Array[int] = [0, 1]) -> SumoSmash:
@@ -12,6 +17,34 @@ func _game(player_slots: Array[int] = [0, 1]) -> SumoSmash:
 	game.meta = SumoSmash.make_meta()
 	game.setup(player_slots, 42)
 	return game
+
+
+func _seed_bot_round(count: int, seed_value: int = 42) -> SumoSmash:
+	var player_slots: Array[int] = []
+	for i in count:
+		player_slots.append(i)
+	var game := SumoSmash.new()
+	game.meta = SumoSmash.make_meta()
+	game.setup(player_slots, seed_value)
+	return game
+
+
+## Drives every live slot with its real bot brain, ticking until the round ends
+## or the timeout. Returns how many seconds the round lasted.
+func _run_bot_round(count: int, seed_value: int = 42) -> float:
+	var game := _seed_bot_round(count, seed_value)
+	var brains := {}
+	for slot: int in game.slots:
+		brains[slot] = BotBrains.brain_for(&"sumo_smash", slot, slot)
+	var t := 0.0
+	while not game.finished and t < game.meta.duration_sec:
+		var match_state := {"game": game.get_snapshot()}
+		for slot: int in game.slots:
+			if game._elim.is_in(slot, game.slots):
+				game.handle_input(slot, brains[slot].think(match_state, {}))
+		game.tick(TICK)
+		t += TICK
+	return t
 
 
 func test_meta() -> void:
@@ -149,6 +182,31 @@ func test_timeout_survivors_tie_ahead_of_ringouts() -> void:
 	game.tick(TICK)
 	assert_true(game.finished)
 	assert_eq(game.get_results().placements, [[0, 1], [2]])
+
+
+## #927: a fresh 6-bot round must not resolve in the first couple of seconds
+## (the render audit caught it ending at ~2s of a 30s round — the whole field
+## ring-out from an overtuned dash-shove at spawn).
+func test_six_bot_round_does_not_evaporate() -> void:
+	var duration := _run_bot_round(6)
+	gut.p("6-bot sumo round lasted %.2fs" % duration)
+	assert_gt(duration, MIN_BOT_ROUND_SEC, "a 6-bot round should be a brawl, not a fast wipe")
+
+
+## #927: the round-length collapse was a whole class, not just the 6-player
+## frame — the knockback retune must leave every common count resolving as a
+## real brawl: never the ~2s wipe, never a 60s stalemate that only ends on the
+## timeout. Sumo has no RNG (fixed spawn ring, deterministic brains), so each
+## count is a single reproducible trajectory this pins down.
+func test_bot_rounds_across_counts_neither_wipe_nor_stall() -> void:
+	for count: int in [4, 6, 8]:
+		var duration := _run_bot_round(count)
+		assert_gt(duration, ANTI_WIPE_SEC, "%d-bot round is not a ~2s wipe" % count)
+		assert_lt(
+			duration,
+			SumoSmash.make_meta().duration_sec,
+			"%d-bot round resolves by ring-out, not a timeout stalemate" % count
+		)
 
 
 func test_snapshot_shape() -> void:

@@ -34,6 +34,23 @@ func test_setup_builds_iso_arena_with_rigs_and_platform() -> void:
 	assert_eq((platform.mesh as CylinderMesh).top_radius, SumoSmash.PLATFORM_RADIUS)
 
 
+## #927: the dohyo must read as a RAISED clay platform with a marked edge, not a
+## dark pit sunk flush into the full-height grass floor.
+func test_platform_reads_as_a_raised_dohyo_with_a_rim() -> void:
+	var platform: MeshInstance3D = view.arena.get_node("Platform")
+	var mesh := platform.mesh as CylinderMesh
+	assert_gt(mesh.height, 0.6, "the deck stands proud of the grass, not a thin flush disc")
+	assert_gt(platform.position.y + mesh.height / 2.0, 0.6, "its top surface clears the y=0 grass")
+	var rim: MeshInstance3D = view.arena.get_node("Rim")
+	assert_not_null(rim, "a rim ring marks the ring-out edge")
+	assert_almost_eq(
+		(rim.mesh as TorusMesh).outer_radius,
+		SumoSmash.PLATFORM_RADIUS,
+		0.001,
+		"the rim sits at the ring-out radius"
+	)
+
+
 func test_render_replaces_replicated_state() -> void:
 	view.render({"radius": 8.0, "players": {0: [1.0, -2.0, 0.5, 1]}, "out": []})
 	assert_eq(view.players.size(), 1)
