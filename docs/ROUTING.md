@@ -53,7 +53,6 @@ tracks the routing tier, never re-derive scope from it.
 | #935 | Hat shop — persistent cosmetics (L) |
 | #936 | Finale variety — Storm Court/Kingslayer/Magma Ascent locked; Storm Court buildable now |
 | #939 | Stage shell — themed backdrop replacing the grey void (L) |
-| #942 | CharacterRig.play_protected() — unify 4 animation-hold idioms |
 | #943 | Split match_screen.gd (928 lines) |
 | #946 | Snapshot schema tripwire — design done, Sonnet fan-out in progress (batches 1-3 merged) |
 | #948 | Extract arena-dressing from minigame_view_3d.gd (601 lines) |

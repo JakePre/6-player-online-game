@@ -224,7 +224,12 @@ func update_rig(
 	var moving := delta.length() > MOVE_EPSILON
 	if moving:
 		rig.rotation.y = atan2(delta.x, delta.y)
-	if force_animate or moving:
+	# A rig playing a protected one-shot pose (#942, CharacterRig.play_protected)
+	# keeps it while stationary — but movement always wins (#800), so a real
+	# displacement switches to walk regardless. This makes the per-game
+	# `force_animate = not flourishing` idiom structural: callers no longer pass
+	# the flag; the rig's own hold state does it.
+	if (force_animate and not rig.is_pose_protected()) or moving:
 		var desired: StringName = &"walk" if moving else &"idle"
 		if rig.current_action() != desired:
 			rig.play(desired)

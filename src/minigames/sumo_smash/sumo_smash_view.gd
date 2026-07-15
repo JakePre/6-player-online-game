@@ -23,10 +23,9 @@ var _dash_label: Label
 var _last_pos := {}
 var _out_seen := -1
 var _was_ready := true
-## Rig-animation ownership (#792): dash rising-edge tracking and the hurt-react
-## hold (msec) so a shove's flinch isn't restarted or overwritten every frame.
+## Rig-animation ownership (#792): dash rising-edge tracking. The hurt-react
+## hold now lives on the rig (#942, CharacterRig.play_protected).
 var _was_dashing := {}
-var _react_hold := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -85,23 +84,22 @@ func _render_3d(game: Dictionary) -> void:
 		var dashing := int(state[SumoSmash.PS_DASHING]) == 1
 		var lurched := _last_pos.has(slot) and (_last_pos[slot] as Vector2).distance_to(at) > 0.25
 		var shoved := lurched and not dashing
-		var now := Time.get_ticks_msec()
 		# Rig-animation ownership (#792): the dash IS the shove — a lunge pose
 		# played once on the rising edge; a shove throws a hurt reaction held for
-		# a beat. Both own the rig via a direct position set (like rumble_ring),
-		# so the one-shot animation plays out instead of update_rig overwriting
-		# it with walk every frame. Ordinary movement uses update_rig as before.
+		# a beat (the hold lives on the rig now, #942). Both own the rig via a
+		# direct position set (like rumble_ring), so the one-shot animation plays
+		# out instead of update_rig overwriting it with walk every frame.
+		# Ordinary movement uses update_rig as before.
 		if dashing:
 			if not bool(_was_dashing.get(slot, false)):
 				rig.play(&"attack")
 				# Signature cue (#728, docs/AUDIO_GUIDE.md — Brawlers): the lunge.
 				play_sfx(&"dash")
 			rig.position = to_arena(at, PLATFORM_THICKNESS)
-		elif now < int(_react_hold.get(slot, 0)):
+		elif rig.is_pose_protected():
 			rig.position = to_arena(at, PLATFORM_THICKNESS)
 		elif shoved:
-			rig.play(&"hit")
-			_react_hold[slot] = now + int(REACT_HOLD_SEC * 1000.0)
+			rig.play_protected(&"hit", REACT_HOLD_SEC)
 			rig.position = to_arena(at, PLATFORM_THICKNESS)
 		else:
 			# Height rides update_rig (M12-04's interpolator owns position;

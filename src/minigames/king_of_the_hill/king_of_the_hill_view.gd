@@ -79,8 +79,6 @@ var _items: Array = []
 var _held_label: Label
 ## Last-seen held map, for pickup-moment detection (#260).
 var _last_held := {}
-## slot -> Time.get_ticks_msec() expiry while the shove animation owns the rig.
-var _shove_hold := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -212,8 +210,9 @@ func _update_held_feedback() -> void:
 			continue
 		var rig := rig_for_slot(slot)
 		if rig != null:
-			rig.play(&"interact")
-			_shove_hold[slot] = Time.get_ticks_msec() + int(SHOVE_HOLD_SEC * 1000.0)
+			# The rig owns its own flourish hold now (#942); update_rig keeps
+			# the pose while stationary and yields to walk the moment it moves.
+			rig.play_protected(&"interact", SHOVE_HOLD_SEC)
 	_last_held = held.duplicate()
 
 
@@ -240,18 +239,10 @@ func _update_players() -> void:
 		var rig := rig_for_slot(slot)
 		if rig == null:
 			continue
-		# The shove animation gets to finish its flourish while the player
-		# stands still (#587), but never at the cost of stalling movement
-		# (#800) — update_rig()'s force_animate=false only protects the pose
-		# while stationary; the walk switch still fires the instant the
-		# player actually moves.
-		var flourishing := Time.get_ticks_msec() < int(_shove_hold.get(slot, 0))
-		update_rig(
-			slot,
-			Vector2(state[KingOfTheHill.PS_X], state[KingOfTheHill.PS_Y]),
-			0.0,
-			not flourishing
-		)
+		# The shove flourish plays out while the player stands still (#587) but
+		# never stalls movement (#800): the rig's own play_protected hold does
+		# both structurally now (#942), so this is a plain update_rig call.
+		update_rig(slot, Vector2(state[KingOfTheHill.PS_X], state[KingOfTheHill.PS_Y]))
 		rig.display_name = "%s  %d" % [player_name(slot), int(state[KingOfTheHill.PS_POINTS])]
 		# Scoring sparkles (M13-03): points ticking up while holding the hill
 		# shed a sparkle in the scorer's color. Seeded via _points_seen.

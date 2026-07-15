@@ -62,10 +62,9 @@ var _scores: Label
 ## Team-colored banner strips on the fort walls — recolored to the defending
 ## team so "whose fort this is" reads and flips on the swap.
 var _wall_banners: Array[MeshInstance3D] = []
-## Per-slot: the play-once action-counter edge (#945), the ticks_msec a
-## swing/shove owns the rig, and a lazily-built shove cooldown ring.
+## Per-slot: the play-once action-counter edge (#945). The swing/shove pose
+## hold now lives on the rig (#942). Plus a lazily-built shove cooldown ring.
 var _act_edges := EdgeTracker.new()
-var _act_hold := {}
 var _rings := {}
 # FX seeds: last-seen gate for the breach burst and crack thirds, last-seen
 # times for the capture burst.
@@ -258,7 +257,7 @@ func _update_players() -> void:
 			continue
 		_play_action(slot, state, rig)
 		var pos := Vector2(float(state[FortSiege.PS_X]), float(state[FortSiege.PS_Y]))
-		if Time.get_ticks_msec() < int(_act_hold.get(slot, 0)):
+		if rig.is_pose_protected():
 			# A swing/shove owns the pose (#587 idiom): move it, don't re-animate.
 			rig.position = to_arena(pos)
 		else:
@@ -277,21 +276,19 @@ func _play_action(slot: int, state: Array, rig: CharacterRig) -> void:
 		return
 	var kind := int(state[FortSiege.PS_ACT_KIND])
 	var at := Vector2(float(state[FortSiege.PS_X]), float(state[FortSiege.PS_Y]))
+	# The rig owns its own reaction hold now (#942).
 	match kind:
 		FortSiege.Act.BATTER:
-			rig.play(&"attack")
-			_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
+			rig.play_protected(&"attack", ACT_HOLD_SEC)
 			fx_sparkle(Vector2(0.0, FortSiege.GATE_Y), GATE_HOT_COLOR, GATE_MODEL_HEIGHT * 0.6)
 			_gate_shake = 0.18  # recoil, played out in _process
 			play_sfx(&"thud")
 		FortSiege.Act.REPAIR:
-			rig.play(&"interact")
-			_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
+			rig.play_protected(&"interact", ACT_HOLD_SEC)
 			fx_sparkle(at, GATE_REPAIR_COLOR, 0.8)
 			play_sfx(&"click")
 		FortSiege.Act.SHOVE:
-			rig.play(&"attack")
-			_act_hold[slot] = Time.get_ticks_msec() + int(ACT_HOLD_SEC * 1000.0)
+			rig.play_protected(&"attack", ACT_HOLD_SEC)
 			fx_burst(at, COOLDOWN_RING_COLOR, 0.6)
 			play_sfx(&"bump")
 
