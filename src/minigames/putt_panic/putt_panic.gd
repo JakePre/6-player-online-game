@@ -280,31 +280,12 @@ func _roll(slot: int, delta: float) -> void:
 ## Circle-vs-AABB: if the ball overlaps the block, push it to the surface and
 ## reflect the incoming velocity component.
 func _bounce_box(slot: int, center: Vector2, half: Vector2) -> void:
-	var pos: Vector2 = positions[slot]
-	var closest := Vector2(
-		clampf(pos.x, center.x - half.x, center.x + half.x),
-		clampf(pos.y, center.y - half.y, center.y + half.y)
+	# Circle-vs-AABB bounce with penetration ejection — shared math (#945).
+	var result := SimGeometry.bounce_circle_box(
+		positions[slot], velocities[slot], center, half, BALL_RADIUS, RESTITUTION
 	)
-	var to_ball := pos - closest
-	var dist := to_ball.length()
-	if dist >= BALL_RADIUS:
-		return
-	var normal: Vector2
-	if dist > 0.0001:
-		normal = to_ball / dist
-	else:
-		# Centre inside the box: eject along the axis of least penetration.
-		var px := half.x - absf(pos.x - center.x)
-		var py := half.y - absf(pos.y - center.y)
-		normal = (
-			Vector2(signf(pos.x - center.x), 0.0)
-			if px < py
-			else Vector2(0.0, signf(pos.y - center.y))
-		)
-	positions[slot] = closest + normal * BALL_RADIUS
-	var vel: Vector2 = velocities[slot]
-	if vel.dot(normal) < 0.0:
-		velocities[slot] = (vel - 2.0 * vel.dot(normal) * normal) * RESTITUTION
+	positions[slot] = result.pos
+	velocities[slot] = result.vel
 
 
 func _check_end() -> void:

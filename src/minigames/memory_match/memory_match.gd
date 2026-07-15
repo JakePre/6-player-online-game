@@ -161,20 +161,18 @@ func _shove(slot: int) -> void:
 ## the overlap), so it always resolves in one pass without adding momentum.
 func _resolve_separation(active: Array) -> void:
 	var min_gap := PLAYER_RADIUS * 2.0
+	var lo := Vector2(-HALF_EXTENT, -HALF_EXTENT)
+	var hi := Vector2(HALF_EXTENT, HALF_EXTENT)
 	for i in active.size():
 		for j in range(i + 1, active.size()):
 			var a: int = active[i]
 			var b: int = active[j]
-			var apart: Vector2 = positions[b] - positions[a]
-			var dist := apart.length()
-			if dist >= min_gap:
+			# Position-based soft separation — shared math (#945).
+			var push := SimGeometry.separation_push(positions[a], positions[b], min_gap)
+			if push == Vector2.ZERO:
 				continue
-			var axis := apart.normalized() if dist > 0.001 else Vector2.RIGHT
-			var push := (min_gap - dist) * 0.5
-			var lo := Vector2(-HALF_EXTENT, -HALF_EXTENT)
-			var hi := Vector2(HALF_EXTENT, HALF_EXTENT)
-			positions[a] = (positions[a] - axis * push).clamp(lo, hi)
-			positions[b] = (positions[b] + axis * push).clamp(lo, hi)
+			positions[a] = (positions[a] - push).clamp(lo, hi)
+			positions[b] = (positions[b] + push).clamp(lo, hi)
 
 
 func get_snapshot() -> Dictionary:
