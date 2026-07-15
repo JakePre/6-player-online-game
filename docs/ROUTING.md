@@ -46,7 +46,7 @@ tracks the routing tier, never re-derive scope from it.
 | #926 | Bot degeneracies: corner-camping, tilt_deck stalemate, meteor dodge-into-danger — coordinate with #715/#962 before claiming |
 | #927 | Sumo Smash — 2-second bot rounds + ring-render regression (do first — smells live) |
 | #928 | Laser Limbo — beam height readability |
-| #932 | Cart Push → Payload Race rework, owner-approved concept locked (M-L) |
+| ~~#932~~ | ~~Cart Push → Payload Race rework~~ — claimed; sim+view+brain in PR (PR1); view polish (MDL-013 model, progress bars, finish banners) follows |
 | #933 | Nightly render contact sheet + fast-round telemetry flag |
 | #934 | End-of-match superlatives |
 | #935 | Hat shop — persistent cosmetics (L) |
