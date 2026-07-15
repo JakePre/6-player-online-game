@@ -9,6 +9,8 @@ extends MinigameView3D
 ## the flat sphere. Base-pivoted (probed AABB: y 0..0.4, matching the
 ## generated-models convention), so positioning needs no radius offset — a
 ## LOOSE ball sits right on the floor.
+## Declarative button input (#947): pick up / aim-throw a ball.
+const INPUT_ACTIONS := {&"action_primary": "act"}
 const BALL_SCENE := preload("res://assets/generated/models/dodgeball.glb")
 ## Still used for the KO burst FX color, matching the model's dominant red.
 const BALL_COLOR := Color(0.9, 0.32, 0.28)
@@ -46,12 +48,6 @@ var _ball_state_seen := {}
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"action_primary"):
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"act": true})
 
 
 ## Warm hardwood-gym floor (#589).

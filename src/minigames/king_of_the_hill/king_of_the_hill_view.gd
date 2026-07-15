@@ -7,6 +7,8 @@ extends MinigameView3D
 ## shapes rather than colored boxes. Presentation-tier swap only: state
 ## storage and the render contract are unchanged from the 2D pass (M4-01).
 
+## Declarative button input (#947): use the held pickup (shove / anchor).
+const INPUT_ACTIONS := {&"action_primary": "use"}
 const ZONE_COLOR := Color(0.96, 0.79, 0.2, 0.35)
 const ZONE_ANCHORED_COLOR := Color(0.3, 0.75, 0.95, 0.45)
 ## Real rock obstacles (#929) instead of grey primitive cylinders. Half-widths
@@ -126,12 +128,6 @@ func _setup_3d() -> void:
 	# Held-item indicator for the local player (#139), on the always-on-top
 	# banner layer (#258).
 	_held_label = make_banner(&"HeldItem")
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"action_primary"):
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"use": true})
 
 
 ## Pillars are static per round; built once from the first snapshot carrying
