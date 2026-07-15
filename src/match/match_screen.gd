@@ -35,10 +35,6 @@ const TOTALS_CHIP_ROW_HEIGHT := (
 	PartyTheme.SIZE_SMALL + PartyTheme.SPACE_XS * 2 + PartyTheme.SPACE_SM
 )
 const TOTALS_ROW_MAX_HEIGHT := TOTALS_CHIP_ROW_HEIGHT * 2 + PartyTheme.SPACE_SM
-## Intro-card key art (M16-07): the styled text fallback shows until a file
-## lands here for the round's minigame. M16-12 batches these image requests;
-## dropping `<id>.png` in this dir lights the slot up with no code change.
-const KEY_ART_DIR := "res://assets/generated/keyart/"
 ## The inter-round wipe covers this fraction of the screen width as a band.
 const WIPE_BAND_FRACTION := 0.4
 ## Newest match-log lines kept for the hold-Tab overlay (#814) — older lines
@@ -57,15 +53,9 @@ var _minigame_name := ""
 ## the finale is out of v1 scope. A fresh match_screen per match, so this
 ## never needs an explicit reset.
 var _round_history: Array[Dictionary] = []
-## Current intro card's device-aware hint segments (#608) and the plain-prose
-## fallback, kept so a live device change can re-render without the event.
-var _intro_hint_segments: Array = []
-var _intro_controls_fallback := ""
-## Current intro card's structured control rows (#832) and the chip container
-## they render into (built in _ready above the legacy label). Rows win over
-## hint segments, which win over the prose fallback.
-var _intro_spec_rows: Array = []
-var _intro_chips: VBoxContainer
+## The intro card's content presenter (#943): key art, title/rules, control
+## hints/chips, mutator banner. This screen keeps panel visibility + the HUD.
+var _intro_card_ctrl: IntroCard
 var _round_view_flags: Array = []
 var _minigame_view: MinigameView
 ## In-match pause/options overlay (M18-03), mounted on top in _ready.
@@ -116,19 +106,23 @@ func _ready() -> void:
 	NetManager.snapshot_received.connect(_on_snapshot)
 	NetManager.emote_received.connect(_on_emote_received)
 	_skip_button.pressed.connect(_on_skip_pressed)
+	# The intro card (#943) owns its own content + control-chip rendering; this
+	# screen keeps panel visibility, the skip flow, the HUD, and event routing.
+	_intro_card_ctrl = IntroCard.new(
+		_intro_key_art, _intro_title, _intro_category, _intro_rules, _intro_controls, _intro_mutator
+	)
 	# Intro hints and the emote hint re-render live on a device switch (#608)
 	# and on a keyboard/pad rebind (#832) — a remap shows immediately.
 	InputGlyphs.device_changed.connect(
 		func(_device: InputGlyphs.Device) -> void:
-			_refresh_intro_controls()
+			_intro_card_ctrl.refresh_controls()
 			_refresh_emote_hint()
 	)
 	InputGlyphs.bindings_changed.connect(
 		func() -> void:
-			_refresh_intro_controls()
+			_intro_card_ctrl.refresh_controls()
 			_refresh_emote_hint()
 	)
-	_build_intro_chips()
 	_build_emote_bar()
 	# Controller emote wheel (#608 part 3): mounted before the pause overlay so
 	# pause draws on top of it. The right stick aims it; see _process.
@@ -454,129 +448,13 @@ func _show_intro(event: Dictionary) -> void:
 	_round_label.text = "Round %d/%d" % [event.round, event.rounds]
 	_minigame_name = String(minigame.name)
 	_game_name_label.text = _minigame_name
-	_intro_title.text = minigame.name
-	_apply_key_art(String(minigame.id))
-	_intro_category.text = MatchFormat.category_name(int(minigame.category))
-	_intro_rules.text = minigame.rules
-	# Control hints (M6-04); older servers may not send the key yet. When the
-	# local catalog has device-aware hints (#608) they win over the prose.
-	_intro_controls_fallback = String(minigame.get("controls", ""))
-	_intro_hint_segments = _control_hints_for(String(minigame.id))
-	_intro_spec_rows = _control_spec_for(String(minigame.id))
-	_refresh_intro_controls()
-	# Mutator announcement (M9-03) — no hidden modifiers.
-	var mutator: Dictionary = event.get("mutator", {})
-	_intro_mutator.visible = not mutator.is_empty()
-	if not mutator.is_empty():
-		_intro_mutator.text = "MUTATOR — %s: %s" % [mutator.name, mutator.blurb]
+	# The card owns its own content (#943); this screen keeps the HUD, the skip
+	# reset, and panel visibility.
+	_intro_card_ctrl.populate(minigame, event.get("mutator", {}))
 	_skip_button.disabled = false
 	_skip_button.text = "Skip intro"
 	_skip_votes_label.text = ""
 	_show_panel(_intro_card)
-
-
-## The local catalog's device-aware hint segments for this game, or [] to fall
-## back to the server-sent prose. The client already registers the catalog
-## (net_manager), so this needs no protocol change.
-func _control_hints_for(id: String) -> Array:
-	if not MinigameCatalog.is_registered(StringName(id)):
-		return []
-	return MinigameCatalog.meta_of(StringName(id)).control_hints
-
-
-## The local catalog's structured control rows (#832), or [] to fall back to
-## hint segments / prose. Client-derived like _control_hints_for.
-func _control_spec_for(id: String) -> Array:
-	if not MinigameCatalog.is_registered(StringName(id)):
-		return []
-	return MinigameCatalog.meta_of(StringName(id)).control_spec
-
-
-## The chip rows live in the intro column right where the legacy label sits,
-## so games with a structured spec show chips and everything else keeps the
-## one-line hint — batches of the #844 fan-out are zero-risk per game.
-func _build_intro_chips() -> void:
-	_intro_chips = VBoxContainer.new()
-	_intro_chips.name = "IntroControlChips"
-	_intro_chips.alignment = BoxContainer.ALIGNMENT_CENTER
-	_intro_chips.add_theme_constant_override(&"separation", PartyTheme.SPACE_XS)
-	_intro_chips.visible = false
-	var column := _intro_controls.get_parent()
-	column.add_child(_intro_chips)
-	column.move_child(_intro_chips, _intro_controls.get_index())
-
-
-## Renders the intro controls for the active device, re-callable on device
-## change and rebind (#832). Structured rows render as verb + key-pill chips;
-## device-aware segments are the legacy one-line form; the plain-prose
-## fallback shows when a game declares neither.
-func _refresh_intro_controls() -> void:
-	if not _intro_spec_rows.is_empty():
-		_render_control_chips()
-		_intro_controls.visible = false
-		_intro_chips.visible = true
-		return
-	if _intro_chips != null:
-		_intro_chips.visible = false
-	var text := (
-		InputGlyphs.hint_for(_intro_hint_segments)
-		if not _intro_hint_segments.is_empty()
-		else _intro_controls_fallback
-	)
-	_intro_controls.text = text
-	_intro_controls.visible = not text.is_empty()
-
-
-## One centered row per spec entry: the verb, then the ACTIVE device's binding
-## in a key pill (with optional hold/modifier prefix, keyboard-only literal
-## alternative, and a dim trailing note). Note-only rows render as a dim line.
-func _render_control_chips() -> void:
-	# Remove synchronously (not just queue_free) so a same-frame re-render —
-	# device swap or rebind — never shows stale chips next to fresh ones.
-	for child in _intro_chips.get_children():
-		_intro_chips.remove_child(child)
-		child.queue_free()
-	for row: Dictionary in _intro_spec_rows:
-		_intro_chips.add_child(_control_chip_row(row))
-
-
-func _control_chip_row(row: Dictionary) -> HBoxContainer:
-	var chip := HBoxContainer.new()
-	chip.alignment = BoxContainer.ALIGNMENT_CENTER
-	chip.add_theme_constant_override(&"separation", PartyTheme.SPACE_SM)
-	var verb := String(row.get("verb", ""))
-	if not verb.is_empty():
-		var verb_label := Label.new()
-		verb_label.name = "Verb"
-		verb_label.text = verb
-		chip.add_child(verb_label)
-	var input := StringName(String(row.get("input", "")))
-	if not String(input).is_empty():
-		var modifier := String(row.get("modifier", "hold" if row.get("hold", false) else ""))
-		if not modifier.is_empty():
-			var modifier_label := Label.new()
-			modifier_label.text = modifier
-			modifier_label.theme_type_variation = PartyTheme.DIM_VARIATION
-			chip.add_child(modifier_label)
-		var pill := Label.new()
-		pill.name = "Binding"
-		pill.text = InputGlyphs.binding_label(input)
-		pill.add_theme_stylebox_override(&"normal", PartyTheme.key_pill())
-		chip.add_child(pill)
-		var alt := String(row.get("alt", ""))
-		if not alt.is_empty() and InputGlyphs.active_device == InputGlyphs.Device.KEYBOARD:
-			var alt_label := Label.new()
-			alt_label.text = alt
-			alt_label.theme_type_variation = PartyTheme.DIM_VARIATION
-			chip.add_child(alt_label)
-	var note := String(row.get("note", ""))
-	if not note.is_empty():
-		var note_label := Label.new()
-		note_label.name = "Note"
-		note_label.text = note
-		note_label.theme_type_variation = PartyTheme.DIM_VARIATION
-		chip.add_child(note_label)
-	return chip
 
 
 ## The digit tracks the replicated countdown clock (600 ms per step, #182),
@@ -625,19 +503,6 @@ func _play_transition_wipe() -> void:
 	tween.set_trans(PartyTheme.TRANS_DEFAULT).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(_transition_wipe, "position:x", size.x, PartyTheme.DUR_SLOW)
 	tween.tween_callback(func() -> void: _transition_wipe.visible = false)
-
-
-## The intro card's key-art slot (M16-07): shows `<id>.png` from KEY_ART_DIR if
-## one has been delivered (M16-12), otherwise stays hidden so the styled text
-## lockup is the fallback.
-func _apply_key_art(id: String) -> void:
-	var path := KEY_ART_DIR + id + ".png"
-	if not id.is_empty() and ResourceLoader.exists(path):
-		_intro_key_art.texture = load(path)
-		_intro_key_art.visible = true
-	else:
-		_intro_key_art.texture = null
-		_intro_key_art.visible = false
 
 
 ## Winners hear the win jingle; everyone else the consolation one.
