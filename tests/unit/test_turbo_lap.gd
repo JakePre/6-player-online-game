@@ -1,9 +1,12 @@
 extends GutTest
-## Turbo Lap (M14-02): one-lap kart race — grid spawns, arcade handling,
+## Turbo Lap (M14-02): a LAP_COUNT-lap kart race — grid spawns, arcade handling,
 ## drift mini-turbos, boost/item pads, the three items, checkpoint progress,
 ## finish-order placement, and the timeout progress ranking.
 
 const TICK := 1.0 / 30.0
+## #961 anti-collapse floor: a full 3-lap bot race must run far longer than the
+## old ~8s one-lap wipe. See the guard test below.
+const MIN_RACE_SEC := 12.0
 
 
 func _game(player_slots: Array[int] = [0, 1]) -> TurboLap:
@@ -11,6 +14,47 @@ func _game(player_slots: Array[int] = [0, 1]) -> TurboLap:
 	game.meta = TurboLap.make_meta()
 	game.setup(player_slots, 42)
 	return game
+
+
+func _run_bot_round(count: int, seed_value: int) -> Dictionary:
+	var game := TurboLap.new()
+	game.meta = TurboLap.make_meta()
+	var player_slots: Array[int] = []
+	for i in count:
+		player_slots.append(i)
+	game.setup(player_slots, seed_value)
+	var brains := {}
+	for slot: int in game.slots:
+		brains[slot] = BotBrains.brain_for(&"turbo_lap", slot, seed_value)
+	var t := 0.0
+	while not game.finished and t < game.meta.duration_sec:
+		var match_state := {"game": game.get_snapshot()}
+		for slot: int in game.slots:
+			game.handle_input(slot, brains[slot].think(match_state, {}))
+		game.tick(TICK)
+		t += TICK
+	var caps: Array = []
+	for slot: int in game.slots:
+		caps.append(int(game.karts[slot].captured))
+	return {"t": t, "caps": caps, "finished": game.finished, "winner_slot0": game.finish_order}
+
+
+## #961: turbo_lap's telemetry collapse (8s vs 90s) was the pre-#785 ONE-lap
+## race; the #785 course rebuild made it LAP_COUNT (3) laps, and a full bot field
+## now runs a real ~18-41s race that finishes by crossing the line, not by
+## timeout. This locks that in — every kart completes all three laps and the race
+## lasts far longer than the old ~8s one-lap wipe. (The remaining gap to the
+## #933 40%-of-meta bar is the generous 90s TIMEOUT, not a collapse — a race is
+## meant to finish before its clock; flagged on the issue for a meta trim.)
+func test_bot_rounds_run_a_full_three_lap_race() -> void:
+	var need := TurboLap.WAYPOINT_COUNT * TurboLap.LAP_COUNT
+	for count: int in [2, 4, 6]:
+		for seed_value: int in [1, 2, 3]:
+			var r := _run_bot_round(count, seed_value)
+			assert_true(r.finished, "%d bots (seed %d): race finishes" % [count, seed_value])
+			for caps: int in r.caps:
+				assert_eq(caps, need, "every kart completes all %d laps" % TurboLap.LAP_COUNT)
+			assert_gt(r.t, MIN_RACE_SEC, "runs a real race, not the old ~8s one-lap collapse")
 
 
 ## Test chauffeur: aims the kart straight at its next waypoint each tick and

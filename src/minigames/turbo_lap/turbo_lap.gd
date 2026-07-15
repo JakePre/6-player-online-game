@@ -138,7 +138,10 @@ static func make_meta() -> MinigameMeta:
 				"min_players": 2,
 				"max_players": 12,
 				"duration_sec": 90.0,
-				"rules": "One lap, winner takes it! Drift to charge a boost, grab item pads.",
+				"rules":
+				# Stale "One lap" text (#961): the race has been LAP_COUNT laps
+				# since the #785 course rebuild — off the constant so it can't drift.
+				"%d laps, winner takes it! Drift to charge a boost, grab item pads." % LAP_COUNT,
 			}
 		)
 	)
