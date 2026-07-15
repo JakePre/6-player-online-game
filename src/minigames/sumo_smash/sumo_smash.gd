@@ -8,11 +8,21 @@ const PLATFORM_RADIUS := 8.0
 const MOVE_SPEED := 5.0
 const PLAYER_RADIUS := 0.5
 const SHOVE_SPEED := 4.0
-const DASH_SPEED := 14.0
+## The dasher's lunge speed. A knock of magnitude K decays linearly at
+## KNOCK_DECAY, so it carries the body K²/(2·KNOCK_DECAY) units before stopping.
+## The old 14/6 pairing flung the DASHER itself ~16 units and — because the 3×
+## dash-shove re-applied every overlapping tick (now landed once per dash, see
+## _resolve_shoves) — the victim far more, so a fresh 6-bot round emptied the
+## ring in ~1s. Retuned together (#927) to DASH_SPEED 10 / KNOCK_DECAY 11: a
+## dash lunges ~4.5 units and a clean dash-shove carries a victim ~6.5, still a
+## real ring-out threat but no longer a one-pass wipe — full-field bot rounds now
+## resolve in a healthy ~5-14s across player counts instead of ~1s or a 60s
+## stalemate (see test_sumo_smash bot-round guards).
+const DASH_SPEED := 10.0
 const DASH_SEC := 0.25
 const DASH_COOLDOWN_SEC := 2.0
 const DASH_SHOVE_MULT := 3.0
-const KNOCK_DECAY := 6.0
+const KNOCK_DECAY := 11.0
 
 ## get_snapshot() wire shape (#708): named indices for the players positional
 ## array. Array SHAPE on the wire is unchanged — additive only.
@@ -32,6 +42,10 @@ var move_dirs := {}
 var knocks := {}
 var dash_left := {}
 var cooldown_left := {}
+## Per dasher, the set of victims its CURRENT dash has already shoved — so the
+## strong dash bonus lands once, not every overlapping tick (#927). Reset when a
+## fresh dash starts.
+var _dash_hit := {}
 ## Elimination + placement bookkeeping (#940): same-tick ring-outs share a tie
 ## group, placements rank in reverse ring-out order. `.order` is the out groups.
 var _elim := EliminationTracker.new()
@@ -74,6 +88,7 @@ func _setup() -> void:
 		knocks[slots[i]] = Vector2.ZERO
 		dash_left[slots[i]] = 0.0
 		cooldown_left[slots[i]] = 0.0
+		_dash_hit[slots[i]] = {}
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
@@ -88,6 +103,7 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 		cooldown_left[slot] = DASH_COOLDOWN_SEC
 		dash_left[slot] = DASH_SEC
 		knocks[slot] = heading.normalized() * DASH_SPEED
+		_dash_hit[slot] = {}
 
 
 func _tick(delta: float) -> void:
@@ -141,12 +157,34 @@ func _resolve_shoves(active: Array) -> void:
 			if apart.length() > PLAYER_RADIUS * 2.0:
 				continue
 			var axis := apart.normalized() if apart.length() > 0.001 else Vector2.RIGHT
-			knocks[a] -= axis * _shove_strength(b)
-			knocks[b] += axis * _shove_strength(a)
+			# Base contact repulsion, every overlapping tick: separates stacked
+			# bodies and lands a light bump either way.
+			knocks[a] -= axis * SHOVE_SPEED
+			knocks[b] += axis * SHOVE_SPEED
+			# The strong dash hit lands ONCE per victim per dash (#927): a dasher
+			# plowing through must not re-apply the 3× shove every tick of the
+			# overlap — that compounding flung victims clear off the disc in one
+			# pass and emptied a 6-bot ring in ~1s.
+			if float(dash_left[b]) > 0.0 and _mark_dash_hit(b, a):
+				knocks[a] -= axis * _dash_bonus()
+			if float(dash_left[a]) > 0.0 and _mark_dash_hit(a, b):
+				knocks[b] += axis * _dash_bonus()
 
 
-func _shove_strength(shover: int) -> float:
-	return SHOVE_SPEED * (DASH_SHOVE_MULT if float(dash_left[shover]) > 0.0 else 1.0)
+## The extra impulse a dash adds on top of a plain contact shove.
+func _dash_bonus() -> float:
+	return SHOVE_SPEED * (DASH_SHOVE_MULT - 1.0)
+
+
+## Records that `shover`'s current dash has landed on `victim`. Returns true the
+## first time this dash, false on repeat overlapping ticks — so the dash bonus
+## is a single impulse, not a per-tick pile-up (#927).
+func _mark_dash_hit(shover: int, victim: int) -> bool:
+	var hits: Dictionary = _dash_hit[shover]
+	if hits.has(victim):
+		return false
+	hits[victim] = true
+	return true
 
 
 func _check_ringouts(alive: Array) -> void:

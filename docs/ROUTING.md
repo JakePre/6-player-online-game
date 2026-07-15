@@ -44,7 +44,7 @@ tracks the routing tier, never re-derive scope from it.
 | #923 | Framework: nameplate declutter in crowds |
 | #925 | Side-scroll tier (knock_off/loadout_duel/tumble_run) presentation pass (L) |
 | #926 | Bot degeneracies: corner-camping, tilt_deck stalemate, meteor dodge-into-danger — coordinate with #715/#962 before claiming |
-| #927 | Sumo Smash — 2-second bot rounds + ring-render regression (do first — smells live) |
+| ~~#927~~ | ~~Sumo Smash — 2-second bot rounds + ring-render regression~~ — fixed in PR (knockback retune + one-shot-per-dash + raised dohyo) |
 | #928 | Laser Limbo — beam height readability |
 | ~~#932~~ | ~~Cart Push → Payload Race rework~~ — claimed; sim+view+brain in PR (PR1); view polish (MDL-013 model, progress bars, finish banners) follows |
 | #933 | Nightly render contact sheet + fast-round telemetry flag |

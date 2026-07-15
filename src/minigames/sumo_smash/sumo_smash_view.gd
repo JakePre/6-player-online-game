@@ -7,8 +7,17 @@ extends MinigameView3D
 ## Presentation-tier swap only: state storage and the render contract are
 ## unchanged from the 2D pass (M4-04).
 
-const PLATFORM_COLOR := Color(0.5, 0.46, 0.4)
-const PLATFORM_THICKNESS := 0.4
+# Warm clay (the dohyo), not the old cool grey that read as a hole punched in
+# the grass (#927). Raised a full unit so it clearly sits ABOVE the y=0 grass
+# surface — the #813 grass block is a full-height cube, so the old 0.4 disc sank
+# flush and rendered as a dark pit instead of a platform to be shoved off.
+const PLATFORM_COLOR := Color(0.72, 0.55, 0.36)
+const PLATFORM_THICKNESS := 1.0
+## A darker straw-bale rim ring (tawara) seated at the ring-out radius, so the
+## edge you get pushed over reads instead of fading into the grass (#927).
+const RIM_COLOR := Color(0.5, 0.36, 0.22)
+## Width of the rim band, inset from the ring-out radius.
+const RIM_WIDTH := 0.5
 ## How long a shove's hurt reaction owns the rig before walk/idle resumes
 ## (#792) — mirrors rumble_ring's hit/ko reaction hold.
 const REACT_HOLD_SEC := 0.4
@@ -62,9 +71,28 @@ func _setup_3d() -> void:
 	platform.mesh = mesh
 	platform.position = Vector3(0.0, PLATFORM_THICKNESS / 2.0, 0.0)
 	arena.add_child(platform)
+	_build_rim()
 	# Screen-space dash indicator for the local player (#140), on the
 	# always-on-top banner layer (#258).
 	_dash_label = make_banner(&"DashIndicator")
+
+
+## The straw-bale boundary ring: a darker annulus band standing proud of the
+## platform top right at the ring-out radius, so the fatal edge reads (#927).
+## TorusMesh is already flat (its axis is Y — same idiom as the Gauntlet shrink
+## telegraph), so no rotation is needed.
+func _build_rim() -> void:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = SumoSmash.PLATFORM_RADIUS - RIM_WIDTH
+	mesh.outer_radius = SumoSmash.PLATFORM_RADIUS
+	var material := StandardMaterial3D.new()
+	material.albedo_color = RIM_COLOR
+	mesh.material = material
+	var rim := MeshInstance3D.new()
+	rim.name = "Rim"
+	rim.mesh = mesh
+	rim.position = Vector3(0.0, PLATFORM_THICKNESS, 0.0)
+	arena.add_child(rim)
 
 
 func _render_3d(game: Dictionary) -> void:
