@@ -57,41 +57,42 @@ func test_heist_night_brain_coasts_the_last_light_heading_through_the_dark() -> 
 # --- cart_push --------------------------------------------------------------------
 
 
-func test_cart_push_brain_delivers_a_carried_ore_to_our_depot() -> void:
+func test_cart_push_brain_pusher_heads_to_its_own_cart() -> void:
 	var brain := BotBrains.brain_for(&"cart_push", 0, 1)
-	var game := {"players": {0: [0.0, 0.0, 1]}, "teams": [[0], [1]], "cart": 0.0, "ores": []}
+	# Team 0's cart sits at (-TRACK_HALF, -LANE_Y); a small team means no
+	# saboteur, so slot 0 walks over to push.
+	var game := {"players": {0: [0.0, 0.0, 0]}, "teams": [[0], [1]], "carts": [0.0, 0.0]}
 	var intent := brain.think(_play_state("cart_push", game), {})
-	assert_lt(float(intent.get("mx", 0.0)), 0.0, "team 0's depot is at -TRACK_END")
+	assert_lt(float(intent.get("mx", 0.0)), 0.0, "heads left toward its own cart")
 
 
-func test_cart_push_brain_detours_for_a_close_ore() -> void:
+func test_cart_push_brain_at_its_cart_alternates_the_push() -> void:
 	var brain := BotBrains.brain_for(&"cart_push", 0, 1)
+	var cart := Vector2(-CartPush.TRACK_HALF, -CartPush.LANE_Y)
+	var game := {"players": {0: [cart.x, cart.y, 0]}, "teams": [[0], [1]], "carts": [0.0, 0.0]}
+	var first := brain.think(_play_state("cart_push", game), {})
+	assert_true(first.has("push"), "mashes once parked at the cart")
+	var second := brain.think(_play_state("cart_push", game), {})
+	assert_ne(int(second.push), int(first.push), "flips the phase so the sim sees an alternation")
+
+
+func test_cart_push_brain_saboteur_shoves_an_enemy_at_the_rival_cart() -> void:
+	# Big enough teams that the top slot peels off to sabotage the enemy lane.
+	var brain := BotBrains.brain_for(&"cart_push", 2, 1)
+	var enemy_cart := Vector2(-CartPush.TRACK_HALF, CartPush.LANE_Y)
 	var game := {
-		"players": {0: [0.0, 0.0, 0]},
-		"teams": [[0], [1]],
-		"cart": 0.0,
-		"ores": [[5, 2.0, 0.0]],
+		"players": {2: [enemy_cart.x, enemy_cart.y - 0.4, 0], 3: [enemy_cart.x, enemy_cart.y, 0]},
+		"teams": [[0, 1, 2], [3, 4, 5]],
+		"carts": [0.0, 0.0],
 	}
 	var intent := brain.think(_play_state("cart_push", game), {})
-	assert_gt(float(intent.get("mx", 0.0)), 0.0, "the ore 2.0 away is within ORE_ATTRACT_RANGE")
-
-
-func test_cart_push_brain_pushes_from_its_own_side_and_shoves_in_range() -> void:
-	var brain := BotBrains.brain_for(&"cart_push", 0, 1)
-	# Team 0 pushes from the -x side of the cart; an enemy pusher sits close.
-	var game := {
-		"players": {0: [-1.0, 0.0, 0], 1: [-0.5, 0.0, 0]},
-		"teams": [[0], [1]],
-		"cart": 0.0,
-		"ores": [],
-	}
-	var intent := brain.think(_play_state("cart_push", game), {})
-	assert_true(bool(intent.get("shove", false)), "an enemy pusher 0.5 away is inside SHOVE_RANGE")
+	assert_true(bool(intent.get("shove", false)), "an enemy 0.4 away is inside SHOVE_RANGE")
 
 
 func test_cart_push_brain_staggered_sends_nothing() -> void:
 	var brain := BotBrains.brain_for(&"cart_push", 0, 1)
-	var game := {"players": {0: [0.0, 0.0, 2]}, "teams": [[0], [1]], "cart": 0.0, "ores": []}
+	var flags := CartPush.FLAG_STAGGERED
+	var game := {"players": {0: [0.0, 0.0, flags]}, "teams": [[0], [1]], "carts": [0.0, 0.0]}
 	assert_eq(brain.think(_play_state("cart_push", game), {}), {})
 
 

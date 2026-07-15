@@ -1,7 +1,8 @@
 extends GutTest
-## Cart Push (recreated per #175): one shared cart, net-force pushing,
-## dash-shoves with windup/cooldown, rumble-strip staggers, ore delivery
-## bonuses, depot wins, and timeout ranking by cart side.
+## Payload Race (#932, reworked from the shared-cart Cart Push #175): two lanes,
+## each team pushes its OWN cart by alternating ◀▶ beside it (sqrt-diminished by
+## the crowd), monotonic per-lane progress, dash-shove sabotage, first-home /
+## farther-on-timeout / dead-heat-ties ranking.
 
 const TICK := 1.0 / 30.0
 
@@ -13,27 +14,33 @@ func _game(player_slots: Array[int] = [0, 1, 2, 3]) -> CartPush:
 	return game
 
 
-## Parks `slot` on its team's pushing side of the cart, in reach.
-func _on_cart(game: CartPush, slot: int) -> void:
-	var side := -1.0 if game._team_of(slot) == 0 else 1.0
-	game.positions[slot] = Vector2(game.cart_x + side * 1.0, 0.0)
+## Parks `slot` right at its own cart, in push reach.
+func _at_own_cart(game: CartPush, slot: int) -> void:
+	var team_index: int = game._team_of(slot)
+	game.positions[slot] = game.cart_pos(team_index)
 	game.move_dirs[slot] = Vector2.ZERO
 
 
-## Parks `slot` far from everything so it contributes nothing.
+## Parks `slot` far from both carts so it contributes nothing.
 func _park(game: CartPush, slot: int) -> void:
-	game.positions[slot] = Vector2(0.0, CartPush.ARENA_HALF)
+	game.positions[slot] = Vector2(0.0, 0.0)
 	game.move_dirs[slot] = Vector2.ZERO
 
 
-func test_setup_splits_even_teams_at_center_cart() -> void:
+## Sends `count` valid ◀▶ alternations from `slot` (phase flips each call).
+func _push_n(game: CartPush, slot: int, count: int) -> void:
+	for i in count:
+		game.handle_input(slot, {"push": i % 2})
+
+
+func test_setup_splits_even_teams_with_both_carts_at_the_start() -> void:
 	var game := _game()
 	assert_eq((game.teams[0] as Array).size(), 2)
 	assert_eq((game.teams[1] as Array).size(), 2)
-	assert_eq(game.cart_x, 0.0)
+	assert_eq(game.progress[0], 0.0)
+	assert_eq(game.progress[1], 0.0)
 	for slot: int in game.slots:
 		assert_eq(float(game.staggers[slot]), 0.0)
-		assert_false(game.carrying[slot])
 
 
 func test_max_players_raised_to_eight() -> void:
@@ -46,9 +53,6 @@ func test_control_spec_present() -> void:
 	)
 
 
-## No-crowd fairness (M15 8-cap): 4v4 splits evenly and everyone spawns
-## within the arena, well clear of the effective-pusher cap concern (a 4th
-## player per side has room as a rotating shover/ore-runner, per ADR 003).
 func test_setup_splits_four_v_four_within_arena_at_eight_players() -> void:
 	var player_slots: Array[int] = []
 	for i in 8:
@@ -59,47 +63,81 @@ func test_setup_splits_four_v_four_within_arena_at_eight_players() -> void:
 	for slot in 8:
 		var pos: Vector2 = game.positions[slot]
 		assert_lt(absf(pos.y), CartPush.ARENA_HALF, "spawn row stays inside the arena")
-		assert_false(game.carrying[slot])
 
 
-func test_net_pusher_advantage_moves_the_cart() -> void:
+func test_alternation_at_own_cart_advances_that_cart() -> void:
 	var game := _game()
 	for slot: int in game.slots:
 		_park(game, slot)
 	var pusher: int = game.teams[0][0]
-	_on_cart(game, pusher)
-	# effective_pushers is a pure function — assert it directly so the check
-	# doesn't ride on tick timing or body-separation nudges (the old
-	# two-tick cart-delta version was flaky in CI).
-	assert_eq(game.effective_pushers(0), 1)
-	assert_eq(game.effective_pushers(1), 0)
-	game.tick(TICK)
-	assert_gt(game.cart_x, 0.0, "unopposed team 0 pusher moves the cart +x")
-
-	# Balanced 1v1 from a clean centered cart: net force is zero, so it holds.
-	# Reset explicitly so the earlier +x drift cannot leak into the check.
-	game.cart_x = 0.0
-	for slot: int in game.slots:
-		_park(game, slot)
-	var blocker: int = game.teams[1][0]
-	_on_cart(game, pusher)
-	_on_cart(game, blocker)
-	assert_eq(game.effective_pushers(0), 1)
-	assert_eq(game.effective_pushers(1), 1)
-	game.tick(TICK)
-	assert_almost_eq(game.cart_x, 0.0, 0.001, "balanced pushers stall the cart")
+	_at_own_cart(game, pusher)
+	_push_n(game, pusher, 1)
+	assert_almost_eq(game.progress[0], CartPush.PUSH_PER_ALTERNATION, 0.001)
+	assert_eq(game.progress[1], 0.0, "the other lane's cart never moved")
 
 
-func test_staggered_pushers_do_not_count() -> void:
+func test_holding_one_phase_does_not_push() -> void:
 	var game := _game()
 	for slot: int in game.slots:
 		_park(game, slot)
 	var pusher: int = game.teams[0][0]
-	_on_cart(game, pusher)
+	_at_own_cart(game, pusher)
+	game.handle_input(pusher, {"push": 0})  # first phase counts (differs from -1)
+	var after_one := float(game.progress[0])
+	game.handle_input(pusher, {"push": 0})  # same phase: no alternation, no push
+	game.handle_input(pusher, {"push": 0})
+	assert_almost_eq(game.progress[0], after_one, 0.001, "only alternations count")
+
+
+func test_push_only_counts_beside_your_own_cart() -> void:
+	var game := _game()
+	for slot: int in game.slots:
+		_park(game, slot)  # off in the middle of the arena, away from the carts
+	var pusher: int = game.teams[0][0]
+	_push_n(game, pusher, 4)
+	assert_eq(game.progress[0], 0.0, "out of reach of the cart, mashing does nothing")
+
+
+func test_crowd_diminishes_each_pushers_contribution() -> void:
+	var player_slots: Array[int] = []
+	for i in 8:
+		player_slots.append(i)
+	var game := _game(player_slots)
+	for slot: int in game.slots:
+		_park(game, slot)
+	# Pack all four of team 0 onto their cart, then push once.
+	for slot: int in game.teams[0]:
+		_at_own_cart(game, slot)
+	var lead: int = game.teams[0][0]
+	_push_n(game, lead, 1)
+	assert_almost_eq(
+		game.progress[0],
+		CartPush.PUSH_PER_ALTERNATION / sqrt(4.0),
+		0.001,
+		"four sharing the cart each add ~half a lone pusher"
+	)
+
+
+func test_progress_is_monotonic_and_capped_at_the_finish() -> void:
+	var game := _game()
+	for slot: int in game.slots:
+		_park(game, slot)
+	var pusher: int = game.teams[0][0]
+	game.progress[0] = CartPush.TRACK_LENGTH - 0.1
+	_at_own_cart(game, pusher)
+	_push_n(game, pusher, 1)
+	assert_almost_eq(game.progress[0], CartPush.TRACK_LENGTH, 0.001, "clamped at the finish")
+
+
+func test_staggered_pushers_cannot_push() -> void:
+	var game := _game()
+	for slot: int in game.slots:
+		_park(game, slot)
+	var pusher: int = game.teams[0][0]
+	_at_own_cart(game, pusher)
 	game.staggers[pusher] = 1.0
-	var before := game.cart_x
-	game.tick(TICK)
-	assert_almost_eq(game.cart_x, before, 0.001)
+	_push_n(game, pusher, 3)
+	assert_eq(game.progress[0], 0.0, "a staggered pusher's mash is ignored")
 
 
 func test_shove_winds_up_then_knocks_back_and_staggers() -> void:
@@ -110,7 +148,6 @@ func test_shove_winds_up_then_knocks_back_and_staggers() -> void:
 	var victim: int = game.teams[1][0]
 	game.positions[shover] = Vector2.ZERO
 	game.positions[victim] = Vector2(1.0, 0.0)
-	game.move_dirs[victim] = Vector2.ZERO
 	game.handle_input(shover, {"shove": true})
 	game.tick(TICK)
 	assert_eq(float(game.staggers[victim]), 0.0, "windup has not landed yet")
@@ -123,66 +160,31 @@ func test_shove_winds_up_then_knocks_back_and_staggers() -> void:
 	assert_eq(float(game.shove_windups[shover]), 0.0)
 
 
-func test_rumble_strip_staggers_everyone_touching_the_cart() -> void:
+func test_cart_reaching_the_finish_ends_with_that_teams_win() -> void:
 	var game := _game()
-	for slot: int in game.slots:
-		_park(game, slot)
-	game.cart_x = CartPush.RUMBLE_XS[1] - 0.05
-	var pusher: int = game.teams[0][0]
-	_on_cart(game, pusher)
-	# Push the cart across the strip in one tick.
-	game.tick(0.1)
-	assert_gt(game.cart_x, CartPush.RUMBLE_XS[1])
-	assert_gt(float(game.staggers[pusher]), 0.0, "crossing rumbles the pushers off")
-
-
-func test_ore_delivery_grants_capped_bonus_pushers() -> void:
-	var game := _game()
-	for slot: int in game.slots:
-		_park(game, slot)
-	var carrier: int = game.teams[0][0]
-	game.ores.append({"id": 99, "pos": Vector2(-5.0, 5.0)})
-	game.positions[carrier] = Vector2(-5.0, 5.0)
+	game.progress[0] = CartPush.TRACK_LENGTH
 	game.tick(TICK)
-	assert_true(game.carrying[carrier])
-	assert_true(game.ores.is_empty())
-
-	game.positions[carrier] = game._depot_of(0)
-	game.tick(TICK)
-	assert_false(game.carrying[carrier])
-	assert_eq(game.bonus_pushers[0], 1)
-
-	game.bonus_pushers[0] = CartPush.ORE_BONUS_MAX
-	game.carrying[carrier] = true
-	game.tick(TICK)
-	assert_eq(game.bonus_pushers[0], CartPush.ORE_BONUS_MAX, "bonus is capped")
-
-
-func test_bonus_needs_a_live_pusher_no_ghost_pushing() -> void:
-	var game := _game()
-	for slot: int in game.slots:
-		_park(game, slot)
-	game.bonus_pushers[0] = 2
-	var before := game.cart_x
-	game.tick(TICK)
-	assert_almost_eq(game.cart_x, before, 0.001, "bonus alone moves nothing")
-
-
-func test_cart_reaching_a_depot_ends_with_that_attackers_win() -> void:
-	var game := _game()
-	for slot: int in game.slots:
-		_park(game, slot)
-	game.cart_x = CartPush.TRACK_END - 0.01
-	var pusher: int = game.teams[0][0]
-	_on_cart(game, pusher)
-	game.tick(0.1)
 	assert_true(game.finished)
 	assert_eq(game.get_results().placements[0], game.teams[0])
 
 
-func test_timeout_ranks_by_cart_side_and_center_ties() -> void:
+func test_timeout_ranks_by_farther_cart_and_a_dead_heat_ties() -> void:
 	var game := _game()
-	game.cart_x = -2.0
-	assert_eq(game._rank_players()[0], game.teams[1])
-	game.cart_x = 0.0
-	assert_eq(game._rank_players(), [game.slots])
+	game.progress[0] = 3.0
+	game.progress[1] = 1.0
+	assert_eq(game._rank_players()[0], game.teams[0], "the farther cart's team leads")
+	game.progress[1] = 3.0
+	assert_eq(game._rank_players(), [game.slots], "a dead heat ties everyone")
+
+
+func test_snapshot_exposes_carts_teams_and_typed_player_rows() -> void:
+	var game := _game()
+	var snap := game.get_snapshot()
+	assert_true(snap.has("carts"))
+	assert_eq((snap.carts as Array).size(), 2)
+	assert_true(snap.has("teams"))
+	for slot: int in game.slots:
+		var row: Array = snap.players[slot]
+		assert_eq(row.size(), CartPush.PLAYER_SCHEMA.size(), "row width matches the schema")
+		for i in row.size():
+			assert_eq(typeof(row[i]), int(CartPush.PLAYER_SCHEMA[i]), "slot %d typed" % i)
