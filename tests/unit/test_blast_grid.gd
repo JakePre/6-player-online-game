@@ -5,6 +5,9 @@ extends GutTest
 
 const TICK := 1.0 / 30.0
 const G := BlastGrid.GRID
+## #961 anti-collapse floor: a fresh bot field must outlast the opening bomb
+## fuse (BOMB_FUSE 2.5s + flame), not wipe in ~3s. See the guard test below.
+const OPENING_SURVIVAL_SEC := 6.0
 
 
 func _game(count: int = 2) -> BlastGrid:
@@ -15,6 +18,49 @@ func _game(count: int = 2) -> BlastGrid:
 		player_slots.append(i)
 	game.setup(player_slots, 42)
 	return game
+
+
+func _run_bot_round(count: int, seed_value: int) -> float:
+	var game := BlastGrid.new()
+	game.meta = BlastGrid.make_meta()
+	var player_slots: Array[int] = []
+	for i in count:
+		player_slots.append(i)
+	game.setup(player_slots, seed_value)
+	var brains := {}
+	for slot: int in game.slots:
+		brains[slot] = BotBrains.brain_for(&"blast_grid", slot, seed_value)
+	var t := 0.0
+	while not game.finished and t < game.meta.duration_sec:
+		var match_state := {"game": game.get_snapshot()}
+		for slot: int in game.slots:
+			if game._is_in(slot):
+				game.handle_input(slot, brains[slot].think(match_state, {}))
+		game.tick(TICK)
+		t += TICK
+	return t
+
+
+## #961: blast_grid's telemetry collapse (median 3s vs 75s) was the brains
+## mass-suiciding on the opening bomb wave — they froze on their own live bomb
+## (a bomb's cross covers all four neighbours, so a single-hop escape check found
+## nowhere safe) and detonated at the ~2.5s fuse. The escape-step BFS in
+## blast_grid_brain fixed it: the bot now steps ALONG the blast line and turns
+## the corner out. This locks that in — a fresh bot field must survive well past
+## the opening fuse instead of wiping in ~3s.
+##
+## (The residual — near-perfect survival tips most rounds to a timeout all-tie,
+## since MOVE_SPEED easily outruns the fuse on open ground — is bot passivity, a
+## separate degeneracy tracked under #926, not this length collapse.)
+func test_bot_rounds_survive_the_opening_bomb_wave() -> void:
+	for count: int in [2, 4, 6]:
+		for seed_value: int in [1, 2, 42]:
+			var duration := _run_bot_round(count, seed_value)
+			assert_gt(
+				duration,
+				OPENING_SURVIVAL_SEC,
+				"%d bots (seed %d) do not mass-suicide on the opening fuse" % [count, seed_value]
+			)
 
 
 func _cell(r: int, c: int) -> int:
