@@ -12,6 +12,48 @@ func _game(player_slots: Array[int] = [0, 1, 2, 3]) -> WallBuilders:
 	return game
 
 
+func _run_bot_round(count: int, seed_value: int) -> float:
+	var game := WallBuilders.new()
+	game.meta = WallBuilders.make_meta()
+	var player_slots: Array[int] = []
+	for i in count:
+		player_slots.append(i)
+	game.setup(player_slots, seed_value)
+	var brains := {}
+	for slot: int in game.slots:
+		brains[slot] = BotBrains.brain_for(&"wall_builders", slot, seed_value)
+	var t := 0.0
+	while not game.finished and t < game.meta.duration_sec:
+		var match_state := {"game": game.get_snapshot()}
+		for slot: int in game.slots:
+			game.handle_input(slot, brains[slot].think(match_state, {}))
+		game.tick(TICK)
+		t += TICK
+	return t
+
+
+## #961: the win target scales with builders-per-team so a bigger crew doesn't
+## blitz a fixed target — per-builder work stays constant.
+func test_win_target_scales_with_team_size() -> void:
+	assert_eq(_game([0, 1, 2, 3] as Array[int]).win_height, WallBuilders.WIN_PER_BUILDER * 2)
+	assert_eq(
+		_game([0, 1, 2, 3, 4, 5, 6, 7] as Array[int]).win_height, WallBuilders.WIN_PER_BUILDER * 4
+	)
+
+
+## #961: bot rounds no longer collapse — the scaled target keeps the race a real
+## length (≥40% of meta, the #933 bar) and count-independent instead of shrinking
+## as the crew grows (was ~13s at 2v2 down to ~9s at 4v4).
+func test_bot_rounds_are_a_real_length_across_crew_sizes() -> void:
+	var floor_sec := WallBuilders.make_meta().duration_sec * 0.4
+	for count: int in [4, 6, 8]:
+		var lens: Array[float] = []
+		for s in range(1, 6):
+			lens.append(_run_bot_round(count, s))
+		lens.sort()
+		assert_gt(lens[2], floor_sec, "%d-bot median round clears the 40%%-of-meta floor" % count)
+
+
 func test_meta_catalog_and_even_rule() -> void:
 	var meta := WallBuilders.make_meta()
 	assert_eq(meta.id, &"wall_builders")
@@ -103,7 +145,7 @@ func test_teammate_contact_is_safe() -> void:
 
 func test_win_at_target_height() -> void:
 	var game := _game()
-	game.wall_heights[1] = WallBuilders.WIN_HEIGHT
+	game.wall_heights[1] = game.win_height
 	game.tick(TICK)
 	assert_true(game.finished)
 	var results := game.get_results()
