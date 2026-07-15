@@ -31,6 +31,11 @@ const WEAPON_SPIN_HZ := 0.5
 const WEAPON_FLOAT_Y := 0.55
 ## How long a swing/stagger animation owns the rig before walk/idle resumes.
 const REACTION_HOLD_SEC := 0.6
+## Swing-range telegraph (#920): a short-lived full ring at Gauntlet.SWING_RANGE
+## around the swinger. The swing is RADIAL (no facing — it matches the spin
+## animation), so reach reads as a ring, not a directional fan.
+const SWING_ARC_COLOR := Color(1.0, 0.9, 0.5, 0.55)
+const SWING_ARC_SEC := 0.22
 ## Death fling (#787): on a KO the rig plays "ko" and is launched up-and-out,
 ## tumbling, then dropped off the platform before it vanishes — instead of just
 ## blinking out. Owns the rig (off the interpolation system) for this long.
@@ -85,9 +90,14 @@ var _last_swing_seq := {}  # slot -> seq (play the swing exactly once)
 var _last_hit_seq := {}  # slot -> seq (hit reaction exactly once)
 var _armed := {}  # slot -> swings left, mirrored for the nameplate + hand prop
 var _axe_hint_shown := false
-## slot -> ticks_msec until which a swing/stagger owns the rig's animation —
-## the #587 _reaction_hold idiom, so update_rig's walk/idle can't stomp it.
-var _reaction_hold := {}
+## slot -> ticks_msec until which a HIT stagger owns the rig by direct-set: the
+## victim is launched (moving), so it must NOT yield to walk mid-flight (the
+## sumo_smash precedent, #942). The SWING pose uses CharacterRig.play_protected
+## instead (#920), so a walking swinger keeps flowing through interpolation
+## (no jitter, no post-hold teleport) and still switches to walk on real motion.
+var _hit_hold := {}
+## Short-lived swing-range rings, node -> expiry msec (#920).
+var _swing_arcs := {}
 
 ## Shrink telegraph (#583).
 var _shrink_in := Gauntlet.SHRINK_STAGE_SEC
@@ -125,6 +135,7 @@ func _physics_process(_delta: float) -> void:
 ## not a static tint — suppressed under reduced motion (a steady tint instead).
 ## Floor axes spin and bob for the same reason (steady hover when reduced).
 func _process(_delta: float) -> void:
+	_expire_swing_arcs()
 	var t := Time.get_ticks_msec() / 1000.0
 	for node in _weapon_nodes:
 		if ArenaFX.reduced_motion:
@@ -364,15 +375,18 @@ func _update_players() -> void:
 			state.size() > Gauntlet.PS_INVULN and float(state[Gauntlet.PS_INVULN]) > 0.0
 		)
 		_apply_spawn_shield(rig, protected)
-		if Time.get_ticks_msec() < int(_reaction_hold.get(slot, 0)):
-			# A swing/stagger owns the rig (#587 idiom): move it, don't re-animate.
+		if Time.get_ticks_msec() < int(_hit_hold.get(slot, 0)):
+			# The victim's stagger owns the rig while they're launched (#942 sumo
+			# precedent): direct-set so the hit pose plays out through the fly.
 			rig.position = to_arena(
 				Vector2(state[Gauntlet.PS_X], state[Gauntlet.PS_Y]), PLATFORM_THICKNESS
 			)
 		else:
-			# Seat the rig on the platform top by sampling at PLATFORM_THICKNESS
-			# (#787): update_rig feeds the per-frame interpolation, which would
-			# otherwise slide the rig down to y=0 — embedding it in the platform.
+			# Seat on the platform top (#787). update_rig now consults the rig's own
+			# play_protected hold (#920/#942), so a swing pose holds while stationary,
+			# keeps flowing through interpolation (no jitter), records samples (no
+			# post-hold teleport snap), and yields to walk the instant the swinger
+			# actually moves — the swing-while-walking teleport is gone.
 			update_rig(
 				slot, Vector2(state[Gauntlet.PS_X], state[Gauntlet.PS_Y]), PLATFORM_THICKNESS
 			)
@@ -483,7 +497,7 @@ func _update_weapon_state(slot: int, state: Array, rig: CharacterRig) -> void:
 	# A hit reaction outranks the swing pose — the victim's stagger is the story.
 	if hit > hit_seen:
 		rig.play(&"hit")
-		_reaction_hold[slot] = Time.get_ticks_msec() + int(REACTION_HOLD_SEC * 1000.0)
+		_hit_hold[slot] = Time.get_ticks_msec() + int(REACTION_HOLD_SEC * 1000.0)
 		fx_burst(Vector2(rig.position.x, rig.position.z), WEAPON_COLOR, FX_LIFT + 0.5)
 		if slot == my_slot:
 			request_shake(8.0)
@@ -491,10 +505,50 @@ func _update_weapon_state(slot: int, state: Array, rig: CharacterRig) -> void:
 			# thud, matching the Finale batch's KO-source naming.
 			play_sfx(&"thud")
 	elif swing > swing_seen:
-		rig.play(&"attack")
-		_reaction_hold[slot] = Time.get_ticks_msec() + int(REACTION_HOLD_SEC * 1000.0)
+		# The rig owns its own swing hold now (#942/#920); update_rig keeps the
+		# spin pose while stationary but yields to walk the instant it moves, so
+		# a walking swinger no longer teleports.
+		rig.play_protected(&"attack", REACTION_HOLD_SEC)
+		_spawn_swing_arc(state)
 		play_sfx(&"click")
 		fx_sparkle(Vector2(rig.position.x, rig.position.z), WEAPON_COLOR, FX_LIFT + 0.8)
+
+
+## Swing-range telegraph (#920): a short-lived flat emissive ring at
+## Gauntlet.SWING_RANGE around the swinger, so the radial reach reads at a
+## glance (the rumble_ring swing-arc idiom, #257 — but a FULL ring here since
+## Gauntlet's swing is radial, not a directional fan). Reduced motion skips it.
+func _spawn_swing_arc(state: Array) -> void:
+	if ArenaFX.reduced_motion:
+		return
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = Gauntlet.SWING_RANGE * 0.82
+	mesh.outer_radius = Gauntlet.SWING_RANGE
+	mesh.ring_segments = 32
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = SWING_ARC_COLOR
+	material.emission_enabled = true
+	material.emission = SWING_ARC_COLOR
+	mesh.material = material
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = to_arena(
+		Vector2(state[Gauntlet.PS_X], state[Gauntlet.PS_Y]), PLATFORM_THICKNESS + 0.05
+	)
+	# Flattened so the ring hugs the platform instead of standing up like a hoop.
+	node.scale = Vector3(1.0, 0.15, 1.0)
+	arena.add_child(node)
+	_swing_arcs[node] = Time.get_ticks_msec() + int(SWING_ARC_SEC * 1000.0)
+
+
+func _expire_swing_arcs() -> void:
+	var now := Time.get_ticks_msec()
+	for node: MeshInstance3D in _swing_arcs.keys():
+		if now >= int(_swing_arcs[node]):
+			node.queue_free()
+			_swing_arcs.erase(node)
 
 
 ## Floor axes: one spinning gold-tinted model per replicated pickup; a sparkle
