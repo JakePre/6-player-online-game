@@ -3,6 +3,9 @@ extends GutTest
 ## friction, wall + block bounce, the sink rule, the shot clock, and ranking.
 
 const TICK := 1.0 / 30.0
+## #961 anti-collapse floor: bot-round median must clear this fraction of meta
+## (the #933 red-flag threshold). See the guard test below.
+const COLLAPSE_FLOOR_FRAC := 0.4
 
 
 func _game(count: int = 2) -> PuttPanic:
@@ -13,6 +16,49 @@ func _game(count: int = 2) -> PuttPanic:
 		player_slots.append(i)
 	game.setup(player_slots, 42)
 	return game
+
+
+## Drives a full bot field to completion, returning how long the round lasted.
+func _run_bot_round(count: int, seed_value: int) -> float:
+	var game := PuttPanic.new()
+	game.meta = PuttPanic.make_meta()
+	var player_slots: Array[int] = []
+	for i in count:
+		player_slots.append(i)
+	game.setup(player_slots, seed_value)
+	var brains := {}
+	for slot: int in game.slots:
+		brains[slot] = BotBrains.brain_for(&"putt_panic", slot, seed_value)
+	var t := 0.0
+	while not game.finished and t < game.meta.duration_sec:
+		var match_state := {"game": game.get_snapshot()}
+		for slot: int in game.slots:
+			game.handle_input(slot, brains[slot].think(match_state, {}))
+		game.tick(TICK)
+		t += TICK
+	return t
+
+
+## #961: putt_panic bot rounds collapsed to ~6s of a 90s hole because the brains
+## machine-gunned a putt the instant the ball came to rest (~0.45s apart, ~11
+## strokes ground out in seconds). The putt-pacing readiness beat spaces strokes
+## to a human cadence; the round now fills a real fraction of the hole. Assert
+## the MEDIAN round across a seed batch clears the #933 red-flag floor (≥40% of
+## meta) for the common player counts — individual seeds still vary (that spread
+## is the point), so the guard is on the median, not every round.
+func test_bot_rounds_do_not_collapse_to_machine_gun_putts() -> void:
+	var floor_sec := PuttPanic.make_meta().duration_sec * COLLAPSE_FLOOR_FRAC
+	for count: int in [4, 6]:
+		var lens: Array[float] = []
+		for s in range(1, 13):
+			lens.append(_run_bot_round(count, s))
+		lens.sort()
+		var median := (lens[5] + lens[6]) / 2.0
+		assert_gt(
+			median,
+			floor_sec,
+			"%d-bot median round (%.0fs) clears the #933 >=40%%-of-meta floor" % [count, median]
+		)
 
 
 func test_meta_and_catalog() -> void:
