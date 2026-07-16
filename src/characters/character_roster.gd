@@ -62,6 +62,15 @@ const ENTRIES: Array[Dictionary] = [
 		"display_name": "Fox",
 		"scene_path": "res://assets/characters/generated/Fox.glb",
 	},
+	{
+		# First FULLY-LOCAL sovereign build (no external services end to end):
+		# Qwen-Image GGUF concepts (front+back auto-generated), local-VLM
+		# T-pose screens and clip reviews, Trellis mesh, transfer weights,
+		# concept-projected texture — same skeleton, all 77 animations.
+		"id": &"rhino",
+		"display_name": "Rhino",
+		"scene_path": "res://assets/characters/generated/Rhino.glb",
+	},
 ]
 
 ## SPEC $8 calls for a roster of 8; Skeleton_Minion is held back as the first
