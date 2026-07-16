@@ -47,6 +47,7 @@ func test_every_roster_entry_has_a_skeleton() -> void:
 		var skeleton: Skeleton3D = skeletons[0]
 		# The shared-rig contract: the weapon-hold bone must exist everywhere.
 		assert_ne(
-			skeleton.find_bone("handslot.r"), -1,
+			skeleton.find_bone("handslot.r"),
+			-1,
 			"%s: missing handslot.r — not on the shared KayKit skeleton" % entry.id
 		)
