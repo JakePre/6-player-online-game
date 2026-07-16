@@ -23,7 +23,7 @@ const DISC_HEIGHT := 0.04
 var players := {}
 
 var _lanes := {}  # slot -> {target: Node3D, ball: MeshInstance3D, center_x: float}
-var _scores_seen := {}
+var _edges := EdgeTracker.new()
 
 
 func _process(_delta: float) -> void:
@@ -165,8 +165,7 @@ func _render_3d(game: Dictionary) -> void:
 				]
 			)
 		var score := int(state[BullseyeBowl.PS_SCORE])
-		var seen := int(_scores_seen.get(slot, score))
-		var gained := score - seen
+		var gained := score - int(_edges.peek(slot, score))
 		if gained > 0:
 			# Ring-hit flash (M13-14): a sparkle at the target scaled to the
 			# ring value - bullseyes burst, outers twinkle. Signature cues
@@ -189,4 +188,4 @@ func _render_3d(game: Dictionary) -> void:
 			# The ball landed beyond every ring (gained == 0): a clean miss,
 			# previously silent.
 			play_sfx(&"error")
-		_scores_seen[slot] = score
+		_edges.changed(slot, score)

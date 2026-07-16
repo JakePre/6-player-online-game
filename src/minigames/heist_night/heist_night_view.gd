@@ -37,8 +37,7 @@ var reveal := {}
 # M13-27 FX state: in-flight steal pulses ({slot, age}), last-seen vault
 # totals for theft detection, and the scanline clock.
 var _pulses: Array = []
-var _totals_seen := {}
-var _seen_snapshot := false
+var _totals_edges := EdgeTracker.new()
 var _scan_clock := 0.0
 
 
@@ -68,25 +67,21 @@ func _render(game: Dictionary) -> void:
 	reveal = game.get("reveal", {})
 	# Steal pulse (M13-27): only theft makes a vault total drop, so a drop
 	# means a robbery in progress. First sighting seeds silently.
-	if _seen_snapshot:
-		for slot: int in vaults:
-			var total := int(vaults[slot][HeistNight.VT_COINS])
-			var before := int(_totals_seen.get(slot, total))
-			if _totals_seen.has(slot) and total < before:
-				_pulses.append({"slot": slot, "age": 0.0})
-				# Getting robbed is heard only by the victim (M12-02). Signature
-				# cue (#728): `alarm` — the FX above is already called the
-				# "alarm ring" (M13-27); the sound now matches, and the shared
-				# meaning ("exposure, suspicion") fits a robbery in progress.
-				if slot == my_slot:
-					play_sfx(&"alarm")
-			elif _totals_seen.has(slot) and total > before and slot == my_slot:
-				# Signature cue (#728): banking a pickup, heard only by us.
-				play_sfx(&"coin")
-	_seen_snapshot = true
-	_totals_seen = {}
 	for slot: int in vaults:
-		_totals_seen[slot] = int(vaults[slot][HeistNight.VT_COINS])
+		var total := int(vaults[slot][HeistNight.VT_COINS])
+		var before := int(_totals_edges.peek(slot, total))
+		if total < before:
+			_pulses.append({"slot": slot, "age": 0.0})
+			# Getting robbed is heard only by the victim (M12-02). Signature
+			# cue (#728): `alarm` — the FX above is already called the
+			# "alarm ring" (M13-27); the sound now matches, and the shared
+			# meaning ("exposure, suspicion") fits a robbery in progress.
+			if slot == my_slot:
+				play_sfx(&"alarm")
+		elif total > before and slot == my_slot:
+			# Signature cue (#728): banking a pickup, heard only by us.
+			play_sfx(&"coin")
+		_totals_edges.changed(slot, total)
 	queue_redraw()
 
 

@@ -27,16 +27,16 @@ var _phase_label: Label
 var _downed := {}
 ## Slots still sinking into the floor after elimination (#930).
 var _falling := {}
-# pool index -> claimant from the previous snapshot (M13-08 claim flashes).
-var _claims_seen := {}
+# pool index -> claimed edge from the previous snapshot (M13-08 claim flashes).
+var _claim_edges := EdgeTracker.new()
 # Wave tracking for drop-in dust (M13-08): platforms empty last render, and
 # whether any render happened yet (rejoin seeding).
 var _platforms_were_empty := true
 var _rendered_once := false
-# -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
-var _fallen_seen := -1
-## -1 = unseeded, for the MUSIC -> STOP danger-telegraph edge (#728).
-var _phase_seen := -1
+## Fires only on a rise, so a mid-match rejoin does not shake on its first
+## snapshot (#728 the MUSIC -> STOP danger telegraph edge lives on _phase_edges).
+var _fallen_edges := EdgeTracker.new()
+var _phase_edges := EdgeTracker.new()
 
 
 func _physics_process(_delta: float) -> void:
@@ -109,9 +109,10 @@ func _render_3d(game: Dictionary) -> void:
 	AudioManager.set_music_paused(phase == MusicalPlatforms.Phase.STOP)
 	# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): the music
 	# stopping is the danger telegraph — scramble now.
-	if _phase_seen == MusicalPlatforms.Phase.MUSIC and phase == MusicalPlatforms.Phase.STOP:
+	var was_music := int(_phase_edges.peek(&"phase", -1)) == MusicalPlatforms.Phase.MUSIC
+	if was_music and phase == MusicalPlatforms.Phase.STOP:
 		play_sfx(&"alarm")
-	_phase_seen = phase
+	_phase_edges.changed(&"phase", phase)
 	_update_players()
 	_update_platforms()
 	_shake_on_new_downs()
@@ -172,28 +173,26 @@ func _update_platforms() -> void:
 		var at := Vector2(state[MusicalPlatforms.PT_X], state[MusicalPlatforms.PT_Y])
 		if _platforms_were_empty and _rendered_once:
 			fx_dust(at)
-		if int(_claims_seen.get(i, -1)) == -1 and claimant != -1:
+		if _claim_edges.rose(i, claimant != -1):
 			fx_sparkle(at, player_color(claimant))
 			if claimant == my_slot:
 				# Landing a platform is a positive checkpoint, not a generic
 				# UI accept.
 				play_sfx(&"bell")
-		_claims_seen[i] = claimant
 	_platforms_were_empty = platforms.is_empty()
 	_rendered_once = true
 	# Platforms clearing with the music resets the per-round claim tracking.
 	if platforms.is_empty():
-		_claims_seen.clear()
+		_claim_edges.clear()
 
 
 func _shake_on_new_downs() -> void:
 	var fallen_count := 0
 	for group: Array in fallen:
 		fallen_count += group.size()
-	if _fallen_seen >= 0 and fallen_count > _fallen_seen:
+	if _fallen_edges.rose(&"fallen", fallen_count):
 		request_shake(9.0)
 		play_sfx(&"ko")
-	_fallen_seen = fallen_count
 
 
 ## The round can end mid-scramble (a winner emerges while the music is stopped),

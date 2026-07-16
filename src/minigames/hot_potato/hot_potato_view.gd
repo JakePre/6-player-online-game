@@ -30,7 +30,7 @@ var _pulse_phase := 0.0
 var _tick_accum := 0.0
 var _downed := {}  # slot (int) -> true, once the ko pose + dim have been applied
 # -1 = unseeded, so a mid-match rejoin does not shake on its first snapshot.
-var _alive_seen := -1
+var _edges := EdgeTracker.new()
 # Snapshot countdown to the next fuse spark (M13-04).
 var _spark_left := 0.0
 
@@ -98,7 +98,7 @@ func _render_3d(game: Dictionary) -> void:
 	# The bomb going off is the game's big impact (M6-02): shake plus a blast
 	# flash and sound where the eliminated carrier stood (#211). Diffed before
 	# _update_players marks them downed.
-	if _alive_seen >= 0 and alive.size() < _alive_seen:
+	if _edges.fell(&"alive", alive.size()):
 		request_shake(12.0)
 		# A bomb going off is this vocabulary's textbook explosion (#728).
 		play_sfx(&"explosion")
@@ -110,7 +110,6 @@ func _render_3d(game: Dictionary) -> void:
 				# Debris + dust under the shockwave (M13-04).
 				fx_burst(at, BLAST_COLOR, 1.0)
 				fx_dust(at)
-	_alive_seen = alive.size()
 	_update_players()
 	_update_bomb()
 	_trail_sparks()

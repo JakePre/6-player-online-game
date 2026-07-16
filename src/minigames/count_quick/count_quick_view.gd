@@ -20,11 +20,11 @@ var swarm: Array = []
 var pads: Array = []
 
 var _swarm_pool: Array[MeshInstance3D] = []
-# Critter wiggle counter + per-slot last-seen pick (M13-15; #799: a pick is
-# now the pad value under the player, -1 for none, and can still change).
+# Critter wiggle counter (M13-15; #799: a pick is now the pad value under the
+# player, -1 for none, and can still change).
 var _wiggle_ticks := 0
-var _answer_seen := {}
-var _scores_seen := {}
+var _answer_edges := EdgeTracker.new()
+var _score_edges := EdgeTracker.new()
 var _pad_nodes: Array[Node3D] = []
 var _pad_labels: Array[Label3D] = []
 var _phase_label: Label
@@ -152,16 +152,14 @@ func _update_players() -> void:
 			caption += "  ▶ %d" % answer
 		rig.display_name = caption
 		# Pick flash (M13-15): landing on a pad — or switching to a different one —
-		# sparkles in the player's color. Seeded via _answer_seen; -1 = off all
-		# pads, so stepping off doesn't flash.
-		var last_answer := int(_answer_seen.get(slot, -1))
-		if answer >= 0 and answer != last_answer:
+		# sparkles in the player's color. -1 = off all pads, so stepping off
+		# doesn't flash; seeded, so a rejoiner already on a pad doesn't either.
+		var picked := _answer_edges.changed(slot, answer)
+		if answer >= 0 and picked:
 			fx_sparkle(Vector2(state[CountQuick.PS_X], state[CountQuick.PS_Y]), player_color(slot))
 			if slot == my_slot:
 				play_sfx(&"click")
-		_answer_seen[slot] = answer
 		# A correct guess pays out (M12-02): only the scorer hears it.
-		if slot == my_slot and _scores_seen.has(slot) and score > int(_scores_seen[slot]):
+		if slot == my_slot and _score_edges.rose(slot, score):
 			# A correct guess is a small satisfying consume (#728).
 			play_sfx(&"pop")
-		_scores_seen[slot] = score
