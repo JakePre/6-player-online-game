@@ -101,6 +101,28 @@ func test_explicit_lobby_leave_still_frees_the_seat() -> void:
 	assert_eq(created.room.members.size(), 1, "leaving on purpose gives up the slot")
 
 
+## #1039: leave_room is peer-id-keyed, so it silently no-ops for a
+## disconnected target (peer_id resets to 0 and is already gone from
+## _peer_rooms). remove_member must work by direct reference instead.
+func test_remove_member_frees_a_disconnected_seat() -> void:
+	var created := _create()
+	var joined := manager.join_room(2, created.room.code, "Guest", PROTO)
+	manager.handle_disconnect(2, 1000)
+	assert_eq(created.room.members.size(), 2, "disconnect alone holds the seat")
+
+	manager.remove_member(created.room, joined.member, 2000)
+	assert_eq(created.room.members.size(), 1, "host kick frees the seat")
+
+
+func test_remove_member_also_works_on_a_connected_target() -> void:
+	var created := _create()
+	var joined := manager.join_room(2, created.room.code, "Guest", PROTO)
+
+	manager.remove_member(created.room, joined.member, 1000)
+	assert_eq(created.room.members.size(), 1)
+	assert_null(manager.room_of_peer(2), "peer routing table is cleaned up too")
+
+
 func test_match_disconnect_keeps_slot_and_score_for_rejoin() -> void:
 	var created := _create()
 	var joined := manager.join_room(2, created.room.code, "Guest", PROTO)
