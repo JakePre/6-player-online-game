@@ -7,23 +7,26 @@ extends MinigameView3D
 ## the local player's verdict flashes big, its lane lighting up. Audio is
 ## decorative: the round loop is the vibe, the replicated clock is the truth.
 
-const LANE_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"action_primary"]
+## #1033: ordered to match the physical A, W, D, Space key layout (was Left,
+## Right, Up, Action) — LANE_X (the screen positions) is untouched, so the
+## highway automatically reads left-to-right as Left/Up/Right/Action.
+const LANE_ACTIONS: Array[StringName] = [&"move_left", &"move_up", &"move_right", &"action_primary"]
 ## Flat direction glyph per lane, shown on the screen-space HUD header (#585) —
 ## unambiguous where the old iso-projected Label3D arrows were hard to read.
-const LANE_LABELS: Array[String] = ["◀", "▶", "▲", "●"]
+const LANE_LABELS: Array[String] = ["◀", "▲", "▶", "●"]
 ## Per-lane drum one-shot (#585): a distinct hit per lane replaces the single
 ## reused "alarm" tone. Procedurally generated originals (CC0), played on the
 ## SFX bus so the mixer/settings still apply.
 const LANE_DRUMS: Array[String] = [
 	"res://assets/audio/shred_drums/kick.wav",
-	"res://assets/audio/shred_drums/snare.wav",
 	"res://assets/audio/shred_drums/hat.wav",
+	"res://assets/audio/shred_drums/snare.wav",
 	"res://assets/audio/shred_drums/tom.wav",
 ]
 const LANE_COLORS: Array[Color] = [
 	Color(0.95, 0.35, 0.4),  # left
-	Color(0.35, 0.6, 0.95),  # right
 	Color(0.95, 0.8, 0.3),  # up
+	Color(0.35, 0.6, 0.95),  # right
 	Color(0.45, 0.85, 0.45),  # action
 ]
 const LANE_X: Array[float] = [-3.0, -1.0, 1.0, 3.0]
