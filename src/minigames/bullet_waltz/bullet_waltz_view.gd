@@ -36,6 +36,13 @@ var out: Array = []
 var _bullet_pool: Array[MeshInstance3D] = []
 var _last_grazes := {}  # slot (int) -> graze count already sparked at
 var _was_out := {}  # slot (int) -> bool (last-seen KO state, for the KO blast)
+## Turret readability (#1036): the model otherwise sits as an inert prop with
+## no visible tie to the bullets it spawns. Held so _pulse_turret can punch it.
+var _turret: Node3D
+## Bullets only ever grow by a whole volley at once (_spawn_bullet always
+## starts a fresh one at the origin) and shrink one at a time as they expire
+## or hit, so a rise here reliably means "a volley just fired."
+var _last_bullet_count := 0
 
 
 func _physics_process(_delta: float) -> void:
@@ -67,9 +74,9 @@ func _setup_3d() -> void:
 	dim.position.y = 0.02
 	arena.add_child(dim)
 
-	var turret := EMITTER_SCENE.instantiate() as Node3D
-	turret.name = "Turret"
-	arena.add_child(turret)
+	_turret = EMITTER_SCENE.instantiate() as Node3D
+	_turret.name = "Turret"
+	arena.add_child(_turret)
 
 	_build_rim_glow()
 
@@ -111,6 +118,19 @@ func _build_rim_glow() -> void:
 	arena.add_child(node)
 
 
+## A visible punch + flash the instant a volley fires (#1036): the model's
+## position already matches the true spawn point, but nothing ever showed it
+## — a static prop reads as decoration, not the thing shooting at you.
+func _pulse_turret() -> void:
+	fx_burst(Vector2.ZERO, BULLET_COLOR, 0.8)
+	if ArenaFX.reduced_motion:
+		return
+	_turret.scale = Vector3.ONE * 1.2
+	var tween := create_tween()
+	tween.set_trans(PartyTheme.TRANS_OVERSHOOT).set_ease(PartyTheme.EASE_DEFAULT)
+	tween.tween_property(_turret, "scale", Vector3.ONE, PartyTheme.DUR_MED)
+
+
 ## Stretches a bullet into a short tracer streak pointing the way it travels,
 ## approximated as radially outward from the center turret. Round near the
 ## muzzle (direction is undefined there); elongates as it flies out.
@@ -128,6 +148,11 @@ func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
 	bullets = game.get("bullets", [])
 	out = game.get("out", [])
+	# A fresh volley just fired (#1036): punch the turret so it visibly reads
+	# as the thing bullets come from, instead of an inert floating prop.
+	if bullets.size() > _last_bullet_count:
+		_pulse_turret()
+	_last_bullet_count = bullets.size()
 	for i in _bullet_pool.size():
 		var node := _bullet_pool[i]
 		if i < bullets.size():
