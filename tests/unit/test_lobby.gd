@@ -18,6 +18,7 @@ const REQUIRED_NODES: Array[String] = [
 	"SeriesBoard",
 	"MutatorBox",
 	"MutatorToggles",
+	"GamesBox",
 	"CharacterLabel",
 	"PrevCharacterButton",
 	"NextCharacterButton",
@@ -171,14 +172,22 @@ func test_add_bot_disables_at_the_cap() -> void:
 	assert_true(lobby._add_bot_button.disabled, "no room for another bot")
 
 
-## #812: the host-only "play all games in order" toggle, built beside the
+## #812: the host-only "play all games in order" toggle, built above the
 ## per-game exclusion list, reflects the broadcast flag and freezes off-host.
 func test_debug_all_games_toggle_built_and_reflects_state() -> void:
 	assert_not_null(lobby._debug_all_games_toggle, "the debug toggle exists")
 	assert_eq(
 		lobby._debug_all_games_toggle.get_parent(),
-		lobby._game_toggles.get_parent(),
-		"lives beside the per-game exclusion list",
+		lobby._games_box,
+		(
+			"lives in GamesBox, not inside the GamesScroll ScrollContainer (#1032: a "
+			+ "second child there renders stacked under GameToggles at the same "
+			+ "scrolled position, making the toggle invisible in practice)"
+		),
+	)
+	assert_true(
+		lobby._debug_all_games_toggle.get_index() < lobby._game_toggles.get_parent().get_index(),
+		"sits above the scrollable games list, not after it",
 	)
 	lobby._sync_debug_toggle({"debug_all_games": true}, true)
 	assert_true(lobby._debug_all_games_toggle.button_pressed, "reflects the broadcast")

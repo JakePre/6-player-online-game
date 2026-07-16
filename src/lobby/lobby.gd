@@ -34,6 +34,7 @@ var _debug_all_games_toggle: CheckBox
 @onready var _mutator_box: VBoxContainer = %MutatorBox
 @onready var _mutator_toggles: VBoxContainer = %MutatorToggles
 @onready var _game_toggles: VBoxContainer = %GameToggles
+@onready var _games_box: VBoxContainer = %GamesBox
 @onready var _character_label: Label = %CharacterLabel
 @onready var _prev_character_button: Button = %PrevCharacterButton
 @onready var _next_character_button: Button = %NextCharacterButton
@@ -189,7 +190,11 @@ func _sync_game_toggles(state: Dictionary, editable: bool) -> void:
 
 ## Host-only debug run (#812): one match that plays every eligible game in order.
 ## Kept out of _game_toggles (whose children must all carry a game_id meta) and
-## mounted just above that list, since it governs the whole selection.
+## mounted in GamesBox, just above the GamesScroll list, since it governs the
+## whole selection. Must NOT be added inside GamesScroll itself (#1032): a
+## ScrollContainer positions every child at the same scrolled offset, so a
+## second child there renders stacked under GameToggles at the same spot —
+## the toggle existed and worked, it was just invisible in practice.
 func _build_debug_toggle() -> void:
 	_debug_all_games_toggle = CheckBox.new()
 	_debug_all_games_toggle.name = "DebugAllGames"
@@ -201,9 +206,8 @@ func _build_debug_toggle() -> void:
 	_debug_all_games_toggle.toggled.connect(
 		func(on: bool) -> void: NetManager.request_set_debug_all_games(on)
 	)
-	var parent := _game_toggles.get_parent()
-	parent.add_child(_debug_all_games_toggle)
-	parent.move_child(_debug_all_games_toggle, _game_toggles.get_index())
+	_games_box.add_child(_debug_all_games_toggle)
+	_games_box.move_child(_debug_all_games_toggle, _game_toggles.get_parent().get_index())
 
 
 ## Server echo wins: reflect the broadcast flag without re-sending it.
