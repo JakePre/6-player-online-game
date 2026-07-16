@@ -86,23 +86,25 @@ static func make_meta() -> MinigameMeta:
 					"Hit each lane's note as it crosses the line! "
 					+ "Nail the beat for double, keep a streak for a multiplier."
 				),
+				# #1033: arrow order matches the physical A, W, D, Space key layout
+				# (was Left, Right, Up, Action — read as garbled on-screen).
 				"controls":
-				"Strum the four lanes — ◀ ▶ ▲ / action (left stick / pad A), on the beat",
+				"Strum the four lanes — ◀ ▲ ▶ / action (left stick / pad A), on the beat",
 				"control_hints":  # Device-aware (#608); stick lanes stay literal (axis-bound).
 				[
-					"Strum the four lanes — ◀ ▶ ▲ / action (left stick / ",
+					"Strum the four lanes — ◀ ▲ ▶ / action (left stick / ",
 					{"action": &"action_primary"},
 					"), on the beat",
 				],
 				# Structured spec (#832/#844): the 3 stick-axis lanes (move_left/
-				# move_right/move_up — an irregular 3-of-4-directions shape no
+				# move_up/move_right — an irregular 3-of-4-directions shape no
 				# cluster constant covers) have no gamepad button glyph, so they're
 				# a note-only row (omits "input" — never draws a binding pill,
 				# unlike a real row with an unresolved input). Only the action lane
 				# gets a real row.
 				"control_spec":
 				[
-					{"note": "Strum ◀ ▶ ▲ (left stick), on the beat"},
+					{"note": "Strum ◀ ▲ ▶ (left stick), on the beat"},
 					{"verb": "● lane", "input": &"action_primary"},
 				],
 			}
