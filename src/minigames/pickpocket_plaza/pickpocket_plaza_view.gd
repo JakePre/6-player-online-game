@@ -9,6 +9,9 @@ extends MinigameView
 ## they are without ever leaking it into the shared snapshot. The end reveal
 ## finally marks the guard body for the whole table.
 
+## Declarative button input (#947): only the guard acts; a stray press from a
+## thief is harmless (the server ignores non-guard `act`), so no role gate here.
+const INPUT_ACTIONS := {&"action_primary": "act"}
 const ARENA_COLOR := Color(0.16, 0.14, 0.11)
 const COBBLE_GRID := Color(0.32, 0.28, 0.22, 0.35)
 const PLAZA_LINE := Color(0.55, 0.48, 0.36, 0.9)
@@ -39,16 +42,6 @@ var _my_loot_seen := -1
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	# Only the guard acts; a stray press from a thief is harmless (the server
-	# ignores non-guard `act`), so we don't gate on role here.
-	if not event.is_action_pressed(&"action_primary"):
-		return
-	if NetManager.multiplayer.multiplayer_peer == null:
-		return
-	NetManager.send_match_input({"act": true})
 
 
 func _process(delta: float) -> void:
