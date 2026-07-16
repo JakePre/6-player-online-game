@@ -105,6 +105,20 @@ func test_walking_over_a_loose_ball_grabs_it() -> void:
 	assert_eq(int(game.balls[0].holder), 0)
 
 
+## #1035: team mode walls both sides out of the neutral strip, and every ball
+## spawns dead-center of it. A player parked right at their team's boundary
+## line must still be able to reach a centered ball, even with some y offset.
+func test_team_boundary_player_can_reach_a_centered_ball() -> void:
+	var game := _team_game([0, 1, 2, 3])
+	var slot: int = game.teams[0][0]
+	game.balls = [_loose_ball(Vector2(0.0, 0.2))]
+	game.positions[slot] = Vector2(-Dodgeball.CENTER_GAP, 0.0)
+	game.move_dirs[slot] = Vector2.ZERO
+	game._tick(TICK)
+	assert_eq(int(game.balls[0].state), Dodgeball.BallState.HELD)
+	assert_eq(int(game.balls[0].holder), slot)
+
+
 func test_throw_launches_the_ball_along_facing() -> void:
 	var game := _ffa_game([0, 1])
 	game.positions[0] = Vector2(-3.0, 0.0)
