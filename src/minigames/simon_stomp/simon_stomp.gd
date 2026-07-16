@@ -20,8 +20,15 @@ const START_LENGTH := 2
 const MAX_ROUNDS := 8
 ## A beat of anticipation before the first pad flashes each round — without it
 ## the very first flash lands the instant SHOW starts, before eyes settle on
-## the pads, and players miss it (#588).
-const SHOW_LEAD_IN_SEC := 0.6
+## the pads, and players miss it (#588). #1044: a single 0.6s beat was long
+## enough to matter but too short to notice on a busy screen, so mid-game
+## round transitions (everything after round 1, which also gets the separate
+## match-level COUNTDOWN) slipped by unannounced. Stretched to a full 3-2-1
+## at the same per-step cadence as the match-level countdown (#182) so the
+## client can render a matching big numeral.
+const SHOW_LEAD_IN_STEP_SEC := 0.6
+const SHOW_LEAD_IN_STEPS := 3
+const SHOW_LEAD_IN_SEC := SHOW_LEAD_IN_STEP_SEC * SHOW_LEAD_IN_STEPS
 ## Per-pad reveal time; the whole SHOW phase scales with sequence length.
 const SHOW_PER_PAD_SEC := 0.6
 const INPUT_TIMEOUT_SEC := 8.0

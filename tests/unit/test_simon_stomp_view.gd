@@ -76,6 +76,25 @@ func test_each_flashed_pad_plays_its_own_distinct_sfx() -> void:
 	assert_signal_emitted_with_parameters(view, "sfx_requested", [view.PAD_SFX[2]])
 
 
+## #1044: a big numeral counts down through the lead-in — as loud as round 1's
+## separate match-level countdown — then hides once the first pad can flash.
+func test_countdown_ticks_through_the_lead_in_and_hides_once_pads_start() -> void:
+	view.render({"phase": SimonStomp.Phase.SHOW, "round": 0, "sequence": [1, 2]})
+	view._show_timer = 0.01
+	view._update_countdown()
+	assert_true(view._countdown_label.visible, "counts down right at the top of SHOW")
+	assert_eq(view._countdown_label.text, "3")
+	view._show_timer = SimonStomp.SHOW_LEAD_IN_STEP_SEC + 0.01
+	view._update_countdown()
+	assert_eq(view._countdown_label.text, "2")
+	view._show_timer = SimonStomp.SHOW_LEAD_IN_SEC - 0.01
+	view._update_countdown()
+	assert_eq(view._countdown_label.text, "1")
+	view._show_timer = SimonStomp.SHOW_LEAD_IN_SEC + 0.01
+	view._update_countdown()
+	assert_false(view._countdown_label.visible, "hides once the first pad flash can start")
+
+
 ## #795: alive players are revealed in a stage row facing the pads, instead
 ## of loitering invisibly at the arena origin (where the pad diamond sits).
 func test_alive_players_stand_in_the_stage_row_and_are_revealed() -> void:
@@ -139,7 +158,11 @@ func test_audience_cheers_when_a_stage_player_clears_the_round() -> void:
 ## the results overlay — the results celebration must clear them.
 func test_celebrate_clears_the_round_banner() -> void:
 	view.render({"phase": SimonStomp.Phase.SHOW, "round": 1, "rounds_total": 8, "length": 3})
+	view._show_timer = 0.01
+	view._update_countdown()
 	assert_false(view._round_label.text.is_empty(), "the banner shows mid-round")
+	assert_true(view._countdown_label.visible, "the countdown shows mid-lead-in")
 	view.celebrate([[0]])
 	assert_true(view._phase_label.text.is_empty(), "the phase banner clears on finish")
 	assert_true(view._round_label.text.is_empty(), "the round banner clears on finish")
+	assert_false(view._countdown_label.visible, "the countdown clears on finish too")
