@@ -102,6 +102,35 @@ func test_ko_pops_a_blast() -> void:
 	assert_gt(_particle_count(), before, "a KO blasts a burst")
 
 
+## #1036: a volley firing punches the turret and bursts a flash at the muzzle
+## — otherwise it's an inert prop with no visible tie to the bullets.
+func test_a_fresh_volley_pulses_the_turret() -> void:
+	view.render({"players": {}, "bullets": [], "out": []})
+	var before := _particle_count()
+	view.render({"players": {}, "bullets": [[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]], "out": []})
+	assert_eq(view._turret.scale, Vector3.ONE * 1.2, "the turret punches on a fresh volley")
+	assert_gt(_particle_count(), before, "a burst flashes at the muzzle")
+
+
+## A shrinking bullet count (expiry/hits thinning the field) never re-pulses.
+func test_bullets_thinning_out_does_not_pulse_the_turret() -> void:
+	view.render({"players": {}, "bullets": [[0.0, 0.0], [0.5, 0.5]], "out": []})
+	view._turret.scale = Vector3.ONE
+	view.render({"players": {}, "bullets": [[0.0, 0.0]], "out": []})
+	assert_eq(view._turret.scale, Vector3.ONE, "fewer bullets this snapshot does not pulse")
+
+
+func test_turret_pulse_is_skipped_under_reduced_motion() -> void:
+	ArenaFX.reduced_motion = true
+	view.render({"players": {}, "bullets": [], "out": []})
+	view.render({"players": {}, "bullets": [[0.0, 0.0]], "out": []})
+	assert_eq(view._turret.scale, Vector3.ONE, "no scale pop under reduced motion")
+
+
+func after_each() -> void:
+	ArenaFX.reduced_motion = false
+
+
 ## M15 †-cap: the framed floor grows with a big lobby to match the scaled sim,
 ## and the 2-player before_each view stays on the tuned baseline.
 func test_arena_frames_scale_with_the_crowd() -> void:
