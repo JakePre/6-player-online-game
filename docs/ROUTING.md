@@ -34,6 +34,9 @@ tracks the routing tier, never re-derive scope from it.
 | Issue | Task |
 |---|---|
 | #971 | Sim/view derived-value desync audit — Fable finishes the bug-class classification (first pass done) → Opus/Sonnet for the bucket-3 conversions |
+| #1028 | Fort Siege — objectives still unclear, still not fun post-#808; diagnose → owner checkpoint → build (pairs #962) |
+| #1034 | Replace Sumo Smash with beyblade battle — dome, momentum, aimed collisions; design doc → owner checkpoint → Opus build |
+| #1037 | Basket Brawl — owner bounced off it; diagnose top-3 reasons → owner checkpoint → build (ties #803 history) |
 
 ## Opus 4.8 — real engineering, clear precedent
 
@@ -57,6 +60,14 @@ tracks the routing tier, never re-derive scope from it.
 | #961 | Round-length collapse cluster — 8 games, diagnose-then-tune, per-game claims |
 | #962 | fort_siege brain orphaned by #808 rework + perfect-memory tie walls (simon_stomp/memory_match) |
 | #963 | [EPIC] M21 Steam distribution — 6 phased sub-issues (#964-969), **⛔ gated on owner go-ahead** |
+| #1030 | REGRESSION: Gauntlet finale — can't buy items or lock in; bisect-first (HIGH) |
+| #1031 | Rejoin to the same lobby fails once the round is over — room-lifecycle gate |
+| #1035 | Dodgeball — nobody can grab the ball; possible #1030 input-regression sibling (HIGH) |
+| #1038 | Missing feedback anims (push/teleport/hit) — framework hook, then Sonnet fan-out |
+| #1040 | Alt+F4 in lobby leaves a ghost seat forever — lobby presence reaping (pairs #1039) |
+| #1041 | Turbo Lap — walls don't collide, oval doesn't close, finish-line asset broken |
+| #1042 | Trap Corridor — placed traps do nothing; full-chain diagnosis (possible #1030 sibling) |
+| #1045 | Framework: finisher window — let P2's death render before the round ends |
 
 ## Sonnet 5 — mechanical, pattern-following
 
@@ -65,3 +76,12 @@ tracks the routing tier, never re-derive scope from it.
 | #715 | Brain quality pass — data gate lifted; overlaps #926/#962, coordinate before claiming |
 | #941 | EdgeTracker fan-out — helper + 3 reference views landed; convert the remaining ~8 seen-edge views |
 | #947 | INPUT_ACTIONS fan-out — base machinery + 4 reference views landed; convert the remaining ~16 simple-button views (see the issue's fan-out note) |
+| #1026 | Fox + Rhino faces projected backwards + quality regen (escalate to Opus if the pipeline axis bug is shared) |
+| #1027 | Nom Arena — obstacles that break up clumps (coordinate with #954) |
+| #1029 | Meteor Shower — minor player collision (coordinate with #918) |
+| #1032 | Debug-game all-in-order setting — verify #812/PR #858 still works, then fix discoverability |
+| #1033 | Shred Session — control hints in A,W,D→Space order + restyle the controls print |
+| #1036 | Bullet Waltz — emitter ring floats in the sky; ground it + make bullets visibly spawn from it |
+| #1039 | Lobby — host kick for disconnected players (pairs #1040) |
+| #1043 | Putt Panic — fire while aiming, drop the modal lock-in step |
+| #1044 | Simon Stomp — big 3-2-1-GO start countdown |
