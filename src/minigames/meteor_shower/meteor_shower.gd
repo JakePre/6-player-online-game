@@ -106,11 +106,29 @@ func _tick(delta: float) -> void:
 	for slot: int in alive:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.limit_length(_play_half)
+	_resolve_separation(alive)
 	_tick_meteors(delta, alive)
 	_spawn_meteors(delta)
 	_check_zone(alive)
 	_flush_downs()
 	_check_end()
+
+
+## Soft body separation (#1029): overlapping players are pushed apart so a
+## crowd can't just stack on the same spot as the safe zone shrinks — a light,
+## position-based nudge (the shared #945 math, same as memory_match's #784),
+## not full rigid-body collision, so it can't shove-lock a crowded lobby.
+func _resolve_separation(alive: Array) -> void:
+	var min_gap := PLAYER_RADIUS * 2.0
+	for i in alive.size():
+		for j in range(i + 1, alive.size()):
+			var a: int = alive[i]
+			var b: int = alive[j]
+			var push := SimGeometry.separation_push(positions[a], positions[b], min_gap)
+			if push == Vector2.ZERO:
+				continue
+			positions[a] = (positions[a] - push).limit_length(_play_half)
+			positions[b] = (positions[b] + push).limit_length(_play_half)
 
 
 func zone_radius() -> float:

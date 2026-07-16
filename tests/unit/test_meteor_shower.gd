@@ -90,6 +90,21 @@ func test_timeout_ranks_survivors_ahead_of_the_fallen() -> void:
 	assert_eq(game.get_results().placements, [[0, 1], [2]])
 
 
+## Soft separation (#1029): two players driven onto the same spot are pushed
+## apart to at least the min gap — a crowd can't just stack invisibly as the
+## safe zone shrinks around them.
+func test_soft_separation_prevents_stacking() -> void:
+	var game := _game_with(2)
+	game.positions[0] = Vector2(0.0, 0.0)
+	game.positions[1] = Vector2(0.0, 0.0)
+	game.tick(TICK)
+	assert_gte(
+		game.positions[0].distance_to(game.positions[1]),
+		MeteorShower.PLAYER_RADIUS * 2.0 - 0.001,
+		"overlapping players are separated"
+	)
+
+
 func test_zone_shrinks_after_the_grace_period() -> void:
 	var game := _game_with(2)
 	assert_almost_eq(game.zone_radius(), MeteorShower.ZONE_START_RADIUS, 0.001)
