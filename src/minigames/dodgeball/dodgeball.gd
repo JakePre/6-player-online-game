@@ -18,8 +18,12 @@ const ARENA_HALF := 9.0
 const MOVE_SPEED := 5.5
 const PLAYER_RADIUS := 0.4
 ## Neutral strip at the center line (team mode): nobody stands on the line, so
-## the split reads and point-blank throws across it aren't free.
-const CENTER_GAP := 0.7
+## the split reads and point-blank throws across it aren't free. Must stay
+## well under PICKUP_RADIUS: center-spawned balls sit at x=0.0, so the gap is
+## also the closest either team can ever get to one (#1035 — at 0.7 == the old
+## PICKUP_RADIUS, that distance was only reachable with perfect y-alignment,
+## making every centered ball practically unpickupable in team mode).
+const CENTER_GAP := 0.3
 
 ## Thrown-ball flight and the two resolution radii. CATCH_RADIUS is larger than
 ## HIT_RADIUS so an approaching ball crosses the catch band first: a buffered
