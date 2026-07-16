@@ -11,6 +11,9 @@ extends MinigameView3D
 ## floor), so surfaced swimmers stand clearly at the surface and the back edges
 ## are contained. Square, to match the sim's (now per-axis) play clamp.
 
+## Declarative button input (#947): hold to dive, release to surface.
+const INPUT_ACTIONS := {&"action_primary": {"key": "dive", "held": true}}
+
 const SURFACE_HEIGHT := 1.2
 const WATER_COLOR := Color(0.2, 0.45, 0.8, 0.35)
 ## Pool dressing (#588): a blue-tinted floor overlay plus a deck border around
@@ -80,13 +83,6 @@ func _process(_delta: float) -> void:
 	for i in _coin_pool.size():
 		if _coin_pool[i].visible:
 			_coin_pool[i].rotation = Vector3(PI / 2.0, now * TAU * 0.8 + i, 0.0)
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"action_primary"):
-		NetManager.send_match_input({"dive": true})
-	elif event.is_action_released(&"action_primary"):
-		NetManager.send_match_input({"dive": false})
 
 
 ## Deep-sea blue floor (#589).

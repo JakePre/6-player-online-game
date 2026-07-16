@@ -4,6 +4,8 @@ extends MinigameView3D
 ## same — that's the game. Losers drop with the check, with a shake. The grid
 ## replaces the default floor (the pattern IS the floor).
 
+## Declarative button input (#947): shove a neighbor off their tile.
+const INPUT_ACTIONS := {&"action_primary": "shove"}
 const TILE_SAFE_COLOR := Color(0.35, 0.85, 0.5)
 const TILE_DARK_COLOR := Color(0.28, 0.3, 0.38)
 const PIT_COLOR := Color(0.04, 0.04, 0.07)
@@ -61,12 +63,6 @@ var _dropping := {}
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"action_primary"):
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"shove": true})
 
 
 ## Pulse the safe tiles during SHOW so the green reads as "go here" rather than
