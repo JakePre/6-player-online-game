@@ -334,8 +334,9 @@ func _rpc_kick(slot: int) -> void:
 	if target == null or target.peer_id == multiplayer.get_remote_sender_id():
 		return
 	var target_peer := target.peer_id
-	room_manager.leave_room(target_peer, Time.get_ticks_msec())
-	if target.connected and target_peer > 0:
+	var target_was_connected := target.connected
+	room_manager.remove_member(room, target, Time.get_ticks_msec())
+	if target_was_connected and target_peer > 0:
 		_rpc_kicked.rpc_id(target_peer)
 	_broadcast_room_state(room)
 	peer_left_room.emit(room)

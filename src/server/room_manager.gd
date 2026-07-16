@@ -80,6 +80,17 @@ func leave_room(peer_id: int, now_ms: int) -> Room:
 	return room
 
 
+## Host kick (#1039): removes a specific member by direct reference, unlike
+## leave_room which is peer-id-keyed and is a no-op for a disconnected target
+## (peer_id resets to 0 and is already gone from _peer_rooms at disconnect
+## time — a disconnected member can never be found via room_of_peer/leave_room).
+func remove_member(room: Room, member: RoomMember, now_ms: int) -> void:
+	if member.connected and member.peer_id != 0:
+		_peer_rooms.erase(member.peer_id)
+	room.remove_member(member)
+	_cleanup_room(room, now_ms)
+
+
 ## Connection dropped. The seat (slot, name, character, score, token) is held
 ## in every state so rejoin always lands somewhere sensible (#176): back in
 ## the lobby pre-start, sitting out the round mid-match (SPEC $9). Abandoned
