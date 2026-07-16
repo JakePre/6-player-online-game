@@ -75,6 +75,16 @@ func test_starts_in_trap_phase_with_first_slot_trapping() -> void:
 	assert_eq(game.trapper(), 0)
 
 
+## #1042/#1030: the real net path runs every payload through SafeInput.sanitize,
+## which the other trap tests skip by calling handle_input directly. The #970
+## sanitizer dropped the `trap` array whole, so live placement silently no-oped
+## even though these direct-call tests stayed green. Guard the end-to-end path.
+func test_trap_placement_survives_the_net_sanitizer() -> void:
+	var game := _game()
+	game.handle_input(0, SafeInput.sanitize({"trap": [3, 1]}))
+	assert_eq(game.hidden_traps.size(), 1, "a sanitized trap payload still places a trap")
+
+
 func test_only_the_trapper_may_place_traps_and_only_in_phase() -> void:
 	var game := _game()
 	game.handle_input(1, {"trap": [3, 1]})
