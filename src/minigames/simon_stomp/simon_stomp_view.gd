@@ -72,6 +72,10 @@ var _pad_materials: Array[StandardMaterial3D] = []
 var _pad_nodes: Array[MeshInstance3D] = []
 var _phase_label: Label
 var _round_label: Label
+## Big pre-flash countdown (#1044): mirrors the match-level countdown's punch-in
+## digit (#182) so a mid-game round transition is as unmissable as round 1's.
+var _countdown_label: Label
+var _countdown_digit := 0
 ## Locally clocked SHOW timer: snapshots arrive at 30 Hz but the flash should
 ## animate every frame, so we drive it off _process and reset on entering SHOW.
 var _show_timer := 0.0
@@ -97,6 +101,7 @@ func _process(delta: float) -> void:
 	if _phase == SimonStomp.Phase.SHOW:
 		_show_timer += delta
 		_update_pads()
+		_update_countdown()
 	elif _phase == SimonStomp.Phase.INPUT:
 		for pad in PAD_ACTIONS.size():
 			if Input.is_action_just_pressed(PAD_ACTIONS[pad]):
@@ -186,6 +191,22 @@ func _build_labels() -> void:
 	_round_label = make_status_label(&"RoundLabel", PartyTheme.SIZE_OVERLAY_BODY)
 	# #924: gap below the primary line, relative to the chrome-cleared baseline.
 	_round_label.position.y = MinigameView3D.CHROME_CLEARANCE_Y + 56.0
+	_build_countdown_label()
+
+
+## Dead-center, huge, and hidden except during the SHOW lead-in (#1044) — the
+## match-level countdown's look (#182), reused here so a mid-game round
+## transition reads exactly as loud as the very first one.
+func _build_countdown_label() -> void:
+	_countdown_label = Label.new()
+	_countdown_label.name = "CountdownLabel"
+	_countdown_label.add_theme_font_size_override(&"font_size", 132)
+	_countdown_label.add_theme_constant_override(&"outline_size", 10)
+	_countdown_label.add_theme_color_override(&"font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
+	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_countdown_label.set_anchors_preset(Control.PRESET_CENTER)
+	_countdown_label.visible = false
+	_attach_overlay_label(_countdown_label)
 
 
 func _update_labels() -> void:
@@ -200,7 +221,40 @@ func _update_labels() -> void:
 func _celebrate(placements: Array) -> void:
 	_phase_label.text = ""
 	_round_label.text = ""
+	_countdown_label.visible = false
 	super(placements)
+
+
+## Ticks a big numeral down through the SHOW lead-in (#1044), same digit math
+## and punch-in as the match-level countdown (#182): 3, 2, 1, then the first
+## pad flash takes over and this hides.
+func _update_countdown() -> void:
+	if _phase != SimonStomp.Phase.SHOW or _show_timer >= SimonStomp.SHOW_LEAD_IN_SEC:
+		_countdown_label.visible = false
+		_countdown_digit = 0
+		return
+	_countdown_label.visible = true
+	var remaining := SimonStomp.SHOW_LEAD_IN_SEC - _show_timer
+	var digit := clampi(
+		int(ceilf(remaining / SimonStomp.SHOW_LEAD_IN_STEP_SEC)), 1, SimonStomp.SHOW_LEAD_IN_STEPS
+	)
+	if digit != _countdown_digit:
+		_countdown_digit = digit
+		_countdown_label.text = str(digit)
+		_pop_countdown()
+		play_sfx(&"tick")
+
+
+## Punch-in scale pop (#1044), the same overshoot tween the match-level
+## countdown uses (#182). Reduced-motion shows the digit at rest instead.
+func _pop_countdown() -> void:
+	if ArenaFX.reduced_motion:
+		return
+	_countdown_label.pivot_offset = _countdown_label.size / 2.0
+	_countdown_label.scale = Vector2(1.35, 1.35)
+	var tween := create_tween()
+	tween.set_trans(PartyTheme.TRANS_OVERSHOOT).set_ease(PartyTheme.EASE_DEFAULT)
+	tween.tween_property(_countdown_label, "scale", Vector2.ONE, PartyTheme.DUR_MED)
 
 
 ## During SHOW, light the pad whose flash window we're inside — after a lead-in
