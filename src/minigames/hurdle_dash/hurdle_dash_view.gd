@@ -34,11 +34,10 @@ var course_len := HurdleDash.COURSE_LEN
 # M13-30 FX state: in-flight clip sparks ({slot, age}), last-seen stun and
 # progress per slot for clip detection and speed-line lengths.
 var _sparks: Array = []
-var _stun_seen := {}
-var _progress_seen := {}
+var _stun_edges := EdgeTracker.new()
+var _progress_edges := EdgeTracker.new()
 var _speeds := {}
-var _finished_seen := {}
-var _seen_snapshot := false
+var _finished_edges := EdgeTracker.new()
 
 
 func _physics_process(_delta: float) -> void:
@@ -66,22 +65,19 @@ func _render(game: Dictionary) -> void:
 	for slot: int in players:
 		var state: Array = players[slot]
 		var stun := float(state[HurdleDash.PS_STUN])
-		if _seen_snapshot and stun > 0.0 and float(_stun_seen.get(slot, 0.0)) <= 0.0:
+		if _stun_edges.rose(slot, stun > 0.0):
 			_sparks.append({"slot": slot, "age": 0.0})
 			if slot == my_slot:
 				# A non-damaging stumble, not a hurt-generic (#728).
 				play_sfx(&"bump")
-		_stun_seen[slot] = stun
 		var progress := float(state[HurdleDash.PS_PROGRESS])
-		_speeds[slot] = maxf(progress - float(_progress_seen.get(slot, progress)), 0.0)
-		_progress_seen[slot] = progress
+		_speeds[slot] = maxf(progress - float(_progress_edges.peek(slot, progress)), 0.0)
+		_progress_edges.changed(slot, progress)
 		var finished := bool(state[HurdleDash.PS_FINISHED])
-		if _seen_snapshot and finished and not bool(_finished_seen.get(slot, false)):
+		if _finished_edges.rose(slot, finished):
 			if slot == my_slot:
 				# Crossing the finish line is a checkpoint (#728).
 				play_sfx(&"bell")
-		_finished_seen[slot] = finished
-	_seen_snapshot = true
 	queue_redraw()
 
 

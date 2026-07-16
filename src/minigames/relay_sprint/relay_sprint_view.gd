@@ -27,10 +27,9 @@ var hazards: Array = []
 # M13-22 FX state: in-flight baton flashes ({lane, age}), last-seen leg and
 # progress per lane for handoff detection and speed-line lengths.
 var _flashes: Array = []
-var _legs_seen := {}
-var _progress_seen := {}
+var _leg_edges := EdgeTracker.new()
+var _progress_edges := EdgeTracker.new()
 var _speeds := {}
-var _seen_snapshot := false
 
 
 func _physics_process(_delta: float) -> void:
@@ -59,29 +58,24 @@ func _render(game: Dictionary) -> void:
 		var state: Array = lanes[lane_index]
 		var leg := int(state[RelaySprint.LN_ACTIVE_LEG])
 		var progress := float(state[RelaySprint.LN_PROGRESS])
-		var prev_leg := int(_legs_seen.get(lane_index, leg))
-		if _seen_snapshot and leg > prev_leg and not bool(state[RelaySprint.LN_DONE]):
+		var prev_leg := int(_leg_edges.peek(lane_index, leg))
+		if leg > prev_leg and not bool(state[RelaySprint.LN_DONE]):
 			_flashes.append({"lane": lane_index, "age": 0.0})
 			# Only your own team's handoff pings (M12-02) — the baton pass is a
 			# checkpoint (#728), replacing generic UI confirm.
 			if my_slot in (state[RelaySprint.LN_ROSTER] as Array):
 				play_sfx(&"bell")
 		if leg == prev_leg:
-			var prev := float(_progress_seen.get(lane_index, progress))
+			var prev := float(_progress_edges.peek(lane_index, progress))
 			# A hazard hit resets progress to 0 (RelaySprint._hit_hazard) — the
 			# setback debuff, personal to your own team (#728).
-			if (
-				_seen_snapshot
-				and progress < prev
-				and my_slot in (state[RelaySprint.LN_ROSTER] as Array)
-			):
+			if progress < prev and my_slot in (state[RelaySprint.LN_ROSTER] as Array):
 				play_sfx(&"powerdown")
 			_speeds[lane_index] = maxf(progress - prev, 0.0)
 		else:
 			_speeds[lane_index] = 0.0
-		_legs_seen[lane_index] = leg
-		_progress_seen[lane_index] = progress
-	_seen_snapshot = true
+		_leg_edges.changed(lane_index, leg)
+		_progress_edges.changed(lane_index, progress)
 	queue_redraw()
 
 
