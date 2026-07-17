@@ -24,6 +24,7 @@ var _color_swatches: Array[ColorRect] = []
 ## Host-only "play every game in order" toggle (#812), built in code above the
 ## per-game exclusion list so there is no .tscn churn.
 var _debug_all_games_toggle: CheckBox
+var _playtest_mode_toggle: CheckBox
 
 @onready var _code_label: Label = %CodeLabel
 @onready var _copy_button: Button = %CopyButton
@@ -67,6 +68,7 @@ func _ready() -> void:
 	_build_mutator_toggles()
 	_build_game_toggles()
 	_build_debug_toggle()
+	_build_playtest_toggle()
 	_build_color_swatches()
 	_code_label.text = NetManager.my_room_code
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
@@ -204,7 +206,7 @@ func _build_debug_toggle() -> void:
 		+ "no mutators. Pairs with practice bots for a solo audit pass."
 	)
 	_debug_all_games_toggle.toggled.connect(
-		func(on: bool) -> void: NetManager.request_set_debug_all_games(on)
+		func(on: bool) -> void: NetManager.request_set_room_flag("debug_all_games", on)
 	)
 	_games_box.add_child(_debug_all_games_toggle)
 	_games_box.move_child(_debug_all_games_toggle, _game_toggles.get_parent().get_index())
@@ -214,6 +216,30 @@ func _build_debug_toggle() -> void:
 func _sync_debug_toggle(state: Dictionary, editable: bool) -> void:
 	_debug_all_games_toggle.set_pressed_no_signal(bool(state.get("debug_all_games", false)))
 	_debug_all_games_toggle.disabled = not editable
+
+
+## Host playtest mode (#1070): the owner's on-demand catalog — pick every
+## round's game live, see the played list, end the match whenever. Mounted next
+## to the debug toggle (same GamesBox spot, same #1032 ScrollContainer caveat).
+func _build_playtest_toggle() -> void:
+	_playtest_mode_toggle = CheckBox.new()
+	_playtest_mode_toggle.name = "PlaytestMode"
+	_playtest_mode_toggle.text = "Playtest mode (host picks each game)"
+	_playtest_mode_toggle.tooltip_text = (
+		"Host: after every round, pick the next game from the full catalog and "
+		+ "see what's been played. End the match from the pick screen. No mutators."
+	)
+	_playtest_mode_toggle.toggled.connect(
+		func(on: bool) -> void: NetManager.request_set_room_flag("playtest_mode", on)
+	)
+	_games_box.add_child(_playtest_mode_toggle)
+	_games_box.move_child(_playtest_mode_toggle, _debug_all_games_toggle.get_index() + 1)
+
+
+## Server echo wins: reflect the broadcast flag without re-sending it.
+func _sync_playtest_toggle(state: Dictionary, editable: bool) -> void:
+	_playtest_mode_toggle.set_pressed_no_signal(bool(state.get("playtest_mode", false)))
+	_playtest_mode_toggle.disabled = not editable
 
 
 ## A row of pickable color swatches under the character card (#581). Built once;
@@ -305,6 +331,7 @@ func _on_room_updated(state: Dictionary) -> void:
 	_update_series_board(series)
 	var debug_all_games: bool = state.get("debug_all_games", false)
 	_sync_debug_toggle(state, i_am_host and not in_match)
+	_sync_playtest_toggle(state, i_am_host and not in_match)
 	_sync_mutator_toggles(state, i_am_host and not in_match and not debug_all_games)
 	# The per-game exclusion list has no effect while the debug run is on (it
 	# plays everything regardless), so grey it out to say so.

@@ -225,10 +225,10 @@ func request_set_excluded_games(ids: Array) -> void:
 	_rpc_set_excluded_games.rpc_id(1, ids)
 
 
-## Host-only lobby setting (#812): flips the next match to the full-roster debug
-## run (every eligible game once, in order, no mutators).
-func request_set_debug_all_games(enabled: bool) -> void:
-	_rpc_set_debug_all_games.rpc_id(1, enabled)
+## Host-only boolean lobby toggles (#812 debug_all_games, #1070 playtest_mode)
+## share one RPC; Room.set_lobby_flag validates the flag name server-side.
+func request_set_room_flag(flag: String, enabled: bool) -> void:
+	_rpc_set_room_flag.rpc_id(1, flag, enabled)
 
 
 func send_ping() -> void:
@@ -427,13 +427,13 @@ func _rpc_set_excluded_games(ids: Array) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_set_debug_all_games(enabled: bool) -> void:
+func _rpc_set_room_flag(flag: String, enabled: bool) -> void:
 	if not is_server:
 		return
 	var room := _room_of_host_sender()
 	if room == null:
 		return
-	if room.set_debug_all_games(enabled):
+	if room.set_lobby_flag(flag, enabled):
 		_broadcast_room_state(room)
 
 
