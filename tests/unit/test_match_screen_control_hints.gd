@@ -174,11 +174,12 @@ func test_prose_label_returns_when_the_next_game_has_no_spec() -> void:
 
 
 func test_turbo_lap_buttons_render_device_aware_while_steering_stays_literal() -> void:
+	# #1067: action_primary is GAS now (held); drift is a hard turn at speed.
 	var segments := TurboLap.make_meta().control_hints
 	InputGlyphs.active_device = InputGlyphs.Device.KEYBOARD
 	var kb := InputGlyphs.hint_for(segments)
-	assert_string_contains(kb, "Drift — Space · Item — E")
-	assert_string_contains(kb, "left stick")  # movement stays literal prose
+	assert_string_contains(kb, "Gas — hold Space · Item — E")
+	assert_string_contains(kb, "A/D / stick")  # movement stays literal prose
 	InputGlyphs.active_device = InputGlyphs.Device.GAMEPAD
 	InputGlyphs.active_layout = InputGlyphs.Layout.XBOX
-	assert_string_contains(InputGlyphs.hint_for(segments), "Drift — A · Item — X")
+	assert_string_contains(InputGlyphs.hint_for(segments), "Gas — hold A · Item — X")

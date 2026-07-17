@@ -123,6 +123,37 @@ func test_spin_out_locks_control_and_bleeds_speed() -> void:
 	assert_gt(float(kart.spin_left), 0.0)
 
 
+## #1067 (owner playtest): the pad gas button — held action_primary is full
+## throttle no matter what the stick's y does, and release falls back to it.
+func test_gas_button_overrides_stick_throttle() -> void:
+	var game := _game()
+	var kart: Dictionary = game.karts[0]
+	game.handle_input(0, {"gas": true})
+	game.handle_input(0, {"mx": 0.5, "my": 0.0})
+	assert_almost_eq(float(kart.throttle), 1.0, 0.001, "gas held = full throttle, stick idle")
+	game.handle_input(0, {"mx": 0.5, "my": 1.0})
+	assert_almost_eq(float(kart.throttle), 1.0, 0.001, "gas beats stick-down while held")
+	game.handle_input(0, {"gas": false})
+	game.handle_input(0, {"mx": 0.5, "my": 1.0})
+	assert_almost_eq(float(kart.throttle), -1.0, 0.001, "release = stick brake works again")
+
+
+## #1067: with gas on the button, slamming the stick sideways at speed IS the
+## drift — no third button. A gentle line does not drift.
+func test_hard_turn_at_speed_drifts_while_gassing() -> void:
+	var game := _game()
+	var kart: Dictionary = game.karts[0]
+	kart.speed = 8.0
+	game.handle_input(0, {"gas": true})
+	game.handle_input(0, {"mx": 1.0, "my": 0.0})
+	assert_true(game._is_drifting(kart), "gas + full deflection at speed = drift")
+	game.handle_input(0, {"mx": 0.5, "my": 0.0})
+	assert_false(game._is_drifting(kart), "a moderate line is grip, not drift")
+	game.handle_input(0, {"gas": false})
+	game.handle_input(0, {"mx": 1.0, "my": -1.0})
+	assert_false(game._is_drifting(kart), "no gas, no explicit drift input -> no drift")
+
+
 func test_drift_release_banks_a_mini_turbo() -> void:
 	var game := _game()
 	var kart: Dictionary = game.karts[0]

@@ -3,7 +3,8 @@ extends MinigameView3D
 ## iso arena — a ribbon track built from the sim's own centerline, glowing
 ## boost pads, item pads that dim while cooling, box-karts riding under each
 ## character rig, pooled shells and oil slicks — without simulating anything
-## locally. Drift is action_primary (held), the item is action_secondary.
+## locally. Gas is action_primary (held, #1067), the item is action_secondary;
+## drifting is steering hard at speed.
 
 const TRACK_COLOR := Color(0.16, 0.17, 0.21)
 const START_COLOR := Color(0.96, 0.79, 0.2)
@@ -38,7 +39,7 @@ var _shell_pool: Array[MeshInstance3D] = []
 var _oil_pool: Array[MeshInstance3D] = []
 var _spin_seen := {}
 var _finish_seen := {}
-var _drift_down := false
+var _gas_down := false
 var _seen_snapshot := false
 
 
@@ -47,11 +48,13 @@ func _physics_process(_delta: float) -> void:
 
 
 func _process(_delta: float) -> void:
+	# action_primary is GAS now (#1067): held = full throttle, the stick only
+	# steers, and a hard turn at speed drifts server-side.
 	var held := Input.is_action_pressed(&"action_primary")
-	if held != _drift_down:
-		_drift_down = held
+	if held != _gas_down:
+		_gas_down = held
 		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"drift": held})
+			NetManager.send_match_input({"gas": held})
 
 
 func _unhandled_input(event: InputEvent) -> void:
