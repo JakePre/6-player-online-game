@@ -38,9 +38,7 @@ func test_bots_and_duration_parse() -> void:
 
 
 func test_bot_count_clamps_to_room_cap_minus_camera() -> void:
-	var launcher := _launcher(
-		PackedStringArray(["--debug-minigame=bey_brawl", "--debug-bots=999"])
-	)
+	var launcher := _launcher(PackedStringArray(["--debug-minigame=bey_brawl", "--debug-bots=999"]))
 	assert_eq(
 		launcher.bot_count,
 		NetConfig.MAX_PLAYERS_PER_ROOM - 1,
