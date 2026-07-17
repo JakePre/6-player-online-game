@@ -15,6 +15,9 @@ const HOSTILE := [
 	{"mx": [], "my": {}},  # containers → NaN
 	{"ax": "1e999", "ay": "1e999", "power": "1e999"},  # putt aim/charge
 	{"mx": -INF, "my": INF, "jump": true, "dive": true, "shoot": true, "use": true, "act": true},
+	# Now that numeric arrays pass (#1030/#1042), prove poison inside one can't
+	# survive: string elements reject the whole array, non-finite ones zero out.
+	{"trap": ["1e999", "1e999"], "grudge": [INF, NAN], "sabotage": [-INF, "x"]},
 ]
 
 # --- sanitizer unit tests -----------------------------------------------------
@@ -38,9 +41,75 @@ func test_strings_are_dropped_including_the_1e999_exploit() -> void:
 	assert_false(SafeInput.sanitize({"mx": "garbage"}).has("mx"))
 
 
-func test_containers_and_objects_are_dropped() -> void:
+func test_empty_arrays_bare_dicts_and_objects_are_dropped() -> void:
+	# An empty array carries no intent; a dict under a non-shop key and a vector
+	# are always hostile/erroneous. (Numeric arrays and the shop dict have their
+	# own passing rules, tested below.)
 	var clean: Dictionary = SafeInput.sanitize({"mx": [], "my": {}, "z": Vector2(1, 1)})
-	assert_eq(clean, {}, "arrays, dicts, vectors all dropped")
+	assert_eq(clean, {}, "empty array, non-shop dict, and vector all dropped")
+
+
+# --- numeric arrays: trap [col,row], grudge/sabotage [x,y] (#1030/#1042) -------
+
+
+func test_numeric_arrays_pass_through() -> void:
+	# The real client payloads: trap placement (ints) and finale targeting (floats).
+	assert_eq(SafeInput.sanitize({"trap": [3, 5]}), {"trap": [3, 5]})
+	assert_eq(SafeInput.sanitize({"grudge": [1.5, -2.0]}), {"grudge": [1.5, -2.0]})
+
+
+func test_non_finite_array_elements_become_zero() -> void:
+	assert_eq(SafeInput.sanitize({"grudge": [INF, NAN]}), {"grudge": [0.0, 0.0]})
+	assert_eq(SafeInput.sanitize({"sabotage": [-INF, 2.0]}), {"sabotage": [0.0, 2.0]})
+
+
+func test_array_with_any_non_number_element_is_rejected_whole() -> void:
+	# A string element would still be float()-coerced into INF by a consumer, so
+	# the whole array is dropped rather than partially coerced.
+	assert_false(SafeInput.sanitize({"trap": ["1e999", 5]}).has("trap"))
+	assert_false(SafeInput.sanitize({"grudge": [1.0, {}]}).has("grudge"))
+
+
+func test_oversized_array_is_rejected() -> void:
+	var long := []
+	for i in SafeInput.ARRAY_MAX_LEN + 1:
+		long.append(1.0)
+	assert_false(SafeInput.sanitize({"trap": long}).has("trap"), "an over-long array is hostile")
+
+
+# --- the finale shop's nested string dict (#1030) -----------------------------
+
+
+func test_shop_intent_survives_with_its_strings() -> void:
+	var clean: Dictionary = SafeInput.sanitize({"shop": {"action": "buy", "item": "shield"}})
+	assert_eq(clean, {"shop": {"action": "buy", "item": "shield"}})
+
+
+func test_shop_confirm_intent_survives() -> void:
+	assert_eq(SafeInput.sanitize({"shop": {"action": "confirm"}}), {"shop": {"action": "confirm"}})
+
+
+func test_shop_only_special_cases_the_shop_key() -> void:
+	# A dict under any other key stays dropped — only `shop` opens the nested path.
+	assert_false(SafeInput.sanitize({"loot": {"action": "buy"}}).has("loot"))
+
+
+func test_shop_drops_an_over_long_string_but_keeps_the_rest() -> void:
+	var huge := "x".repeat(SafeInput.SHOP_STRING_MAX_LEN + 1)
+	var clean: Dictionary = SafeInput.sanitize({"shop": {"action": "buy", "item": huge}})
+	assert_eq(clean, {"shop": {"action": "buy"}}, "the giant string is dropped, buy still stands")
+
+
+func test_oversized_shop_dict_is_rejected_and_key_dropped() -> void:
+	var big := {}
+	for i in SafeInput.SHOP_MAX_KEYS + 2:
+		big["k%d" % i] = "v"
+	assert_false(SafeInput.sanitize({"shop": big}).has("shop"), "a flood inside shop is hostile")
+
+
+func test_shop_with_a_non_dict_value_is_dropped() -> void:
+	assert_false(SafeInput.sanitize({"shop": "buy"}).has("shop"), "shop must be a dict")
+	assert_false(SafeInput.sanitize({"shop": [1, 2]}).has("shop"))
 
 
 func test_oversized_dict_is_rejected_whole() -> void:

@@ -189,13 +189,17 @@ func test_hazards_spawn_on_a_timer() -> void:
 	assert_gt(game.hazards.size() + game.elimination_order.size(), 0)
 
 
+## Routed through SafeInput.sanitize like the live net path (#1030): the #970
+## sanitizer dropped the `sabotage` [x,y] array whole, silently no-oping finale
+## targeting in real matches while direct-call tests stayed green. Exercising the
+## sanitizer here makes this the test that catches that regression.
 func test_sabotage_token_places_hazard_and_is_consumed() -> void:
 	var game := _gauntlet()
 	game.apply_loadouts({0: {"items": {&"sabotage_token": 1}, "coins_left": 0}})
-	game.handle_input(0, {"sabotage": [2.0, 2.0]})
+	game.handle_input(0, SafeInput.sanitize({"sabotage": [2.0, 2.0]}))
 	assert_eq(game.hazards.size(), 1)
 	assert_eq(game.sabotage_tokens[0], 0)
-	game.handle_input(0, {"sabotage": [2.0, 2.0]})
+	game.handle_input(0, SafeInput.sanitize({"sabotage": [2.0, 2.0]}))
 	assert_eq(game.hazards.size(), 1, "no token, no hazard")
 
 

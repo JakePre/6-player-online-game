@@ -511,6 +511,20 @@ func test_shop_purchases_flow_through_match_input() -> void:
 	assert_true(players[2]["items"].is_empty())
 
 
+## #1030: the live net path sanitizes every payload before handle_input, which
+## the test above skips. The #970 sanitizer dropped the nested `shop` dict whole,
+## so buy/confirm silently no-oped in real matches. Guard the end-to-end path.
+func test_shop_purchases_survive_the_net_sanitizer() -> void:
+	var room := _make_room(2)
+	var controller := _make_finale_controller(room, 4)  # 120 coins for slot 0
+	_run_to_finale_shop(controller)
+	controller.handle_input(0, SafeInput.sanitize({"shop": {"action": "buy", "item": "shield"}}))
+	controller.handle_input(0, SafeInput.sanitize({"shop": {"action": "confirm"}}))
+	var players: Dictionary = controller.get_snapshot().shop.players
+	assert_eq(int(players[0]["items"].get(&"shield", 0)), 1, "a sanitized buy still lands")
+	assert_true(bool(players[0].confirmed), "a sanitized confirm still locks in")
+
+
 func test_all_confirmed_closes_shop_early_and_applies_loadouts() -> void:
 	# Four rounds of 30 first-place coins buy slot 0 the 100c extra life.
 	var room := _make_room(2)
