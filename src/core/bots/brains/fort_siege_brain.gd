@@ -1,21 +1,21 @@
 class_name FortSiegeBrain
 extends BotBrain
-## Team-siege archetype (M19-02, #686): battering-ram attackers, wall-guard
-## defenders, roles swapping at halftime. Attacker: push toward the gate line —
-## the sim walls attackers out at GATE_Y + PLAYER_RADIUS while it stands, so
-## approaching it is automatically "touching" and battering — then push onto
-## the core once it falls. Defender: patrol the gate line to intercept and
-## shove attackers on cooldown; once the gate falls, fall back to hold the core
-## (any defender standing on it stalls the capture meter) and keep shoving.
+## Team-siege archetype (M19-02, #686; #1028 relic rework). Attacker: push
+## onto the gate line and batter it down — then run the HEIST: converge on
+## the relic (home or loose) to grab it, and if we're the thief, sprint it
+## out past the escape line. Defender: hold the gate (shove raiders, repair
+## between waves) — then chase the thief to shove the relic loose, and touch
+## a loose relic to send it home.
 ##
-## Snapshot: {phase (0 SIEGE, 1 SWAP), attacking (team index), phase_left,
-## gate (0..1 hp fraction), capture (0..1), players: {slot: [x, y]}, teams:
-## [[slot, ...], [slot, ...]], times} (FortSiege). Input: {mx, my, act}.
-## Indices named via FortSiege.PS_* (#708).
+## Snapshot: {phase, attacking, gate (0..1), relic: [x, y, RelicState,
+## carrier], players: {slot: [x, y, ...]}, teams} (FortSiege). Input:
+## {mx, my, act}. Indices named via FortSiege.PS_* (#708).
 
 ## Where defenders camp while the gate still stands — just behind it, so they
 ## naturally collide with attackers battering the wall.
 const GUARD_POINT := Vector2(0.0, FortSiege.GATE_Y - 1.0)
+## Where the thief runs: just past the escape line, straight out.
+const ESCAPE_MARGIN := 1.0
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
@@ -32,34 +32,58 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 		return {}
 	var attacking := int(game.get("attacking", 0))
 	var gate := float(game.get("gate", 1.0))
+	var relic: Array = game.get("relic", [])
 	if my_team == attacking:
-		return _attack(me, gate)
+		return _attack(me, gate, relic)
 	var raiders: Array = teams[attacking] if attacking < teams.size() else []
-	return _defend(me, gate, players, raiders)
+	return _defend(me, gate, players, raiders, relic)
 
 
-func _attack(me: Vector2, gate: float) -> Dictionary:
+func _attack(me: Vector2, gate: float, relic: Array) -> Dictionary:
 	if gate > 0.0:
 		# Straight down onto the wall; the sim's own clamp keeps us in
 		# battering range without needing exact aim.
 		var intent := move_toward_point(me, Vector2(me.x, FortSiege.GATE_Y), 0.0)
-		# Battering is now an explicit swing (#808) — hit the gate whenever we're
+		# Battering is an explicit swing (#808) — hit the gate whenever we're
 		# in range; the sim caps it to the swing cooldown.
 		if me.y - FortSiege.GATE_Y <= FortSiege.GATE_TOUCH:
 			intent["act"] = true
 		return intent
-	return move_toward_point(me, FortSiege.CORE_POS, 0.3)
+	# The heist (#1028): the thief sprints the relic out; everyone else
+	# converges on it (a grab if it's home or loose, an escort if carried).
+	if relic.size() >= 4 and int(relic[3]) == slot:
+		return move_toward_point(me, Vector2(me.x, FortSiege.ESCAPE_Y + ESCAPE_MARGIN), 0.0)
+	return move_toward_point(me, _relic_pos(relic), 0.2)
 
 
-func _defend(me: Vector2, gate: float, players: Dictionary, raiders: Array) -> Dictionary:
-	var target := FortSiege.CORE_POS if gate <= 0.0 else GUARD_POINT
-	var intent := move_toward_point(me, target, 0.5)
+func _defend(
+	me: Vector2, gate: float, players: Dictionary, raiders: Array, relic: Array
+) -> Dictionary:
+	var target := GUARD_POINT
+	if gate <= 0.0:
+		# Post-breach (#1028): the objective is wherever the relic is — chase
+		# the thief to shove it loose, touch it loose to send it home, and
+		# guard the plinth while it sits there.
+		target = _relic_pos(relic)
+		if relic.size() >= 4 and int(relic[2]) == FortSiege.RelicState.CARRIED:
+			var carrier_state: Array = players.get(int(relic[3]), [])
+			if carrier_state.size() > FortSiege.PS_Y:
+				target = Vector2(
+					float(carrier_state[FortSiege.PS_X]), float(carrier_state[FortSiege.PS_Y])
+				)
+	var intent := move_toward_point(me, target, 0.2)
 	var nearest := _nearest_of(players, raiders, me)
 	if nearest != Vector2.INF and me.distance_to(nearest) <= FortSiege.SHOVE_RADIUS:
 		intent["act"] = true  # a raider's in reach — shove them off
 	elif gate > 0.0 and absf(me.y - FortSiege.GATE_Y) <= FortSiege.GATE_TOUCH:
 		intent["act"] = true  # nobody on us and the gate stands — repair it (#808)
 	return intent
+
+
+func _relic_pos(relic: Array) -> Vector2:
+	if relic.size() < 2:
+		return FortSiege.CORE_POS
+	return Vector2(float(relic[0]), float(relic[1]))
 
 
 ## 0/1 for the team roster containing `target_slot`, or -1 if in neither.

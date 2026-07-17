@@ -1,10 +1,12 @@
 extends MinigameView3D
-## Fort Siege client view (M10-12, readable rework #808): the shared 2.5D
-## iso-arena rebuilt so the attack/defend fantasy reads at a glance — a real
-## fort (side + back walls enclosing a raised core plinth, with the gate as the
-## only way in), an active BATTER swing on the gate, a defender REPAIR/SHOVE with
-## a cooldown ring, a CONTESTED core tag, and state-driven objective prompts.
-## The sim's scoring/phases are untouched; this renders get_snapshot() only.
+## Fort Siege client view (M10-12, readable rework #808; #1028 relic heist):
+## the shared 2.5D iso-arena rebuilt so the attack/defend fantasy reads at a
+## glance — a real fort (side + back walls enclosing a raised plinth, with
+## the gate as the only way in), an active BATTER swing on the gate, a
+## defender REPAIR/SHOVE with a cooldown ring, and state-driven objective
+## prompts. The core crystal IS the relic (#1028): it rides the thief's head
+## when stolen, pulses loose on the ground when shoved free, and the escape
+## fires the run-scored burst. Renders get_snapshot() only.
 
 ## Real gate + wall-segment models (#808/#911, MDL-004/005): both are
 ## base-pivoted single pieces meant to be placed/tiled, not stretched — the
@@ -29,7 +31,12 @@ const CORE_COLOR := Color(0.96, 0.79, 0.2)
 const PLINTH_COLOR := Color(0.28, 0.29, 0.34)
 const PLINTH_HEIGHT := 0.5
 const CRYSTAL_HEIGHT := 1.1
-const CONTESTED_COLOR := Color(0.95, 0.3, 0.3)
+## The loose relic's urgent tint (#1028) — the old CONTESTED red, re-aimed.
+const RELIC_LOOSE_COLOR := Color(0.95, 0.3, 0.3)
+## Where the relic crystal rides per state (#1028): over the thief's head,
+## low on the ground when loose, home on the plinth otherwise.
+const RELIC_CARRY_HEIGHT := 2.3
+const RELIC_LOOSE_HEIGHT := 0.6
 ## The shove cooldown ring drawn under a defender — full when just used, gone
 ## when ready to shove again.
 const COOLDOWN_RING_COLOR := Color(0.4, 0.75, 0.95)
@@ -42,7 +49,8 @@ var attacking := 0
 var phase_left := 0.0
 var gate := 1.0
 var capture := 0.0
-var contested := false
+## The heist (#1028): [x, y, RelicState, carrier slot or -1] off the wire.
+var relic: Array = []
 var players := {}
 var teams: Array = []
 var times: Array = []
@@ -67,10 +75,11 @@ var _wall_banners: Array[MeshInstance3D] = []
 var _act_edges := EdgeTracker.new()
 var _rings := {}
 # FX seeds: last-seen gate for the breach burst and crack thirds, last-seen
-# times for the capture burst.
+# times for the escape burst, last-seen relic state for grab/drop/return cues.
 var _gate_seen := -1.0
 var _cracks_seen := 0
 var _times_seen: Array = []
+var _relic_state_seen := -1
 
 
 func _physics_process(_delta: float) -> void:
@@ -238,13 +247,13 @@ func _render_3d(game: Dictionary) -> void:
 	phase_left = float(game.get("phase_left", 0.0))
 	gate = float(game.get("gate", 1.0))
 	capture = float(game.get("capture", 0.0))
-	contested = bool(game.get("contested", false))
+	relic = game.get("relic", [])
 	players = game.get("players", {})
 	teams = game.get("teams", [])
 	times = game.get("times", [])
 	_update_players()
 	_update_gate()
-	_update_core()
+	_update_relic()
 	_update_banners()
 	_update_scores()
 
@@ -331,24 +340,60 @@ func _update_gate() -> void:
 	_gate_seen = gate
 
 
-func _update_core() -> void:
-	# The crystal brightens with capture and flares red when a defender contests
-	# it (#808) — the KotH stall now reads.
-	var base := 0.4 + capture * 1.6
-	if contested:
-		_crystal_material.emission = CONTESTED_COLOR
-		_crystal_material.emission_energy_multiplier = 1.6
-	else:
-		_crystal_material.emission = CORE_COLOR
-		_crystal_material.emission_energy_multiplier = base
-	# Capture burst: a -1 in times flipping to a real time is a capture.
+## The crystal IS the relic (#1028): home it sits on the plinth; stolen it
+## rides over the thief's head (the carrier marker, no extra chrome needed);
+## loose it pulses red on the ground begging to be grabbed or returned.
+## State-change cues fire on the edge; a rejoiner's first snapshot seeds quiet.
+func _update_relic() -> void:
+	var state := _relic_state()
+	var at := _relic_xy()
+	match state:
+		FortSiege.RelicState.CARRIED:
+			_crystal.position = to_arena(at, RELIC_CARRY_HEIGHT)
+			_crystal_material.emission = CORE_COLOR
+			_crystal_material.emission_energy_multiplier = 1.6
+		FortSiege.RelicState.DROPPED:
+			_crystal.position = to_arena(at, RELIC_LOOSE_HEIGHT)
+			_crystal_material.emission = RELIC_LOOSE_COLOR
+			_crystal_material.emission_energy_multiplier = 1.8
+		_:
+			_crystal.position = to_arena(FortSiege.CORE_POS, PLINTH_HEIGHT + CRYSTAL_HEIGHT / 2.0)
+			_crystal_material.emission = CORE_COLOR
+			_crystal_material.emission_energy_multiplier = 0.4 + capture * 0.8
+	if _relic_state_seen >= 0 and state != _relic_state_seen:
+		match state:
+			FortSiege.RelicState.CARRIED:
+				# Stolen (or re-grabbed): the heist is ON (#728 powerup = gained).
+				fx_sparkle(at, CORE_COLOR, RELIC_CARRY_HEIGHT)
+				play_sfx(&"powerup")
+			FortSiege.RelicState.DROPPED:
+				fx_burst(at, RELIC_LOOSE_COLOR, RELIC_LOOSE_HEIGHT)
+			_:
+				# Home again — the defenders' small win.
+				fx_dust(FortSiege.CORE_POS)
+	_relic_state_seen = state
+	# Escape burst: a -1 in times flipping to a real time is a scored heist.
 	if _times_seen.size() == times.size():
 		for i in times.size():
 			if float(times[i]) >= 0.0 and float(_times_seen[i]) < 0.0:
-				fx_burst(FortSiege.CORE_POS, CORE_COLOR, PLINTH_HEIGHT + 0.5)
+				fx_burst(at, CORE_COLOR, PLINTH_HEIGHT + 0.5)
 				if i < teams.size():
 					play_sfx(&"bell" if my_slot in teams[i] else &"error")
 	_times_seen = times.duplicate()
+
+
+func _relic_state() -> int:
+	return int(relic[2]) if relic.size() >= 4 else FortSiege.RelicState.AT_CORE
+
+
+func _relic_xy() -> Vector2:
+	if relic.size() < 2:
+		return FortSiege.CORE_POS
+	return Vector2(float(relic[0]), float(relic[1]))
+
+
+func _relic_carrier() -> int:
+	return int(relic[3]) if relic.size() >= 4 else -1
 
 
 ## Role banner + the state-driven objective line under it (#808): storming vs
@@ -365,15 +410,25 @@ func _update_banners() -> void:
 	var storming: bool = teams.size() == 2 and my_slot in teams[attacking]
 	var breached := gate <= 0.0
 	var role := "STORM the fort!" if storming else "DEFEND the fort!"
+	var state := _relic_state()
 	var task: String
 	if storming:
-		task = "Rush the core — HOLD it!" if breached else "BATTER the gate! (press to swing)"
-	elif contested:
-		task = "STAND ON THE CORE — you're blocking the capture!"
-	elif breached:
-		task = "Get them off the core!"
-	else:
+		if not breached:
+			task = "BATTER the gate! (press to swing)"
+		elif _relic_carrier() == my_slot:
+			task = "RUN THE RELIC OUT — go, go, go!"
+		elif state == FortSiege.RelicState.CARRIED:
+			task = "Protect the thief — block for them!"
+		else:
+			task = "GRAB THE RELIC and run it out!"
+	elif not breached:
 		task = "SHOVE raiders off — or hold to REPAIR the gate"
+	elif state == FortSiege.RelicState.CARRIED:
+		task = "STOP THE THIEF — shove them to drop it!"
+	elif state == FortSiege.RelicState.DROPPED:
+		task = "Touch the relic to send it home!"
+	else:
+		task = "Guard the relic — they're coming for it!"
 	_banner.text = "%s  (%0.0fs)\n%s" % [role, phase_left, task]
 	_banner.modulate = GATE_HOT_COLOR if storming else CORE_COLOR
 
