@@ -13,6 +13,15 @@ const ZONE_MIN_RADIUS := 2.5
 ## Grace period before the zone starts shrinking, then the shrink itself.
 const ZONE_GRACE_SEC := 5.0
 const ZONE_SHRINK_SEC := 40.0
+## Staged shrink (#918, Gauntlet pattern): after the grace period the zone
+## sheds a discrete band every SHRINK_STAGE_SEC instead of shrinking
+## continuously. Same endpoints, same total ZONE_SHRINK_SEC, so the average
+## shrink rate — and the M12-01 round-length telemetry — are unchanged.
+const SHRINK_STAGE_SEC := 8.0
+const SHRINK_STAGES := int(ZONE_SHRINK_SEC / SHRINK_STAGE_SEC)
+## How far out the client telegraphs the doomed band before a shed lands
+## (#583 — matches Gauntlet.SHRINK_WARN_SEC).
+const SHRINK_WARN_SEC := 3.0
 const METEOR_TELEGRAPH_SEC := 1.2
 const METEOR_RADIUS := 1.6
 ## Spawn cadence accelerates from START to MIN across the round.
@@ -131,9 +140,27 @@ func _resolve_separation(alive: Array) -> void:
 			positions[b] = (positions[b] + push).limit_length(_play_half)
 
 
+## Discrete stages, derived from `elapsed` alone (no new state — rejoin and
+## determinism come for free, like the old continuous lerp).
+func _shrink_stages_done() -> int:
+	return clampi(int(floorf((elapsed - ZONE_GRACE_SEC) / SHRINK_STAGE_SEC)), 0, SHRINK_STAGES)
+
+
 func zone_radius() -> float:
-	var t := clampf((elapsed - ZONE_GRACE_SEC) / ZONE_SHRINK_SEC, 0.0, 1.0)
-	return lerpf(_zone_start, _zone_min, t)
+	return lerpf(_zone_start, _zone_min, float(_shrink_stages_done()) / float(SHRINK_STAGES))
+
+
+## Radius after the NEXT shed — what the view's doomed-band telegraph covers.
+func next_zone_radius() -> float:
+	var next := clampi(_shrink_stages_done() + 1, 0, SHRINK_STAGES)
+	return lerpf(_zone_start, _zone_min, float(next) / float(SHRINK_STAGES))
+
+
+## Seconds until the next shed lands (0 once fully shrunk) — the client derives
+## the #583 band telegraph from this, like Gauntlet's `shrink_in`.
+func shrink_in() -> float:
+	var boundary := ZONE_GRACE_SEC + float(_shrink_stages_done() + 1) * SHRINK_STAGE_SEC
+	return maxf(boundary - elapsed, 0.0)
 
 
 func get_snapshot() -> Dictionary:
@@ -150,6 +177,8 @@ func get_snapshot() -> Dictionary:
 	return {
 		"players": players,
 		"zone": [0.0, 0.0, snappedf(zone_radius(), 0.01)],
+		# Additive key (#918): countdown to the next stage shed, Gauntlet-style.
+		"shrink_in": snappedf(shrink_in(), 0.01),
 		"meteors": meteor_list,
 		"fallen": down_order,
 	}

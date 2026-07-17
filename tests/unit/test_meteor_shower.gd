@@ -112,6 +112,46 @@ func test_zone_shrinks_after_the_grace_period() -> void:
 	assert_almost_eq(game.zone_radius(), MeteorShower.ZONE_MIN_RADIUS, 0.001)
 
 
+## #918: discrete stages — flat within a stage, one full step at each
+## boundary, and the min radius lands exactly when the old continuous lerp
+## got there (same average shrink rate, M12-01 telemetry comparable).
+func test_zone_sheds_discrete_stages() -> void:
+	var game := _game_with(2)
+	var step := (
+		(MeteorShower.ZONE_START_RADIUS - MeteorShower.ZONE_MIN_RADIUS)
+		/ float(MeteorShower.SHRINK_STAGES)
+	)
+	game.elapsed = MeteorShower.ZONE_GRACE_SEC + MeteorShower.SHRINK_STAGE_SEC - 0.1
+	assert_almost_eq(
+		game.zone_radius(), MeteorShower.ZONE_START_RADIUS, 0.001, "flat within the first stage"
+	)
+	game.elapsed = MeteorShower.ZONE_GRACE_SEC + MeteorShower.SHRINK_STAGE_SEC + 0.1
+	assert_almost_eq(
+		game.zone_radius(), MeteorShower.ZONE_START_RADIUS - step, 0.001, "one step per boundary"
+	)
+	game.elapsed = MeteorShower.ZONE_GRACE_SEC + MeteorShower.ZONE_SHRINK_SEC + 0.1
+	assert_almost_eq(game.zone_radius(), MeteorShower.ZONE_MIN_RADIUS, 0.001)
+
+
+## #918: the snapshot countdown reaches 0 exactly at each shed and pins at 0
+## once the zone is fully shrunk.
+func test_shrink_in_counts_down_to_each_shed() -> void:
+	var game := _game_with(2)
+	assert_almost_eq(
+		game.shrink_in(), MeteorShower.ZONE_GRACE_SEC + MeteorShower.SHRINK_STAGE_SEC, 0.001
+	)
+	game.elapsed = MeteorShower.ZONE_GRACE_SEC + MeteorShower.SHRINK_STAGE_SEC - 0.5
+	assert_almost_eq(game.shrink_in(), 0.5, 0.001)
+	game.elapsed = (
+		MeteorShower.ZONE_GRACE_SEC
+		+ MeteorShower.ZONE_SHRINK_SEC
+		+ MeteorShower.SHRINK_STAGE_SEC
+		+ 1.0
+	)
+	assert_almost_eq(game.shrink_in(), 0.0, 0.001, "fully shrunk: countdown pins at zero")
+	assert_true(game.get_snapshot().has("shrink_in"), "additive snapshot key present")
+
+
 func test_snapshot_shape() -> void:
 	var game := _game_with(2)
 	game.meteors = [{"pos": Vector2(1.0, -2.0), "left": 0.5}]

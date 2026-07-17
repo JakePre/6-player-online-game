@@ -32,12 +32,13 @@ func test_wall_stacks_track_heights_and_carriers_read() -> void:
 		)
 	)
 	var team0_visible := 0
-	for node: MeshInstance3D in view._wall_pools[0]:
+	# PR #1074: pool entries are instanced crate scenes (Node3D), not meshes.
+	for node: Node3D in view._wall_pools[0]:
 		if node.visible:
 			team0_visible += 1
-	assert_eq(team0_visible, 3, "one cube per wall block")
+	assert_eq(team0_visible, 3, "one crate per wall block")
 	assert_string_contains(view.rig_for_slot(0).display_name, "🧱")
-	assert_true((view._carry_markers[0] as MeshInstance3D).visible)
+	assert_true((view._carry_markers[0] as Node3D).visible)
 
 
 func test_render_tolerates_missing_keys() -> void:
