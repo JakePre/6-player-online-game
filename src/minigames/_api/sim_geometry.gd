@@ -79,6 +79,33 @@ static func distance_to_polyline(
 	return best
 
 
+## The point on the polyline nearest to `point` — the projection distance_to_
+## polyline() measures but discards. Used to confine a body to a ribbon of a
+## given half-width around a centerline (turbo_lap's track walls, #1041): push
+## the body to nearest + (point - nearest).normalized() * half_width when it
+## strays past the edge. Returns `point` itself for an empty polyline.
+static func nearest_point_on_polyline(
+	point: Vector2, points: PackedVector2Array, closed := true
+) -> Vector2:
+	var count := points.size()
+	if count == 0:
+		return point
+	if count == 1:
+		return points[0]
+	var segments := count if closed else count - 1
+	var best := points[0]
+	var best_d := INF
+	for i in segments:
+		var a := points[i]
+		var b := points[(i + 1) % count]
+		var closest := Geometry2D.get_closest_point_to_segment(point, a, b)
+		var d := point.distance_to(closest)
+		if d < best_d:
+			best_d = d
+			best = closest
+	return best
+
+
 ## The corrective push for one body of an overlapping pair, matching
 ## memory_match's `_resolve_separation`: half the penetration along the axis
 ## from `from_pos` toward `to_pos`. Add the result to `to_pos` and subtract it

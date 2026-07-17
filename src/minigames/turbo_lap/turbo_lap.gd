@@ -417,6 +417,26 @@ func _throttle(kart: Dictionary, delta: float) -> void:
 func _integrate(kart: Dictionary, delta: float) -> void:
 	var dir := Vector2.from_angle(float(kart.heading))
 	kart.pos = (kart.pos as Vector2) + dir * float(kart.speed) * delta
+	# Solid track walls (#1041): the view fences both edges at ±TRACK_HALF_WIDTH,
+	# so a racing kart is clamped back onto that ribbon instead of driving through
+	# the barriers — it scrapes along the wall (position clamp only; heading/speed
+	# are untouched, so it slides rather than dead-stopping). Finished karts are
+	# exempt: they ease to a pit slot that deliberately sits outside the ribbon.
+	if not bool(kart.finished):
+		_confine_to_track(kart)
+
+
+## Push a kart back onto the track ribbon if it has crossed the ±TRACK_HALF_WIDTH
+## wall around the centerline (#1041), projecting it to the nearest boundary point.
+func _confine_to_track(kart: Dictionary) -> void:
+	var pos: Vector2 = kart.pos
+	var nearest := SimGeometry.nearest_point_on_polyline(pos, waypoints(), true)
+	var offset := pos - nearest
+	var dist := offset.length()
+	if dist <= TRACK_HALF_WIDTH:
+		return
+	var normal := offset / dist if dist > 0.0001 else Vector2.RIGHT
+	kart.pos = nearest + normal * TRACK_HALF_WIDTH
 
 
 ## Steers a finished kart toward its pit slot and eases to a stop there,

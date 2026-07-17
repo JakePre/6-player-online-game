@@ -219,6 +219,32 @@ func test_grass_is_slower_than_track() -> void:
 	)
 
 
+## #1041: the track edges are solid walls now — a racing kart shoved past the
+## ±TRACK_HALF_WIDTH ribbon is clamped back onto it, not driven through.
+func test_a_racing_kart_is_walled_onto_the_track() -> void:
+	var game := _game()
+	var kart: Dictionary = game.karts[0]
+	# Deep in the infield, well inside the loop and past the inner wall.
+	kart.pos = Vector2.ZERO
+	kart.speed = 0.0
+	game.tick(TICK)
+	var dist := SimGeometry.distance_to_polyline(kart.pos, TurboLap.waypoints(), true)
+	assert_lte(dist, TurboLap.TRACK_HALF_WIDTH + 0.001, "the wall pulls it back onto the ribbon")
+
+
+## A finished kart eases to a pit slot that deliberately sits outside the ribbon,
+## so the wall must not trap it on the track (#1041).
+func test_a_finished_kart_may_leave_the_ribbon_for_its_pit() -> void:
+	var game := _game()
+	game.karts[0].finished = true
+	game.finish_order = [[0]]
+	for _i in 120:
+		game.tick(TICK)
+	var pit := game._pit_slot(0)
+	assert_almost_eq(float(game.karts[0].pos.x), pit.x, 0.5, "reaches its pit outside the ribbon")
+	assert_almost_eq(float(game.karts[0].pos.y), pit.y, 0.5)
+
+
 func test_full_race_finishes_in_order() -> void:
 	var game := _game()
 	_drive(game, 0, 1600)  # enough to complete every lap
