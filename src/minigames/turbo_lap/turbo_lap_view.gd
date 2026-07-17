@@ -13,6 +13,10 @@ const START_COLOR := Color(0.96, 0.79, 0.2)
 ## barrier is tiled once per waypoint along both track edges.
 const FINISH_ARCH_SCENE := preload("res://assets/generated/models/finish-arch.glb")
 const TRACK_BARRIER_SCENE := preload("res://assets/generated/models/track-barrier.glb")
+## The MDL-015 go-kart (#956): authored neutral grey/white exactly so the view
+## can tint the whole body to the player color at runtime (its ledger contract).
+## Base pivot, wheels on the ground; nose points -Z in the GLB.
+const KART_SCENE := preload("res://assets/generated/models/go-kart.glb")
 const BOOST_PAD_COLOR := Color(0.3, 0.75, 1.0)
 const ITEM_PAD_COLOR := Color(0.96, 0.79, 0.2)
 const SHELL_COLOR := Color(0.35, 0.9, 0.45)
@@ -192,13 +196,8 @@ func _add_disc(node_name: String, color: Color, radius: float) -> MeshInstance3D
 	return disc
 
 
-## The MDL-015 go-kart (#956) under the rig, tinted to the player's identity
-## color — the model is authored neutral grey/white exactly for this runtime
-## tint (its ledger contract). Base pivot, wheels on the ground; parented into
-## the rig so interpolation carries it.
-const KART_SCENE := preload("res://assets/generated/models/go-kart.glb")
-
-
+## The MDL-015 go-kart under the rig, tinted to the player's identity color;
+## parented into the rig so interpolation carries it.
 func _add_kart_body(slot: int) -> void:
 	var rig := rig_for_slot(slot)
 	if rig == null:

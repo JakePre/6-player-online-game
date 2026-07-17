@@ -145,8 +145,9 @@ func _render_3d(game: Dictionary) -> void:
 		var node := _floor_pool[i]
 		if i < blocks.size():
 			var block: Array = blocks[i]
+			# Crate pivot is at its base, so floor blocks sit at height 0.
 			node.position = to_arena(
-				Vector2(float(block[WallBuilders.BL_X]), float(block[WallBuilders.BL_Y])), 0.0  # crate pivot is at its base
+				Vector2(float(block[WallBuilders.BL_X]), float(block[WallBuilders.BL_Y])), 0.0
 			)
 			node.visible = true
 		else:
