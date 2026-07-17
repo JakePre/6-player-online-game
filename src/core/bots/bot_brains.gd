@@ -30,7 +30,7 @@ const BRAINS := {
 	&"hot_potato": preload("res://src/core/bots/brains/hot_potato_brain.gd"),
 	&"shock_tag": preload("res://src/core/bots/brains/shock_tag_brain.gd"),
 	&"snake_chain": preload("res://src/core/bots/brains/snake_chain_brain.gd"),
-	&"sumo_smash": preload("res://src/core/bots/brains/sumo_smash_brain.gd"),
+	&"bey_brawl": preload("res://src/core/bots/brains/bey_brawl_brain.gd"),
 	&"color_clash": preload("res://src/core/bots/brains/color_clash_brain.gd"),
 	# SideScrollSim platformer batch (M19-02, #686).
 	&"knock_off": preload("res://src/core/bots/brains/knock_off_brain.gd"),

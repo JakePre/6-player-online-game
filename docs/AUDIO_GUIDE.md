@@ -65,7 +65,7 @@ its generic `confirm`/`error`/`coin` calls for 2–4 signature cues below.
 
 | Archetype (games) | Signature cues |
 |---|---|
-| Brawlers (rumble_ring, knock_off, sumo_smash) | `hit`, `hit_heavy`, `bump`, `ko` |
+| Brawlers (rumble_ring, knock_off, bey_brawl) | `hit`, `hit_heavy`, `bump`, `ko` |
 | Bombs (blast_grid, bomb_courier, meteor_shower) | `explosion`, `break_wood`/`thud`, `alarm` |
 | Ice / tiles (thin_ice, memory_match, musical_platforms) | `crack`, `shatter`, `ko` on the drop |
 | Water (treasure_divers, fish_frenzy, putt_panic hazards) | `splash`, `pop`, `coin` |

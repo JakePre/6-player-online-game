@@ -1,6 +1,6 @@
 extends GutTest
 ## Chase / tag / positional bot brains (M19-02, #686): hot_potato, shock_tag,
-## sumo_smash, color_clash, snake_chain — steering assertions on crafted
+## bey_brawl, color_clash, snake_chain — steering assertions on crafted
 ## snapshots. Split from test_bot_brains.gd per gdlint's public-method cap
 ## (same precedent as test_match_controller_finale_only.gd).
 
@@ -59,25 +59,28 @@ func test_shock_tag_brain_zapped_chases_the_richest_target() -> void:
 	assert_gt(float(intent.mx), 0.5, "chases the 20-coin target at +9, not the 3-coin one at +1")
 
 
-func test_sumo_smash_brain_retreats_from_the_edge() -> void:
-	var brain := BotBrains.brain_for(&"sumo_smash", 0, 1)
-	var game := {"radius": 8.0, "players": {0: [7.5, 0.0, 0.0, 0], 1: [-7.5, 0.0, 0.0, 0]}}
-	var intent := brain.think(_play_state("sumo_smash", game), {})
-	assert_lt(float(intent.mx), 0.0, "too close to the rim: retreat inward over hunting")
+# Snapshot rows are [x, y, spin, clash_seq] (BeyBrawl.PS_*, #708).
 
 
-func test_sumo_smash_brain_dashes_a_close_rival_off_cooldown() -> void:
-	var brain := BotBrains.brain_for(&"sumo_smash", 0, 1)
-	var game := {"radius": 8.0, "players": {0: [0.0, 0.0, 0.0, 0], 1: [1.5, 0.0, 0.0, 0]}}
-	var intent := brain.think(_play_state("sumo_smash", game), {})
-	assert_true(bool(intent.get("dash", false)), "in range and off cooldown: dash")
+func test_bey_brawl_brain_retreats_from_the_lip() -> void:
+	var brain := BotBrains.brain_for(&"bey_brawl", 0, 1)
+	var game := {"radius": 8.0, "players": {0: [7.5, 0.0, 1.0, 0], 1: [-7.5, 0.0, 0.1, 0]}}
+	var intent := brain.think(_play_state("bey_brawl", game), {})
+	assert_lt(float(intent.mx), 0.0, "a clash at the lip is a ring-out: back inside first")
 
 
-func test_sumo_smash_brain_holds_dash_on_cooldown() -> void:
-	var brain := BotBrains.brain_for(&"sumo_smash", 0, 1)
-	var game := {"radius": 8.0, "players": {0: [0.0, 0.0, 1.5, 0.0], 1: [1.5, 0.0, 0.0, 0]}}
-	var intent := brain.think(_play_state("sumo_smash", game), {})
-	assert_false(intent.has("dash"), "cooldown still counting down: no dash")
+func test_bey_brawl_brain_hunts_while_its_spin_is_healthier() -> void:
+	var brain := BotBrains.brain_for(&"bey_brawl", 0, 1)
+	var game := {"radius": 8.0, "players": {0: [0.0, 0.0, 0.9, 0], 1: [3.0, 0.0, 0.4, 0]}}
+	var intent := brain.think(_play_state("bey_brawl", game), {})
+	assert_gt(float(intent.mx), 0.5, "spin advantage: steer into the rival")
+
+
+func test_bey_brawl_brain_evades_while_its_spin_is_weaker() -> void:
+	var brain := BotBrains.brain_for(&"bey_brawl", 0, 1)
+	var game := {"radius": 8.0, "players": {0: [0.0, 0.0, 0.3, 0], 1: [3.0, 0.0, 0.9, 0]}}
+	var intent := brain.think(_play_state("bey_brawl", game), {})
+	assert_lt(float(intent.mx), 0.0, "weaker meter: steer away and recover")
 
 
 func test_color_clash_brain_seeks_the_nearest_unowned_tile() -> void:
