@@ -34,6 +34,11 @@ const MUTATOR_ROUND_CHANCE := 0.4
 ## positions, but it does not tick and takes no input until PLAY.
 const COUNTDOWN_STEP_SEC := 0.6
 const COUNTDOWN_STEPS := 3
+## Beat held after a decisive round end before the results transition (#1045),
+## so the loser's KO and the winner's moment render instead of the game cutting
+## to the results panel the instant the win resolves. Only for early
+## (elimination/objective/race) ends — a plain timeout goes straight to results.
+const FINISHER_SEC := 1.2
 
 var state := State.INTRO
 var room: Room
@@ -64,6 +69,11 @@ var _finale_enabled := true
 var _finale_only := false
 var _finale_coins := 120
 var _state_left := 0.0
+## Finisher-beat countdown (#1045); >0 while holding the decided round in PLAY /
+## FINALE_PLAY before the transition. _finisher_to_podium routes the finale beat
+## to the podium instead of the round-results screen.
+var _finisher_left := 0.0
+var _finisher_to_podium := false
 var _rng := RandomNumberGenerator.new()
 var _round_slots: Array[int] = []
 var _skip_votes := {}
@@ -124,6 +134,10 @@ func start() -> void:
 func tick(delta: float) -> void:
 	if state == State.DONE:
 		return
+	# The finisher beat (#1045) only holds during PLAY / FINALE_PLAY; checking it
+	# once here (rather than inside each branch) keeps tick() under the return cap.
+	if _tick_finisher(delta):
+		return
 	if state == State.PLAY:
 		# Overdrive (M9-04): the server scales the sim delta, so everything —
 		# movement, timers, the round clock — runs faster together.
@@ -131,7 +145,7 @@ func tick(delta: float) -> void:
 			delta = current_mutator.scaled_tick_delta(delta)
 		game.tick(delta)
 		if game.finished:
-			_enter_results()
+			_begin_finisher_or(false)
 		return
 	if state == State.FINALE_SHOP:
 		# The shop owns its own clock and closes early once everyone confirms.
@@ -142,7 +156,7 @@ func tick(delta: float) -> void:
 	if state == State.FINALE_PLAY:
 		game.tick(delta)
 		if game.finished:
-			_enter_podium_from_finale()
+			_begin_finisher_or(true)
 		return
 	_state_left -= delta
 	if _state_left > 0.0:
@@ -158,6 +172,35 @@ func tick(delta: float) -> void:
 			_next_round()
 		State.PODIUM:
 			_finish_match()
+
+
+## A decisive early round end (elimination/objective/race) holds a finisher beat
+## (#1045) so the loser's KO and the winner render before the transition; a plain
+## timeout end has no dramatic moment, so it transitions immediately.
+func _begin_finisher_or(to_podium: bool) -> void:
+	if game.finished_early:
+		_finisher_left = FINISHER_SEC
+		_finisher_to_podium = to_podium
+	elif to_podium:
+		_enter_podium_from_finale()
+	else:
+		_enter_results()
+
+
+## True while the finisher beat holds the decided round in PLAY / FINALE_PLAY
+## (#1045). The game is already finished, so its tick() no-ops and the frozen
+## final snapshot keeps streaming — the client renders the KO/celebration — until
+## the beat elapses and the real transition runs.
+func _tick_finisher(delta: float) -> bool:
+	if _finisher_left <= 0.0:
+		return false
+	_finisher_left -= delta
+	if _finisher_left <= 0.0:
+		if _finisher_to_podium:
+			_enter_podium_from_finale()
+		else:
+			_enter_results()
+	return true
 
 
 func handle_input(slot: int, data: Dictionary) -> void:
@@ -320,6 +363,7 @@ func _enter_countdown() -> void:
 
 func _enter_play() -> void:
 	state = State.PLAY
+	_finisher_left = 0.0
 	event_emitted.emit({"type": "round_started", "round": round_index + 1})
 	(
 		DiagnosticsLog
@@ -456,6 +500,7 @@ func _handle_shop_input(slot: int, action: Dictionary) -> void:
 ## each player's shop loadout applied on top of the base kit (M5-02).
 func _enter_finale_play() -> void:
 	state = State.FINALE_PLAY
+	_finisher_left = 0.0
 	game = Gauntlet.new()
 	game.meta = Gauntlet.make_meta()
 	game.duration_override = _duration_override

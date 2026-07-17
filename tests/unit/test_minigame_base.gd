@@ -87,6 +87,21 @@ func test_early_finish_stops_the_clock() -> void:
 	assert_eq(game.elapsed, elapsed)
 
 
+## #1045: finished_early distinguishes a decisive end (the game called finish()
+## with the clock still running) from a plain timeout end, so the match flow can
+## hold a finisher beat only when there's a KO/winner moment to show.
+func test_finished_early_marks_a_decisive_end_but_not_a_timeout() -> void:
+	var early := _make_game(1.0)
+	early.finish([[0], [2, 5]])
+	assert_true(early.finished_early, "ended before the clock = decisive")
+
+	var timed := _make_game(0.1)
+	for _i in 5:  # tick past the 0.1s duration so the base times it out
+		timed.tick(TICK)
+	assert_true(timed.finished, "the clock ran out")
+	assert_false(timed.finished_early, "a timeout end is not a decisive one")
+
+
 func test_results_report_team_mode_off_by_default() -> void:
 	var game := _make_game(0.5)
 	game.finish([[0], [2], [5]])

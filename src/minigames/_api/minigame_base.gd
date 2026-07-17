@@ -13,6 +13,12 @@ var slots: Array[int] = []
 var rng := RandomNumberGenerator.new()
 var elapsed := 0.0
 var finished := false
+## True when the round ended *before* its clock ran out — an elimination, a
+## race won, an objective met: a decisive moment worth a finisher beat (#1045).
+## A plain timeout end leaves this false (nothing dramatic to punctuate). Set in
+## finish() from whether the duration had elapsed; the match flow reads it to
+## decide whether to hold a beat before results so the loser's KO renders.
+var finished_early := false
 ## Team minigames set this so the framework awards the SPEC $5 team tables
 ## instead of FFA placements. An explicit flag (not the meta category)
 ## because e.g. Color Clash plays FFA below 4 players.
@@ -90,6 +96,10 @@ func get_private_snapshot(_slot: int) -> Dictionary:
 func finish(placements: Array) -> void:
 	_placements = placements
 	finished = true
+	# Ended before the clock expired = a decisive end (#1045). The base tick()
+	# only calls finish() once elapsed has reached the duration, so a still-short
+	# clock here means the game itself ended the round early.
+	finished_early = elapsed < effective_duration()
 
 
 # --- Overridables ------------------------------------------------------------

@@ -77,7 +77,11 @@ func test_finale_results_event_carries_the_ko_cause_breakdown() -> void:
 	# Walk slot 0 off the rim — a plain KO, no swing involved.
 	gauntlet.positions[0] = Vector2(gauntlet.radius + 1.0, 0.0)
 	controller.tick(TICK)
-	assert_eq(controller.state, MatchController.State.PODIUM, "one KO with 2 players ends it")
+	# #1045: a decisive KO holds a finisher beat so the loser's death renders
+	# before the podium, instead of cutting the instant the win resolves.
+	assert_eq(controller.state, MatchController.State.FINALE_PLAY, "the finisher beat holds first")
+	controller.tick(MatchController.FINISHER_SEC + TICK)
+	assert_eq(controller.state, MatchController.State.PODIUM, "then the podium, one KO ends it")
 	var results_event: Dictionary = {}
 	for event: Dictionary in events:
 		if String(event.get("type", "")) == "finale_results":
