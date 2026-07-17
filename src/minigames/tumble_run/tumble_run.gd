@@ -16,6 +16,10 @@ enum Phase { COUNTDOWN, CLIMB, DONE }
 
 const COUNTDOWN_SEC := 1.5
 const ROUND_CAP_SEC := 75.0
+## #1065 (owner playtest): reaching the top has to END things. The first
+## summit shrinks the remaining clock to at most this, so stragglers race a
+## visible countdown instead of the round idling out the full cap.
+const FINISH_WINDOW_SEC := 20.0
 
 const GOAL_HEIGHT := 30.0
 const LEDGE_COUNT := 9
@@ -92,7 +96,11 @@ static func make_meta() -> MinigameMeta:
 				"min_players": 2,
 				"max_players": 8,
 				"duration_sec": COUNTDOWN_SEC + ROUND_CAP_SEC + 3.0,
-				"rules": "Climb to the top! Dodge boulders and crumbling ledges — first up wins.",
+				"rules":
+				(
+					"Climb to the top! Dodge boulders and crumbling ledges — first up "
+					+ "wins, and the first finisher starts the final countdown."
+				),
 			}
 		)
 	)
@@ -173,7 +181,9 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 	if phase != Phase.CLIMB:
 		return
 	var climber: Dictionary = climbers.get(slot, {})
-	if climber.is_empty() or float(climber.stun) > 0.0:
+	# A summited climber is FINISHED (#1065) — their rank is locked and their
+	# duck stays parked on the platform instead of hopping back into the run.
+	if climber.is_empty() or float(climber.stun) > 0.0 or bool(climber.summit):
 		return
 	if data.has("mx"):
 		sim.set_move(slot, clampf(float(data.mx), -1.0, 1.0))
@@ -251,10 +261,16 @@ func _track_heights() -> void:
 		var climber: Dictionary = climbers[slot]
 		var y: float = (body.pos as Vector2).y
 		climber.height = maxf(float(climber.height), y)
-		if not bool(climber.summit) and y >= GOAL_HEIGHT:
+		# LANDING on the summit platform finishes the run (#1065) — a stray
+		# airborne arc past the goal line doesn't count until the feet do.
+		if not bool(climber.summit) and y >= GOAL_HEIGHT and int(body.get("grounded", 0)) == 1:
 			climber.summit = true
 			climber.summit_at = elapsed
 			summit_order.append(slot)
+			sim.set_move(slot, 0.0)
+			# The first finisher puts the rest of the field on the clock.
+			if summit_order.size() == 1:
+				phase_left = minf(phase_left, FINISH_WINDOW_SEC)
 
 
 func _tick_boulders(delta: float) -> void:
@@ -351,6 +367,9 @@ func get_snapshot() -> Dictionary:
 		"boulders": boulder_list,
 		"crumble": crumble_state.duplicate(),
 		"phase": int(phase),
+		# The climb clock (#1065): lets the view surface the finish-window
+		# countdown once the first climber tops out.
+		"clock": snappedf(maxf(phase_left, 0.0), 0.1),
 		"standings": _standings(),
 	}
 

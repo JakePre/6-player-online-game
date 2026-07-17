@@ -18,6 +18,18 @@ func _to_climb(game: TumbleRun) -> void:
 		game.tick(TICK)
 
 
+## Drops the body just above the summit platform so it falls onto the lid and
+## grounds — a body teleported INSIDE the platform gets ejected sideways by the
+## x-pass and never grounds (#1065: summiting now requires landed feet).
+func _drop_on_summit(game: TumbleRun, slot: int, x := 0.0) -> void:
+	game.sim.body_of(slot).pos = Vector2(x, TumbleRun.GOAL_HEIGHT + 1.6)
+	game.sim.body_of(slot).vel = Vector2.ZERO
+	for _i in 30:
+		game.tick(TICK)
+		if bool(game.climbers[slot].summit):
+			return
+
+
 ## #778: the shared default jump (apex ~2.6 u) couldn't clear the 3.1 u ledge
 ## rise, so the climb was impossible. The bumped jump must clear a full rise.
 func test_jump_clears_a_ledge_rise() -> void:
@@ -133,9 +145,8 @@ func test_crumble_ledges_cycle_solid_and_gone() -> void:
 func test_reaching_the_summit_records_finish_order() -> void:
 	var game := _game()
 	_to_climb(game)
-	game.sim.body_of(0).pos = Vector2(0.0, TumbleRun.GOAL_HEIGHT + 0.5)
-	game.tick(TICK)
-	assert_true(bool(game.climbers[0].summit), "at the top = summited")
+	_drop_on_summit(game, 0)
+	assert_true(bool(game.climbers[0].summit), "landing on the top = summited")
 	assert_eq(game.summit_order, [0])
 
 
@@ -185,11 +196,47 @@ func test_summit_beats_height_in_the_ranking() -> void:
 	assert_eq(game.get_results().placements[1], [1])
 
 
+## #1065: a finished climber can't be steered back into the run — their duck
+## parks on the platform and their rank is locked.
+func test_summited_climber_ignores_input_and_parks() -> void:
+	var game := _game()
+	_to_climb(game)
+	_drop_on_summit(game, 0)
+	assert_true(bool(game.climbers[0].summit))
+	game.handle_input(0, {"mx": 1.0, "jump": true})
+	game.tick(TICK)
+	assert_almost_eq(float(game.sim.body_of(0).move_x), 0.0, 0.001, "finished = no more climbing")
+
+
+## #1065: the first finisher puts everyone else on a visible clock instead of
+## the round idling out the full 75 s cap.
+func test_first_summit_starts_the_finish_window() -> void:
+	var game := _game()
+	_to_climb(game)
+	assert_gt(game.phase_left, TumbleRun.FINISH_WINDOW_SEC, "plenty of cap left before")
+	_drop_on_summit(game, 0)
+	assert_lte(
+		game.phase_left, TumbleRun.FINISH_WINDOW_SEC, "the window replaces the remaining cap"
+	)
+
+
+## #1065: sailing past the goal line mid-air is not a finish — the feet have
+## to land on the summit platform.
+func test_airborne_goal_crossing_does_not_finish() -> void:
+	var game := _game()
+	_to_climb(game)
+	# Off the summit platform's x-span (±3), above the line, falling free.
+	game.sim.body_of(0).pos = Vector2(7.0, TumbleRun.GOAL_HEIGHT + 0.5)
+	game.tick(TICK)
+	assert_false(bool(game.climbers[0].summit), "airborne crossing doesn't count")
+	assert_gt(float(game.climbers[0].height), TumbleRun.GOAL_HEIGHT, "the height still does")
+
+
 func test_everyone_summiting_ends_early() -> void:
 	var game := _game([0, 1] as Array[int])
 	_to_climb(game)
-	game.sim.body_of(0).pos = Vector2(0.0, TumbleRun.GOAL_HEIGHT + 0.5)
-	game.sim.body_of(1).pos = Vector2(1.0, TumbleRun.GOAL_HEIGHT + 0.5)
+	_drop_on_summit(game, 0)
+	_drop_on_summit(game, 1, 1.0)
 	game.tick(TICK)
 	assert_true(game.finished, "all topped out ends the round")
 
@@ -201,7 +248,7 @@ func test_snapshot_shape_and_junk_input() -> void:
 	game.handle_input(9, {"jump": true})
 	game.tick(TICK)
 	var snap := game.get_snapshot()
-	for key in ["players", "boulders", "crumble", "phase", "standings"]:
+	for key in ["players", "boulders", "crumble", "phase", "clock", "standings"]:
 		assert_true(snap.has(key), "%s replicates" % key)
 	assert_eq((snap.players[0] as Array).size(), TumbleRun.PS_COUNT)
 	assert_eq((snap.crumble as Array).size(), TumbleRun.LEDGE_COUNT)
