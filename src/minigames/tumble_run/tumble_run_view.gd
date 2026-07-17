@@ -17,6 +17,7 @@ var players := {}
 var crumble: Array = []
 var standings: Array = []
 var boulders: Array = []
+var clock := 0.0
 
 var _fx_layer: Control
 var _hud: Label
@@ -108,6 +109,7 @@ func _render(game: Dictionary) -> void:
 	crumble = game.get("crumble", [])
 	standings = game.get("standings", [])
 	boulders = game.get("boulders", [])
+	clock = float(game.get("clock", 0.0))
 	render_side_scroll(players)
 	for slot: int in players:
 		_render_climber(slot, players[slot])
@@ -154,7 +156,18 @@ func _update_hud() -> void:
 	var leader := ""
 	if not standings.is_empty():
 		leader = str(names.get(int(standings[0]), "P%d" % int(standings[0])))
-	_hud.text = "Climb to the top!    Leader: %s" % leader
+	# #1065: your own finish is a headline, not a silent tint — and once the
+	# first climber tops out, the finish window is a visible countdown.
+	var my_state: Array = players.get(my_slot, [])
+	var mine_done := (
+		my_state.size() >= TumbleRun.PS_COUNT and int(my_state[TumbleRun.PS_FLAGS]) & 2 > 0
+	)
+	var line := "Climb to the top!"
+	if mine_done:
+		line = "FINISHED #%d!" % (standings.find(my_slot) + 1)
+	elif clock > 0.0 and clock <= TumbleRun.FINISH_WINDOW_SEC:
+		line = "Climb! %ds left" % int(ceilf(clock))
+	_hud.text = "%s    Leader: %s" % [line, leader]
 
 
 func _draw_fx() -> void:
