@@ -129,17 +129,41 @@ func test_shove_cooldown_ring_shows_then_hides() -> void:
 	assert_false(ring.visible, "the ring clears when the shove is ready")
 
 
-func test_contested_core_flares_brighter() -> void:
-	view.render(
-		{"gate": 0.0, "capture": 0.2, "contested": false, "players": {}, "teams": [], "times": []}
+## #1028: the crystal IS the relic — it rides over the thief when carried and
+## drops low, flaring the loose tint, when shoved free.
+func test_relic_crystal_follows_the_heist() -> void:
+	(
+		view
+		. render(
+			{
+				"gate": 0.0,
+				"capture": 0.2,
+				"relic": [3.0, -4.0, FortSiege.RelicState.CARRIED, 0],
+				"players": {},
+				"teams": [],
+				"times": [],
+			}
+		)
 	)
-	var calm: float = view._crystal_material.emission_energy_multiplier
-	view.render(
-		{"gate": 0.0, "capture": 0.2, "contested": true, "players": {}, "teams": [], "times": []}
+	assert_almost_eq(view._crystal.position.x, 3.0, 0.001, "the crystal rides the thief")
+	assert_almost_eq(view._crystal.position.y, view.RELIC_CARRY_HEIGHT, 0.001, "held overhead")
+	(
+		view
+		. render(
+			{
+				"gate": 0.0,
+				"capture": 0.4,
+				"relic": [1.0, -2.5, FortSiege.RelicState.DROPPED, -1],
+				"players": {},
+				"teams": [],
+				"times": [],
+			}
+		)
 	)
-	assert_gt(
-		view._crystal_material.emission_energy_multiplier, calm, "a contested core flares brighter"
+	assert_almost_eq(
+		view._crystal.position.y, view.RELIC_LOOSE_HEIGHT, 0.001, "loose on the ground"
 	)
+	assert_eq(view._crystal_material.emission, view.RELIC_LOOSE_COLOR, "and flaring urgent")
 
 
 ## The objective line answers "how do I defend?" and "what do I press?" per state.
@@ -153,6 +177,54 @@ func test_objective_prompt_is_state_driven() -> void:
 		{"phase": FortSiege.Phase.SIEGE, "attacking": 0, "gate": 1.0, "teams": teams, "times": []}
 	)
 	assert_string_contains(view._banner.text, "BATTER", "an attacker is told to batter")
+
+
+## #1028: post-breach prompts follow the relic — the thief is told to run,
+## the defenders to stop the thief or return the loose relic.
+func test_heist_prompts_follow_the_relic() -> void:
+	var teams := [[0, 1], [2, 3]]
+	(
+		view
+		. render(
+			{
+				"phase": FortSiege.Phase.SIEGE,
+				"attacking": 0,
+				"gate": 0.0,
+				"relic": [0.0, -5.0, FortSiege.RelicState.CARRIED, 0],
+				"teams": teams,
+				"times": [],
+			}
+		)
+	)
+	assert_string_contains(view._banner.text, "RUN THE RELIC OUT", "the thief is told to run")
+	(
+		view
+		. render(
+			{
+				"phase": FortSiege.Phase.SIEGE,
+				"attacking": 1,
+				"gate": 0.0,
+				"relic": [0.0, -5.0, FortSiege.RelicState.CARRIED, 2],
+				"teams": teams,
+				"times": [],
+			}
+		)
+	)
+	assert_string_contains(view._banner.text, "STOP THE THIEF", "defenders are told to shove")
+	(
+		view
+		. render(
+			{
+				"phase": FortSiege.Phase.SIEGE,
+				"attacking": 1,
+				"gate": 0.0,
+				"relic": [2.0, -4.0, FortSiege.RelicState.DROPPED, -1],
+				"teams": teams,
+				"times": [],
+			}
+		)
+	)
+	assert_string_contains(view._banner.text, "send it home", "defenders are told to return it")
 
 
 func test_render_tolerates_missing_keys() -> void:

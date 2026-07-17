@@ -27,19 +27,36 @@ func test_fort_siege_brain_attacker_batters_the_standing_gate() -> void:
 	assert_lt(float(intent.my), 0.0, "attacker above the gate -> push down toward it")
 
 
-func test_fort_siege_brain_attacker_pushes_the_core_once_the_gate_falls() -> void:
+func test_fort_siege_brain_attacker_runs_at_the_home_relic_once_the_gate_falls() -> void:
 	var brain := BotBrains.brain_for(&"fort_siege", 0, 1)
 	var game := {
 		"phase": FortSiege.Phase.SIEGE,
 		"attacking": 0,
 		"gate": 0.0,
 		"capture": 0.0,
+		"relic": [FortSiege.CORE_POS.x, FortSiege.CORE_POS.y, FortSiege.RelicState.AT_CORE, -1],
 		"players": {0: [0.0, FortSiege.GATE_Y], 1: [0.0, -8.0]},
 		"teams": [[0], [1]],
 		"times": [-1.0, -1.0],
 	}
 	var intent := brain.think(_play_state("fort_siege", game), {})
-	assert_lt(float(intent.my), 0.0, "gate down -> keep pushing toward the core beyond it")
+	assert_lt(float(intent.my), 0.0, "gate down -> converge on the relic at the plinth (#1028)")
+
+
+func test_fort_siege_brain_thief_sprints_the_relic_out() -> void:
+	var brain := BotBrains.brain_for(&"fort_siege", 0, 1)
+	var game := {
+		"phase": FortSiege.Phase.SIEGE,
+		"attacking": 0,
+		"gate": 0.0,
+		"capture": 0.4,
+		"relic": [0.0, -5.0, FortSiege.RelicState.CARRIED, 0],
+		"players": {0: [0.0, -5.0], 1: [0.0, -8.0]},
+		"teams": [[0], [1]],
+		"times": [-1.0, -1.0],
+	}
+	var intent := brain.think(_play_state("fort_siege", game), {})
+	assert_gt(float(intent.my), 0.0, "carrying the relic -> run it out past the escape line")
 
 
 func test_fort_siege_brain_defender_shoves_an_attacker_in_range() -> void:
@@ -58,19 +75,54 @@ func test_fort_siege_brain_defender_shoves_an_attacker_in_range() -> void:
 	assert_true(intent.get("act", false), "attacker within shove radius -> shove")
 
 
-func test_fort_siege_brain_defender_falls_back_to_the_core_once_the_gate_falls() -> void:
+func test_fort_siege_brain_defender_falls_back_to_the_home_relic_once_the_gate_falls() -> void:
 	var brain := BotBrains.brain_for(&"fort_siege", 1, 1)
 	var game := {
 		"phase": FortSiege.Phase.SIEGE,
 		"attacking": 0,
 		"gate": 0.0,
 		"capture": 0.0,
+		"relic": [FortSiege.CORE_POS.x, FortSiege.CORE_POS.y, FortSiege.RelicState.AT_CORE, -1],
 		"players": {0: [0.0, -8.0], 1: [0.0, FortSiege.GATE_Y - 2.0]},
 		"teams": [[0], [1]],
 		"times": [-1.0, -1.0],
 	}
 	var intent := brain.think(_play_state("fort_siege", game), {})
-	assert_lt(float(intent.my), 0.0, "gate down -> defender falls back toward the deeper core")
+	assert_lt(float(intent.my), 0.0, "gate down -> defender guards the relic on its plinth")
+
+
+func test_fort_siege_brain_defender_chases_the_thief() -> void:
+	var brain := BotBrains.brain_for(&"fort_siege", 1, 1)
+	# The thief carries the relic ABOVE the defender: the chase heads +y, the
+	# opposite of the old fall-back-to-the-core instinct.
+	var game := {
+		"phase": FortSiege.Phase.SIEGE,
+		"attacking": 0,
+		"gate": 0.0,
+		"capture": 0.5,
+		"relic": [0.0, -3.5, FortSiege.RelicState.CARRIED, 0],
+		"players": {0: [0.0, -3.5], 1: [0.0, -7.0]},
+		"teams": [[0], [1]],
+		"times": [-1.0, -1.0],
+	}
+	var intent := brain.think(_play_state("fort_siege", game), {})
+	assert_gt(float(intent.my), 0.0, "defender chases the carrier, not the empty plinth (#1028)")
+
+
+func test_fort_siege_brain_defender_moves_to_return_a_loose_relic() -> void:
+	var brain := BotBrains.brain_for(&"fort_siege", 1, 1)
+	var game := {
+		"phase": FortSiege.Phase.SIEGE,
+		"attacking": 0,
+		"gate": 0.0,
+		"capture": 0.5,
+		"relic": [4.0, -4.0, FortSiege.RelicState.DROPPED, -1],
+		"players": {0: [-6.0, 6.0], 1: [0.0, -4.0]},
+		"teams": [[0], [1]],
+		"times": [-1.0, -1.0],
+	}
+	var intent := brain.think(_play_state("fort_siege", game), {})
+	assert_gt(float(intent.mx), 0.0, "defender heads for the loose relic to send it home")
 
 
 func test_fort_siege_brain_idles_during_swap() -> void:

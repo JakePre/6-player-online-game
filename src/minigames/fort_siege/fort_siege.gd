@@ -1,16 +1,33 @@
 class_name FortSiege
 extends MinigameBase
-## Fort Siege (M10-12, PHASE2.md $4 #29): one team storms a walled fort, the
-## other defends it — then they swap and the faster siege wins. Attackers
-## batter the gate down (more attackers = faster) and then hold the core
-## uncontested to capture; defenders bounce them away with a shove on a
-## cooldown. A capture stops the clock, the timeout caps the run. If neither
-## side captures, the deeper run (gate damage + capture progress) wins.
+## Fort Siege (M10-12; #1028 relic rework): one team storms a walled fort,
+## the other defends it — then they swap and the faster HEIST wins. Attackers
+## batter the gate down (more attackers = faster), then STEAL the relic at
+## the core and carry it out of the fort; the carrier is slowed and a
+## defender's shove makes them drop it, after which a defender's touch (or a
+## few unattended seconds) sends it home. An escape stops the clock, the
+## timeout caps the run. If neither side escapes, the deeper run (gate
+## damage + how far the relic ever got) wins.
+##
+## #1028/#962 history: the old endgame ("hold the core uncontested") was
+## structurally unwinnable — one defender standing on the core stalled the
+## meter forever, the shove out-ranged the core disc, and attackers had no
+## verb against defenders, so every bot run (and every human run) ended 0-0.
+## A movable objective dissolves that wall: presence can't be denied when the
+## thing you're defending can be picked up and RUN.
 ## Server-side simulation only — the client renders get_snapshot().
 
 enum Phase {
 	SIEGE,
 	SWAP,
+}
+
+## Where the relic is (#1028): home on its plinth, in a thief's hands, or
+## loose on the ground mid-heist.
+enum RelicState {
+	AT_CORE,
+	CARRIED,
+	DROPPED,
 }
 
 ## The gate verb a player last performed (#808), so the view animates each swing
@@ -43,9 +60,17 @@ const REPAIR_AMOUNT := 0.5
 const REPAIR_COOLDOWN_SEC := 1.0
 const CORE_POS := Vector2(0.0, -6.5)
 const CORE_RADIUS := 1.5
-## Seconds of uncontested core-holding to capture (any defender on the core
-## stalls the meter — the KotH contest rule).
-const CAPTURE_SEC := 4.0
+## Relic heist (#1028). Touch range for both sides' relic interactions: a
+## raider this close grabs it (home or loose); a defender this close to a
+## LOOSE relic sends it home. Raiders win a simultaneous touch — the comeback
+## re-grab is the attackers' counterplay to the shove.
+const RELIC_TOUCH := 0.9
+## A loose relic nobody touches walks itself home after this long.
+const RELIC_AUTO_RETURN_SEC := 4.0
+## The thief runs at this fraction of MOVE_SPEED — catchable, not helpless.
+const CARRY_SLOW := 0.7
+## Carrying the relic past this line (out through the breach) scores the run.
+const ESCAPE_Y := GATE_Y + 1.0
 const SIEGE_SEC := 40.0
 const SWAP_SEC := 3.0
 const SHOVE_RADIUS := 1.4
@@ -71,14 +96,19 @@ var phase := Phase.SIEGE
 var attacking := 0
 var phase_elapsed := 0.0
 var gate_hp := GATE_MAX_HP
+## Best relic progress this siege, 0..1 from the plinth to the escape line
+## (#1028): monotonic, so a failed run's depth records how close the heist got.
 var capture := 0.0
 var positions := {}
 var move_dirs := {}
 var knocks := {}
 var shove_cooldowns := {}
-## True while the gate is down and a defender is standing on the core, stalling
-## the capture meter (#808) — the view flashes a CONTESTED tag from it.
-var contested := false
+## Relic heist state (#1028): where it is, who holds it, where it lies when
+## loose, and the loose-relic homing timer.
+var relic_state := RelicState.AT_CORE
+var relic_carrier := -1
+var relic_pos := CORE_POS
+var relic_return_left := 0.0
 ## Gate-verb state (#808): a shared batter/repair cooldown (role-exclusive), a
 ## monotonic per-slot action counter, and the last action's kind (Act.*).
 var gate_cooldowns := {}
@@ -105,9 +135,9 @@ static func make_meta() -> MinigameMeta:
 				"duration_sec": 90.0,
 				"rules":
 				(
-					"Storm the fort! Batter the gate down, then hold the core to"
-					+ " capture. Defenders shove you off. Then SWAP — the faster"
-					+ " siege wins the day."
+					"Smash the gate, STEAL the relic, and run it out of the fort!"
+					+ " Defenders: shove the thief to make them drop it, then touch"
+					+ " it to send it home. SWAP sides — the faster heist wins."
 				),
 				# Stale as bare "Shove (defending)" since #808 gave the one button a
 				# third meaning (BATTER for raiders, REPAIR for an unthreatened
@@ -155,6 +185,10 @@ func _start_siege(team_index: int) -> void:
 	phase_elapsed = 0.0
 	gate_hp = GATE_MAX_HP
 	capture = 0.0
+	relic_state = RelicState.AT_CORE
+	relic_carrier = -1
+	relic_pos = CORE_POS
+	relic_return_left = 0.0
 	var defenders: Array = teams[1 - team_index]
 	var raiders: Array = teams[team_index]
 	for i in raiders.size():
@@ -224,7 +258,9 @@ func _raider_in_reach(slot: int) -> bool:
 	return false
 
 
-## Defender-only radial shove: every attacker in reach gets bounced away.
+## Defender-only radial shove: every attacker in reach gets bounced away —
+## and a shoved THIEF drops the relic where they stood (#1028), turning the
+## shove from blanket area denial into the carrier-stopping verb it should be.
 func _shove(slot: int) -> void:
 	shove_cooldowns[slot] = SHOVE_COOLDOWN_SEC
 	for raider: int in teams[attacking]:
@@ -232,7 +268,16 @@ func _shove(slot: int) -> void:
 			continue
 		var away: Vector2 = positions[raider] - positions[slot]
 		knocks[raider] = (away.normalized() if away.length() > 0.001 else Vector2.UP) * SHOVE_KNOCK
+		if raider == relic_carrier:
+			_drop_relic(positions[raider])
 	_record_act(slot, Act.SHOVE)
+
+
+func _drop_relic(at: Vector2) -> void:
+	relic_state = RelicState.DROPPED
+	relic_carrier = -1
+	relic_pos = at
+	relic_return_left = RELIC_AUTO_RETURN_SEC
 
 
 func _record_act(slot: int, kind: Act) -> void:
@@ -247,9 +292,9 @@ func _tick(delta: float) -> void:
 			_start_siege(1)
 		return
 	_move(delta)
-	_fill_capture(delta)
-	if capture >= 1.0:
-		_end_siege(true)
+	_tick_relic(delta)
+	if relic_state == RelicState.CARRIED and relic_pos.y >= ESCAPE_Y:
+		_end_siege(true)  # the thief made it out — heist complete
 	elif phase_elapsed >= SIEGE_SEC:
 		_end_siege(false)
 
@@ -259,7 +304,10 @@ func _move(delta: float) -> void:
 		shove_cooldowns[slot] = maxf(float(shove_cooldowns[slot]) - delta, 0.0)
 		gate_cooldowns[slot] = maxf(float(gate_cooldowns[slot]) - delta, 0.0)
 		var knock: Vector2 = knocks[slot]
-		var pos: Vector2 = positions[slot] + (move_dirs[slot] * MOVE_SPEED + knock) * delta
+		# The thief lugs the relic (#1028): slowed, so defenders can catch the
+		# run — but knocks land at full force either way.
+		var speed := MOVE_SPEED * (CARRY_SLOW if slot == relic_carrier else 1.0)
+		var pos: Vector2 = positions[slot] + (move_dirs[slot] * speed + knock) * delta
 		knocks[slot] = knock.move_toward(Vector2.ZERO, KNOCK_DECAY * delta)
 		pos = pos.clamp(Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF))
 		# The standing gate walls out the attackers (defenders pass freely).
@@ -268,20 +316,53 @@ func _move(delta: float) -> void:
 		positions[slot] = pos
 
 
-func _fill_capture(delta: float) -> void:
-	contested = false
+## The relic heist (#1028). Behind a standing gate the relic is untouchable;
+## once breached: a raider's touch grabs it (home or loose, and raiders win a
+## simultaneous touch — the re-grab is their comeback verb), a defender's
+## touch on a LOOSE relic sends it home, and an unattended loose relic walks
+## home on its own. Carried, it rides the thief and records the run's depth.
+func _tick_relic(delta: float) -> void:
 	if gate_hp > 0.0:
 		return
-	var raiders_on := 0
+	match relic_state:
+		RelicState.AT_CORE:
+			relic_pos = CORE_POS
+			_try_grab()
+		RelicState.CARRIED:
+			relic_pos = positions[relic_carrier]
+			capture = maxf(capture, _relic_progress(relic_pos))
+		RelicState.DROPPED:
+			capture = maxf(capture, _relic_progress(relic_pos))
+			if _try_grab():
+				return
+			for defender: int in teams[1 - attacking]:
+				if positions[defender].distance_to(relic_pos) <= RELIC_TOUCH:
+					_return_relic()
+					return
+			relic_return_left -= delta
+			if relic_return_left <= 0.0:
+				_return_relic()
+
+
+## First raider in touch range takes the relic. Returns true on a grab.
+func _try_grab() -> bool:
 	for raider: int in teams[attacking]:
-		if positions[raider].distance_to(CORE_POS) <= CORE_RADIUS:
-			raiders_on += 1
-	for defender: int in teams[1 - attacking]:
-		if positions[defender].distance_to(CORE_POS) <= CORE_RADIUS:
-			contested = true
-			return  # Contested: the meter holds.
-	if raiders_on > 0:
-		capture = minf(capture + delta / CAPTURE_SEC, 1.0)
+		if positions[raider].distance_to(relic_pos) <= RELIC_TOUCH:
+			relic_state = RelicState.CARRIED
+			relic_carrier = raider
+			return true
+	return false
+
+
+func _return_relic() -> void:
+	relic_state = RelicState.AT_CORE
+	relic_carrier = -1
+	relic_pos = CORE_POS
+
+
+## 0 at the plinth, 1 at the escape line — the heist's how-close-it-got meter.
+func _relic_progress(pos: Vector2) -> float:
+	return clampf((pos.y - CORE_POS.y) / (ESCAPE_Y - CORE_POS.y), 0.0, 1.0)
 
 
 func _end_siege(captured: bool) -> void:
@@ -299,8 +380,8 @@ func _live_run(captured: bool) -> Dictionary:
 	return {
 		"captured": captured,
 		"time": phase_elapsed if captured else SIEGE_SEC,
-		# Depth of a failed run: gate damage plus core progress (a full
-		# capture bar weighs as much as a whole gate).
+		# Depth of a failed run: gate damage plus how far the relic ever got
+		# (#1028 — a full heist-to-the-line weighs as much as a whole gate).
 		"progress": (GATE_MAX_HP - gate_hp) + capture * GATE_MAX_HP,
 	}
 
@@ -326,7 +407,9 @@ func get_snapshot() -> Dictionary:
 		"phase_left": snappedf(maxf(limit - phase_elapsed, 0.0), 0.1),
 		"gate": snappedf(gate_hp / GATE_MAX_HP, 0.01),
 		"capture": snappedf(capture, 0.01),
-		"contested": contested,
+		# The heist itself (#1028): [x, y, RelicState, carrier slot or -1].
+		"relic":
+		[snappedf(relic_pos.x, 0.01), snappedf(relic_pos.y, 0.01), int(relic_state), relic_carrier],
 		"players": players,
 		"teams": teams.duplicate(true),
 		"times": times,

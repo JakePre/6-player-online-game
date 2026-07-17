@@ -1,6 +1,7 @@
 extends GutTest
-## Fort Siege (PHASE2.md $4 #29): gate walls out attackers, battering and
-## breaching, contested capture, the mid-game swap, and time-vs-depth
+## Fort Siege (PHASE2.md $4 #29; #1028 relic rework): gate walls out
+## attackers, battering and breaching, the relic heist (grab, carry-slow,
+## shove-drop, defender return, escape), the mid-game swap, and time-vs-depth
 ## ranking.
 
 const TICK := 1.0 / 30.0
@@ -166,51 +167,135 @@ func test_defender_repairs_when_alone_and_shoves_when_raided() -> void:
 
 ## #808: the additive snapshot keys the view reads — contested flag and per-slot
 ## action seq/kind — are present and correct.
-func test_snapshot_exposes_contested_and_action_state() -> void:
+func test_snapshot_exposes_relic_and_action_state() -> void:
 	var game := _game()
 	var raider := _raider(game)
 	game.positions[raider] = Vector2(0.0, FortSiege.GATE_Y)
 	game.handle_input(raider, {"act": true})
 	var snap := game.get_snapshot()
-	assert_true(snap.has("contested"), "contested flag is exposed")
+	var relic: Array = snap.relic
+	assert_eq(relic.size(), 4, "relic ships as [x, y, state, carrier]")
+	assert_eq(int(relic[2]), FortSiege.RelicState.AT_CORE, "starts home on the plinth")
+	assert_eq(int(relic[3]), -1, "nobody carries it yet")
 	var state: Array = snap.players[raider]
 	assert_eq(state.size(), FortSiege.PS_COUNT, "player array carries the new fields")
 	assert_gt(int(state[FortSiege.PS_ACT_SEQ]), 0, "a swing bumps the action counter")
 	assert_eq(int(state[FortSiege.PS_ACT_KIND]), FortSiege.Act.BATTER, "and records its kind")
-	game.gate_hp = 0.0
-	game.positions[_defender(game)] = FortSiege.CORE_POS
+
+
+func test_relic_untouchable_behind_a_standing_gate() -> void:
+	var game := _game()
+	var raider := _raider(game)
+	game.positions[raider] = FortSiege.CORE_POS  # forced through the wall
 	game.tick(TICK)
-	assert_true(game.get_snapshot().contested, "a defender on the core reads as contested")
+	assert_eq(game.relic_state, FortSiege.RelicState.AT_CORE, "no heist while the gate stands")
 
 
-func test_contested_core_stalls_uncontested_fills() -> void:
+func test_raider_grabs_the_relic_and_is_slowed() -> void:
 	var game := _game()
 	_breach(game)
 	var raider := _raider(game)
-	var defender := _defender(game)
 	game.positions[raider] = FortSiege.CORE_POS
-	game.positions[defender] = FortSiege.CORE_POS
 	game.tick(TICK)
-	assert_eq(game.capture, 0.0, "a defender on the core stalls the meter")
-	game.positions[defender] = Vector2(5.0, 5.0)
+	assert_eq(game.relic_state, FortSiege.RelicState.CARRIED, "a touch takes the relic")
+	assert_eq(game.relic_carrier, raider)
+	# The thief lugs it: one full-thrust tick covers CARRY_SLOW of a free run.
+	game.positions[raider] = Vector2(0.0, 0.0)
+	game.knocks[raider] = Vector2.ZERO
+	game.handle_input(raider, {"mx": 1.0, "my": 0.0})
 	game.tick(TICK)
-	assert_gt(game.capture, 0.0, "uncontested holding fills it")
+	assert_almost_eq(
+		float(game.positions[raider].x),
+		FortSiege.MOVE_SPEED * FortSiege.CARRY_SLOW * TICK,
+		0.001,
+		"the carrier runs slowed"
+	)
 
 
-func test_capture_records_time_and_swaps_sides() -> void:
+func test_escape_scores_the_run_and_swaps_sides() -> void:
 	var game := _game()
 	_breach(game)
-	game.capture = 1.0 - TICK / FortSiege.CAPTURE_SEC
-	game.positions[_raider(game)] = FortSiege.CORE_POS
+	var raider := _raider(game)
+	game.relic_state = FortSiege.RelicState.CARRIED
+	game.relic_carrier = raider
+	game.positions[raider] = Vector2(0.0, FortSiege.ESCAPE_Y + 0.1)
 	game.tick(TICK)
-	assert_true(game.runs[0].captured, "first siege resolved as a capture")
+	assert_true(game.runs[0].captured, "carrying the relic out scores the heist")
 	assert_eq(game.phase, FortSiege.Phase.SWAP)
 	var swap_ticks := int(ceil(FortSiege.SWAP_SEC / TICK)) + 1
 	for _i in swap_ticks:
 		game.tick(TICK)
 	assert_eq(game.attacking, 1, "sides swap for the second siege")
 	assert_eq(game.gate_hp, FortSiege.GATE_MAX_HP, "fresh gate for the second siege")
+	assert_eq(game.relic_state, FortSiege.RelicState.AT_CORE, "relic home for the second siege")
 	assert_eq(game.capture, 0.0)
+
+
+func test_shoved_thief_drops_the_relic() -> void:
+	var game := _game()
+	_breach(game)
+	var raider := _raider(game)
+	var defender := _defender(game)
+	game.relic_state = FortSiege.RelicState.CARRIED
+	game.relic_carrier = raider
+	game.positions[raider] = Vector2(4.0, 4.0)
+	game.positions[defender] = Vector2(4.5, 4.0)
+	game.handle_input(defender, {"act": true})
+	assert_eq(game.relic_state, FortSiege.RelicState.DROPPED, "the shove jars the relic loose")
+	assert_eq(game.relic_carrier, -1)
+	assert_almost_eq(float(game.relic_pos.x), 4.0, 0.001, "it drops where the thief stood")
+
+
+func test_defender_touch_returns_a_loose_relic() -> void:
+	var game := _game()
+	_breach(game)
+	game.relic_state = FortSiege.RelicState.DROPPED
+	game.relic_pos = Vector2(6.0, 6.0)
+	game.relic_return_left = FortSiege.RELIC_AUTO_RETURN_SEC
+	game.positions[_defender(game)] = Vector2(6.0, 6.2)
+	game.tick(TICK)
+	assert_eq(game.relic_state, FortSiege.RelicState.AT_CORE, "a defender's touch sends it home")
+
+
+func test_raider_wins_a_simultaneous_touch() -> void:
+	var game := _game()
+	_breach(game)
+	var raider := _raider(game)
+	game.relic_state = FortSiege.RelicState.DROPPED
+	game.relic_pos = Vector2(6.0, 6.0)
+	game.relic_return_left = FortSiege.RELIC_AUTO_RETURN_SEC
+	game.positions[raider] = Vector2(6.0, 5.8)
+	game.positions[_defender(game)] = Vector2(6.0, 6.2)
+	game.tick(TICK)
+	assert_eq(game.relic_state, FortSiege.RelicState.CARRIED, "the re-grab beats the return")
+	assert_eq(game.relic_carrier, raider)
+
+
+func test_loose_relic_walks_home_after_the_timer() -> void:
+	var game := _game()
+	_breach(game)
+	game.relic_state = FortSiege.RelicState.DROPPED
+	game.relic_pos = Vector2(8.0, 8.0)  # far from every spawn
+	game.relic_return_left = TICK / 2.0
+	game.tick(TICK)
+	assert_eq(game.relic_state, FortSiege.RelicState.AT_CORE, "an unattended relic homes itself")
+
+
+func test_failed_run_depth_records_best_relic_progress() -> void:
+	var game := _game()
+	_breach(game)
+	var raider := _raider(game)
+	game.relic_state = FortSiege.RelicState.CARRIED
+	game.relic_carrier = raider
+	# Midway between plinth and escape line.
+	var mid_y := (FortSiege.CORE_POS.y + FortSiege.ESCAPE_Y) / 2.0
+	game.positions[raider] = Vector2(0.0, mid_y)
+	game.tick(TICK)
+	assert_almost_eq(game.capture, 0.5, 0.05, "depth meter tracks how far the relic got")
+	game._drop_relic(game.relic_pos)
+	game._return_relic()
+	game.tick(TICK)
+	assert_gte(game.capture, 0.5, "the meter is monotonic — a foiled heist still counts")
 
 
 func test_shove_bounces_attackers() -> void:
