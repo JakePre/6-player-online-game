@@ -65,13 +65,75 @@ func test_render_replaces_replicated_state() -> void:
 	assert_eq(view.players.size(), 0, "each snapshot fully replaces the last")
 
 
-func test_ball_rides_carrier_and_sits_on_floor_loose() -> void:
+func test_ball_dribbles_beside_carrier_and_sits_on_floor_loose() -> void:
+	# #1037: a held ball DRIBBLES — bouncing between the floor and hand height
+	# beside the carrier — rather than gluing overhead.
 	view.render({"players": {}, "ball": [3.0, -2.0, 0, 0], "scores": [0, 0], "teams": []})
 	var ball: Node3D = view.arena.get_node("Ball")
-	assert_almost_eq(ball.position.x, 3.0, 0.001)
-	assert_almost_eq(ball.position.y, view.CARRY_HEIGHT, 0.001, "held ball rides high")
+	# With no team data the dribble hand falls back to +x attack -> the side
+	# offset lands on the arena z axis.
+	assert_almost_ne(ball.position.z, -2.0, 0.01, "the dribble sits beside the carrier, not inside")
+	assert_between(
+		ball.position.y, view.BALL_RADIUS - 0.001, view.DRIBBLE_HEIGHT + 0.001, "dribble band"
+	)
 	view.render({"players": {}, "ball": [3.0, -2.0, -1, 0], "scores": [0, 0], "teams": []})
 	assert_almost_eq(ball.position.y, view.BALL_RADIUS, 0.001, "loose ball sits on the floor")
+
+
+## #1037: while the carrier charges a shot, the ball comes up to the set
+## position overhead — the wind-up is readable across the court.
+func test_charging_carrier_raises_the_ball_overhead() -> void:
+	(
+		view
+		. render(
+			{
+				"players": {0: [3.0, -2.0, 1, 0.5]},
+				"ball": [3.0, -2.0, 0, 0],
+				"scores": [0, 0],
+				"teams": [],
+			}
+		)
+	)
+	var ball: Node3D = view.arena.get_node("Ball")
+	assert_almost_eq(ball.position.y, view.CARRY_HEIGHT, 0.001, "charging = ball raised to shoot")
+	assert_almost_eq(ball.position.x, 3.0, 0.001, "raised ball rides the carrier, no side offset")
+
+
+## #1037: both rims open toward the court. The .glb rim faces -z at rest, so
+## facing is (-sin y, -cos y): the -x hoop needs y = -PI/2, the +x hoop +PI/2.
+func test_hoops_face_the_court() -> void:
+	var left: Node3D = view.arena.get_node("HoopModel0")
+	var right: Node3D = view.arena.get_node("HoopModel1")
+	assert_almost_eq(-sin(left.rotation.y), 1.0, 0.001, "the -x hoop opens toward +x (center)")
+	assert_almost_eq(-sin(right.rotation.y), -1.0, 0.001, "the +x hoop opens toward -x (center)")
+
+
+## #1037: the local player's charge drives the meter — hidden idle, visible
+## and orange early, green inside the perfect-release window.
+func test_charge_meter_mirrors_local_charge_and_greens_in_the_window() -> void:
+	var bar: ProgressBar = view.get_node("ChargeBar")
+	view.render({"players": {0: [0.0, 0.0, 1, 0.0]}, "ball": [0.0, 0.0, 0, 0], "scores": [0, 0]})
+	assert_false(bar.visible, "no charge -> no meter")
+	view.render({"players": {0: [0.0, 0.0, 1, 0.3]}, "ball": [0.0, 0.0, 0, 0], "scores": [0, 0]})
+	assert_true(bar.visible, "charging -> meter shows")
+	assert_almost_eq(bar.value, 30.0, 0.001)
+	assert_eq(bar.modulate, view.METER_CHARGE_COLOR, "early charge reads orange")
+	view.render({"players": {0: [0.0, 0.0, 1, 0.8]}, "ball": [0.0, 0.0, 0, 0], "scores": [0, 0]})
+	assert_eq(bar.modulate, view.METER_SWEET_COLOR, "inside the window reads green")
+
+
+## #1037: releasing from inside the sweet window (charge -> 0 with a shot in
+## the air) flashes PERFECT!; a fumble that zeroes the charge does not.
+func test_perfect_release_flashes_and_fumble_does_not() -> void:
+	# The label lives on the shared overlay CanvasLayer — reach it directly.
+	var label: Label = view._perfect_label
+	view.render({"players": {0: [0.0, 0.0, 1, 0.8]}, "ball": [0.0, 0.0, 0, 0], "scores": [0, 0]})
+	view.render({"players": {0: [0.0, 0.0, 0, 0.0]}, "ball": [0.0, 0.0, -1, 1], "scores": [0, 0]})
+	assert_true(label.visible, "sweet-window release with the shot flying -> PERFECT!")
+	label.visible = false
+	view.render({"players": {0: [0.0, 0.0, 1, 0.8]}, "ball": [0.5, 0.0, 0, 0], "scores": [0, 0]})
+	view.render({"players": {0: [0.0, 0.0, 0, 0.0]}, "ball": [0.5, 0.0, -1, 0], "scores": [0, 0]})
+	assert_false(label.visible, "a fumble zeroes the charge with no shot -> no flash")
 
 
 ## #803: a shot in flight arcs above the floor — the ball climbs toward the

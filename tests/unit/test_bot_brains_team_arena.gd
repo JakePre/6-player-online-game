@@ -166,8 +166,8 @@ func test_relay_sprint_brain_finished_team_sends_nothing() -> void:
 func test_basket_brawl_brain_carrier_drives_to_the_enemy_hoop() -> void:
 	var brain := BotBrains.brain_for(&"basket_brawl", 0, 1)
 	var game := {
-		"players": {0: [0.0, 0.0, 1]},
-		"ball": [0.0, 0.0, 0],
+		"players": {0: [0.0, 0.0, 1, 0.0]},
+		"ball": [0.0, 0.0, 0, 0],
 		"teams": [[0], [1]],
 		"hoops": [[-8.0, 0.0], [8.0, 0.0]],
 	}
@@ -175,11 +175,57 @@ func test_basket_brawl_brain_carrier_drives_to_the_enemy_hoop() -> void:
 	assert_gt(float(intent.get("mx", 0.0)), 0.5, "team 0 attacks the +x hoop")
 
 
+## #1037: in range and open -> start the wind-up ({"shoot": true}).
+func test_basket_brawl_brain_pulls_up_when_open_in_range() -> void:
+	var brain := BotBrains.brain_for(&"basket_brawl", 0, 1)
+	var game := {
+		"players": {0: [3.0, 0.0, 1, 0.0]},
+		"ball": [3.0, 0.0, 0, 0],
+		"teams": [[0], [1]],
+		"hoops": [[-8.0, 0.0], [8.0, 0.0]],
+	}
+	var intent := brain.think(_play_state("basket_brawl", game), {})
+	assert_true(bool(intent.get("shoot", false)), "open at 5.0 out -> start the wind-up")
+
+
+## #1037: a defender inside CONTEST_RADIUS halves the make -> keep driving.
+func test_basket_brawl_brain_does_not_hoist_a_contested_shot() -> void:
+	var brain := BotBrains.brain_for(&"basket_brawl", 0, 1)
+	var game := {
+		"players": {0: [3.0, 0.0, 1, 0.0], 1: [3.5, 0.0, 0, 0.0]},
+		"ball": [3.0, 0.0, 0, 0],
+		"teams": [[0], [1]],
+		"hoops": [[-8.0, 0.0], [8.0, 0.0]],
+	}
+	var intent := brain.think(_play_state("basket_brawl", game), {})
+	assert_false(intent.has("shoot"), "contested -> no pull-up, drive on")
+
+
+## #1037: mid-wind-up the brain watches its replicated charge — hold below
+## the sweet window, release once inside it.
+func test_basket_brawl_brain_holds_the_charge_then_releases_in_the_window() -> void:
+	var brain := BotBrains.brain_for(&"basket_brawl", 0, 1)
+	var game := {
+		"players": {0: [3.0, 0.0, 1, 0.4]},
+		"ball": [3.0, 0.0, 0, 0],
+		"teams": [[0], [1]],
+		"hoops": [[-8.0, 0.0], [8.0, 0.0]],
+	}
+	assert_true(
+		bool(brain.think(_play_state("basket_brawl", game), {}).get("shoot")),
+		"below the window -> keep holding"
+	)
+	game["players"] = {0: [3.0, 0.0, 1, 0.8]}
+	var intent := brain.think(_play_state("basket_brawl", game), {})
+	assert_true(intent.has("shoot"), "the release key is sent")
+	assert_false(bool(intent.get("shoot")), "inside the window -> release (shoot: false)")
+
+
 func test_basket_brawl_brain_chases_a_loose_ball() -> void:
 	var brain := BotBrains.brain_for(&"basket_brawl", 0, 1)
 	var game := {
-		"players": {0: [0.0, 0.0, 0]},
-		"ball": [3.0, 0.0, -1],
+		"players": {0: [0.0, 0.0, 0, 0.0]},
+		"ball": [3.0, 0.0, -1, 0],
 		"teams": [[0], [1]],
 		"hoops": [[-8.0, 0.0], [8.0, 0.0]],
 	}
@@ -190,8 +236,8 @@ func test_basket_brawl_brain_chases_a_loose_ball() -> void:
 func test_basket_brawl_brain_hounds_an_enemy_carrier_and_shoves_in_range() -> void:
 	var brain := BotBrains.brain_for(&"basket_brawl", 0, 1)
 	var game := {
-		"players": {0: [0.0, 0.0, 0], 1: [1.0, 0.0, 1]},
-		"ball": [1.0, 0.0, 1],
+		"players": {0: [0.0, 0.0, 0, 0.0], 1: [1.0, 0.0, 1, 0.0]},
+		"ball": [1.0, 0.0, 1, 0],
 		"teams": [[0], [1]],
 		"hoops": [[-8.0, 0.0], [8.0, 0.0]],
 	}
@@ -202,8 +248,8 @@ func test_basket_brawl_brain_hounds_an_enemy_carrier_and_shoves_in_range() -> vo
 func test_basket_brawl_brain_supports_a_teammate_carrier() -> void:
 	var brain := BotBrains.brain_for(&"basket_brawl", 0, 1)
 	var game := {
-		"players": {0: [0.0, 0.0, 0], 1: [-1.0, 0.0, 1]},
-		"ball": [-1.0, 0.0, 1],
+		"players": {0: [0.0, 0.0, 0, 0.0], 1: [-1.0, 0.0, 1, 0.0]},
+		"ball": [-1.0, 0.0, 1, 0],
 		"teams": [[0, 1], [2]],
 		"hoops": [[-8.0, 0.0], [8.0, 0.0]],
 	}
