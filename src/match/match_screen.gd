@@ -70,6 +70,10 @@ var _shake_tween: Tween
 var _shake_origin := Vector2.ZERO
 var _countdown_digit := 0
 
+## Playtest mode's picker (#1070), code-built in _ready (no scene node): shown
+## whenever the match sits in State.PICK.
+var _pick_panel: PlaytestPickPanel
+
 @onready var _countdown_label: Label = %CountdownLabel
 @onready var _round_label: Label = %RoundLabel
 @onready var _game_name_label: Label = %GameNameLabel
@@ -139,6 +143,15 @@ func _ready() -> void:
 	# Hard cap (#571): whatever _pack_total_chips can't keep to two rows at the
 	# current width scrolls instead of stretching the HUD panel over the arena.
 	_totals_scroll.custom_minimum_size.y = TOTALS_ROW_MAX_HEIGHT
+	# Playtest picker (#1070): a sibling of the scene's phase panels so
+	# _show_panel treats it uniformly. Renders from PICK snapshots only.
+	_pick_panel = PlaytestPickPanel.new()
+	_pick_panel.name = "PickPanel"
+	_pick_panel.visible = false
+	_pick_panel.pick_chosen.connect(
+		func(id: String) -> void: NetManager.send_match_input({"pick": id})
+	)
+	_shop_panel.get_parent().add_child(_pick_panel)
 	# Waiting for the first event (or, for a mid-match rejoiner, a snapshot).
 	_show_panel(null)
 	if NetManager.my_room_state.has("members"):
@@ -250,6 +263,19 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 	var match_state: Dictionary = snapshot.match
 	_timer_label.text = MatchFormat.clock(float(match_state.time_left))
 	var state := int(match_state.state)
+	if state == MatchController.State.PICK:
+		# Same snapshot-alone contract as the shop below (#554): rejoiners and
+		# event-racers land on the picker from replicated state.
+		var arriving := not _pick_panel.visible
+		if arriving:
+			_unmount_view()
+			_show_panel(_pick_panel)
+		var host_slot := int(NetManager.my_room_state.get("host_slot", -1))
+		_pick_panel.render(match_state.get("pick", {}), host_slot == NetManager.my_slot)
+		if arriving:
+			# After render — the buttons the focus lands on are built there.
+			_pick_panel.grab_initial_focus()
+		return
 	if state == MatchController.State.FINALE_SHOP:
 		# Rejoiners and event-racers land here from the snapshot alone (#554).
 		if not _shop_panel.visible:
@@ -586,6 +612,7 @@ func _any_phase_panel_visible() -> bool:
 		or _results_panel.visible
 		or _standings_panel.visible
 		or _shop_panel.visible
+		or _pick_panel.visible
 	)
 
 
@@ -631,7 +658,10 @@ func _show_podium(standings: Array, series: Dictionary = {}) -> void:
 ## `keep_play_area` leaves the arena visible behind the panel (round results,
 ## so celebrations stay on screen — M6-02).
 func _show_panel(panel: PanelContainer, keep_play_area := false) -> void:
-	for candidate: PanelContainer in [_intro_card, _results_panel, _standings_panel, _shop_panel]:
+	var panels: Array[PanelContainer] = [
+		_intro_card, _results_panel, _standings_panel, _shop_panel, _pick_panel
+	]
+	for candidate: PanelContainer in panels:
 		candidate.visible = candidate == panel
 	_play_area.visible = panel == null or keep_play_area
 	# Pad navigation (M17-04): interactive panels take focus so a controller

@@ -198,6 +198,25 @@ func test_debug_all_games_toggle_built_and_reflects_state() -> void:
 	assert_false(lobby._debug_all_games_toggle.button_pressed, "defaults off when absent")
 
 
+## #1070: the playtest-mode toggle sits right under the debug toggle and
+## mirrors its broadcast/freeze behavior.
+func test_playtest_mode_toggle_built_and_reflects_state() -> void:
+	assert_not_null(lobby._playtest_mode_toggle, "the playtest toggle exists")
+	assert_eq(lobby._playtest_mode_toggle.get_parent(), lobby._games_box, "GamesBox (#1032)")
+	assert_eq(
+		lobby._playtest_mode_toggle.get_index(),
+		lobby._debug_all_games_toggle.get_index() + 1,
+		"right under the debug toggle",
+	)
+	lobby._sync_playtest_toggle({"playtest_mode": true}, true)
+	assert_true(lobby._playtest_mode_toggle.button_pressed, "reflects the broadcast")
+	assert_false(lobby._playtest_mode_toggle.disabled, "host edits it in the lobby")
+	lobby._sync_playtest_toggle({"playtest_mode": true}, false)
+	assert_true(lobby._playtest_mode_toggle.disabled, "frozen off-host / in match")
+	lobby._sync_playtest_toggle({}, true)
+	assert_false(lobby._playtest_mode_toggle.button_pressed, "defaults off when absent")
+
+
 ## #581: the color-swatch picker row.
 func test_builds_one_color_swatch_per_palette_color() -> void:
 	assert_eq(

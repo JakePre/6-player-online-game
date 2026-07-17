@@ -22,9 +22,15 @@ enum State {
 	COUNTDOWN,
 	FINALE_SHOP,
 	FINALE_PLAY,
+	# Playtest mode (#1070): the match idles here after every round while the
+	# host hand-picks the next game from the eligible catalog.
+	PICK,
 }
 
 const LEADERBOARD_EVERY := 5
+## The playtest picker's end-the-match choice (#1070) — not a catalog id, so it
+## can never collide with a real game.
+const PICK_END := "end"
 ## PHASE2.md $3: roughly this share of rounds draw a mutator from the host's
 ## enabled pool. Mutators roll per playlist round only — the finale clears
 ## `current_mutator` on entry, so "never the finale" holds structurally.
@@ -77,6 +83,9 @@ var _finisher_to_podium := false
 var _rng := RandomNumberGenerator.new()
 var _round_slots: Array[int] = []
 var _skip_votes := {}
+## Playtest mode (#1070): every game already played this match, in order —
+## shown on the pick screen so the host can see roster coverage at a glance.
+var _played_ids: Array = []
 
 
 ## config: rounds (int), seed (int), and for test harnesses only (server must
@@ -105,6 +114,10 @@ func _init(match_room: Room, config: Dictionary) -> void:
 		# its player-count eligibility assert would fire even when an explicit
 		# playlist is supplied, e.g. for a solo --debug-minigame session.
 		playlist = config.playlist
+	elif room.playtest_mode:
+		# #1070: no pre-built playlist — the host picks each round's game live,
+		# and every pick appends here so round_index/snapshot code just works.
+		playlist = []
 	elif room.debug_all_games:
 		# #812: the whole eligible roster once, in catalog order — no shuffle, no
 		# repeats. Host exclusions are ignored on purpose; the point of the debug
@@ -127,6 +140,9 @@ func start() -> void:
 		for member in room.members:
 			member.score = _finale_coins
 		_enter_finale_shop()
+		return
+	if room.playtest_mode:
+		_enter_pick()
 		return
 	_enter_intro()
 
@@ -162,6 +178,11 @@ func tick(delta: float) -> void:
 	if _state_left > 0.0:
 		return
 	match state:
+		State.PICK:
+			# Host migration hands the pick to the next human; a room with no
+			# connected humans at all would wedge here, so it self-picks.
+			if room.host() == null:
+				_auto_pick()
 		State.INTRO:
 			_enter_countdown()
 		State.COUNTDOWN:
@@ -204,6 +225,11 @@ func _tick_finisher(delta: float) -> bool:
 
 
 func handle_input(slot: int, data: Dictionary) -> void:
+	# The pick screen (#1070) sits outside the round: _round_slots is stale (or
+	# empty before round one), so the host gate below replaces that guard.
+	if state == State.PICK:
+		_handle_pick(slot, data)
+		return
 	if slot not in _round_slots:
 		return
 	match state:
@@ -255,6 +281,50 @@ func _bot_slots() -> Array[int]:
 	return bots
 
 
+## The playtest picker's input gate (#1070): only the current host may pick,
+## and only ids the current head count can actually run. PICK_END finishes the
+## match on demand (finale if enabled and populated, straight podium otherwise).
+func _handle_pick(slot: int, data: Dictionary) -> void:
+	var host := room.host()
+	if host == null or host.slot != slot or not data.has("pick"):
+		return
+	var pick := String(data.pick)
+	if pick == PICK_END:
+		if _finale_enabled and _connected_slots().size() >= 2:
+			_enter_finale_shop()
+		else:
+			_enter_podium(_standings())
+		return
+	var sid := StringName(pick)
+	if sid not in MinigameCatalog.eligible_ids(room.connected_count(), []):
+		return
+	_start_picked(sid)
+
+
+func _start_picked(id: StringName) -> void:
+	playlist.append(id)
+	round_index = playlist.size() - 1
+	_enter_intro()
+
+
+## Keeps a humanless room moving (bot harnesses, everyone-quit): a random
+## eligible game, or straight to the podium if the head count supports none.
+func _auto_pick() -> void:
+	var eligible := MinigameCatalog.eligible_ids(room.connected_count(), [])
+	if eligible.is_empty():
+		_enter_podium(_standings())
+		return
+	_start_picked(eligible[_rng.randi_range(0, eligible.size() - 1)])
+
+
+func _enter_pick() -> void:
+	state = State.PICK
+	# No clock: the picker waits on the host (tick()'s host-null branch is the
+	# only escape hatch), so time_left renders as 0 on clients.
+	_state_left = 0.0
+	event_emitted.emit({"type": "pick_started", "played": _played_ids.duplicate()})
+
+
 func is_done() -> bool:
 	return state == State.DONE
 
@@ -288,6 +358,14 @@ func get_snapshot() -> Dictionary:
 				"confirmed": shop.is_confirmed(slot),
 			}
 		snapshot["shop"] = {"players": players}
+	if state == State.PICK:
+		# The pick screen renders purely from this (#1070): the live eligible
+		# catalog (exclusions ignored on purpose — reaching the game under test
+		# IS the point), plus everything already played this match.
+		var eligible: Array = []
+		for id in MinigameCatalog.eligible_ids(room.connected_count(), []):
+			eligible.append(String(id))
+		snapshot["pick"] = {"eligible": eligible, "played": _played_ids.duplicate()}
 	# Late arrivals also learn the round's mutator (M9-03).
 	if current_mutator != null and state in [State.INTRO, State.COUNTDOWN, State.PLAY]:
 		snapshot["mutator"] = current_mutator.to_dict()
@@ -329,7 +407,13 @@ func _enter_intro() -> void:
 func _roll_mutator() -> Mutator:
 	var previous := current_mutator
 	# The debug run (#812) is a clean audit pass — never perturbed by mutators.
-	if room.debug_all_games or room.mutator_pool.is_empty() or _rng.randf() >= MUTATOR_ROUND_CHANCE:
+	# Playtest mode (#1070) is controlled-conditions testing — also unperturbed.
+	if (
+		room.debug_all_games
+		or room.playtest_mode
+		or room.mutator_pool.is_empty()
+		or _rng.randf() >= MUTATOR_ROUND_CHANCE
+	):
 		return null
 	var pool := room.mutator_pool.filter(
 		func(id: StringName) -> bool: return previous == null or id != previous.id
@@ -437,6 +521,12 @@ func _enter_results() -> void:
 
 
 func _after_results() -> void:
+	if room.playtest_mode:
+		# #1070: back to the picker after every round — no leaderboard breaks,
+		# no round cap; the host ends the match from the pick screen.
+		_played_ids.append(String(playlist[round_index]))
+		_enter_pick()
+		return
 	var played := round_index + 1
 	if played < playlist.size() and played % LEADERBOARD_EVERY == 0:
 		state = State.LEADERBOARD

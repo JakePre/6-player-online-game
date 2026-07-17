@@ -80,6 +80,17 @@ func test_oversized_array_is_rejected() -> void:
 # --- the finale shop's nested string dict (#1030) -----------------------------
 
 
+## The playtest picker (#1070): `pick` is the one top-level string that
+## survives — its consumer only id-matches it, never float()-coerces.
+func test_pick_string_survives_but_stays_bounded() -> void:
+	assert_eq(SafeInput.sanitize({"pick": "basket_brawl"}), {"pick": "basket_brawl"})
+	assert_eq(SafeInput.sanitize({"pick": "end"}), {"pick": "end"})
+	var giant := "x".repeat(SafeInput.PICK_STRING_MAX_LEN + 1)
+	assert_eq(SafeInput.sanitize({"pick": giant}), {}, "over-long pick dropped whole")
+	assert_eq(SafeInput.sanitize({"pick": 1e999}), {}, "a non-string pick is dropped whole")
+	assert_eq(SafeInput.sanitize({"pick": {}}), {}, "non-string non-scalar pick dropped")
+
+
 func test_shop_intent_survives_with_its_strings() -> void:
 	var clean: Dictionary = SafeInput.sanitize({"shop": {"action": "buy", "item": "shield"}})
 	assert_eq(clean, {"shop": {"action": "buy", "item": "shield"}})

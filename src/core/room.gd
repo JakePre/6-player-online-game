@@ -26,6 +26,13 @@ var excluded_game_ids: Array[StringName] = []
 ## round_count-length random playlist — a solo host + practice bots can then
 ## audit the whole roster in one sitting. A legit host feature, not a debug RPC.
 var debug_all_games := false
+## Host playtest mode (#1070): when on, the match has no fixed playlist — the
+## host hand-picks every round's game from the full eligible catalog (the match
+## pauses on a pick screen after each round, showing the games already played)
+## and ends the match on demand. Built for owner playtesting, so mutators stay
+## off and exclusions are ignored: the point is reaching exactly the game under
+## test. A legit host feature, not a debug RPC.
+var playtest_mode := false
 ## Best-of-N series (M11-01); length 1 leaves it idle.
 var series := SeriesTracker.new()
 ## Milliseconds timestamp of the moment the last connected member dropped,
@@ -233,6 +240,28 @@ func set_debug_all_games(enabled: bool) -> bool:
 	return true
 
 
+## Lobby-only, like the other host settings. Same no-guard reasoning as
+## debug_all_games: the pick screen draws from eligible_ids live each round.
+func set_playtest_mode(enabled: bool) -> bool:
+	if state != State.LOBBY:
+		return false
+	playtest_mode = enabled
+	return true
+
+
+## The one dispatch for boolean host toggles (#1070): NetManager's RPC surface
+## sits at the gdlint file-size cap, so new flags land here as cases of a single
+## generic set-flag RPC instead of a new RPC pair each. Unknown flags are
+## rejected (false), so a hostile flag name changes nothing.
+func set_lobby_flag(flag: String, enabled: bool) -> bool:
+	match flag:
+		"debug_all_games":
+			return set_debug_all_games(enabled)
+		"playtest_mode":
+			return set_playtest_mode(enabled)
+	return false
+
+
 ## Start gating (M2-02): a match needs at least 2 players and every connected
 ## member ready. The caller checks that the requester is the host.
 func can_start() -> bool:
@@ -293,6 +322,7 @@ func to_state_dict() -> Dictionary:
 		"mutator_pool": mutator_pool.duplicate(),
 		"excluded_game_ids": excluded_game_ids.duplicate(),
 		"debug_all_games": debug_all_games,
+		"playtest_mode": playtest_mode,
 		"series": series.to_dict(),
 		"members": member_dicts,
 	}

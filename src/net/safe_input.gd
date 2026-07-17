@@ -11,8 +11,8 @@ extends RefCounted
 ## sanitize() is the ONE place that hostility is stopped, so all ~46
 ## `_handle_input`s keep their trusting style safely. Guarantee after sanitize:
 ## every number is **finite**, there are at most MAX_KEYS top-level fields, and
-## the only non-scalar values that survive are two bounded, consumer-validated
-## shapes (below) — everything else (top-level strings, objects, vectors, the
+## the only non-scalar/string values that survive are a few bounded,
+## consumer-validated shapes (below) — everything else (top-level strings, objects, vectors, the
 ## deeper nesting) is dropped and the field reads as its default in the sim.
 ##
 ## Two intents legitimately carry non-scalar values and were silently broken by
@@ -32,6 +32,12 @@ extends RefCounted
 const MAX_KEYS := 8
 ## The one nested-dict intent (#1030): the finale buy-in shop.
 const SHOP_KEY := &"shop"
+## The playtest picker (#1070): the host's next-game choice rides `pick` as a
+## catalog-id string. Safe by the shop's reasoning — the consumer only matches
+## it against registered catalog ids / the "end" sentinel and never
+## float()-coerces it. Length-capped to close the giant-string memory vector.
+const PICK_KEY := &"pick"
+const PICK_STRING_MAX_LEN := 64
 ## The shop dict carries at most {action, item}; longer is hostile.
 const SHOP_MAX_KEYS := 4
 ## Shop item/action ids are short (< 15 chars); a longer string can match no
@@ -56,6 +62,10 @@ static func sanitize(data: Dictionary) -> Dictionary:
 			var shop := _sanitize_shop(value)
 			if not shop.is_empty():
 				clean[key] = shop
+			continue
+		if StringName(key) == PICK_KEY:
+			if value is String and (value as String).length() <= PICK_STRING_MAX_LEN:
+				clean[key] = value
 			continue
 		match typeof(value):
 			TYPE_BOOL, TYPE_INT:
