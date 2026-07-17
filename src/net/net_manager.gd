@@ -685,11 +685,15 @@ func _run_server_ticks(delta: float) -> void:
 		_server_tick += 1
 		_broadcast_snapshots()
 	_expiry_accum += delta
-	if _expiry_accum >= 30.0:
+	if _expiry_accum >= 5.0:
 		_expiry_accum = 0.0
-		for code in room_manager.expire_rooms(Time.get_ticks_msec()):
+		var now_ms := Time.get_ticks_msec()
+		for code in room_manager.expire_rooms(now_ms):
 			match_controllers.erase(code)
 			print("[server] room %s expired" % code)
+		# Reap abandoned lobby seats and refresh the affected lobbies (#1040).
+		for room: Room in room_manager.expire_lobby_ghosts(now_ms):
+			_broadcast_room_state(room)
 	if broadcast and debug_rpcs_enabled:
 		_record_tick_time(Time.get_ticks_usec() - started_us)
 

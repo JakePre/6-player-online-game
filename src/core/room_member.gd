@@ -24,6 +24,11 @@ var character_id: StringName = CharacterRoster.DEFAULT_ID
 ## Unlike character, colors are server-validated unique within the room.
 ## Persists across rounds and rejoin like character_id.
 var color_index: int = -1
+## Server clock (ms) when this member's connection last dropped, or -1 while
+## connected. Drives the lobby ghost reaper (#1040): a held lobby seat whose
+## owner never comes back (Alt+F4, crash) is reaped after a short grace instead
+## of lingering forever. Reset to -1 on reconnect.
+var disconnected_at_ms: int = -1
 
 
 func to_dict() -> Dictionary:
