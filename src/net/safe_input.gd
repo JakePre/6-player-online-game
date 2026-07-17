@@ -63,7 +63,9 @@ static func sanitize(data: Dictionary) -> Dictionary:
 			TYPE_FLOAT:
 				clean[key] = value if is_finite(value) else 0.0
 			TYPE_ARRAY:
-				var arr := _sanitize_number_array(value)
+				# Explicit Variant: the helper returns Array-or-null, and inferring
+				# from a Variant return is a warning treated as an error in CI.
+				var arr: Variant = _sanitize_number_array(value)
 				if arr != null:
 					clean[key] = arr
 			_:
