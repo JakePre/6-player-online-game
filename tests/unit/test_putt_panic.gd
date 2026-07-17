@@ -80,8 +80,10 @@ func test_setup_tees_balls_aimed_at_the_cup() -> void:
 		assert_eq(int(game.strokes[slot]), 0)
 		assert_false(bool(game.sunk[slot]))
 		assert_true(game._at_rest(slot), "balls start at rest")
-		# Aim points up-field toward the cup.
-		assert_gt((game.aims[slot] as Vector2).y, 0.0, "aimed toward the cup")
+		# The tee ring (#1071) puts seats all around the cup, so "toward the
+		# cup" is per-seat: the default aim tracks each ball's own line.
+		var to_cup: Vector2 = (game.cup_pos - game.positions[slot]).normalized()
+		assert_gt((game.aims[slot] as Vector2).dot(to_cup), 0.99, "aimed at the cup")
 
 
 func test_putt_launches_the_ball_and_counts_a_stroke() -> void:
@@ -181,7 +183,8 @@ func test_course_is_deterministic_for_a_seed() -> void:
 	b.meta = PuttPanic.make_meta()
 	b.setup([0, 1] as Array[int], 123)
 	assert_eq(a.cup_pos, b.cup_pos, "same seed = same cup")
-	assert_eq(a.bar_y, b.bar_y, "same seed = same bar")
+	assert_eq(a.course, b.course, "same seed = same archetype")
+	assert_eq(a.bar_range, b.bar_range, "same seed = same orbit")
 	assert_eq(a.blocks.size(), b.blocks.size(), "same seed = same block set")
 
 
@@ -196,23 +199,71 @@ func test_course_varies_across_seeds() -> void:
 	assert_ne(a.cup_pos, b.cup_pos, "a different seed moves the cup")
 
 
-## #793 fairness: whatever the seed, the cup is up-field within bounds and the
-## gate leaves a clear central lane wider than the ball, so every course is
-## solvable and roughly equal in difficulty.
+## #1071 fairness: whatever the seed and archetype, every tee sits exactly
+## TEE_RADIUS from the cup (equal distance = equal hole-in-one potential — the
+## owner's wave-4 complaint), every obstacle keeps clear of both the cup mouth
+## and the tees, and the whole layout stays inside the walls.
+func test_every_tee_is_equidistant_from_the_cup_on_every_course() -> void:
+	for seed_value in [0, 7, 42, 99, 500, 2024, 31337]:
+		var game := PuttPanic.new()
+		game.meta = PuttPanic.make_meta()
+		game.setup([0, 1, 2, 3, 4, 5] as Array[int], seed_value)
+		for slot in 6:
+			assert_almost_eq(
+				(game.positions[slot] as Vector2).distance_to(game.cup_pos),
+				PuttPanic.TEE_RADIUS,
+				0.001,
+				"seed %d: every seat putts the same distance" % seed_value
+			)
+			var tee: Vector2 = game.positions[slot]
+			assert_true(
+				(
+					absf(tee.x) < PuttPanic.ARENA_HALF - PuttPanic.BALL_RADIUS
+					and absf(tee.y) < PuttPanic.ARENA_HALF - PuttPanic.BALL_RADIUS
+				),
+				"seed %d: tees stay inside the walls" % seed_value
+			)
+
+
 func test_generated_course_stays_within_fair_bounds() -> void:
 	for seed_value in [0, 7, 42, 99, 500, 2024]:
 		var game := PuttPanic.new()
 		game.meta = PuttPanic.make_meta()
 		game.setup([0, 1] as Array[int], seed_value)
 		assert_between(
-			game.cup_pos.x, -PuttPanic.CUP_X_RANGE, PuttPanic.CUP_X_RANGE, "cup x in bounds"
+			game.cup_pos.x, -PuttPanic.CUP_JITTER, PuttPanic.CUP_JITTER, "cup near centre"
 		)
-		assert_between(game.cup_pos.y, PuttPanic.CUP_Y_MIN, PuttPanic.CUP_Y_MAX, "cup up-field")
-		assert_eq(game.blocks.size(), 2, "a two-block gate")
-		# Inner edges of the flanking blocks — the clear lane between them.
-		var left: Dictionary = game.blocks[0]
-		var lane_half: float = absf(float(left.pos.x)) - float(left.half.x)
-		assert_gte(
-			lane_half, PuttPanic.GATE_GAP_MIN - 0.001, "the central lane clears the gate blocks"
+		assert_between(
+			game.cup_pos.y, -PuttPanic.CUP_JITTER, PuttPanic.CUP_JITTER, "cup near centre"
 		)
-		assert_gt(lane_half, PuttPanic.BALL_RADIUS, "and it is wider than the ball")
+		# The bar's orbit never sweeps the cup mouth shut...
+		var bar_clearance: float = game.bar_range - game.bar_half.x
+		assert_gt(
+			bar_clearance,
+			PuttPanic.CUP_RADIUS + PuttPanic.BALL_RADIUS,
+			"the orbiting bar clears the cup by more than a ball"
+		)
+		# ...and every block ring keeps clear of the cup and of the tee circle.
+		for block: Dictionary in game.blocks:
+			var dist: float = (block.pos as Vector2).distance_to(game.cup_pos)
+			var reach: float = (block.half as Vector2).length()
+			assert_gt(
+				dist - reach,
+				PuttPanic.CUP_RADIUS + PuttPanic.BALL_RADIUS,
+				"blocks leave the cup mouth open"
+			)
+			assert_lt(
+				dist + reach, PuttPanic.TEE_RADIUS - PuttPanic.BALL_RADIUS, "blocks clear the tees"
+			)
+
+
+## #1071: the pool actually cycles — a spread of seeds reaches more than one
+## archetype (and at least once, one with blocks and one without).
+func test_course_pool_reaches_multiple_archetypes() -> void:
+	var seen := {}
+	for seed_value in 24:
+		var game := PuttPanic.new()
+		game.meta = PuttPanic.make_meta()
+		game.setup([0, 1] as Array[int], seed_value)
+		seen[game.course] = true
+	assert_gt(seen.size(), 1, "24 seeds reach more than one archetype")
