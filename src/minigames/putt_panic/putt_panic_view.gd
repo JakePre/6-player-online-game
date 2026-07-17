@@ -15,6 +15,14 @@ const CHARGE_SEC := 1.1
 ## the cup — a real mini-golf hole always has one, and the sim never had a
 ## flag before this, only the flat hole + ring.
 const FLAGSTICK_SCENE := preload("res://assets/generated/models/golf-flagstick.glb")
+## Course-pool names (#1071), keyed by PuttPanic.Course — shown as a status
+## line so playtesters can tell which archetype the round seeded.
+const COURSE_NAMES := {
+	PuttPanic.Course.OPEN_GREEN: "Open Green",
+	PuttPanic.Course.WINDMILL: "Windmill",
+	PuttPanic.Course.PILLAR_RING: "Pillar Ring",
+	PuttPanic.Course.BUMPER_FIELD: "Bumper Field",
+}
 
 var players := {}
 
@@ -127,6 +135,11 @@ func _build_course(game: Dictionary) -> void:
 	_bar.name = "Bar"
 	_bar.position = to_arena(Vector2(float(bar[0]), float(bar[1])), 0.35)
 	arena.add_child(_bar)
+	# Which archetype this round seeded (#1071) — small, but it lets a
+	# playtester name what they're looking at.
+	if game.has("course"):
+		var label := make_status_label(&"CourseLabel", PartyTheme.SIZE_OVERLAY_BODY)
+		label.text = "Hole: %s" % COURSE_NAMES.get(int(game.course), "?")
 
 
 func _build_cup(cup: Vector2) -> void:

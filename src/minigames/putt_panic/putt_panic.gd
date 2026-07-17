@@ -1,11 +1,17 @@
 class_name PuttPanic
 extends MinigameBase
-## Putt Panic (M14-08, PHASE2.md §8): a mini-golf homage — everyone putts on
-## one shared green toward a single cup, simultaneously, fewest strokes wins.
-## Aim + charge + release; the ball rolls with friction, bounces off the walls,
-## static blocks and a sliding bar, and drops if it reaches the cup slowly
-## enough. A 30 s shot clock auto-putts idlers. Server-side simulation only —
-## the client renders get_snapshot().
+## Putt Panic (M14-08, PHASE2.md §8; #1071 course pool): a mini-golf homage —
+## everyone putts on one shared green toward a single cup, simultaneously,
+## fewest strokes wins. Aim + charge + release; the ball rolls with friction,
+## bounces off the walls, static blocks and an orbiting guard bar, and drops if
+## it reaches the cup slowly enough. A 30 s shot clock auto-putts idlers. Each
+## round seeds one course from a pool of archetypes, all built rotationally
+## symmetric around a near-centre cup with every tee on the same circle — so
+## every seat has the same distance and the same hole-in-one potential.
+## Server-side simulation only — the client renders get_snapshot().
+
+## The course archetypes in the #1071 pool; one is seeded per round.
+enum Course { OPEN_GREEN, WINDMILL, PILLAR_RING, BUMPER_FIELD }
 
 const ARENA_HALF := 9.0
 const BALL_RADIUS := 0.3
@@ -22,29 +28,31 @@ const RESTITUTION := 0.7
 const SHOT_CLOCK_SEC := 30.0
 const AUTO_PUTT_POWER := 0.35
 
-## Seeded course generation (#793): each round's cup, flanking gate blocks, and
-## guard bar are drawn from the round seed within these fair bounds, so the
-## layout is different every play but the challenge stays balanced — the cup is
-## always up-field, the gate always leaves a clear central lane (its blocks sit
-## at ±(gap + block-half), so the lane spans ±gap ≥ GATE_GAP_MIN), and the bar
-## always sweeps across between the gate and the cup.
-const CUP_X_RANGE := 2.5
-const CUP_Y_MIN := 5.5
-const CUP_Y_MAX := 7.5
-const GATE_Y_MIN := -0.5
-const GATE_Y_MAX := 2.5
-const GATE_GAP_MIN := 2.2
-const GATE_GAP_MAX := 3.4
-const GATE_HALF_MIN := 0.8
-const GATE_HALF_MAX := 1.3
-const BAR_Y_MIN := 3.2
-const BAR_Y_MAX := 4.6
-const BAR_HALF_X_MIN := 1.3
-const BAR_HALF_X_MAX := 1.9
-const BAR_RANGE_MIN := 3.0
-const BAR_RANGE_MAX := 4.5
-const BAR_SPEED_MIN := 0.8
-const BAR_SPEED_MAX := 1.35
+## Course pool (#1071, supersedes the #793 single archetype): each round seeds
+## one archetype. Every course is rotationally symmetric around the cup — the
+## cup sits near centre (± CUP_JITTER), obstacles form seeded-rotation rings
+## around it, the guard bar ORBITS it, and all tees share one circle of radius
+## TEE_RADIUS around it. The old bottom-row tees gave the centre seat the only
+## straight line (owner playtest wave 4); the tee ring makes every seat's putt
+## the same length against the same geometry.
+const CUP_JITTER := 0.8
+const TEE_RADIUS := 6.5
+## Pillar Ring: pillars evenly around the cup; the gaps between them are the
+## lanes (circumference ~18.2 against 6 × ~1.1 of pillar ≈ 1.9 per gap).
+const PILLAR_COUNT := 6
+const PILLAR_RING_RADIUS := 2.9
+const PILLAR_HALF := 0.55
+## Bumper Field: four fat bumpers on the diagonals-ish (seeded rotation).
+const BUMPER_COUNT := 4
+const BUMPER_RING_RADIUS := 4.4
+const BUMPER_HALF := 0.8
+## Guard-bar orbits per course: the Windmill hugs the cup and spins fast (time
+## the arm!), the others patrol wider and slower. Orbit minus bar half always
+## clears the cup by more than a ball.
+const OPEN_ORBIT_RADIUS := 4.2
+const WINDMILL_ORBIT_RADIUS := 2.4
+const OUTER_ORBIT_RADIUS := 4.6
+const BUMPER_ORBIT_RADIUS := 3.2
 
 ## get_snapshot() wire shape (#708): named indices for the players positional
 ## array. Array SHAPE on the wire is unchanged — additive only.
@@ -68,18 +76,20 @@ var aims := {}
 var strokes := {}
 var sunk := {}
 var rest_time := {}
-## The seeded course (#793): cup, static gate blocks ({pos, half}), and the
-## sliding bar's geometry — set once in _setup() and replicated so every peer
-## and the view agree on the same layout.
-var cup_pos := Vector2(0.0, 6.5)
+## The seeded course (#793/#1071): archetype, cup, static blocks ({pos, half})
+## and the orbiting bar's geometry — set once in _setup() and replicated so
+## every peer and the view agree on the same layout.
+var course := Course.OPEN_GREEN
+var cup_pos := Vector2.ZERO
 var blocks: Array = []
-var bar_half := Vector2(1.6, 0.5)
-var bar_y := 3.6
-var bar_range := 4.0
-var bar_speed := 1.1
+var bar_half := Vector2(1.5, 0.5)
+## bar_range is the bar's ORBIT RADIUS around the cup (#1071); bar_x/bar_y are
+## its centre this tick (replicated so the view need not recompute).
+var bar_range := OPEN_ORBIT_RADIUS
+var bar_speed := 0.6
 var bar_phase := 0.0
-## Sliding bar centre this tick (replicated so the view need not recompute).
 var bar_x := 0.0
+var bar_y := 0.0
 
 
 static func make_meta() -> MinigameMeta:
@@ -119,10 +129,13 @@ static func make_meta() -> MinigameMeta:
 
 func _setup() -> void:
 	_generate_course()
+	# Tees on one circle around the cup (#1071): every seat the same distance,
+	# the whole ring rotated by a seeded turn so no seat owns a fixed angle.
+	var first_tee := rng.randf_range(0.0, TAU)
 	for i in slots.size():
 		var slot: int = slots[i]
-		var spread := (i - (slots.size() - 1) / 2.0) * 1.6
-		positions[slot] = Vector2(spread, -7.0)
+		var angle := first_tee + TAU * float(i) / float(slots.size())
+		positions[slot] = cup_pos + Vector2.RIGHT.rotated(angle) * TEE_RADIUS
 		velocities[slot] = Vector2.ZERO
 		aims[slot] = (cup_pos - positions[slot]).normalized()
 		strokes[slot] = 0
@@ -130,26 +143,46 @@ func _setup() -> void:
 		rest_time[slot] = 0.0
 
 
-## Draw a fresh course from the round seed (#793). The two-block gate always
-## leaves a clear central lane and the cup always sits up-field, so every seed
-## is solvable and roughly equal in difficulty — only the look and the required
-## line change from round to round.
+## Draw one archetype from the pool (#1071) and dress it from the round seed.
+## Every layout is rotationally symmetric around the cup, so combined with the
+## tee ring no seat gets a privileged line — only the look, the seeded ring
+## rotation, and the bar's orbit change between plays of the same archetype.
 func _generate_course() -> void:
+	course = rng.randi_range(0, Course.size() - 1) as Course
 	cup_pos = Vector2(
-		rng.randf_range(-CUP_X_RANGE, CUP_X_RANGE), rng.randf_range(CUP_Y_MIN, CUP_Y_MAX)
+		rng.randf_range(-CUP_JITTER, CUP_JITTER), rng.randf_range(-CUP_JITTER, CUP_JITTER)
 	)
-	var gate_y := rng.randf_range(GATE_Y_MIN, GATE_Y_MAX)
-	var gap := rng.randf_range(GATE_GAP_MIN, GATE_GAP_MAX)
-	var half := Vector2(rng.randf_range(GATE_HALF_MIN, GATE_HALF_MAX), rng.randf_range(0.5, 0.8))
-	blocks = [
-		{"pos": Vector2(-(gap + half.x), gate_y), "half": half},
-		{"pos": Vector2(gap + half.x, gate_y), "half": half},
-	]
-	bar_half = Vector2(rng.randf_range(BAR_HALF_X_MIN, BAR_HALF_X_MAX), 0.5)
-	bar_y = rng.randf_range(BAR_Y_MIN, BAR_Y_MAX)
-	bar_range = rng.randf_range(BAR_RANGE_MIN, BAR_RANGE_MAX)
-	bar_speed = rng.randf_range(BAR_SPEED_MIN, BAR_SPEED_MAX)
+	blocks = []
+	var ring_turn := rng.randf_range(0.0, TAU)
+	match course:
+		Course.OPEN_GREEN:
+			_set_orbit(OPEN_ORBIT_RADIUS, Vector2(1.5, 0.5), 0.5, 0.8)
+		Course.WINDMILL:
+			_set_orbit(WINDMILL_ORBIT_RADIUS, Vector2(1.1, 0.4), 1.1, 1.5)
+		Course.PILLAR_RING:
+			_ring_blocks(
+				PILLAR_COUNT, PILLAR_RING_RADIUS, Vector2(PILLAR_HALF, PILLAR_HALF), ring_turn
+			)
+			_set_orbit(OUTER_ORBIT_RADIUS, Vector2(1.2, 0.4), 0.4, 0.6)
+		Course.BUMPER_FIELD:
+			_ring_blocks(
+				BUMPER_COUNT, BUMPER_RING_RADIUS, Vector2(BUMPER_HALF, BUMPER_HALF), ring_turn
+			)
+			_set_orbit(BUMPER_ORBIT_RADIUS, Vector2(1.0, 0.4), 0.6, 0.9)
 	bar_phase = rng.randf_range(0.0, TAU)
+
+
+func _set_orbit(radius: float, half: Vector2, speed_min: float, speed_max: float) -> void:
+	bar_range = radius
+	bar_half = half
+	bar_speed = rng.randf_range(speed_min, speed_max)
+
+
+## `count` blocks evenly spaced on a circle around the cup, rotated by `turn`.
+func _ring_blocks(count: int, radius: float, half: Vector2, turn: float) -> void:
+	for i in count:
+		var angle := turn + TAU * float(i) / float(count)
+		blocks.append({"pos": cup_pos + Vector2.RIGHT.rotated(angle) * radius, "half": half})
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
@@ -163,7 +196,11 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 
 func _tick(delta: float) -> void:
-	bar_x = bar_range * sin(elapsed * bar_speed + bar_phase)
+	# The guard bar orbits the cup (#1071) — radially fair: it threatens every
+	# approach angle equally over time.
+	var theta := elapsed * bar_speed + bar_phase
+	bar_x = cup_pos.x + cos(theta) * bar_range
+	bar_y = cup_pos.y + sin(theta) * bar_range
 	for slot: int in slots:
 		if bool(sunk[slot]):
 			continue
@@ -198,6 +235,7 @@ func get_snapshot() -> Dictionary:
 		)
 	return {
 		"players": players,
+		"course": course,
 		"cup": [snappedf(cup_pos.x, 0.01), snappedf(cup_pos.y, 0.01)],
 		# Bar carries its geometry now (#793): [x, y, half_x, half_y].
 		"bar": [snappedf(bar_x, 0.01), snappedf(bar_y, 0.01), bar_half.x, bar_half.y],
