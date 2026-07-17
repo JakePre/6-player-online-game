@@ -87,6 +87,34 @@ func test_open_polyline_skips_the_wrap_segment() -> void:
 	)
 
 
+# --- nearest_point_on_polyline (#1041) ----------------------------------------
+
+
+func test_nearest_point_projects_onto_the_closest_edge() -> void:
+	var square := PackedVector2Array(
+		[Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
+	)
+	# A point left of the left (wrap) edge projects straight onto it at y=0.
+	var near := SimGeometry.nearest_point_on_polyline(Vector2(-1.5, 0.0), square, true)
+	assert_almost_eq(near.x, -1.0, 0.001)
+	assert_almost_eq(near.y, 0.0, 0.001)
+
+
+func test_nearest_point_falls_back_for_a_degenerate_polyline() -> void:
+	assert_eq(
+		SimGeometry.nearest_point_on_polyline(Vector2(3, 4), PackedVector2Array(), true),
+		Vector2(3, 4),
+		"an empty polyline returns the query point unchanged"
+	)
+	assert_eq(
+		SimGeometry.nearest_point_on_polyline(
+			Vector2(3, 4), PackedVector2Array([Vector2(1, 1)]), true
+		),
+		Vector2(1, 1),
+		"a single-point polyline is that point"
+	)
+
+
 func test_distance_to_polyline_handles_tiny_inputs() -> void:
 	assert_eq(SimGeometry.distance_to_polyline(Vector2.ZERO, PackedVector2Array(), true), INF)
 	assert_almost_eq(
