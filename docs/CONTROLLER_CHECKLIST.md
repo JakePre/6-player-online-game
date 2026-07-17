@@ -75,7 +75,7 @@ its sibling games in the same row for the same bug.
 | `target_range` | Aim (stick) + fire (button) | Right-stick-free aim works via left stick/WASD-equivalent axis; fire button lands shots |
 | `shred_session` | 4-way lane press (rhythm) | ◀ ▶ ▲ / action_primary each hit their own lane reliably under time pressure |
 | `count_quick` | Walk-onto-pad selection | Locking in by standing on a pad works the same as walking anywhere else |
-| `turbo_lap` | Richest combo: steer+throttle+drift+item | Steer/gas/brake on stick, drift (action_primary held), item (action_secondary) — all four together under load |
+| `turbo_lap` | Richest combo: steer+gas+drift+item | Steer on stick x, gas held on action_primary (#1067), brake on stick down, hard turn drifts, item (action_secondary) — all together under load |
 | `tumble_run` | Side-scroll (SideScrollSim) | A/D-equivalent run + jump on stick + button, jump timing feels responsive |
 | `wall_builders` or `cart_push` | Team-mode move + interact | Move + shove/interact button both work while on a team |
 | `the_mole` or `pickpocket_plaza` | Hidden-role (move + button + private info) | Role-specific action (saboteur cut / guard arrest) fires correctly; private-role UI doesn't require keyboard to read |

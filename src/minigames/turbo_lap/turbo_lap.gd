@@ -37,6 +37,9 @@ const COAST_DECEL := 4.0
 const STEER_RATE := 2.6
 const DRIFT_STEER_MULT := 1.6
 const DRIFT_MIN_SPEED := 5.0
+## #1067 pad-friendly drift: with gas on a button, slamming the stick to a
+## near-full deflection at speed IS the drift input — no third button needed.
+const AUTO_DRIFT_STEER := 0.85
 ## Mini-turbo tiers: hold a drift this long for a small/big release boost.
 const DRIFT_BOOST_AT := 0.5
 const DRIFT_BIG_AT := 1.2
@@ -114,23 +117,25 @@ static func make_meta() -> MinigameMeta:
 				"id": &"turbo_lap",
 				"controls":
 				(
-					"Steer/Gas/Brake — A/D/W/S / left stick · Drift — Space / pad A"
-					+ " · Item — E / pad X"
+					"Steer — A/D / stick · Gas — hold Space / pad A · Brake — S / "
+					+ "stick down · Drift — steer hard at speed · Item — E / pad X"
 				),
 				# Device-aware buttons (#608); steering stays literal (axis hint).
 				"control_hints":
 				[
-					"Steer/Gas/Brake — A/D/W/S / left stick · Drift — ",
+					"Steer — A/D / stick · Gas — hold ",
 					{"action": &"action_primary"},
 					" · Item — ",
 					{"action": &"action_secondary"},
+					" · Steer hard at speed to drift",
 				],
-				# Structured spec (#832/#844): full move cluster (steer/gas/brake) +
-				# Drift + Item, one row per verb.
+				# Structured spec (#832/#844): kart-standard (#1067) — gas is a
+				# held button, the stick only steers, a hard turn drifts.
 				"control_spec":
 				[
-					{"verb": "Steer/Gas/Brake", "input": InputGlyphs.CLUSTER_MOVE},
-					{"verb": "Drift", "input": &"action_primary"},
+					{"verb": "Steer", "input": InputGlyphs.CLUSTER_MOVE_LR},
+					{"verb": "Gas", "input": &"action_primary", "modifier": "hold"},
+					{"verb": "Drift", "input": InputGlyphs.CLUSTER_MOVE_LR, "alt": "hard turn"},
 					{"verb": "Item", "input": &"action_secondary"},
 				],
 				"name": "Turbo Lap",
@@ -211,6 +216,7 @@ func _setup() -> void:
 			"speed": 0.0,
 			"steer": 0.0,
 			"throttle": 0.0,
+			"gas": false,
 			"drift_held": false,
 			"drift_charge": 0.0,
 			"boost_left": 0.0,
@@ -227,10 +233,19 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 	var kart: Dictionary = karts.get(slot, {})
 	if kart.is_empty() or bool(kart.finished):
 		return
+	# Pad-standard gas button (#1067, owner playtest): hold action_primary for
+	# full throttle so the stick only steers — diagonal-stick throttle was
+	# "not conducive to success". Stick/W-S throttle still works underneath.
+	if data.has("gas"):
+		kart.gas = bool(data.gas)
+		if bool(kart.gas):
+			kart.throttle = 1.0
 	if data.has("mx"):
 		kart.steer = clampf(float(data.get("mx", 0.0)), -1.0, 1.0)
-		# Stick/W-S convention: up is negative y, so throttle = -my.
-		kart.throttle = clampf(-float(data.get("my", 0.0)), -1.0, 1.0)
+		# Stick/W-S convention: up is negative y, so throttle = -my; the held
+		# gas button overrides with full forward.
+		var stick := clampf(-float(data.get("my", 0.0)), -1.0, 1.0)
+		kart.throttle = 1.0 if bool(kart.gas) else stick
 	if data.has("drift"):
 		kart.drift_held = bool(data.drift)
 	if data.get("use", false):
@@ -376,11 +391,13 @@ func _steer(kart: Dictionary, delta: float) -> void:
 
 
 func _is_drifting(kart: Dictionary) -> bool:
-	return (
+	# Two ways in (#1067): the explicit drift input (bots, legacy), or gas held
+	# with the stick slammed near-full — the pad-standard hard-turn drift.
+	var wants := (
 		bool(kart.drift_held)
-		and absf(float(kart.steer)) > 0.3
-		and float(kart.speed) > DRIFT_MIN_SPEED
+		or (bool(kart.get("gas", false)) and absf(float(kart.steer)) >= AUTO_DRIFT_STEER)
 	)
+	return wants and absf(float(kart.steer)) > 0.3 and float(kart.speed) > DRIFT_MIN_SPEED
 
 
 func _release_drift(kart: Dictionary) -> void:
