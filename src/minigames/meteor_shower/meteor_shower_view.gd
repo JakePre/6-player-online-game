@@ -1,16 +1,29 @@
 extends MinigameView3D
 ## Meteor Shower client view (M10-01 + M13-07 FX): renders the replicated
 ## arena in the shared 2.5D iso-arena — players as CharacterRigs (knocked-out
-## players collapse and dim where the meteor caught them), the shrinking safe
-## zone as a cool translucent disc, telegraphed impact points as red discs
-## that grow to full impact size as the meteor closes in — and the meteors
+## players collapse and dim where the meteor caught them), the safe zone as a
+## physical grass platform that sheds a band per shrink stage (#918, Gauntlet
+## pattern — outside is gone, not a faint ring; the doomed band reddens for
+## SHRINK_WARN_SEC first, #583), telegraphed impact points as red discs that
+## grow to full impact size as the meteor closes in — and the meteors
 ## themselves: rocks with emissive trails streaking down from the sky, their
 ## height driven by the replicated time-left so the fall is perfectly synced
 ## with the sim. Landings fire an impact burst + dust; knockdowns burst at
 ## the rig. Impacts shake the screen.
 
-const ZONE_COLOR := Color(0.45, 0.7, 0.95, 0.22)
 const ZONE_DISC_HEIGHT := 0.04
+## Physical safe-zone platform (#918): keeps the #813 open-grass-field feel as
+## a shrinking grass island — its top seats at y=0 so every existing height
+## (discs, rigs, meteors) is unchanged. Crumble dust rings the rim it sheds.
+const PLATFORM_THICKNESS := 0.4
+const PLATFORM_COLOR := Color(0.47, 0.72, 0.36)
+const CRUMBLE_PUFFS := 6
+## Shrink telegraph (#583, Gauntlet convention): the band about to shed
+## reddens as the countdown closes; slow pulse, steady under reduced motion.
+const SHRINK_TELEGRAPH_COLOR := Color(0.9, 0.2, 0.15)
+const SHRINK_TELEGRAPH_MIN_ALPHA := 0.35
+const SHRINK_TELEGRAPH_MAX_ALPHA := 0.85
+const SHRINK_TELEGRAPH_PULSE_SEC := 0.6
 const TELEGRAPH_COLOR := Color(0.9, 0.2, 0.12, 0.5)
 const TELEGRAPH_POOL := 12
 const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
@@ -28,7 +41,14 @@ var zone: Array = []
 var meteors: Array = []
 var fallen: Array = []
 
-var _zone_node: MeshInstance3D
+var _platform: MeshInstance3D
+var _platform_mesh: CylinderMesh
+var _last_radius := 0.0
+var _shrink_in := MeteorShower.SHRINK_STAGE_SEC
+var _shrink_telegraph: MeshInstance3D
+var _shrink_telegraph_mesh: TorusMesh
+var _shrink_telegraph_mat: StandardMaterial3D
+var _shrink_base_alpha := SHRINK_TELEGRAPH_MIN_ALPHA
 var _telegraph_pool: Array[MeshInstance3D] = []
 var _meteor_pool: Array[Node3D] = []
 # [x, y, left] rows from the previous snapshot, to spot landings.
@@ -43,11 +63,44 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
-## An open grass field under the falling meteors (#813) — the Kenney grass
-## block replaces the grey platform and carries its own color, so the old
-## ember/ash tint (#589) is gone.
-func _floor_tile_scene() -> PackedScene:
-	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
+## The floor IS the safe zone now (#918): a grass island that sheds a band per
+## shrink stage, replacing the #813 square field + faint ring (the grass feel
+## stays — it's the platform's color). Own floor, no tiled base (the
+## thin_ice/memory_match pattern; no super call).
+func _build_floor() -> void:
+	var start_radius := MinigameScaling.arena_half(MeteorShower.ZONE_START_RADIUS, names.size())
+	_last_radius = start_radius
+	_platform_mesh = CylinderMesh.new()
+	_platform_mesh.height = PLATFORM_THICKNESS
+	_platform_mesh.top_radius = start_radius
+	_platform_mesh.bottom_radius = start_radius
+	var material := StandardMaterial3D.new()
+	material.albedo_color = PLATFORM_COLOR
+	_platform_mesh.material = material
+	_platform = MeshInstance3D.new()
+	_platform.name = "ZonePlatform"
+	_platform.mesh = _platform_mesh
+	# Top seats at y=0, like the tiled floor it replaces.
+	_platform.position = Vector3(0.0, -PLATFORM_THICKNESS / 2.0, 0.0)
+	arena.add_child(_platform)
+
+	_shrink_telegraph_mesh = TorusMesh.new()
+	_shrink_telegraph_mesh.inner_radius = maxf(start_radius - 0.1, 0.05)
+	_shrink_telegraph_mesh.outer_radius = start_radius
+	_shrink_telegraph_mat = StandardMaterial3D.new()
+	_shrink_telegraph_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_shrink_telegraph_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_shrink_telegraph_mat.albedo_color = SHRINK_TELEGRAPH_COLOR
+	_shrink_telegraph_mat.emission_enabled = true
+	_shrink_telegraph_mat.emission = SHRINK_TELEGRAPH_COLOR
+	_shrink_telegraph_mesh.material = _shrink_telegraph_mat
+	_shrink_telegraph = MeshInstance3D.new()
+	_shrink_telegraph.name = "ShrinkTelegraph"
+	_shrink_telegraph.mesh = _shrink_telegraph_mesh
+	# TorusMesh is already flat (axis Y) — no rotation, per the #693 lesson.
+	_shrink_telegraph.position = Vector3(0.0, 0.03, 0.0)
+	_shrink_telegraph.visible = false
+	arena.add_child(_shrink_telegraph)
 
 
 func _arena_half() -> float:
@@ -57,8 +110,6 @@ func _arena_half() -> float:
 
 
 func _setup_3d() -> void:
-	_zone_node = _build_disc("Zone", ZONE_COLOR)
-	_zone_node.visible = false
 	for i in TELEGRAPH_POOL:
 		var marker := _build_disc("Telegraph%d" % i, TELEGRAPH_COLOR)
 		marker.visible = false
@@ -123,10 +174,12 @@ func _build_disc(disc_name: String, color: Color) -> MeshInstance3D:
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
 	zone = game.get("zone", [])
+	_shrink_in = float(game.get("shrink_in", MeteorShower.SHRINK_STAGE_SEC))
 	meteors = game.get("meteors", [])
 	fallen = game.get("fallen", [])
 	_update_players()
-	_update_zone()
+	_update_platform()
+	_update_shrink_telegraph()
 	_update_telegraphs()
 	_update_falling_meteors()
 	_burst_on_landings()
@@ -206,15 +259,49 @@ func _burst_on_landings() -> void:
 	_meteors_seen = meteors.duplicate(true)
 
 
-func _update_zone() -> void:
-	_zone_node.visible = zone.size() == MeteorShower.ZN_COUNT
-	if not _zone_node.visible:
+## The platform tracks the replicated zone radius; each stage shed crumbles
+## dust off the rim it just lost (the Gauntlet FX idiom).
+func _update_platform() -> void:
+	if zone.size() != MeteorShower.ZN_COUNT:
 		return
-	_zone_node.position = to_arena(
-		Vector2(zone[MeteorShower.ZN_X], zone[MeteorShower.ZN_Y]), ZONE_DISC_HEIGHT / 2.0
-	)
 	var radius := maxf(float(zone[MeteorShower.ZN_RADIUS]), 0.001)
-	_zone_node.scale = Vector3(radius, 1.0, radius)
+	_platform_mesh.top_radius = radius
+	_platform_mesh.bottom_radius = radius
+	if radius < _last_radius - 0.01:
+		for k in CRUMBLE_PUFFS:
+			var angle := TAU * k / CRUMBLE_PUFFS
+			fx_dust(Vector2(cos(angle), sin(angle)) * _last_radius)
+	_last_radius = radius
+
+
+## #583 band telegraph: the strip between the current rim and the next stage's
+## radius reddens for SHRINK_WARN_SEC before it sheds, alpha rising with
+## urgency (steady under reduced motion; _process adds the pulse otherwise).
+func _update_shrink_telegraph() -> void:
+	if _shrink_telegraph == null or zone.size() != MeteorShower.ZN_COUNT:
+		return
+	var radius := float(zone[MeteorShower.ZN_RADIUS])
+	var zone_min := MinigameScaling.arena_half(MeteorShower.ZONE_MIN_RADIUS, names.size())
+	var zone_start := MinigameScaling.arena_half(MeteorShower.ZONE_START_RADIUS, names.size())
+	var doomed := radius > zone_min + 0.01 and _shrink_in <= MeteorShower.SHRINK_WARN_SEC
+	_shrink_telegraph.visible = doomed
+	if not doomed:
+		return
+	var step := (zone_start - zone_min) / float(MeteorShower.SHRINK_STAGES)
+	_shrink_telegraph_mesh.inner_radius = maxf(radius - step, zone_min)
+	_shrink_telegraph_mesh.outer_radius = radius
+	var urgency := 1.0 - clampf(_shrink_in / MeteorShower.SHRINK_WARN_SEC, 0.0, 1.0)
+	_shrink_base_alpha = lerpf(SHRINK_TELEGRAPH_MIN_ALPHA, SHRINK_TELEGRAPH_MAX_ALPHA, urgency)
+	if ArenaFX.reduced_motion:
+		_shrink_telegraph_mat.albedo_color.a = _shrink_base_alpha
+
+
+func _process(_delta: float) -> void:
+	if _shrink_telegraph == null or not _shrink_telegraph.visible or ArenaFX.reduced_motion:
+		return
+	var t := Time.get_ticks_msec() / 1000.0
+	var pulse := 0.75 + 0.25 * sin(TAU * t / SHRINK_TELEGRAPH_PULSE_SEC)
+	_shrink_telegraph_mat.albedo_color.a = _shrink_base_alpha * pulse
 
 
 ## Telegraph discs grow from half to full impact size as the timer runs out,

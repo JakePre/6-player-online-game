@@ -59,17 +59,25 @@ func test_destroyed_soft_wall_frees_its_block_and_puffs() -> void:
 	assert_gt(view.arena.get_child_count(), before - 1, "a dust puff spawns")
 
 
-## #929: only soft (destructible) crates wear the landed crate texture —
-## indestructible pillars stay flat-colored, they're structural, not crates.
-func test_soft_walls_wear_the_crate_texture_pillars_do_not() -> void:
+## PR #1074 (was #929): soft (destructible) walls are the real MDL-018 crate
+## model; indestructible pillars stay flat-colored boxes — structural, not
+## crates.
+func test_soft_walls_are_crate_models_pillars_stay_boxes() -> void:
 	var g := _full_grid()
 	g[_cell(2, 2)] = BlastGrid.Cell.SOLID
 	g[_cell(3, 3)] = BlastGrid.Cell.SOFT
 	view.render({"grid": g, "players": {}, "bombs": [], "flames": [], "powerups": []})
-	var pillar_mat := (view._blocks[_cell(2, 2)].mesh as BoxMesh).material as StandardMaterial3D
-	var soft_mat := (view._blocks[_cell(3, 3)].mesh as BoxMesh).material as StandardMaterial3D
+	var pillar := view._blocks[_cell(2, 2)] as MeshInstance3D
+	assert_not_null(pillar, "pillar stays a plain box")
+	var pillar_mat := (pillar.mesh as BoxMesh).material as StandardMaterial3D
 	assert_null(pillar_mat.albedo_texture, "pillars stay flat-colored")
-	assert_eq(soft_mat.albedo_texture, view.SOFT_WALL_TEXTURE)
+	var crate: Node3D = view._blocks[_cell(3, 3)]
+	assert_false(crate is MeshInstance3D, "soft wall is the instanced crate scene")
+	assert_gt(
+		crate.find_children("*", "MeshInstance3D", true, false).size(),
+		0,
+		"the crate scene carries the model's meshes"
+	)
 
 
 ## #929: powerups read as a billboard icon (flame=range, bomb=extra bomb)

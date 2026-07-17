@@ -43,7 +43,7 @@ tracks the routing tier, never re-derive scope from it.
 | Issue | Task |
 |---|---|
 | #759 | M12-01 balance — stage 1 (classification) done; stage 2 is per-game tuning through #961/#962, each with owner sign-off |
-| #918 | Meteor Shower — staged circle shrink (Gauntlet pattern) + meteor model |
+| ~~#918~~ | ~~Meteor Shower — staged circle shrink (Gauntlet pattern) + meteor model~~ — model landed in #1074; staged shrink + band telegraph in this claim's PR |
 | #923 | Framework: nameplate declutter in crowds |
 | #925 | Side-scroll tier (knock_off/loadout_duel/tumble_run) presentation pass (L) |
 | #926 | Bot degeneracies: corner-camping, tilt_deck stalemate, meteor dodge-into-danger — coordinate with #715/#962 before claiming |
@@ -85,3 +85,4 @@ tracks the routing tier, never re-derive scope from it.
 | #1039 | Lobby — host kick for disconnected players (pairs #1040) |
 | #1043 | Putt Panic — fire while aiming, drop the modal lock-in step |
 | #1044 | Simon Stomp — big 3-2-1-GO start countdown |
+

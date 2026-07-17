@@ -22,11 +22,46 @@ func test_view_scene_lives_at_catalog_path() -> void:
 	)
 
 
-func test_zone_disc_follows_snapshot() -> void:
+## #918: the zone is a physical platform whose radius tracks the snapshot.
+func test_zone_platform_follows_snapshot() -> void:
 	view.render({"players": {}, "zone": [0.0, 0.0, 6.5], "meteors": [], "fallen": []})
-	var zone_node: MeshInstance3D = view.arena.get_node("Zone")
-	assert_true(zone_node.visible)
-	assert_almost_eq(zone_node.scale.x, 6.5, 0.001)
+	var platform: MeshInstance3D = view.arena.get_node("ZonePlatform")
+	assert_true(platform.visible)
+	assert_almost_eq((platform.mesh as CylinderMesh).top_radius, 6.5, 0.001)
+
+
+## #918/#583: the band about to shed reddens once shrink_in enters the warn
+## window, spans exactly one stage step, and never shows on the final radius.
+func test_shrink_telegraph_band_reddens_before_a_shed() -> void:
+	var snapshot := {
+		"players": {}, "zone": [0.0, 0.0, 8.5], "shrink_in": 8.0, "meteors": [], "fallen": []
+	}
+	view.render(snapshot)
+	var band: MeshInstance3D = view.arena.get_node("ShrinkTelegraph")
+	assert_false(band.visible, "far from a shed: no band")
+	snapshot["shrink_in"] = 1.0
+	view.render(snapshot)
+	assert_true(band.visible, "inside the warn window: band shows")
+	var torus := band.mesh as TorusMesh
+	var step := (
+		(MeteorShower.ZONE_START_RADIUS - MeteorShower.ZONE_MIN_RADIUS)
+		/ float(MeteorShower.SHRINK_STAGES)
+	)
+	assert_almost_eq(torus.outer_radius, 8.5, 0.001)
+	assert_almost_eq(torus.inner_radius, 8.5 - step, 0.001, "band covers one stage step")
+	snapshot["zone"] = [0.0, 0.0, MeteorShower.ZONE_MIN_RADIUS]
+	view.render(snapshot)
+	assert_false(band.visible, "fully shrunk: nothing left to telegraph")
+
+
+## #918: each shed crumbles dust off the rim it just lost (Gauntlet idiom).
+func test_stage_shed_crumbles_the_rim() -> void:
+	view.render({"players": {}, "zone": [0.0, 0.0, 8.5], "meteors": [], "fallen": []})
+	var before: int = view.arena.get_child_count()
+	view.render({"players": {}, "zone": [0.0, 0.0, 7.3], "meteors": [], "fallen": []})
+	assert_eq(
+		view.arena.get_child_count(), before + view.CRUMBLE_PUFFS, "dust ring on the shed rim"
+	)
 
 
 func test_telegraphs_grow_as_impact_nears() -> void:
