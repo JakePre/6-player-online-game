@@ -1,9 +1,10 @@
 extends MinigameView3D
-## Basket Brawl client view (M10-09): the shared 2.5D iso-arena with players
-## as CharacterRig instances, the ball as a gold sphere (riding above the
-## carrier's head, skidding on the floor while loose), and each team's hoop
-## as a translucent tinted disc. Dunks burst at the hoop, fumbles puff dust
-## where the ball popped loose. Renders get_snapshot() only.
+## Basket Brawl client view (M10-09, #1037 NBA2K-feel pass): the shared 2.5D
+## iso-arena with players as CharacterRig instances, the ball dribbled beside
+## its carrier (raised overhead while charging, skidding on the floor while
+## loose), each team's hoop as a raised model + tinted disc, and a bottom
+## charge meter that greens inside the perfect-release window. Dunks burst at
+## the hoop, fumbles puff dust. Renders get_snapshot() only.
 
 const BALL_COLOR := Color(0.95, 0.6, 0.15)
 const HOOP_ALPHA := 0.4
@@ -33,6 +34,16 @@ const FREE_THROW_CIRCLE_RADIUS := 1.8
 const RIM_HEIGHT := 2.6
 ## A shot lofts this far above the straight launch→rim line at the peak.
 const SHOT_ARC_PEAK := 2.2
+## NBA2K-feel pass (#1037): the carrier DRIBBLES — the ball bounces beside
+## them at this height/rate — and raises it overhead only while charging a
+## shot. The meter below mirrors the replicated charge, green inside the
+## perfect-release window.
+const DRIBBLE_HEIGHT := 1.1
+const DRIBBLE_HZ := 3.2
+const DRIBBLE_SIDE := 0.55
+const METER_CHARGE_COLOR := Color(0.95, 0.65, 0.2)
+const METER_SWEET_COLOR := Color(0.3, 0.9, 0.35)
+const PERFECT_FLASH_SEC := 0.8
 
 ## Latest replicated state, straight from BasketBrawl.get_snapshot().
 var players := {}
@@ -55,10 +66,20 @@ var _holder_seen := -1
 var _shot_flying := false
 var _shot_launch := Vector2.ZERO
 var _shot_target := Vector2.ZERO
+## Charge-meter state (#1037): the local charge fraction last seen (a drop
+## from inside the sweet window means a greened release) and the flash timer.
+var _charge_bar: ProgressBar
+var _perfect_label: Label
+var _my_charge_seen := 0.0
+var _perfect_left := 0.0
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	send_move_intent()
+	if _perfect_left > 0.0:
+		_perfect_left -= delta
+		if _perfect_left <= 0.0 and _perfect_label != null:
+			_perfect_label.visible = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -68,6 +89,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		NetManager.send_match_input({"act": true})
 	elif event.is_action_pressed(&"action_secondary"):
 		NetManager.send_match_input({"shoot": true})
+	elif event.is_action_released(&"action_secondary"):
+		# Release fires the shot — timing against the meter decides quality.
+		NetManager.send_match_input({"shoot": false})
 
 
 ## Warm hardwood-court floor (#589).
@@ -111,10 +135,32 @@ func _setup_3d() -> void:
 		var hoop := HOOP_SCENE.instantiate() as Node3D
 		hoop.name = "HoopModel%d" % i
 		hoop.position = to_arena(Vector2(side * BasketBrawl.HOOP_X, 0.0), 0.0)
-		# Face the rim toward center: mirror the two hoops so both open inward.
-		hoop.rotation.y = PI / 2.0 if side < 0.0 else -PI / 2.0
+		# Face the rim toward center (#1037): the .glb's rim points -z at rest,
+		# so rotation.y maps its facing to (-sin y, -cos y) — the -x hoop needs
+		# -PI/2 to open toward +x, the +x hoop +PI/2 (vertex-probe grounded;
+		# the old signs pointed both rims off-court).
+		hoop.rotation.y = -PI / 2.0 if side < 0.0 else PI / 2.0
 		arena.add_child(hoop)
 	_score_label = make_banner(&"Score", 28)
+	_build_charge_meter()
+
+
+## The shot meter (#1037, putt_panic's power-bar pattern): bottom-center,
+## visible only while the local player charges, tinted green inside the
+## perfect-release window and orange outside it — the 2K green-release read.
+func _build_charge_meter() -> void:
+	_charge_bar = ProgressBar.new()
+	_charge_bar.name = "ChargeBar"
+	_charge_bar.show_percentage = false
+	_charge_bar.custom_minimum_size = Vector2(220.0, 18.0)
+	_charge_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_charge_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_charge_bar.position.y = -46.0
+	_charge_bar.visible = false
+	add_child(_charge_bar)
+	_perfect_label = make_status_label(&"PerfectLabel")
+	_perfect_label.text = "PERFECT!"
+	_perfect_label.visible = false
 
 
 ## The wood-court texture over the play area, plus painted lines (#929).
@@ -196,6 +242,33 @@ func _render_3d(game: Dictionary) -> void:
 	_update_players()
 	_update_ball()
 	_update_score()
+	_update_charge_meter()
+
+
+## Mirrors the local player's replicated charge onto the meter (#1037). The
+## meter vanishing from inside the sweet window means the release greened —
+## flash PERFECT! so the timing skill has a readable payoff.
+func _update_charge_meter() -> void:
+	if _charge_bar == null:
+		return
+	var state: Array = players.get(my_slot, [])
+	var charge := 0.0
+	if state.size() >= BasketBrawl.PS_COUNT and int(state[BasketBrawl.PS_HAS_BALL]) == 1:
+		charge = float(state[BasketBrawl.PS_CHARGE])
+	_charge_bar.visible = charge > 0.0
+	_charge_bar.value = charge * 100.0
+	var sweet := charge >= BasketBrawl.PERFECT_LO and charge <= BasketBrawl.PERFECT_HI
+	_charge_bar.modulate = METER_SWEET_COLOR if sweet else METER_CHARGE_COLOR
+	var was_sweet := (
+		_my_charge_seen >= BasketBrawl.PERFECT_LO and _my_charge_seen <= BasketBrawl.PERFECT_HI
+	)
+	# _shot_flying gates out fumbles: a shove also zeroes the charge, but only
+	# a real release puts a shot in the air.
+	if charge == 0.0 and was_sweet and _shot_flying and _perfect_label != null:
+		_perfect_label.visible = true
+		_perfect_left = PERFECT_FLASH_SEC
+		play_sfx(&"confirm")
+	_my_charge_seen = charge
 
 
 ## Hoops take their defending team's color, once teams arrive (a hoop reads
@@ -226,7 +299,14 @@ func _update_ball() -> void:
 	_track_shot(shooting, ball_pos)
 	var height := BALL_RADIUS
 	if ball_holder >= 0:
-		height = CARRY_HEIGHT
+		# Dribble (#1037): the ball bounces beside the carrier instead of
+		# gluing overhead — raised to a two-hand set only while charging.
+		if _holder_is_charging(ball_holder):
+			height = CARRY_HEIGHT
+		else:
+			var beat := Time.get_ticks_msec() / 1000.0 * PI * DRIBBLE_HZ
+			height = BALL_RADIUS + (DRIBBLE_HEIGHT - BALL_RADIUS) * absf(sin(beat))
+			ball_pos += _dribble_side(ball_holder, ball_pos)
 	elif shooting:
 		height = _shot_arc_height(ball_pos)
 	_ball_node.position = to_arena(ball_pos, height)
@@ -240,6 +320,26 @@ func _update_ball() -> void:
 		if _holder_seen == my_slot:
 			play_sfx(&"bump")
 	_holder_seen = ball_holder
+
+
+func _holder_is_charging(holder: int) -> bool:
+	var state: Array = players.get(holder, [])
+	return state.size() >= BasketBrawl.PS_COUNT and float(state[BasketBrawl.PS_CHARGE]) > 0.0
+
+
+## The dribble sits off the carrier's shooting hand: perpendicular-right of
+## the line to the hoop they attack (falls back to +x with no team data yet).
+func _dribble_side(holder: int, ball_pos: Vector2) -> Vector2:
+	var dir := Vector2.RIGHT
+	if teams.size() == 2 and hoops.size() == 2:
+		var team := 0 if holder in (teams[0] as Array) else 1
+		var hoop: Array = hoops[1 - team]
+		var to_hoop := (
+			Vector2(float(hoop[BasketBrawl.HP_X]), float(hoop[BasketBrawl.HP_Y])) - ball_pos
+		)
+		if to_hoop.length() > 0.1:
+			dir = to_hoop.normalized()
+	return Vector2(dir.y, -dir.x) * DRIBBLE_SIDE
 
 
 ## Records a shot's launch point on its rising edge (so the arc has a start),
