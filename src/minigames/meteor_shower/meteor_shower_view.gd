@@ -14,9 +14,11 @@ const ZONE_DISC_HEIGHT := 0.04
 const TELEGRAPH_COLOR := Color(0.9, 0.2, 0.12, 0.5)
 const TELEGRAPH_POOL := 12
 const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
-## Falling rocks (M13-07): spawn height and look.
+## Falling rocks (M13-07): spawn height and look. The rock itself is the
+## MDL-009 generated meteor (#918) — scorched crust, painted-on lava
+## fissures; the emissive trail still carries the glow.
+const METEOR_SCENE := preload("res://assets/generated/models/meteor.glb")
 const METEOR_DROP_HEIGHT := 14.0
-const METEOR_ROCK_COLOR := Color(0.45, 0.3, 0.22)
 const METEOR_TRAIL_COLOR := Color(1.0, 0.55, 0.15, 0.7)
 const IMPACT_BURST_COLOR := Color(1.0, 0.5, 0.1)
 
@@ -64,22 +66,19 @@ func _setup_3d() -> void:
 		_meteor_pool.append(_build_meteor(i))
 
 
-## A falling rock: craggy sphere with a stretched emissive trail above it.
+## A falling rock: the MDL-009 meteor model with a stretched emissive trail
+## above it.
 func _build_meteor(index: int) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Meteor%d" % index
-	var rock := MeshInstance3D.new()
+	# The GLB pivot is at its base — wrap it in a spinner with the model
+	# offset down by half its height, so the tumble spins about the visual
+	# center (like the old centered sphere) instead of wobbling on the base.
+	var rock := Node3D.new()
 	rock.name = "Rock"
-	var rock_mesh := SphereMesh.new()
-	rock_mesh.radius = 0.5
-	rock_mesh.height = 1.0
-	var rock_material := StandardMaterial3D.new()
-	rock_material.albedo_color = METEOR_ROCK_COLOR
-	rock_material.emission_enabled = true
-	rock_material.emission = METEOR_TRAIL_COLOR
-	rock_material.emission_energy_multiplier = 0.5
-	rock_mesh.material = rock_material
-	rock.mesh = rock_mesh
+	var model := METEOR_SCENE.instantiate() as Node3D
+	model.position.y = -0.62
+	rock.add_child(model)
 	root.add_child(rock)
 	var trail := MeshInstance3D.new()
 	trail.name = "Trail"
@@ -177,6 +176,10 @@ func _update_falling_meteors() -> void:
 			Vector2(state[MeteorShower.MT_X], state[MeteorShower.MT_Y]),
 			METEOR_DROP_HEIGHT * progress + 0.5
 		)
+		# Tumble driven by the replicated timer (not per-frame accumulation),
+		# so every client sees the same spin and rejoin stays deterministic.
+		var body := rock.get_node("Rock") as Node3D
+		body.rotation = Vector3(progress * 5.0, float(i) * 1.3, progress * 2.0)
 
 
 ## A meteor that left the snapshot with its timer nearly spent just landed:
