@@ -150,6 +150,19 @@ func _on_room_updated(state: Dictionary) -> void:
 	for member: Dictionary in state.members:
 		_names[member.slot] = member.name
 	_rebuild_totals_row()
+	# Rejoin holding view (#1031): a player who reconnects into a live match
+	# receives this room-state broadcast reliably, but the phase content (intro,
+	# results, leaderboard, podium) only travels in one-shot events they missed,
+	# and the 30 Hz snapshot stream skips those chrome states (#765) — so between
+	# rounds they would land on a blank match screen. Show a holding view until
+	# the next event/snapshot renders the real phase. Only when nothing is drawn
+	# yet: never over a live game (view mounted) or a phase panel already shown.
+	if (
+		int(state.get("state", Room.State.LOBBY)) == Room.State.IN_MATCH
+		and _minigame_view == null
+		and not _any_phase_panel_visible()
+	):
+		_show_reconnect_holding()
 
 
 func _on_match_event(event: Dictionary) -> void:
@@ -562,6 +575,31 @@ func _show_results(event: Dictionary) -> void:
 
 func _show_standings(title: String, totals: Dictionary, subtitle := "") -> void:
 	_standings_panel.show_lines(title, subtitle, MatchFormat.standings_lines(totals, _names))
+	_show_panel(_standings_panel)
+
+
+## True while any phase panel with real event content is on screen — the guard
+## that keeps the #1031 rejoin holding view from clobbering a live phase.
+func _any_phase_panel_visible() -> bool:
+	return (
+		_intro_card.visible
+		or _results_panel.visible
+		or _standings_panel.visible
+		or _shop_panel.visible
+	)
+
+
+## Holding view for a rejoiner who lands mid-match (#1031): the room-state
+## broadcast tells us a match is live but not which phase, so show a neutral
+## panel until the next event or snapshot renders the real phase. The same mount
+## path runs for a fresh match start (where round_intro lands a frame later and
+## replaces this) and for a rejoin (where it may hold through an interstitial),
+## so the wording can't say "reconnected". Reuses the standings panel for chrome;
+## _show_panel keeps the play area hidden behind it.
+func _show_reconnect_holding() -> void:
+	_standings_panel.show_lines(
+		"Loading the match", "Getting the round ready…", [] as Array[String]
+	)
 	_show_panel(_standings_panel)
 
 
