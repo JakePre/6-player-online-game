@@ -481,6 +481,30 @@ func test_countdown_step_sec_debug_override_compresses_the_gate() -> void:
 	)
 
 
+# --- Finisher beat (#1045) ----------------------------------------------------
+
+
+## A decisive early round end (elimination/objective/race) holds a finisher beat
+## before results so the loser's KO renders, instead of cutting the instant the
+## win resolves. A plain timeout end has no such beat — the full-match tests
+## above already reach RESULTS straight from SlotOrderGame's timeout.
+func test_decisive_end_holds_a_finisher_beat_before_results() -> void:
+	var room := _make_room(2)
+	var controller := _make_controller(room, 1)
+	controller.start()
+	_run_until(controller, func() -> bool: return controller.state == MatchController.State.PLAY)
+	# End the round with the clock still running — the decisive-end signal.
+	controller.game.elapsed = 0.0
+	controller.game.finish([[0], [1]])
+	assert_true(controller.game.finished_early, "ended before the clock = decisive")
+	controller.tick(TICK)
+	assert_eq(controller.state, MatchController.State.PLAY, "the finisher beat holds first")
+	assert_false("round_results" in _event_types(), "results not shown during the beat")
+	controller.tick(MatchController.FINISHER_SEC + TICK)
+	assert_eq(controller.state, MatchController.State.RESULTS, "then results")
+	assert_true("round_results" in _event_types())
+
+
 # --- Finale flow (SPEC $6, #554) ----------------------------------------------
 
 
