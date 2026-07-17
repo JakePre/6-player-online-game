@@ -44,10 +44,33 @@ func _intro_event() -> Dictionary:
 	}
 
 
-func test_waits_hidden_until_first_event() -> void:
+## #1031: landing in a live match (before any event) now shows a holding panel
+## instead of a blank play area, so a between-round rejoiner isn't staring at
+## nothing until the next event. (before_each already emitted an IN_MATCH state.)
+func test_shows_a_holding_view_when_it_lands_in_a_live_match() -> void:
 	assert_false(screen.get_node("%IntroCard").visible)
 	assert_false(screen.get_node("%ResultsPanel").visible)
+	assert_true(screen.get_node("%StandingsPanel").visible, "holding view fills the wait")
+	assert_false(screen.get_node("%PlayArea").visible)
+
+
+## The very next event replaces the holding view with the real phase.
+func test_holding_view_is_replaced_by_the_first_event() -> void:
+	assert_true(screen.get_node("%StandingsPanel").visible, "holding first")
+	NetManager.match_event_received.emit(_intro_event())
+	assert_true(screen.get_node("%IntroCard").visible, "the real intro takes over")
 	assert_false(screen.get_node("%StandingsPanel").visible)
+
+
+## The holding view never paints over a live game: a room-state broadcast that
+## arrives mid-round (view mounted) leaves the play area alone.
+func test_holding_view_never_covers_a_live_round() -> void:
+	NetManager.match_event_received.emit(_intro_event())
+	NetManager.match_event_received.emit({"type": "round_countdown"})
+	NetManager.match_event_received.emit({"type": "round_started"})
+	assert_true(screen.get_node("%PlayArea").visible, "the game is live")
+	NetManager.room_updated.emit(ROOM_STATE)  # e.g. another player's state change
+	assert_false(screen.get_node("%StandingsPanel").visible, "no holding over the game")
 	assert_true(screen.get_node("%PlayArea").visible)
 
 
