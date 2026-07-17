@@ -13,9 +13,12 @@ const FLAME_COLOR := Color(1.0, 0.55, 0.15)
 const RANGE_COLOR := Color(1.0, 0.5, 0.35)
 const BOMB_POWER_COLOR := Color(0.45, 0.75, 1.0)
 const BLOCK_HEIGHT := 1.1
-## Landed crate texture for soft walls (#929) — pillars stay flat-colored,
-## only the destructible crates get the wood-panel face.
-const SOFT_WALL_TEXTURE := preload("res://assets/generated/textures/crate-face.png")
+## Soft walls are the landed MDL-018 wooden crate (#817) — the real model this
+## grid was the named consumer for, replacing the crate-face-textured BoxMesh
+## (#929). Pillars stay flat-colored — they're structural, not a crate.
+const CRATE_SCENE := preload("res://assets/generated/models/wooden-crate.glb")
+## The crate GLB is 1 x 0.728 x 1 with its pivot at base center.
+const CRATE_GLB_HEIGHT := 0.728
 ## Powerups read as billboard icons (#929) instead of plain colored blobs —
 ## the same glyphs the nameplate already uses for range/bomb count.
 const RANGE_ICON := "🔥"
@@ -24,7 +27,7 @@ const BOMB_ICON := "💣"
 var players := {}
 var grid: Array = []
 
-var _blocks := {}  # cell (int) -> MeshInstance3D (SOLID pillars + SOFT walls)
+var _blocks := {}  # cell (int) -> Node3D (SOLID pillar boxes + SOFT crate scenes)
 # Pooled (#709): reused across snapshots, hiding surplus instead of freeing, so
 # a dense grid (bombs+flames+powerups at 24 players) stops churning
 # MeshInstance3D/StandardMaterial3D allocations every render.
@@ -85,7 +88,7 @@ func _render_3d(game: Dictionary) -> void:
 func _update_blocks() -> void:
 	for cell in mini(grid.size(), BlastGrid.GRID * BlastGrid.GRID):
 		var kind := int(grid[cell])
-		var node: MeshInstance3D = _blocks.get(cell)
+		var node: Node3D = _blocks.get(cell)
 		if node != null and kind != BlastGrid.Cell.SOLID and kind != BlastGrid.Cell.SOFT:
 			if kind == BlastGrid.Cell.EMPTY:
 				ArenaFX.dust(arena, to_arena(_cell_pos(cell), 0.3), SOFT_COLOR)
@@ -98,25 +101,29 @@ func _update_blocks() -> void:
 			_blocks[cell] = _make_block(cell, kind == BlastGrid.Cell.SOLID)
 
 
-func _make_block(cell: int, solid: bool) -> MeshInstance3D:
+func _make_block(cell: int, solid: bool) -> Node3D:
+	if not solid:
+		# The real crate model, stretched to the cell footprint and the grid's
+		# BLOCK_HEIGHT so spacing/occlusion are unchanged (base pivot -> y 0).
+		var crate := CRATE_SCENE.instantiate() as Node3D
+		crate.name = "Block%d" % cell
+		var footprint := BlastGrid.CELL_SIZE * 0.92
+		crate.scale = Vector3(footprint, BLOCK_HEIGHT / CRATE_GLB_HEIGHT, footprint)
+		crate.position = to_arena(_cell_pos(cell), 0.0)
+		arena.add_child(crate)
+		return crate
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(BlastGrid.CELL_SIZE * 0.92, BLOCK_HEIGHT, BlastGrid.CELL_SIZE * 0.92)
-	var color := PILLAR_COLOR if solid else SOFT_COLOR
 	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	# Destructible crates wear the landed crate-face texture (#929); pillars
-	# stay flat-colored — they're structural, not a crate.
-	if not solid:
-		material.albedo_texture = SOFT_WALL_TEXTURE
-		material.albedo_color = Color.WHITE
-	# Metallic/roughness + a modest emission (#786) give the block a real
+	material.albedo_color = PILLAR_COLOR
+	# Metallic/roughness + a modest emission (#786) give the pillar a real
 	# specular highlight and lift it clear of ambient shadow, instead of
 	# reading as a flat, dark silhouette (the coin_scramble/treasure_divers
 	# convention, toned down since these are structural, not glowing pickups).
 	material.metallic = 0.3
 	material.roughness = 0.5
 	material.emission_enabled = true
-	material.emission = color
+	material.emission = PILLAR_COLOR
 	material.emission_energy_multiplier = 0.25
 	mesh.material = material
 	var node := MeshInstance3D.new()

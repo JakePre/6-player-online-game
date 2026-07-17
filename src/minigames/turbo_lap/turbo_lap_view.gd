@@ -192,20 +192,41 @@ func _add_disc(node_name: String, color: Color, radius: float) -> MeshInstance3D
 	return disc
 
 
-## A low colored box under the rig, so every racer visibly rides a kart in
-## their identity color; parented into the rig so interpolation carries it.
+## The MDL-015 go-kart (#956) under the rig, tinted to the player's identity
+## color — the model is authored neutral grey/white exactly for this runtime
+## tint (its ledger contract). Base pivot, wheels on the ground; parented into
+## the rig so interpolation carries it.
+const KART_SCENE := preload("res://assets/generated/models/go-kart.glb")
+
+
 func _add_kart_body(slot: int) -> void:
 	var rig := rig_for_slot(slot)
 	if rig == null:
 		return
-	var kart := MeshInstance3D.new()
+	var kart := KART_SCENE.instantiate() as Node3D
 	kart.name = "KartBody"
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(0.9, 0.3, 1.3)
-	mesh.material = _flat_material(PlayerPalette.color_for_slot(slot))
-	kart.mesh = mesh
-	kart.position = Vector3(0.0, 0.15, 0.0)
+	# The GLB's nose points -Z (spoiler +Z); rigs face +Z when unrotated.
+	kart.rotation.y = PI
+	_tint_model(kart, PlayerPalette.color_for_slot(slot))
 	rig.add_child(kart)
+
+
+## Multiply every surface of an instanced model by a color: on the kart's
+## neutral albedo this reads as a clean paint job (dark wheels stay dark).
+func _tint_model(root: Node3D, color: Color) -> void:
+	for found in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := found as MeshInstance3D
+		for surface in mesh_node.mesh.get_surface_count():
+			var mat := mesh_node.get_active_material(surface)
+			if mat is StandardMaterial3D:
+				var tinted: StandardMaterial3D = mat.duplicate()
+				tinted.albedo_color = color
+				# The kart texture is mid-grey, so a bare multiply mutes the
+				# identity color — a modest emission lifts it (#786 pattern).
+				tinted.emission_enabled = true
+				tinted.emission = color
+				tinted.emission_energy_multiplier = 0.2
+				mesh_node.set_surface_override_material(surface, tinted)
 
 
 func _flat_material(color: Color) -> StandardMaterial3D:
