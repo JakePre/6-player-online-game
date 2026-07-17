@@ -147,6 +147,7 @@ func remove_member(member: RoomMember) -> void:
 func mark_disconnected(member: RoomMember, now_ms: int) -> void:
 	member.connected = false
 	member.peer_id = 0
+	member.disconnected_at_ms = now_ms
 	if connected_count() == 0:
 		empty_since_ms = now_ms
 
@@ -154,6 +155,7 @@ func mark_disconnected(member: RoomMember, now_ms: int) -> void:
 func mark_reconnected(member: RoomMember, peer_id: int) -> void:
 	member.connected = true
 	member.peer_id = peer_id
+	member.disconnected_at_ms = -1
 	empty_since_ms = -1
 
 

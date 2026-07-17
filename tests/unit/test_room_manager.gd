@@ -123,6 +123,58 @@ func test_remove_member_also_works_on_a_connected_target() -> void:
 	assert_null(manager.room_of_peer(2), "peer routing table is cleaned up too")
 
 
+## #1040: a lobby seat whose owner dropped and never came back is reaped after
+## the grace window, so an Alt+F4/crash name doesn't linger in the list forever.
+func test_lobby_ghost_is_reaped_after_the_grace_window() -> void:
+	var created := _create()
+	var joined := manager.join_room(2, created.room.code, "Ghost", PROTO)
+	manager.handle_disconnect(2, 1000)
+	assert_eq(created.room.members.size(), 2, "held right after the drop")
+
+	# Still within grace: kept (a brief-flap reconnect could still reclaim it).
+	var within := 1000 + RoomManager.LOBBY_GHOST_GRACE_MS - 1
+	assert_eq(manager.expire_lobby_ghosts(within), [], "not yet — still inside the grace")
+	assert_eq(created.room.members.size(), 2)
+
+	# Past grace: reaped, and the room is reported changed so its lobby refreshes.
+	var past := 1000 + RoomManager.LOBBY_GHOST_GRACE_MS + 1
+	assert_eq(manager.expire_lobby_ghosts(past), [created.room] as Array[Room])
+	assert_eq(created.room.members.size(), 1, "the ghost seat is gone")
+	assert_null(created.room.find_by_slot(joined.member.slot))
+
+
+## Connected members and bots are never ghosts, whatever the clock says.
+func test_ghost_reaper_leaves_connected_members_and_bots_alone() -> void:
+	var created := _create()
+	manager.join_room(2, created.room.code, "Live", PROTO)
+	created.room.add_bot()
+	assert_eq(manager.expire_lobby_ghosts(9_999_999), [], "nobody disconnected")
+	assert_eq(created.room.members.size(), 3)
+
+
+## A mid-match disconnect keeps its seat regardless of the grace — rejoin into
+## the running round must still work (SPEC $9); only LOBBY seats are reaped.
+func test_ghost_reaper_never_touches_a_mid_match_seat() -> void:
+	var created := _create()
+	manager.join_room(2, created.room.code, "Guest", PROTO)
+	created.room.state = Room.State.IN_MATCH
+	manager.handle_disconnect(2, 1000)
+	assert_eq(manager.expire_lobby_ghosts(1000 + RoomManager.LOBBY_GHOST_GRACE_MS * 10), [])
+	assert_eq(created.room.members.size(), 2, "the match seat is held for rejoin")
+
+
+## The grace really is a grace (#176/#1031): a member who reconnects within it
+## keeps their seat and is never reaped afterward — mark_reconnected clears the
+## drop stamp, so the reaper no longer sees them as a ghost.
+func test_reconnect_within_grace_saves_the_seat_from_the_reaper() -> void:
+	var created := _create()
+	var joined := manager.join_room(2, created.room.code, "Flappy", PROTO)
+	manager.handle_disconnect(2, 1000)
+	manager.rejoin_room(88, created.room.code, joined.member.session_token, PROTO)
+	assert_eq(manager.expire_lobby_ghosts(1000 + RoomManager.LOBBY_GHOST_GRACE_MS * 10), [])
+	assert_eq(created.room.members.size(), 2, "the reconnected member is safe")
+
+
 func test_match_disconnect_keeps_slot_and_score_for_rejoin() -> void:
 	var created := _create()
 	var joined := manager.join_room(2, created.room.code, "Guest", PROTO)

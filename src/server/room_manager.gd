@@ -6,6 +6,12 @@ extends RefCounted
 ## All mutating methods return a result Dictionary:
 ##   { "result": NetConfig.JoinResult, "room": Room or null, "member": RoomMember or null }
 
+## A lobby seat whose owner dropped (Alt+F4, crash) more than this ago is reaped
+## so it doesn't linger forever (#1040). Long enough that a brief-flap reconnect
+## still reclaims the seat (the reconnect overlay's early retries land well
+## inside it, #176/#1031); short enough that an abandoned name clears promptly.
+const LOBBY_GHOST_GRACE_MS := 30_000
+
 var rooms := {}
 
 var _peer_rooms := {}
@@ -116,6 +122,34 @@ func room_of_peer(peer_id: int) -> Room:
 	if code == null:
 		return null
 	return rooms.get(code)
+
+
+## Reap ghost lobby seats (#1040): in a room still in the LOBBY, a member who
+## disconnected more than LOBBY_GHOST_GRACE_MS ago (and never rejoined) is
+## dropped so an Alt+F4/crash name doesn't sit in the list forever. Only LOBBY
+## rooms — a mid-match disconnect keeps its seat so the player can rejoin the
+## running round (SPEC $9). Returns the rooms that changed so the caller can
+## re-broadcast their lobby; a room emptied by the reap is deleted, not returned.
+func expire_lobby_ghosts(now_ms: int) -> Array[Room]:
+	var changed: Array[Room] = []
+	var cutoff := now_ms - LOBBY_GHOST_GRACE_MS
+	for code: String in rooms.keys():
+		var room: Room = rooms[code]
+		if room.state != Room.State.LOBBY:
+			continue
+		var ghosts: Array[RoomMember] = []
+		for member: RoomMember in room.members:
+			if not member.connected and member.disconnected_at_ms >= 0:
+				if member.disconnected_at_ms <= cutoff:
+					ghosts.append(member)
+		if ghosts.is_empty():
+			continue
+		for member: RoomMember in ghosts:
+			room.remove_member(member)
+		_cleanup_room(room, now_ms)
+		if rooms.has(code):
+			changed.append(room)
+	return changed
 
 
 ## Drop rooms whose last connected member left more than ROOM_EXPIRY_MS ago.
