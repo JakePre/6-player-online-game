@@ -146,8 +146,7 @@ func _render_3d(game: Dictionary) -> void:
 		if i < blocks.size():
 			var block: Array = blocks[i]
 			node.position = to_arena(
-				Vector2(float(block[WallBuilders.BL_X]), float(block[WallBuilders.BL_Y])),
-				0.0  # crate pivot is at its base
+				Vector2(float(block[WallBuilders.BL_X]), float(block[WallBuilders.BL_Y])), 0.0  # crate pivot is at its base
 			)
 			node.visible = true
 		else:
