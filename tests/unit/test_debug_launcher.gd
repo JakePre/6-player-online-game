@@ -30,7 +30,7 @@ func test_defaults_solo_full_length() -> void:
 
 func test_bots_and_duration_parse() -> void:
 	var launcher := _launcher(
-		PackedStringArray(["--debug-minigame=sumo_smash", "--debug-bots=5", "--debug-duration=30"])
+		PackedStringArray(["--debug-minigame=bey_brawl", "--debug-bots=5", "--debug-duration=30"])
 	)
 	assert_eq(launcher.bot_count, 5)
 	assert_eq(launcher.duration_sec, 30.0)
@@ -39,7 +39,7 @@ func test_bots_and_duration_parse() -> void:
 
 func test_bot_count_clamps_to_room_cap_minus_camera() -> void:
 	var launcher := _launcher(
-		PackedStringArray(["--debug-minigame=sumo_smash", "--debug-bots=999"])
+		PackedStringArray(["--debug-minigame=bey_brawl", "--debug-bots=999"])
 	)
 	assert_eq(
 		launcher.bot_count,
@@ -50,7 +50,7 @@ func test_bot_count_clamps_to_room_cap_minus_camera() -> void:
 
 func test_negative_values_clamp_to_off() -> void:
 	var launcher := _launcher(
-		PackedStringArray(["--debug-minigame=sumo_smash", "--debug-bots=-3", "--debug-duration=-9"])
+		PackedStringArray(["--debug-minigame=bey_brawl", "--debug-bots=-3", "--debug-duration=-9"])
 	)
 	assert_eq(launcher.bot_count, 0)
 	assert_eq(launcher.duration_sec, 0.0)

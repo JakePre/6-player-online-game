@@ -25,7 +25,9 @@ static func register_builtins() -> void:
 	register(KingOfTheHill.make_meta(), KingOfTheHill)
 	register(PoisonFeast.make_meta(), PoisonFeast)
 	register(QuickDraw.make_meta(), QuickDraw)
-	register(SumoSmash.make_meta(), SumoSmash)
+	# Bey Brawl replaces Sumo Smash (#1034, owner-designed), retired the way
+	# ro_sham_bo (#791) and beat_bounce (#794) were.
+	register(BeyBrawl.make_meta(), BeyBrawl)
 	register(HotPotato.make_meta(), HotPotato)
 	register(TugOfWar.make_meta(), TugOfWar)
 	register(ColorClash.make_meta(), ColorClash)

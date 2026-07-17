@@ -20,7 +20,7 @@ Two capture modes:
 
 Usage:
     python tests/soak/render_game.py --godot path/to/godot --game coin_scramble
-    python tests/soak/render_game.py --godot path/to/godot --game sumo_smash \
+    python tests/soak/render_game.py --godot path/to/godot --game bey_brawl \
         --bots 5 --duration 30 --capture movie --out renders/
 Exit code 0 = a video file exists at the printed path.
 """

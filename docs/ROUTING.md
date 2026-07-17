@@ -35,7 +35,7 @@ tracks the routing tier, never re-derive scope from it.
 |---|---|
 | #971 | Sim/view derived-value desync audit — Fable finishes the bug-class classification (first pass done) → Opus/Sonnet for the bucket-3 conversions |
 | #1028 | Fort Siege — objectives still unclear, still not fun post-#808; diagnose → owner checkpoint → build (pairs #962) |
-| #1034 | Replace Sumo Smash with beyblade battle — dome, momentum, aimed collisions; design doc → owner checkpoint → Opus build |
+| ~~#1034~~ | ~~Replace Sumo Smash with beyblade battle~~ — shipped: design approved at the inline owner checkpoint, built as bey_brawl (this PR) |
 | #1037 | Basket Brawl — owner bounced off it; diagnose top-3 reasons → owner checkpoint → build (ties #803 history) |
 
 ## Opus 4.8 — real engineering, clear precedent
