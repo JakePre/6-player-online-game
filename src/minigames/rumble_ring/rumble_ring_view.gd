@@ -1,7 +1,9 @@
 extends MinigameView3D
 ## Rumble Ring client view (M10-17): rigs with hit/KO reactions, swing and
 ## smash flashes from the event stream, scattered coins, and a local
-## guard/charge banner. Renders the replicated snapshot in the iso-arena.
+## guard/charge banner that reads the replicated stamina meter (#1066 —
+## guard burns stamina; a break cracks loud). Renders the replicated
+## snapshot in the iso-arena.
 
 const COIN_COLOR := Color(0.96, 0.79, 0.2)
 const SMASH_RING_COLOR := Color(1.0, 0.5, 0.2, 0.6)
@@ -167,12 +169,15 @@ func _process(_delta: float) -> void:
 	# Guard state takes the banner while it's held.
 	if _guard_since >= 0.0:
 		var held := now - _guard_since
+		# Stamina rides the banner (#1066): guard is a burning resource now,
+		# so the number you watch while holding it is the meter, not the time.
+		var stamina_pct := int(_my_stamina() * 100.0)
 		if held >= RumbleRing.SMASH_CHARGE_SEC:
-			_banner.text = "SMASH CHARGED — release!"
+			_banner.text = "SMASH CHARGED — release! (stamina %d%%)" % stamina_pct
 			_banner.modulate = Color(1.0, 0.6, 0.2)
 		else:
-			_banner.text = "GUARDING (%d%%)" % int(held / RumbleRing.SMASH_CHARGE_SEC * 100.0)
-			_banner.modulate = GUARD_TINT
+			_banner.text = "GUARDING — stamina %d%%" % stamina_pct
+			_banner.modulate = GUARD_TINT.lerp(Color(1.0, 0.4, 0.3), 1.0 - _my_stamina())
 		return
 	# Otherwise, hold a swing "recharging" hint until it expires, then clear.
 	if now < _swing_hint_until:
@@ -227,6 +232,15 @@ func _play_event(event: Dictionary) -> void:
 			# swing was silent. hit/ko/blocked/smash all play unconditionally;
 			# swing matches that convention now.
 			play_sfx(&"click")
+		"guard_break":
+			# The shell cracks (#1066): an empty stamina meter drops the guard
+			# and staggers — loud and readable, because the victim is wide open.
+			rig.play(&"hit")
+			_hold_reaction(slot)
+			play_sfx(&"crack")
+			fx_burst(_event_ground(slot), GUARD_TINT, 1.0)
+			if slot == my_slot:
+				request_shake(6.0)
 		"smash":
 			# The charged super also throws an attack swing on the smasher (#777),
 			# not just the shockwave.
@@ -237,6 +251,14 @@ func _play_event(event: Dictionary) -> void:
 			play_sfx(&"hit_heavy")
 			_smash_shockwave(slot)
 			request_shake(10.0)
+
+
+## The local player's replicated guard stamina as 0..1 (#1066).
+func _my_stamina() -> float:
+	var state: Array = players.get(my_slot, [])
+	if state.size() < RumbleRing.PS_COUNT:
+		return 1.0
+	return clampf(float(state[RumbleRing.PS_STAMINA]), 0.0, 1.0)
 
 
 func _hold_reaction(slot: int) -> void:

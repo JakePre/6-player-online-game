@@ -1,11 +1,14 @@
 class_name RumbleRing
 extends MinigameBase
-## Rumble Ring (M10-17, PHASE2.md $4 #34, owner-requested): arena brawler.
-## Quick swings chip 1 HP with light knockback; holding guard blocks all
-## damage (but you crawl), and releasing a full guard fires a charged smash —
-## 2 HP and a big radial shove. KOs score for the attacker and scatter the
-## victim's coins onto the floor for anyone to grab; victims respawn with
-## brief invulnerability. Most KO points wins. Server-side simulation only.
+## Rumble Ring (M10-17, PHASE2.md $4 #34, owner-requested; #1066 guard
+## stamina): arena brawler. Quick swings chip 1 HP with light knockback;
+## holding guard blocks damage but DRAINS STAMINA (and you crawl) — guarded
+## hits still shove you a little and bite the meter, and an empty meter
+## breaks the guard and staggers you wide open. Releasing a full guard fires
+## a charged smash — 2 HP and a big radial shove. KOs score for the attacker
+## and scatter the victim's coins onto the floor for anyone to grab; victims
+## respawn with brief invulnerability. Most KO points wins. Server-side
+## simulation only.
 
 const ARENA_HALF := 8.0
 const MOVE_SPEED := 6.0
@@ -31,6 +34,18 @@ const RESPAWN_INVULN_SEC := 1.5
 ## ring, KOs land more often, so more respawns land in the same tick — a fixed
 ## dead-center point would stack them exactly on top of each other.
 const RESPAWN_JITTER_RADIUS := 1.2
+## Guard is a resource now (#1066, owner playtest: full-time guard was the
+## meta — approved fix: stamina + chip). The meter holds this many seconds of
+## guarding, refills at GUARD_REGEN_MULT of the drain rate while down, and a
+## guarded hit still lands CHIP_KNOCKBACK_MULT of its shove plus a stamina
+## bite (CHIP_STAMINA_PER_HP per HP the hit would have dealt) — so attacking
+## a turtle actively melts the shell. Empty = guard break + a long stagger.
+const GUARD_STAMINA_SEC := 2.5
+const GUARD_REGEN_MULT := 0.6
+const CHIP_KNOCKBACK_MULT := 0.25
+const CHIP_STAMINA_PER_HP := 0.5
+const GUARD_BREAK_STAGGER_SEC := 1.2
+const STAGGER_SPEED_MULT := 0.3
 
 ## get_snapshot() wire shapes (#708): named indices for the positional arrays
 ## the view and brain read. Array SHAPE on the wire is unchanged — additive.
@@ -42,7 +57,9 @@ const PS_GUARDING := 4
 const PS_INVULN := 5
 const PS_FACING_X := 6
 const PS_FACING_Y := 7
-const PS_COUNT := 8
+## Appended (#1066): guard stamina as a 0..1 fraction of GUARD_STAMINA_SEC.
+const PS_STAMINA := 8
+const PS_COUNT := 9
 ## #946 wire-shape tripwire: the declared type of each slot in a `players`
 ## snapshot row. Validated by test_snapshot_schema against get_snapshot().
 const PLAYER_SCHEMA := [
@@ -51,6 +68,7 @@ const PLAYER_SCHEMA := [
 	TYPE_INT,
 	TYPE_INT,
 	TYPE_INT,
+	TYPE_FLOAT,
 	TYPE_FLOAT,
 	TYPE_FLOAT,
 	TYPE_FLOAT,
@@ -73,6 +91,10 @@ var invuln_left := {}
 var coins: Array[Vector2] = []
 ## Set for one tick after each event so the view can flash it.
 var last_events: Array[Dictionary] = []
+
+## #1066: seconds of guard left (0..GUARD_STAMINA_SEC) and stagger remaining.
+var stamina := {}
+var stagger := {}
 
 var _guard_held_sec := {}
 
@@ -113,7 +135,10 @@ static func make_meta() -> MinigameMeta:
 				"max_players": 8,
 				"duration_sec": 60.0,
 				"rules":
-				"Brawl! Swing fast, guard to block, release a full guard to SMASH. KOs score.",
+				(
+					"Brawl! Guard blocks but burns stamina — run dry and you're staggered "
+					+ "wide open. Release a full guard to SMASH. KOs score."
+				),
 			}
 		)
 	)
@@ -134,14 +159,20 @@ func _setup() -> void:
 		smash_cooldown[slot] = 0.0
 		invuln_left[slot] = 0.0
 		_guard_held_sec[slot] = 0.0
+		stamina[slot] = GUARD_STAMINA_SEC
+		stagger[slot] = 0.0
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
+	# A broken guard leaves you staggered (#1066): no swinging, no re-guarding
+	# until it wears off — movement crawls via the _tick speed multiplier.
 	if data.has("attack"):
-		_swing(slot)
+		if float(stagger[slot]) <= 0.0:
+			_swing(slot)
 		return
 	if data.has("guard"):
-		_set_guard(slot, bool(data.guard))
+		if float(stagger[slot]) <= 0.0 or not bool(data.guard):
+			_set_guard(slot, bool(data.guard))
 		return
 	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
 	move_dirs[slot] = dir.limit_length(1.0)
@@ -155,9 +186,21 @@ func _tick(delta: float) -> void:
 		swing_cooldown[slot] = maxf(float(swing_cooldown[slot]) - delta, 0.0)
 		smash_cooldown[slot] = maxf(float(smash_cooldown[slot]) - delta, 0.0)
 		invuln_left[slot] = maxf(float(invuln_left[slot]) - delta, 0.0)
+		stagger[slot] = maxf(float(stagger[slot]) - delta, 0.0)
 		if guarding[slot]:
 			_guard_held_sec[slot] = float(_guard_held_sec[slot]) + delta
-		var speed := MOVE_SPEED * (GUARD_SPEED_MULT if guarding[slot] else 1.0)
+			# Guarding spends the meter (#1066); running dry breaks the shell.
+			stamina[slot] = float(stamina[slot]) - delta
+			if float(stamina[slot]) <= 0.0:
+				_break_guard(slot)
+		else:
+			stamina[slot] = minf(float(stamina[slot]) + GUARD_REGEN_MULT * delta, GUARD_STAMINA_SEC)
+		var speed_mult := 1.0
+		if guarding[slot]:
+			speed_mult = GUARD_SPEED_MULT
+		elif float(stagger[slot]) > 0.0:
+			speed_mult = STAGGER_SPEED_MULT
+		var speed := MOVE_SPEED * speed_mult
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * speed * delta
 		positions[slot] = pos.clamp(
 			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
@@ -179,6 +222,7 @@ func get_snapshot() -> Dictionary:
 			snappedf(invuln_left[slot], 0.01),
 			snappedf(facing.x, 0.01),
 			snappedf(facing.y, 0.01),
+			snappedf(clampf(float(stamina[slot]) / GUARD_STAMINA_SEC, 0.0, 1.0), 0.01),
 		]
 	var coin_list: Array = []
 	for coin in coins:
@@ -235,6 +279,16 @@ func _set_guard(slot: int, on: bool) -> void:
 		_smash(slot)
 
 
+## An empty meter drops the guard the hard way (#1066): no smash on the way
+## down (that release is the player's, not the break's), a long stagger, and
+## the meter pinned at zero to regen from scratch.
+func _break_guard(slot: int) -> void:
+	guarding[slot] = false
+	stamina[slot] = 0.0
+	stagger[slot] = GUARD_BREAK_STAGGER_SEC
+	last_events.append({"type": "guard_break", "slot": slot})
+
+
 func _smash(slot: int) -> void:
 	smash_cooldown[slot] = SMASH_COOLDOWN_SEC
 	last_events.append({"type": "smash", "slot": slot})
@@ -252,7 +306,16 @@ func _damage(victim: int, attacker: int, amount: int, knockback: Vector2) -> voi
 	if float(invuln_left[victim]) > 0.0:
 		return
 	if guarding[victim]:
+		# Chip (#1066): the block holds, but a quarter of the shove leaks
+		# through and the hit bites the meter — beating on a turtle cracks it.
+		var chipped: Vector2 = positions[victim] + knockback * CHIP_KNOCKBACK_MULT
+		positions[victim] = chipped.clamp(
+			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
+		)
+		stamina[victim] = float(stamina[victim]) - CHIP_STAMINA_PER_HP * float(amount)
 		last_events.append({"type": "blocked", "slot": victim})
+		if float(stamina[victim]) <= 0.0:
+			_break_guard(victim)
 		return
 	var pos: Vector2 = positions[victim] + knockback
 	positions[victim] = pos.clamp(
