@@ -8,14 +8,31 @@ extends MinigameBase
 ## noted in the PR). Server-side simulation only — the client renders
 ## get_snapshot().
 
+## The hazard archetypes (#1068, owner playtest: "more obstacles / maybe
+## spinners"): a station seeds one of these per round. All of them replicate
+## as plain [x, lateral] dots, so the view and the brain's lead-the-target
+## dodge work on every type unchanged.
+enum Hazard { SWEEPER, SPINNER, GATE }
+
 const TRACK_LEN := 24.0
 const RUN_SPEED := 6.0
-## Oscillating hazards per lane: center positions along the track.
-const HAZARD_POSITIONS: Array[float] = [7.0, 13.0, 19.0]
-## How far a hazard swings across the lane, and how wide the safe lane is.
+## Seeded hazard stations (#1068): four per round (was three fixed sweepers),
+## each drawn from the type bag with a little x jitter.
+const STATION_XS: Array[float] = [5.0, 10.0, 15.0, 20.0]
+const STATION_JITTER := 0.8
+## How far a sweeper swings across the lane, and how wide the safe lane is.
 const HAZARD_SWING := 1.6
 const HAZARD_PERIOD_SEC := 2.4
 const HAZARD_RADIUS := 0.7
+## Spinner: a pivot dot plus two tips orbiting it — thread past the arm.
+const SPINNER_ARM := 1.5
+const SPINNER_RATE := 1.8
+## Gate: static wall dots flanking a seeded gap — a weave, not a timing test.
+const GATE_GAP_HALF := 1.0
+const GATE_DOT_SPACING := 0.9
+## A hit knocks you back one station gap (#1068), not to zero: with four
+## stations a full leg reset was brutal; losing a gap stings without a restart.
+const HIT_KNOCKBACK := 5.0
 const LANE_HALF := 2.0
 const RUNNER_RADIUS := 0.45
 const TEAM_SIZE := 2
@@ -43,6 +60,10 @@ var lateral := {}
 ## Teams that completed all legs, in finish order (tie groups per tick).
 var finished_order: Array = []
 
+## Seeded per round in _setup (#1068): {type, x, phase, gap} per station —
+## shared by every lane, so all teams face the identical gauntlet.
+var hazard_stations: Array[Dictionary] = []
+
 var _move := {}
 var _pending_finishes: Array = []
 
@@ -66,7 +87,10 @@ static func make_meta() -> MinigameMeta:
 				"max_players": 12,
 				"duration_sec": 75.0,
 				"rules":
-				"Run your leg, dodge the sweepers, tag your partner. First team home wins!",
+				(
+					"Run your leg — dodge sweepers, spinners and gates — tag your partner. "
+					+ "First team home wins!"
+				),
 			}
 		)
 	)
@@ -99,6 +123,31 @@ func _setup() -> void:
 		lateral[team_index] = 0.0
 	for slot: int in slots:
 		_move[slot] = Vector2.ZERO
+	_generate_hazards()
+
+
+## One station per STATION_XS entry: a bag of one of each type plus a random
+## fourth, shuffled by the round seed — every round has variety, no round is
+## all gates or all spinners.
+func _generate_hazards() -> void:
+	var bag: Array = [Hazard.SWEEPER, Hazard.SPINNER, Hazard.GATE, rng.randi_range(0, 2)]
+	for i in range(bag.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var swap: Variant = bag[i]
+		bag[i] = bag[j]
+		bag[j] = swap
+	for i in STATION_XS.size():
+		(
+			hazard_stations
+			. append(
+				{
+					"type": bag[i],
+					"x": STATION_XS[i] + rng.randf_range(-STATION_JITTER, STATION_JITTER),
+					"phase": rng.randf_range(0.0, TAU),
+					"gap": rng.randf_range(-(LANE_HALF - GATE_GAP_HALF), LANE_HALF - GATE_GAP_HALF),
+				}
+			)
+		)
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
@@ -120,7 +169,8 @@ func _tick(delta: float) -> void:
 			float(lateral[team_index]) + move.y * RUN_SPEED * delta, -LANE_HALF, LANE_HALF
 		)
 		if _hit_hazard(team_index):
-			progress[team_index] = 0.0
+			# One station's worth of setback (#1068), recentred in the lane.
+			progress[team_index] = maxf(0.0, float(progress[team_index]) - HIT_KNOCKBACK)
 			lateral[team_index] = 0.0
 			continue
 		if float(progress[team_index]) >= TRACK_LEN:
@@ -179,9 +229,39 @@ func _rank_players() -> Array:
 	return placements
 
 
-func hazard_lateral(hazard_index: int, at_elapsed: float) -> float:
-	var phase := TAU * at_elapsed / HAZARD_PERIOD_SEC + hazard_index * TAU / 3.0
-	return sin(phase) * HAZARD_SWING
+## Every hazard as plain [x, lateral] dots at time `at_elapsed` (#1068): one
+## swinging dot per sweeper, a pivot + two orbiting tips per spinner, static
+## wall dots flanking the gap per gate. Dot count and order are fixed for the
+## round, so the brain's per-index velocity estimate stays keyed correctly.
+func hazard_dots(at_elapsed: float) -> Array:
+	var dots: Array = []
+	for i in hazard_stations.size():
+		var station: Dictionary = hazard_stations[i]
+		var x: float = station.x
+		match int(station.type):
+			Hazard.SWEEPER:
+				var phase: float = TAU * at_elapsed / HAZARD_PERIOD_SEC + float(station.phase)
+				dots.append([x, sin(phase) * HAZARD_SWING])
+			Hazard.SPINNER:
+				var theta: float = float(station.phase) + at_elapsed * SPINNER_RATE
+				var arm := Vector2(cos(theta), sin(theta)) * SPINNER_ARM
+				dots.append([x, 0.0])
+				dots.append([x + arm.x, arm.y])
+				dots.append([x - arm.x, -arm.y])
+			Hazard.GATE:
+				var gap: float = station.gap
+				for side_end: Array in (
+					[[-LANE_HALF, gap - GATE_GAP_HALF], [gap + GATE_GAP_HALF, LANE_HALF]] as Array
+				):
+					var lo: float = side_end[0]
+					var hi: float = side_end[1]
+					var span := hi - lo
+					if span <= 0.0:
+						continue
+					var count := maxi(1, int(ceil(span / GATE_DOT_SPACING)))
+					for d in count:
+						dots.append([x, lo + span * (float(d) + 0.5) / float(count)])
+	return dots
 
 
 func _active_runner(team_index: int) -> int:
@@ -208,17 +288,19 @@ func _finish_leg(team_index: int) -> void:
 
 
 func _hit_hazard(team_index: int) -> bool:
-	for i in HAZARD_POSITIONS.size():
-		if absf(float(progress[team_index]) - HAZARD_POSITIONS[i]) > HAZARD_RADIUS:
+	for dot: Array in hazard_dots(elapsed):
+		if absf(float(progress[team_index]) - float(dot[HZ_X])) > HAZARD_RADIUS:
 			continue
-		var swing := hazard_lateral(i, elapsed)
-		if absf(float(lateral[team_index]) - swing) <= HAZARD_RADIUS + RUNNER_RADIUS:
+		if (
+			absf(float(lateral[team_index]) - float(dot[HZ_LATERAL]))
+			<= (HAZARD_RADIUS + RUNNER_RADIUS)
+		):
 			return true
 	return false
 
 
 func _hazard_snapshot() -> Array:
 	var out: Array = []
-	for i in HAZARD_POSITIONS.size():
-		out.append([HAZARD_POSITIONS[i], snappedf(hazard_lateral(i, elapsed), 0.01)])
+	for dot: Array in hazard_dots(elapsed):
+		out.append([snappedf(dot[HZ_X], 0.01), snappedf(dot[HZ_LATERAL], 0.01)])
 	return out

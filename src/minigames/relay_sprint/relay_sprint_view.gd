@@ -67,7 +67,7 @@ func _render(game: Dictionary) -> void:
 				play_sfx(&"bell")
 		if leg == prev_leg:
 			var prev := float(_progress_edges.peek(lane_index, progress))
-			# A hazard hit resets progress to 0 (RelaySprint._hit_hazard) — the
+			# A hazard hit knocks progress back a station (#1068) — the
 			# setback debuff, personal to your own team (#728).
 			if progress < prev and my_slot in (state[RelaySprint.LN_ROSTER] as Array):
 				play_sfx(&"powerdown")
