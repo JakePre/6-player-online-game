@@ -2,13 +2,26 @@ extends MinigameView3D
 ## Nom Arena client view (M14-10): the blob is the avatar, so the humanoid
 ## rigs are hidden and each player renders as a flat, player-colored disc
 ## scaled by its mass, with a name+mass label. Dense dots, the closing
-## boundary ring, a lunge streak and an eaten-puff round it out. Renders
-## get_snapshot() only.
+## boundary ring, a lunge streak, an eaten-puff — and the #954 Power Pellet
+## (pulsing MDL-017 model; the eater's disc glows gold, rivals tint
+## frightened-blue with a fear icon). Renders get_snapshot() only.
 
 const DISC_HEIGHT := 0.25
 const DOT_COLOR := Color(0.95, 0.85, 0.4)
 const RING_COLOR := Color(0.95, 0.35, 0.3, 0.7)
 const LUNGE_COLOR := Color(1.0, 1.0, 1.0, 0.8)
+## Power Pellet (#954): the landed MDL-017 model ("unmistakably the special
+## one"); its ledger contract says the view pulses scale/emission — done in
+## _process, steady under reduced motion.
+const PELLET_SCENE := preload("res://assets/generated/models/power-pellet.glb")
+const PELLET_PULSE_SEC := 1.1
+const PELLET_PULSE_AMOUNT := 0.14
+## Frenzy (#954): the eater's disc glows gold; every rival tints
+## frightened-blue AND gets the fear icon in its label — the icon carries the
+## meaning alone for colorblind players, per the design.
+const FRENZY_GLOW_COLOR := Color(1.0, 0.85, 0.3)
+const FRIGHTENED_COLOR := Color(0.35, 0.5, 0.95)
+const FEAR_ICON := "😱"
 
 var players := {}
 
@@ -16,8 +29,10 @@ var _blobs := {}  # slot -> MeshInstance3D (scaled disc)
 var _labels := {}  # slot -> Label3D
 var _dot_pool: Array[MeshInstance3D] = []
 var _ring: MeshInstance3D
+var _pellet: Node3D
 var _mass_seen := {}
 var _lunge_seen := {}
+var _my_frenzy_seen := false
 
 
 func _physics_process(_delta: float) -> void:
@@ -47,6 +62,10 @@ func _setup_3d() -> void:
 		_labels[slot] = _build_label()
 	_build_dots()
 	_build_ring()
+	_pellet = PELLET_SCENE.instantiate() as Node3D
+	_pellet.name = "PowerPellet"
+	_pellet.visible = false
+	arena.add_child(_pellet)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -54,8 +73,45 @@ func _render_3d(game: Dictionary) -> void:
 	var boundary := float(game.get("boundary", NomArena.ARENA_HALF))
 	_update_ring(boundary)
 	_update_dots(game.get("dots", []))
+	_update_pellet(game.get("pellet", []))
+	# One pass to learn whether anyone is frenzied, so every OTHER blob can
+	# wear the frightened treatment.
+	var frenzied_slot := -1
 	for slot: int in players:
-		_update_blob(slot)
+		if _frenzy_of(slot) > 0.0:
+			frenzied_slot = slot
+			break
+	for slot: int in players:
+		_update_blob(slot, frenzied_slot)
+	# Signature cue (#728): heard only by the player whose frenzy just began.
+	var my_frenzied := _frenzy_of(my_slot) > 0.0 if players.has(my_slot) else false
+	if my_frenzied and not _my_frenzy_seen:
+		play_sfx(&"powerup")
+	_my_frenzy_seen = my_frenzied
+
+
+## Guarded read: rows without the #954 slot (old snapshots) mean "not frenzied".
+func _frenzy_of(slot: int) -> float:
+	var state: Array = players.get(slot, [])
+	if state.size() <= NomArena.PS_FRENZY:
+		return 0.0
+	return float(state[NomArena.PS_FRENZY])
+
+
+func _update_pellet(pellet: Array) -> void:
+	_pellet.visible = pellet.size() == 2
+	if _pellet.visible:
+		_pellet.position = to_arena(Vector2(float(pellet[0]), float(pellet[1])), 0.0)
+
+
+## The MDL-017 ledger contract: the view pulses the pellet's scale. Steady
+## under reduced motion (M13 telegraph convention).
+func _process(_delta: float) -> void:
+	if _pellet == null or not _pellet.visible or ArenaFX.reduced_motion:
+		return
+	var t := Time.get_ticks_msec() / 1000.0
+	var pulse := 1.0 + PELLET_PULSE_AMOUNT * sin(TAU * t / PELLET_PULSE_SEC)
+	_pellet.scale = Vector3.ONE * pulse
 
 
 func _build_blob(slot: int) -> MeshInstance3D:
@@ -143,7 +199,7 @@ func _update_dots(dot_list: Array) -> void:
 			node.visible = false
 
 
-func _update_blob(slot: int) -> void:
+func _update_blob(slot: int, frenzied_slot: int) -> void:
 	var state: Array = players[slot]
 	var mass := float(state[NomArena.PS_MASS])
 	var radius := sqrt(mass) * NomArena.RADIUS_K
@@ -151,8 +207,26 @@ func _update_blob(slot: int) -> void:
 	var blob: MeshInstance3D = _blobs[slot]
 	blob.position = to_arena(pos, DISC_HEIGHT * 0.5)
 	blob.scale = Vector3(radius, 1.0, radius)
+	# Frenzy dressing (#954): the frenzied disc glows gold; everyone else
+	# tints frightened-blue while a frenzy is live. Identity comes back the
+	# moment it ends (materials are per-blob, built in _build_blob).
+	var material := (blob.mesh as CylinderMesh).material as StandardMaterial3D
+	var frightened := frenzied_slot != -1 and slot != frenzied_slot
+	if slot == frenzied_slot:
+		material.albedo_color = player_color(slot)
+		material.emission = FRENZY_GLOW_COLOR
+		material.emission_energy_multiplier = 1.4
+	elif frightened:
+		material.albedo_color = FRIGHTENED_COLOR
+		material.emission = FRIGHTENED_COLOR
+		material.emission_energy_multiplier = 0.25
+	else:
+		material.albedo_color = player_color(slot)
+		material.emission = player_color(slot)
+		material.emission_energy_multiplier = 0.25
 	var label: Label3D = _labels[slot]
-	label.text = "%s  %d" % [player_name(slot), roundi(mass)]
+	var prefix := FEAR_ICON + " " if frightened else ""
+	label.text = "%s%s  %d" % [prefix, player_name(slot), roundi(mass)]
 	label.position = to_arena(pos, 1.0 + radius * 0.2)
 	# A sharp mass drop means this blob was just swallowed and respawned small.
 	var last_mass := float(_mass_seen.get(slot, mass))

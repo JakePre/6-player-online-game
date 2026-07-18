@@ -83,3 +83,56 @@ func test_lunge_onset_plays_dash() -> void:
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
+
+
+# --- Power Pellet (#954) --------------------------------------------------------
+
+
+## The pellet model shows only when the snapshot carries one, at its position.
+func test_power_pellet_appears_only_when_present() -> void:
+	view.render(_snapshot({0: [0.0, 0.0, 8.0, 0, 0.0]}))
+	assert_false((view.arena.get_node("PowerPellet") as Node3D).visible, "no pellet: hidden")
+	var snap := _snapshot({0: [0.0, 0.0, 8.0, 0, 0.0]})
+	snap["pellet"] = [3.0, -2.0]
+	view.render(snap)
+	var pellet: Node3D = view.arena.get_node("PowerPellet")
+	assert_true(pellet.visible, "pellet on the field: shown")
+	assert_almost_eq(pellet.position.x, 3.0, 0.001)
+	assert_almost_eq(pellet.position.z, -2.0, 0.001)
+
+
+## Frenzy dressing: the eater glows gold; every rival tints frightened-blue
+## and gets the fear icon in its label (icon carries meaning for colorblind).
+func test_frenzy_glows_eater_and_frightens_rivals() -> void:
+	view.render(
+		_snapshot({0: [0.0, 0.0, 12.0, 0, NomArena.FRENZY_SEC], 1: [2.0, 0.0, 12.0, 0, 0.0]})
+	)
+	var eater_mat := (
+		((view.arena.get_node("Blob0") as MeshInstance3D).mesh as CylinderMesh).material
+	)
+	var rival_mat := (
+		((view.arena.get_node("Blob1") as MeshInstance3D).mesh as CylinderMesh).material
+	)
+	assert_eq(
+		(eater_mat as StandardMaterial3D).emission, view.FRENZY_GLOW_COLOR, "eater glows gold"
+	)
+	assert_eq(
+		(rival_mat as StandardMaterial3D).albedo_color, view.FRIGHTENED_COLOR, "rival turns blue"
+	)
+	assert_string_contains(view._labels[1].text, view.FEAR_ICON, "rival wears the fear icon")
+	assert_false(view._labels[0].text.contains(view.FEAR_ICON), "the eater is not afraid")
+
+
+## Identity returns the instant frenzy ends — no lingering blue/gold.
+func test_frenzy_dressing_clears_when_it_ends() -> void:
+	view.render(
+		_snapshot({0: [0.0, 0.0, 12.0, 0, NomArena.FRENZY_SEC], 1: [2.0, 0.0, 12.0, 0, 0.0]})
+	)
+	view.render(_snapshot({0: [0.0, 0.0, 12.0, 0, 0.0], 1: [2.0, 0.0, 12.0, 0, 0.0]}))
+	var rival_mat := (
+		((view.arena.get_node("Blob1") as MeshInstance3D).mesh as CylinderMesh).material
+	)
+	assert_eq(
+		(rival_mat as StandardMaterial3D).albedo_color, view.player_color(1), "rival color restored"
+	)
+	assert_false(view._labels[1].text.contains(view.FEAR_ICON), "fear icon cleared")

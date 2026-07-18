@@ -145,3 +145,83 @@ func test_ranking_by_mass_descending() -> void:
 	game.masses[1] = 40.0
 	game.masses[2] = 15.0
 	assert_eq(game._rank_players(), [[1], [0, 2]], "biggest first, equals tie")
+
+
+# --- Power Pellet (#954) --------------------------------------------------------
+
+
+## The pellet lands PELLET_INTERVAL_SEC in, and never within PELLET_CLEARANCE
+## of a player.
+func test_pellet_spawns_on_cadence_with_clearance() -> void:
+	var game := _game()
+	game.positions[0] = Vector2(3.0, 0.0)
+	game.positions[1] = Vector2(-3.0, 0.0)
+	var ticks := int(NomArena.PELLET_INTERVAL_SEC / TICK) - 2
+	for _i in ticks:
+		game.tick(TICK)
+	assert_eq(game.pellet, Vector2.INF, "no pellet before the interval")
+	for _i in 4:
+		game.tick(TICK)
+	assert_ne(game.pellet, Vector2.INF, "pellet on the field after ~20s")
+	for slot in 2:
+		assert_gte(
+			(game.positions[slot] as Vector2).distance_to(game.pellet),
+			NomArena.PELLET_CLEARANCE - game.radius_of(slot),
+			"spawn respects player clearance"
+		)
+
+
+func test_eating_the_pellet_grants_frenzy_and_rearms_the_timer() -> void:
+	var game := _game()
+	game.pellet = game.positions[0]
+	game.tick(TICK)
+	assert_eq(game.pellet, Vector2.INF, "pellet consumed")
+	assert_gt(float(game._frenzy_left[0]), NomArena.FRENZY_SEC - 0.1, "eater is frenzied")
+	assert_almost_eq(
+		float(game._pellet_timer), NomArena.PELLET_INTERVAL_SEC, 0.01, "next pellet rearmed"
+	)
+	var snapshot := game.get_snapshot()
+	assert_gt(float(snapshot.players[0][NomArena.PS_FRENZY]), 0.0, "frenzy on the wire")
+	assert_eq(snapshot.pellet, [], "no pellet key payload while none is up")
+
+
+## A frenzied, lunging blob bites FRENZY_STEAL off a touched rival — exactly
+## once per rival per lunge, and the victim never drops below MIN_MASS.
+func test_frenzy_bite_steals_mass_once_per_lunge() -> void:
+	var game := _game()
+	game.dots.clear()
+	game.masses[0] = 8.0
+	game.masses[1] = 20.0
+	game.positions[0] = Vector2.ZERO
+	game.positions[1] = Vector2(0.5, 0.0)
+	game._frenzy_left[0] = NomArena.FRENZY_SEC
+	game.handle_input(0, {"mx": 1.0, "my": 0.0, "lunge": true})
+	var biter_before := float(game.masses[0])
+	var victim_before := float(game.masses[1])
+	game.tick(TICK)
+	var taken := victim_before * NomArena.FRENZY_STEAL
+	assert_almost_eq(float(game.masses[1]), victim_before - taken, 0.3, "victim loses 30%")
+	assert_gt(float(game.masses[0]), biter_before, "the biter gains what was taken")
+	# Still overlapping on the next tick of the SAME lunge: no second bite.
+	var after_first := float(game.masses[1])
+	game.tick(TICK)
+	assert_almost_eq(
+		float(game.masses[1]), after_first, after_first * 0.01, "one bite per rival per lunge"
+	)
+
+
+func test_frenzy_grants_no_speed_change() -> void:
+	var game := _game()
+	var base := game._speed(0)
+	game._frenzy_left[0] = NomArena.FRENZY_SEC
+	assert_almost_eq(game._speed(0), base, 0.0001, "frenzy is positioning, not speed")
+
+
+func test_frenzy_expires() -> void:
+	var game := _game()
+	game._frenzy_left[0] = 2.0 * TICK
+	game.tick(TICK)
+	game.tick(TICK)
+	game.tick(TICK)
+	assert_eq(float(game._frenzy_left[0]), 0.0)
+	assert_eq(float(game.get_snapshot().players[0][NomArena.PS_FRENZY]), 0.0)

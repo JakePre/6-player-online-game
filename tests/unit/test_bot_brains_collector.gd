@@ -102,6 +102,44 @@ func test_nom_arena_brain_returns_inside_a_closed_boundary() -> void:
 	assert_lt(float(intent.get("mx", 0.0)), 0.0, "outside the shrunk ring: head back to center")
 
 
+## #954: when we're strictly nearest the power pellet, contest it.
+func test_nom_arena_brain_contests_the_power_pellet_when_closest() -> void:
+	var brain := BotBrains.brain_for(&"nom_arena", 0, 1)
+	var game := {
+		"players": {0: [0.0, 0.0, 8.0, 0, 0.0], 1: [9.0, 0.0, 8.0, 0, 0.0]},
+		"dots": [[-4.0, 0.0]],
+		"pellet": [3.0, 0.0],
+		"boundary": 12.0,
+	}
+	var intent := brain.think(_play_state("nom_arena", game), {})
+	assert_gt(float(intent.get("mx", 0.0)), 0.0, "closest to the pellet: go for it, not the dot")
+
+
+## #954: a frenzied bot chases the nearest rival regardless of size and bites.
+func test_nom_arena_brain_frenzied_chases_and_bites_any_rival() -> void:
+	var brain := BotBrains.brain_for(&"nom_arena", 0, 1)
+	var game := {
+		"players": {0: [0.0, 0.0, 8.0, 0, NomArena.FRENZY_SEC], 1: [1.0, 0.0, 30.0, 0, 0.0]},
+		"dots": [],
+		"boundary": 12.0,
+	}
+	var intent := brain.think(_play_state("nom_arena", game), {})
+	assert_gt(float(intent.get("mx", 0.0)), 0.0, "frenzied: chase the bigger rival, not flee it")
+	assert_true(bool(intent.get("lunge", false)), "bites when in reach")
+
+
+## #954: a rival flees a frenzied blob even when it is smaller than them.
+func test_nom_arena_brain_flees_a_frenzied_rival() -> void:
+	var brain := BotBrains.brain_for(&"nom_arena", 0, 1)
+	var game := {
+		"players": {0: [0.0, 0.0, 30.0, 0, 0.0], 1: [1.0, 0.0, 8.0, 0, NomArena.FRENZY_SEC]},
+		"dots": [],
+		"boundary": 12.0,
+	}
+	var intent := brain.think(_play_state("nom_arena", game), {})
+	assert_lt(float(intent.get("mx", 0.0)), 0.0, "flees the frenzied blob even though it's smaller")
+
+
 # --- treasure_divers ------------------------------------------------------------
 
 
