@@ -7,14 +7,15 @@ extends MinigameView3D
 ## windups play the interact pose (the telegraph) and staggered players flinch.
 ## A Control-layer banner tells the local player to mash beside their own cart.
 ##
-## Primitive box carts for now (#932 PR1) — the MDL-013 mine-cart model, the
-## per-lane progress bars, and the finish banners land in the polish follow-up.
+## Carts use the MDL-013 mine-cart model (#932 follow-up); the per-lane
+## progress bars and finish banners remain for a later gameplay pass.
 
 const TEAM_COLORS: Array[Color] = [Color(0.9, 0.5, 0.2), Color(0.35, 0.6, 0.95)]
 const RAIL_COLOR := Color(0.35, 0.3, 0.25)
 const START_COLOR := Color(0.85, 0.85, 0.85)
 const FINISH_COLOR := Color(0.95, 0.85, 0.2)
-const CART_SIZE := Vector3(1.8, 1.0, 1.2)
+## MDL-013 mine cart: base-pivoted, long axis +Z, native ~1.8 long / 1.78 tall.
+const CART_SCENE := preload("res://assets/generated/models/mine-cart.glb")
 ## Wheel dust (M13-23): one puff per this many world units a cart rolls.
 const DUST_STEP := 0.6
 
@@ -62,8 +63,9 @@ func _render_3d(game: Dictionary) -> void:
 	progress = game.get("carts", [0.0, 0.0])
 	for team_index in _carts.size():
 		var prog := float(progress[team_index]) if team_index < progress.size() else 0.0
+		# height 0: the mine-cart model is base-pivoted, so it sits on the rail
 		_carts[team_index].position = to_arena(
-			Vector2(-CartPush.TRACK_HALF + prog, _lane_y(team_index)), CART_SIZE.y * 0.5
+			Vector2(-CartPush.TRACK_HALF + prog, _lane_y(team_index)), 0.0
 		)
 		_kick_wheel_dust(team_index, prog)
 	_update_players()
@@ -161,15 +163,30 @@ func _build_carts() -> void:
 	for team_index in 2:
 		var cart := Node3D.new()
 		cart.name = "Cart%d" % team_index
-		var mesh := BoxMesh.new()
-		mesh.size = CART_SIZE
-		var material := StandardMaterial3D.new()
-		material.albedo_color = TEAM_COLORS[team_index]
-		mesh.material = material
-		var body := MeshInstance3D.new()
+		# The model's long axis is +Z and the track runs along X, so rotate
+		# 90° to lay the cart's length along the direction of travel. Its
+		# wood/gold/iron texture is kept as-is (unlike the neutral go-kart it
+		# must NOT be tinted) — the two carts sit in fixed lanes ±LANE_Y apart,
+		# so lane position identifies the team.
+		var body := CART_SCENE.instantiate() as Node3D
 		body.name = "Body"
-		body.mesh = mesh
+		body.rotation.y = PI / 2.0
 		cart.add_child(body)
+		# A small team-colored flag preserves the team-ID the placeholder gave,
+		# without touching the cart's own colors.
+		var flag := MeshInstance3D.new()
+		flag.name = "Flag"
+		var fmesh := BoxMesh.new()
+		fmesh.size = Vector3(0.12, 0.7, 0.5)
+		var fmat := StandardMaterial3D.new()
+		fmat.albedo_color = TEAM_COLORS[team_index]
+		fmat.emission_enabled = true
+		fmat.emission = TEAM_COLORS[team_index]
+		fmat.emission_energy_multiplier = 0.3
+		fmesh.material = fmat
+		flag.mesh = fmesh
+		flag.position = Vector3(0.0, 2.15, 0.0)
+		cart.add_child(flag)
 		arena.add_child(cart)
 		_carts.append(cart)
 
