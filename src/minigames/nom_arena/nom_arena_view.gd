@@ -2,13 +2,14 @@ extends MinigameView3D
 ## Nom Arena client view (M14-10): the blob is the avatar, so the humanoid
 ## rigs are hidden and each player renders as a flat, player-colored disc
 ## scaled by its mass, with a name+mass label. Dense dots, the closing
-## boundary ring, a lunge streak, an eaten-puff — and the #954 Power Pellet
+## seeded maze walls (#1027), a lunge streak, an eaten-puff — and the #954 Power Pellet
 ## (pulsing MDL-017 model; the eater's disc glows gold, rivals tint
 ## frightened-blue with a fear icon). Renders get_snapshot() only.
 
 const DISC_HEIGHT := 0.25
 const DOT_COLOR := Color(0.95, 0.85, 0.4)
-const RING_COLOR := Color(0.95, 0.35, 0.3, 0.7)
+const WALL_COLOR := Color(0.25, 0.3, 0.75)
+const WALL_HEIGHT := 0.9
 const LUNGE_COLOR := Color(1.0, 1.0, 1.0, 0.8)
 ## Power Pellet (#954): the landed MDL-017 model ("unmistakably the special
 ## one"); its ledger contract says the view pulses scale/emission — done in
@@ -28,7 +29,7 @@ var players := {}
 var _blobs := {}  # slot -> MeshInstance3D (scaled disc)
 var _labels := {}  # slot -> Label3D
 var _dot_pool: Array[MeshInstance3D] = []
-var _ring: MeshInstance3D
+var _walls_built := false
 var _pellet: Node3D
 var _mass_seen := {}
 var _lunge_seen := {}
@@ -61,7 +62,6 @@ func _setup_3d() -> void:
 		_blobs[slot] = _build_blob(slot)
 		_labels[slot] = _build_label()
 	_build_dots()
-	_build_ring()
 	_pellet = PELLET_SCENE.instantiate() as Node3D
 	_pellet.name = "PowerPellet"
 	_pellet.visible = false
@@ -70,8 +70,8 @@ func _setup_3d() -> void:
 
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
-	var boundary := float(game.get("boundary", NomArena.ARENA_HALF))
-	_update_ring(boundary)
+	if not _walls_built and game.has("walls"):
+		_build_walls(game.walls)
 	_update_dots(game.get("dots", []))
 	_update_pellet(game.get("pellet", []))
 	# One pass to learn whether anyone is frenzied, so every OTHER blob can
@@ -165,25 +165,25 @@ func _build_dots() -> void:
 		_dot_pool.append(node)
 
 
-func _build_ring() -> void:
-	var mesh := TorusMesh.new()
-	mesh.inner_radius = 0.94
-	mesh.outer_radius = 1.0
+## The seeded maze (#1027), built from the first snapshot that carries it —
+## Pac-Man-blue box walls matching the sim's geometry exactly.
+func _build_walls(wall_list: Array) -> void:
+	_walls_built = true
 	var material := StandardMaterial3D.new()
-	material.albedo_color = RING_COLOR
+	material.albedo_color = WALL_COLOR
 	material.emission_enabled = true
-	material.emission = RING_COLOR
-	material.emission_energy_multiplier = 0.8
-	mesh.material = material
-	_ring = MeshInstance3D.new()
-	_ring.name = "Boundary"
-	_ring.mesh = mesh
-	arena.add_child(_ring)
-
-
-func _update_ring(boundary: float) -> void:
-	_ring.scale = Vector3(boundary, 1.0, boundary)
-	_ring.position = to_arena(Vector2.ZERO, 0.05)
+	material.emission = WALL_COLOR
+	material.emission_energy_multiplier = 0.3
+	for wall: Array in wall_list:
+		if wall.size() < 4:
+			continue
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(float(wall[2]) * 2.0, WALL_HEIGHT, float(wall[3]) * 2.0)
+		mesh.material = material
+		var node := MeshInstance3D.new()
+		node.mesh = mesh
+		node.position = to_arena(Vector2(float(wall[0]), float(wall[1])), WALL_HEIGHT / 2.0)
+		arena.add_child(node)
 
 
 func _update_dots(dot_list: Array) -> void:

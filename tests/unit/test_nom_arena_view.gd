@@ -1,6 +1,7 @@
 extends GutTest
 ## Nom Arena client view (M14-10): renders blobs (as size-scaled discs), dots,
-## and the closing ring from replicated snapshots without simulating anything.
+## and the seeded maze walls (#1027; ring removed, #1069) from replicated
+## snapshots without simulating anything.
 
 const VIEW_SCENE: PackedScene = preload("res://src/minigames/nom_arena/nom_arena_view.tscn")
 
@@ -14,8 +15,8 @@ func before_each() -> void:
 
 
 ## players entry: [x, y, mass, lunging]
-func _snapshot(players: Dictionary, boundary := NomArena.ARENA_HALF, dots := []) -> Dictionary:
-	return {"players": players, "dots": dots, "boundary": boundary}
+func _snapshot(players: Dictionary, dots := [], walls := []) -> Dictionary:
+	return {"players": players, "dots": dots, "walls": walls}
 
 
 func test_view_scene_lives_at_catalog_path() -> void:
@@ -25,10 +26,10 @@ func test_view_scene_lives_at_catalog_path() -> void:
 	)
 
 
-func test_setup_hides_rigs_and_builds_blobs_and_ring() -> void:
+func test_setup_hides_rigs_and_builds_blobs() -> void:
 	assert_false(view.rig_for_slot(0).visible, "the blob is the avatar, not the rig")
 	assert_not_null(view.arena.get_node("Blob0"))
-	assert_not_null(view.arena.get_node("Boundary"))
+	assert_false(view.arena.has_node("Boundary"), "the closing ring is gone (#1069)")
 
 
 func test_blob_scales_with_mass_and_tracks_position() -> void:
@@ -40,13 +41,17 @@ func test_blob_scales_with_mass_and_tracks_position() -> void:
 	assert_almost_eq(blob.scale.x, expected, 0.001, "disc radius follows sqrt(mass)")
 
 
-func test_boundary_ring_tracks_the_closing_radius() -> void:
-	view.render(_snapshot({0: [0.0, 0.0, 8.0, 0]}, 6.0))
-	assert_almost_eq((view.arena.get_node("Boundary") as MeshInstance3D).scale.x, 6.0, 0.001)
+## #1027: the maze builds once from the first snapshot that carries walls.
+func test_walls_build_once_from_the_snapshot() -> void:
+	var before := view.arena.get_child_count()
+	view.render(_snapshot({}, [], [[3.0, 3.0, 0.5, 2.0], [-3.0, 3.0, 0.5, 2.0]]))
+	assert_eq(view.arena.get_child_count(), before + 2, "one box per replicated wall")
+	view.render(_snapshot({}, [], [[3.0, 3.0, 0.5, 2.0], [-3.0, 3.0, 0.5, 2.0]]))
+	assert_eq(view.arena.get_child_count(), before + 2, "built once, not per snapshot")
 
 
 func test_dots_render_from_the_pool() -> void:
-	view.render(_snapshot({}, NomArena.ARENA_HALF, [[1.0, 2.0], [3.0, 4.0]]))
+	view.render(_snapshot({}, [[1.0, 2.0], [3.0, 4.0]]))
 	var visible_dots := 0
 	for node: MeshInstance3D in view._dot_pool:
 		if node.visible:

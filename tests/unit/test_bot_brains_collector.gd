@@ -95,13 +95,6 @@ func test_nom_arena_brain_seeks_a_dot_with_nothing_else_around() -> void:
 	assert_false(intent.has("lunge"))
 
 
-func test_nom_arena_brain_returns_inside_a_closed_boundary() -> void:
-	var brain := BotBrains.brain_for(&"nom_arena", 0, 1)
-	var game := {"players": {0: [7.5, 0.0, 8.0, 0]}, "dots": [], "boundary": 8.0}
-	var intent := brain.think(_play_state("nom_arena", game), {})
-	assert_lt(float(intent.get("mx", 0.0)), 0.0, "outside the shrunk ring: head back to center")
-
-
 ## #954: when we're strictly nearest the power pellet, contest it.
 func test_nom_arena_brain_contests_the_power_pellet_when_closest() -> void:
 	var brain := BotBrains.brain_for(&"nom_arena", 0, 1)
