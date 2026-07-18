@@ -64,6 +64,24 @@ func test_ambient_lighting_is_unaffected() -> void:
 	assert_almost_eq(world_env.environment.ambient_light_energy, 0.6, 0.001)
 
 
+## #939: every 3D arena is mounted inside the shared party-stadium shell, with
+## no per-game code — the base builds it for KotH (a plain fixture) unprompted.
+func test_stage_shell_is_mounted_in_every_arena() -> void:
+	var shell := view.arena.get_node("StageShell")
+	assert_not_null(shell, "the party-stadium shell frames the arena")
+	assert_not_null(shell.get_node("SkyDome"), "with its sky dome")
+	assert_not_null(shell.get_node("BleacherRing"), "and bleacher ring")
+
+
+## #939: the mood defaults from the game's floor tint, so every arena gets a
+## coherent backdrop; it stays a warm-dark dusk base, never a bright wash.
+func test_mood_defaults_from_the_floor_tint() -> void:
+	var plain := _plain_view()
+	var mood := plain.call(&"_mood") as Color
+	assert_lt(mood.v, 0.5, "the mood is a dark dusk base, not a bright field")
+	plain.free()
+
+
 # --- Floor variation & tint (#589) -------------------------------------------
 
 
