@@ -608,6 +608,10 @@ func _enter_finale_play() -> void:
 	game.duration_override = _duration_override
 	game.setup(_round_slots, _rng.randi(), _bot_slots())
 	game.call(&"apply_loadouts", shop.loadouts())
+	# Optional crowning hook (#936 Kingslayer): variants that care about the
+	# match standings get the coin totals after loadouts land.
+	if game.has_method(&"apply_match_totals"):
+		game.call(&"apply_match_totals", _totals())
 	event_emitted.emit({"type": "finale_started", "minigame": game.meta.to_dict()})
 
 

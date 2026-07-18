@@ -11,11 +11,13 @@ extends RefCounted
 const VIEW_SCENES := {
 	&"gauntlet": "res://src/finale/gauntlet_view.tscn",
 	&"storm_court": "res://src/finale/storm_court_view.tscn",
+	&"kingslayer": "res://src/finale/kingslayer_view.tscn",
 }
 ## HUD names without instantiating a sim client-side just for a label.
 const NAMES := {
 	&"gauntlet": "The Gauntlet",
 	&"storm_court": "Storm Court",
+	&"kingslayer": "Kingslayer",
 }
 
 
@@ -43,6 +45,9 @@ static func instantiate(id: StringName) -> MinigameBase:
 		&"storm_court":
 			game = StormCourt.new()
 			game.meta = StormCourt.make_meta()
+		&"kingslayer":
+			game = Kingslayer.new()
+			game.meta = Kingslayer.make_meta()
 		_:
 			game = Gauntlet.new()
 			game.meta = Gauntlet.make_meta()
