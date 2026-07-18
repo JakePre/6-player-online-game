@@ -83,3 +83,41 @@ func test_sinking_pops_a_burst() -> void:
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
+
+
+# --- Fire-while-aiming (#1043) ------------------------------------------------
+
+
+## Before the local player has touched the stick this round, the aim line
+## falls back to the replicated direction (e.g. the sim's toward-the-cup
+## default) rather than starting at zero-length.
+func test_aim_visual_falls_back_to_replicated_aim_before_local_input() -> void:
+	view.render(_snapshot({0: [0.0, -7.0, 0, 0, 0.3, 0.9, 1]}))
+	view._update_aim_visual(true)
+	assert_true(view._aim_line.visible)
+	assert_almost_eq(view._local_aim.x, 0.3, 0.001, "seeded from the replicated aim")
+	assert_almost_eq(view._local_aim.y, 0.9, 0.001)
+
+
+## #1043: once the player has moved the stick, the aim line reflects that
+## input immediately — it does not wait for the server to echo it back in a
+## snapshot. This is the fix for aim feeling like a separate, laggy "commit"
+## step before the (fully local) charge meter could be trusted.
+func test_aim_visual_uses_local_input_over_a_stale_replicated_aim() -> void:
+	view.render(_snapshot({0: [0.0, -7.0, 0, 0, 0.3, 0.9, 1]}))
+	view._local_aim = Vector2(-1.0, 0.0)  # the player has since aimed elsewhere
+	view._update_aim_visual(true)
+	assert_almost_eq(view._aim_line.rotation.y, atan2(-1.0, 0.0), 0.001)
+
+
+## Aiming and charging happen in the same motion — nothing in the local input
+## loop gates the aim send on whether a charge is in progress.
+func test_charging_does_not_block_local_aim_tracking() -> void:
+	view._charging = true
+	view._charge = 0.4
+	view._local_aim = Vector2(0.0, 1.0)
+	view.render(_snapshot({0: [0.0, -7.0, 0, 0, 0.0, 1.0, 1]}))
+	view._local_aim = Vector2(1.0, 0.0)  # re-aim mid-charge
+	view._update_aim_visual(true)
+	assert_almost_eq(view._aim_line.rotation.y, atan2(1.0, 0.0), 0.001, "aim updates mid-charge")
+	assert_almost_eq(view._power_bar.value, 40.0, 0.001, "charge is untouched by re-aiming")

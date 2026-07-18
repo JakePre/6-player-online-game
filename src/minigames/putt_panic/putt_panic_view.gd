@@ -32,6 +32,13 @@ var _aim_line: MeshInstance3D
 var _power_bar: ProgressBar
 var _charge := 0.0
 var _charging := false
+## Locally-predicted aim direction (#1043): the aim LINE used to read the
+## replicated PS_AIM_X/Y, which lags a network round-trip behind the stick —
+## so the power meter (100% local) filled instantly while the aim line
+## visibly caught up a beat later. That mismatch read as "commit your aim,
+## THEN charge" even though the sim always accepted both at once. Tracking
+## the local input directly makes aim and charge feel like one motion.
+var _local_aim := Vector2.ZERO
 var _sunk_seen := {}
 ## The course is seeded per round (#793), so it's built from the first snapshot
 ## that carries it (like KotH's pillars) rather than from consts. _cup caches the
@@ -72,6 +79,7 @@ func _process(delta: float) -> void:
 		return
 	var aim := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 	if aim.length() > 0.1:
+		_local_aim = aim.normalized()
 		NetManager.send_match_input({"ax": aim.x, "ay": aim.y})
 	if Input.is_action_just_pressed(&"action_primary"):
 		_charging = true
@@ -229,7 +237,12 @@ func _update_aim_visual(active: bool) -> void:
 		_power_bar.visible = false
 		return
 	var ball := Vector2(float(state[PuttPanic.PS_X]), float(state[PuttPanic.PS_Y]))
-	var aim := Vector2(float(state[PuttPanic.PS_AIM_X]), float(state[PuttPanic.PS_AIM_Y]))
+	# Locally-predicted aim (#1043): before the player has touched the stick
+	# this frame, fall back to the replicated direction (e.g. the sim's
+	# toward-the-cup default) so the line never starts at zero-length.
+	if _local_aim == Vector2.ZERO:
+		_local_aim = Vector2(float(state[PuttPanic.PS_AIM_X]), float(state[PuttPanic.PS_AIM_Y]))
+	var aim := _local_aim
 	var length := 1.0 + _charge * 3.0
 	_aim_line.visible = true
 	_aim_line.mesh.size = Vector3(0.08, 0.08, length)
