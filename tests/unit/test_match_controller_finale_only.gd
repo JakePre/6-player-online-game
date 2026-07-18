@@ -60,8 +60,20 @@ func test_finale_only_defaults_off() -> void:
 ## can be observed end to end.
 func test_finale_results_event_carries_the_ko_cause_breakdown() -> void:
 	var room := _make_room(2)
-	var controller := MatchController.new(
-		room, {"seed": 7, "finale": true, "finale_only": true, "finale_coins": 0}
+	# finale_variant pins the Gauntlet (#936): this test walks a player off
+	# the rim, which only exists on that variant.
+	var controller := (
+		MatchController
+		. new(
+			room,
+			{
+				"seed": 7,
+				"finale": true,
+				"finale_only": true,
+				"finale_coins": 0,
+				"finale_variant": "gauntlet",
+			}
+		)
 	)
 	controller.event_emitted.connect(events.append)
 	controller.start()

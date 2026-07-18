@@ -16,6 +16,8 @@ const BRAINS := {
 	&"hurdle_dash": preload("res://src/core/bots/brains/hurdle_dash_brain.gd"),
 	&"tug_of_war": preload("res://src/core/bots/brains/tug_of_war_brain.gd"),
 	&"gauntlet": preload("res://src/core/bots/brains/gauntlet_brain.gd"),
+	# Finale variants (#936) share the gauntlet's shop thinking via subclassing.
+	&"storm_court": preload("res://src/core/bots/brains/storm_court_brain.gd"),
 	# Hidden-role / rotating-role batch (M19-02, #686).
 	&"the_mole": preload("res://src/core/bots/brains/the_mole_brain.gd"),
 	&"faulty_wiring": preload("res://src/core/bots/brains/faulty_wiring_brain.gd"),

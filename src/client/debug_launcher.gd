@@ -79,14 +79,18 @@ func configure(args: PackedStringArray) -> void:
 
 ## The force-start payload (server honours it only under --debug-rpcs). Pure,
 ## so tests can assert the shapes without a live server. `gauntlet` is the
-## finale, not a catalog game (#685): it skips the playlist entirely and opens
+## finale, not a catalog game (#685) — same for every FinaleVariants id
+## (#936): it skips the playlist entirely and opens
 ## on the buy-in shop (compressed, with the seeded debug purse) so a debug or
 ## render session shows shop -> finale in one tight clip.
 func start_config() -> Dictionary:
 	var config := {"debug_force_start": true}
-	if minigame_id == &"gauntlet":
+	if FinaleVariants.is_finale(minigame_id):
 		config["finale_only"] = true
 		config["shop_sec"] = 8.0
+		# #936/#685: pin the requested variant so the harness renders exactly
+		# the finale it was asked for, not a random draw.
+		config["finale_variant"] = String(minigame_id)
 	else:
 		config["playlist"] = [minigame_id]
 		config["rounds"] = 1
