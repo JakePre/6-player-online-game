@@ -102,6 +102,29 @@ func test_blast_grid_brain_bombs_a_soft_wall_with_an_escape() -> void:
 	assert_true(intent.get("bomb", false), "adjacent soft wall + escape -> drop a bomb")
 
 
+## #949: with an own resting bomb between us and a rival down a clear line, the
+## bot walks into the bomb (positive mx toward it) to kick it their way.
+func test_blast_grid_brain_kicks_a_bomb_at_a_rival_in_line() -> void:
+	var brain := BotBrains.brain_for(&"blast_grid", 0, 1)
+	var center := 5 * BlastGrid.GRID + 5
+	var grid := _empty_grid()
+	var bcell := center + 1
+	var bpos := Vector2((6 - 5) * BlastGrid.CELL_SIZE, 0.0)  # cell center of center+1
+	var rival_pos := Vector2((8 - 5) * BlastGrid.CELL_SIZE, 0.0)  # two cells past the bomb
+	var game := {
+		"players": {0: [0.0, 0.0, 2, 1, 0], 1: [rival_pos.x, rival_pos.y, 2, 1, 0]},
+		"grid": grid,
+		"bombs": [[bcell, BlastGrid.BOMB_FUSE, bpos.x, bpos.y, 0]],
+		"flames": [],
+		"powerups": [],
+		"fallen": [],
+	}
+	var intent := brain.think(_play_state("blast_grid", game), {})
+	assert_gt(
+		float(intent.get("mx", 0.0)), 0.5, "steps right onto the bomb to kick it at the rival"
+	)
+
+
 func test_blast_grid_brain_seeks_a_distant_soft_wall() -> void:
 	var brain := BotBrains.brain_for(&"blast_grid", 0, 1)
 	# A SOFT wall three cells to our right, nothing adjacent -> advance toward it.

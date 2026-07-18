@@ -23,6 +23,15 @@ const CRATE_GLB_HEIGHT := 0.728
 ## the same glyphs the nameplate already uses for range/bomb count.
 const RANGE_ICON := "🔥"
 const BOMB_ICON := "💣"
+## Cursed Skull pickup (#949): the landed MDL-016 skull-token model, wobbling
+## in place so its 50/50 gamble reads as "risky" next to the plain powerups.
+const SKULL_SCENE := preload("res://assets/generated/models/skull-token.glb")
+const SKULL_WOBBLE_DEG := 14.0
+const SKULL_BOB := 0.12
+## A cursed player wears this on the nameplate so rivals can hunt them (#949).
+const CURSED_ICON := "💀"
+## Border-revenge riders (#949): eliminated players ghost-tinted on the border.
+const GHOST_COLOR := Color(0.55, 0.6, 0.7)
 
 var players := {}
 var grid: Array = []
@@ -39,6 +48,9 @@ var _flame_nodes: Array[MeshInstance3D] = []
 var _flame_cells: Array = []
 var _power_nodes: Array[Label3D] = []
 var _powerups: Array = []
+## Skulls render as the wobbling MDL-016 model, in their own pool (#949).
+var _skull_nodes: Array[Node3D] = []
+var _skulls: Array = []
 var _flames_seen := {}
 ## Snapshot counter drives the fuse pulse without a local clock.
 var _ticks := 0
@@ -81,6 +93,7 @@ func _render_3d(game: Dictionary) -> void:
 	_update_flames(game.get("flames", []))
 	_update_powerups(game.get("powerups", []))
 	_update_players()
+	_update_revenge(game.get("revenge", []))
 
 
 ## Blocks are kept in sync with the grid: pillars persist, soft walls puff and
@@ -160,7 +173,14 @@ func _place_bomb(node: Node3D, index: int) -> void:
 	var beat := 0.5 + 0.5 * sin(_ticks * (0.3 + urgency))
 	_bomb_materials[index].emission = FLAME_COLOR
 	_bomb_materials[index].emission_energy_multiplier = beat * (0.4 + urgency)
-	node.position = to_arena(_cell_pos(int(bomb[BlastGrid.BM_CELL])), BlastGrid.CELL_SIZE * 0.32)
+	# Continuous position (#949) so a kicked bomb reads as a smooth slide;
+	# falls back to the cell center for older snapshots without x,y.
+	var world := (
+		Vector2(float(bomb[BlastGrid.BM_X]), float(bomb[BlastGrid.BM_Y]))
+		if bomb.size() > BlastGrid.BM_Y
+		else _cell_pos(int(bomb[BlastGrid.BM_CELL]))
+	)
+	node.position = to_arena(world, BlastGrid.CELL_SIZE * 0.32)
 
 
 ## Flame cells glow; a cell newly on fire pops a burst + shake (the detonation).
@@ -195,8 +215,30 @@ func _place_flame(node: Node3D, index: int) -> void:
 
 
 func _update_powerups(power_list: Array) -> void:
-	_powerups = power_list
-	sync_pool(_power_nodes, power_list.size(), _make_powerup, _place_powerup)
+	# Skulls (#949) render as the wobbling MDL-016 model; range/bomb stay
+	# billboard glyphs. Split the list so each drives its own pool.
+	_powerups = []
+	_skulls = []
+	for entry_v: Variant in power_list:
+		var entry: Array = entry_v
+		if int(entry[BlastGrid.PW_KIND]) == BlastGrid.Power.SKULL:
+			_skulls.append(entry)
+		else:
+			_powerups.append(entry)
+	sync_pool(_power_nodes, _powerups.size(), _make_powerup, _place_powerup)
+	sync_pool(_skull_nodes, _skulls.size(), _make_skull, _place_skull)
+
+
+func _make_skull() -> Node3D:
+	return SKULL_SCENE.instantiate() as Node3D
+
+
+## Bob + wobble so the gamble reads as "risky" beside the plain powerups.
+func _place_skull(node: Node3D, index: int) -> void:
+	var cell := int((_skulls[index] as Array)[BlastGrid.PW_CELL])
+	var bob := SKULL_BOB * sin(_ticks * 0.25 + cell)
+	node.position = to_arena(_cell_pos(cell), 0.45 + bob)
+	node.rotation.y = deg_to_rad(SKULL_WOBBLE_DEG) * sin(_ticks * 0.2 + cell)
 
 
 ## Billboard icon (#929) — readable at iso distance, unlike a plain color blob.
@@ -236,13 +278,38 @@ func _update_players() -> void:
 			continue
 		var state: Array = players[slot]
 		update_rig(slot, Vector2(state[BlastGrid.PS_X], state[BlastGrid.PS_Y]))
+		# A cursed player (#949) wears the skull so rivals can hunt them; a
+		# living player's color is restored in case they were a ghost rider.
+		rig.player_color = player_color(slot)
+		var cursed := state.size() > BlastGrid.PS_CURSED and int(state[BlastGrid.PS_CURSED]) == 1
+		var curse_tag := "  %s" % CURSED_ICON if cursed else ""
 		rig.display_name = (
-			"%s  ✚%d 💣%d"
+			"%s  ✚%d 💣%d%s"
 			% [
 				player_name(slot),
 				int(state[BlastGrid.PS_RANGE]),
-				int(state[BlastGrid.PS_MAX_BOMBS])
+				int(state[BlastGrid.PS_MAX_BOMBS]),
+				curse_tag,
 			]
+		)
+
+
+## Border revenge (#949): eliminated players ride the border as ghost-tinted
+## rigs (their lobbed bombs come through the normal bomb list). Runs after
+## _update_players, which hides non-living rigs — this re-shows the riders.
+func _update_revenge(riders: Array) -> void:
+	for rider_v: Variant in riders:
+		var rider: Array = rider_v
+		var slot := int(rider[BlastGrid.RV_SLOT])
+		var rig := rig_for_slot(slot)
+		if rig == null:
+			continue
+		reveal_rig(slot)
+		rig.visible = true
+		rig.player_color = GHOST_COLOR
+		rig.display_name = "%s  👻" % player_name(slot)
+		rig.position = to_arena(
+			Vector2(float(rider[BlastGrid.RV_X]), float(rider[BlastGrid.RV_Y])), 0.0
 		)
 
 

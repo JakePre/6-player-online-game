@@ -237,3 +237,142 @@ func test_timeout_survivors_tie_ahead_of_the_fallen() -> void:
 	var placements: Array = game.get_results().placements
 	assert_eq(placements[0].size(), 2, "the two survivors tie for first")
 	assert_eq(placements[1], [2], "the fallen player trails")
+
+
+# --- #949 homage: bomb kick, cursed skull, border revenge ---------------------
+
+
+## Walking into your own resting bomb kicks it; it slides down the cleared
+## corridor and stops at the far wall (fuse held long so it can't detonate).
+func test_kick_slides_own_bomb_until_a_wall() -> void:
+	var game := _game()
+	_clear_row(game, 1)
+	_place(game, 1, _cell(9, 9))  # keep the rival out of the corridor
+	_place(game, 0, _cell(1, 2))
+	game._spawn_bomb(_cell(1, 3), 99.0, 2, 0)
+	# Push right just enough to step onto the bomb and kick it, then release so
+	# the (faster) player doesn't chase and block the slide.
+	for _i in 8:
+		game.handle_input(0, {"mx": 1.0, "my": 0.0})
+		game.tick(TICK)
+	assert_ne(game.bombs[0].slide as Vector2i, Vector2i.ZERO, "the kick set the bomb sliding")
+	for _i in 90:
+		game.handle_input(0, {"mx": 0.0, "my": 0.0})
+		game.tick(TICK)
+	assert_eq(int(game.bombs[0].cell), _cell(1, 9), "slid to the cell before the border wall")
+	assert_eq(game.bombs[0].slide as Vector2i, Vector2i.ZERO, "and came to rest")
+
+
+## You can only kick a bomb you own — a rival's bomb ignores your push.
+func test_kick_only_moves_your_own_bomb() -> void:
+	var game := _game()
+	_clear_row(game, 1)
+	_place(game, 1, _cell(9, 9))
+	_place(game, 0, _cell(1, 2))
+	game._spawn_bomb(_cell(1, 3), 99.0, 2, 1)  # owned by slot 1
+	for _i in 20:
+		game.handle_input(0, {"mx": 1.0, "my": 0.0})
+		game.tick(TICK)
+	assert_eq(int(game.bombs[0].cell), _cell(1, 3), "someone else's bomb doesn't kick")
+	assert_eq(game.bombs[0].slide as Vector2i, Vector2i.ZERO)
+
+
+## A kicked bomb stops the moment the next cell is blocked by a crate.
+func test_kick_stops_at_a_crate() -> void:
+	var game := _game()
+	_clear_row(game, 1)
+	_place(game, 1, _cell(9, 9))
+	game.grid[_cell(1, 5)] = BlastGrid.Cell.SOFT  # a crate two cells past the bomb
+	_place(game, 0, _cell(1, 2))
+	game._spawn_bomb(_cell(1, 3), 99.0, 2, 0)
+	for _i in 8:
+		game.handle_input(0, {"mx": 1.0, "my": 0.0})
+		game.tick(TICK)
+	for _i in 60:
+		game.handle_input(0, {"mx": 0.0, "my": 0.0})
+		game.tick(TICK)
+	assert_eq(int(game.bombs[0].cell), _cell(1, 4), "stopped in the cell before the crate")
+
+
+## The cursed skull is a 50/50 gamble: MEGA (+3 range) or CURSED (reversed
+## movement) — deterministic from the sim rng, exactly one outcome per grab.
+func test_cursed_skull_is_5050_mega_or_curse() -> void:
+	var game := _game()
+	var megas := 0
+	var curse_count := 0
+	for _i in 40:
+		game.ranges[0] = BlastGrid.START_RANGE
+		game.curses[0] = 0.0
+		game._grab_skull(0)
+		if int(game.ranges[0]) > BlastGrid.START_RANGE:
+			megas += 1
+		elif float(game.curses[0]) > 0.0:
+			curse_count += 1
+	assert_eq(megas + curse_count, 40, "every grab is exactly one of the two outcomes")
+	assert_gt(megas, 0, "mega grabs happen")
+	assert_gt(curse_count, 0, "cursed grabs happen")
+
+
+## While cursed, movement input is reversed — pushing right carries you left.
+func test_curse_reverses_movement() -> void:
+	var game := _game()
+	_clear_row(game, 1)
+	_place(game, 0, _cell(1, 5))
+	game.curses[0] = BlastGrid.CURSE_SEC
+	var start_x: float = game.positions[0].x
+	for _i in 10:
+		game.handle_input(0, {"mx": 1.0, "my": 0.0})
+		game.tick(TICK)
+	assert_lt(game.positions[0].x, start_x - 0.2, "cursed: pushing right moves you left")
+
+
+func test_curse_expires_after_its_timer() -> void:
+	var game := _game()
+	game.curses[0] = 2.0 * TICK
+	game.tick(TICK)
+	game.tick(TICK)
+	game.tick(TICK)
+	assert_eq(float(game.curses[0]), 0.0, "curse timer bleeds to zero")
+
+
+## Over many soft-wall breaks a cursed skull eventually drops (its own slice of
+## the power-up roll).
+func test_soft_walls_can_drop_a_cursed_skull() -> void:
+	var game := _game()
+	var saw_skull := false
+	for _i in 400:
+		game.powerups.clear()
+		game.grid[_cell(1, 5)] = BlastGrid.Cell.SOFT
+		game._destroy_soft(_cell(1, 5))
+		if game.powerups.values().has(BlastGrid.Power.SKULL):
+			saw_skull = true
+			break
+	assert_true(saw_skull, "skulls are among the drops")
+
+
+## An eliminated player lobs a revenge bomb (owner sentinel) after the cooldown.
+func test_border_revenge_lobs_on_cooldown() -> void:
+	var game := _game(3)
+	game._pending_downs.append(2)
+	game._flush_downs()
+	assert_true(game.bombs.is_empty(), "no revenge bomb before the cooldown")
+	for _i in int(BlastGrid.REVENGE_COOLDOWN / TICK) + 2:
+		game.tick(TICK)
+	var revenge := game.bombs.filter(
+		func(b: Dictionary) -> bool: return int(b.owner) == BlastGrid.REVENGE_OWNER
+	)
+	assert_gt(revenge.size(), 0, "a revenge bomb was lobbed ~8s after elimination")
+
+
+## The snapshot exposes the new #949 state: border riders and the cursed flag.
+func test_snapshot_exposes_riders_and_cursed_flag() -> void:
+	var game := _game()
+	game._pending_downs.append(1)
+	game._flush_downs()
+	var snap := game.get_snapshot()
+	assert_eq(snap.revenge.size(), 1, "one eliminated rider on the border")
+	assert_eq(int(snap.revenge[0][BlastGrid.RV_SLOT]), 1)
+	game.curses[0] = BlastGrid.CURSE_SEC
+	assert_eq(
+		int(game.get_snapshot().players[0][BlastGrid.PS_CURSED]), 1, "cursed flag on the wire"
+	)

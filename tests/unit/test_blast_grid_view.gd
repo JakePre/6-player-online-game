@@ -155,4 +155,84 @@ func test_renders_a_real_sim_snapshot() -> void:
 	sim.tick(1.0 / 30.0)
 	view.render(sim.get_snapshot())
 	assert_gt(_block_count(), 0, "the real grid renders pillars/soft walls")
-	assert_true(view.rig_for_slot(0).visible)
+
+
+# --- #949 homage visuals ------------------------------------------------------
+
+
+## Skulls render as the MDL-016 model in their own pool; range/bomb stay glyphs.
+func test_cursed_skull_uses_its_own_model_pool() -> void:
+	(
+		view
+		. render(
+			{
+				"grid": _full_grid(),
+				"players": {},
+				"bombs": [],
+				"flames": [],
+				"powerups":
+				[[_cell(2, 1), BlastGrid.Power.SKULL], [_cell(2, 2), BlastGrid.Power.RANGE]],
+			}
+		)
+	)
+	assert_eq(view._skull_nodes.size(), 1, "the skull went to the model pool")
+	assert_eq(view._power_nodes.size(), 1, "the range glyph stayed in the label pool")
+
+
+## A cursed player wears the skull icon on the nameplate (#949).
+func test_cursed_player_wears_the_skull_nameplate() -> void:
+	(
+		view
+		. render(
+			{
+				"grid": _full_grid(),
+				"players": {0: [0.0, 0.0, 2, 1, 1]},  # PS_CURSED = 1
+				"bombs": [],
+				"flames": [],
+				"powerups": [],
+			}
+		)
+	)
+	assert_string_contains(
+		view.rig_for_slot(0).display_name, view.CURSED_ICON, "skull on nameplate"
+	)
+
+
+## Border-revenge riders re-show the eliminated rig at its border spot, ghosted.
+func test_border_rider_shows_ghosted_on_the_border() -> void:
+	(
+		view
+		. render(
+			{
+				"grid": _full_grid(),
+				"players": {0: [0.0, 0.0, 2, 1, 0]},
+				"bombs": [],
+				"flames": [],
+				"powerups": [],
+				"revenge": [[6.0, 0.0, 1]],  # slot 1 rides the border
+			}
+		)
+	)
+	var ghost := view.rig_for_slot(1)
+	assert_true(ghost.visible, "the eliminated rider is shown on the border")
+	assert_eq(ghost.player_color, view.GHOST_COLOR, "ghost-tinted")
+
+
+## A sliding bomb (#949) renders at its continuous x,y, not its cell center.
+func test_sliding_bomb_renders_at_its_continuous_position() -> void:
+	var slid := Vector2(3.3, -1.1)
+	(
+		view
+		. render(
+			{
+				"grid": _full_grid(),
+				"players": {},
+				"bombs": [[_cell(1, 1), 1.2, slid.x, slid.y, 0]],
+				"flames": [],
+				"powerups": [],
+			}
+		)
+	)
+	var expected := view.to_arena(slid, BlastGrid.CELL_SIZE * 0.32)
+	assert_almost_eq(view._bomb_nodes[0].position.x, expected.x, 0.001)
+	assert_almost_eq(view._bomb_nodes[0].position.z, expected.z, 0.001)

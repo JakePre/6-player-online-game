@@ -6,44 +6,145 @@ extends BotBrain
 ## exists. The grid, bombs, and flames are all in the snapshot; a bomb's range
 ## isn't, so danger is modeled conservatively (MAX_RANGE, truncated by walls).
 ##
-## Snapshot: {grid: [Cell...], players: {slot: [x, y, range, max_bombs]},
-## bombs: [[cell, fuse], ...], flames: [cell, ...], powerups, fallen}
-## (BlastGrid). Cell: 0 EMPTY, 1 SOLID, 2 SOFT. Input: {mx, my, bomb}.
-## Indices named via BlastGrid.PS_*/BM_* (#708).
+## Snapshot: {grid: [Cell...], players: {slot: [x, y, range, max_bombs, cursed]},
+## bombs: [[cell, fuse, x, y, owner], ...], flames: [cell, ...], powerups,
+## revenge, fallen} (BlastGrid). Cell: 0 EMPTY, 1 SOLID, 2 SOFT. Input:
+## {mx, my, bomb}. Indices named via BlastGrid.PS_*/BM_* (#708). Also kicks a
+## resting own bomb at a rival and (cautiously) routes around cursed skulls (#949).
 
 const GRID := BlastGrid.GRID
 const CELL := BlastGrid.CELL_SIZE
+## #949 imperfection knob: only ~30% of bots ("reckless") will walk onto a
+## cursed skull; the rest route around its 50/50 gamble. Rolled once per bot.
+const RECKLESS_SKULL_CHANCE := 0.30
+
+## -1 until the first think() rolls it; then 0 (cautious) or 1 (reckless).
+var _reckless := -1
 
 
 func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
+	if _reckless == -1:
+		_reckless = 1 if rng.randf() < RECKLESS_SKULL_CHANCE else 0
 	var game: Dictionary = match_state.get("game", {})
 	var players: Dictionary = game.get("players", {})
 	var me: Array = players.get(slot, [])
 	var grid: Array = game.get("grid", [])
-	if me.size() < BlastGrid.PS_COUNT or grid.size() < GRID * GRID:
+	# We read up to PS_RANGE; tolerate rows without the newer #949 fields.
+	if me.size() <= BlastGrid.PS_RANGE or grid.size() < GRID * GRID:
 		return {}
 	return _act(game, players, me, grid)
 
 
-## Survival first, then a well-escaped bomb, then advance toward a target.
+## Survival first, then a corridor kick, then a well-escaped bomb, then advance.
 func _act(game: Dictionary, players: Dictionary, me: Array, grid: Array) -> Dictionary:
 	var my_pos := Vector2(float(me[BlastGrid.PS_X]), float(me[BlastGrid.PS_Y]))
 	var my_cell := _cell_at(my_pos)
 	var danger := _danger_cells(game, grid)
-	# 1. Survival: if our cell is deadly, step to the safest neighbor (or hold
+	# 1. Bomb Kick (#949): shove an adjacent own bomb down a clear line at a
+	# rival. Checked BEFORE survival because the kicker always stands in its own
+	# bomb's cross — the kick itself is what clears the danger (and it verifies
+	# the vacated cell is safe from any OTHER bomb/flame first).
+	var kick := _kick_intent(game, my_pos, my_cell, grid, players)
+	if not kick.is_empty():
+		return kick
+	# 2. Survival: if our cell is deadly, step to the safest neighbor (or hold
 	# and hope a wall shielded us when boxed in).
 	if danger.has(my_cell):
 		var escape := _escape_step(my_cell, grid, danger)
 		return _move_to_cell(my_pos, escape) if escape != -1 else {}
-	# 2. Offense: bomb a soft wall / rival in reach, but only with an escape.
+	# 3. Offense: bomb a soft wall / rival in reach, but only with an escape.
 	if (
 		_worth_bombing(my_cell, grid, players)
 		and _has_escape(my_cell, int(me[BlastGrid.PS_RANGE]), grid, danger)
 	):
 		return {"bomb": true, "mx": 0.0, "my": 0.0}
-	# 3. Seek: advance toward the nearest soft wall or rival.
+	# 4. Seek: advance toward the nearest soft wall or rival.
 	var target := _nearest_target(my_pos, my_cell, grid, players)
-	return _step_toward_safely(my_cell, target, grid, danger, my_pos) if target != -1 else {}
+	if target == -1:
+		return {}
+	var avoid := danger.duplicate()
+	if _reckless == 0:
+		for skull: int in _skull_cells(game):
+			if not avoid.has(skull):
+				avoid[skull] = true
+	return _step_toward_safely(my_cell, target, grid, avoid, my_pos)
+
+
+## Cells holding a cursed skull (#949) — cautious bots route around these.
+func _skull_cells(game: Dictionary) -> Dictionary:
+	var out := {}
+	for entry: Array in game.get("powerups", []):
+		if (
+			entry.size() > BlastGrid.PW_KIND
+			and int(entry[BlastGrid.PW_KIND]) == BlastGrid.Power.SKULL
+		):
+			out[int(entry[BlastGrid.PW_CELL])] = true
+	return out
+
+
+## A kick is on when we're next to a RESTING bomb we own and a rival sits in the
+## clear cardinal line just beyond it: step onto the bomb to send it their way.
+## The kick moves the bomb clear of us the same tick, so stepping onto its
+## (inherently "dangerous") cell is safe.
+func _kick_intent(
+	game: Dictionary, my_pos: Vector2, my_cell: int, grid: Array, players: Dictionary
+) -> Dictionary:
+	for bomb: Array in game.get("bombs", []):
+		if bomb.size() <= BlastGrid.BM_OWNER or int(bomb[BlastGrid.BM_OWNER]) != slot:
+			continue
+		var bcell := int(bomb[BlastGrid.BM_CELL])
+		if not _neighbors(my_cell).has(bcell):
+			continue
+		# Only resting bombs kick — a sliding one sits off its cell center.
+		var bpos := Vector2(float(bomb[BlastGrid.BM_X]), float(bomb[BlastGrid.BM_Y]))
+		if bpos.distance_to(_cell_center(bcell)) > 0.1:
+			continue
+		# Don't step onto the bomb if a DIFFERENT bomb/flame would kill us there.
+		if _danger_excluding(game, grid, bcell).has(bcell):
+			continue
+		var dir := Vector2i(bcell % GRID - my_cell % GRID, bcell / GRID - my_cell / GRID)
+		if _rival_in_line(bcell, dir, grid, players):
+			return _move_to_cell(my_pos, bcell)
+	return {}
+
+
+## Danger from flames and every bomb EXCEPT the one resting on `skip_cell` —
+## so a bot can judge whether stepping onto its own (kickable) bomb is safe.
+func _danger_excluding(game: Dictionary, grid: Array, skip_cell: int) -> Dictionary:
+	var danger := {}
+	for cell: Variant in game.get("flames", []):
+		danger[int(cell)] = true
+	for bomb: Array in game.get("bombs", []):
+		if bomb.size() <= BlastGrid.BM_FUSE or int(bomb[BlastGrid.BM_CELL]) == skip_cell:
+			continue
+		for cell: int in _blast_cross(int(bomb[BlastGrid.BM_CELL]), BlastGrid.MAX_RANGE, grid):
+			danger[cell] = true
+	return danger
+
+
+## Walking out from `from` along `dir`: true if a rival is reached before any
+## wall/edge (the bomb will slide into them).
+func _rival_in_line(from: int, dir: Vector2i, grid: Array, players: Dictionary) -> bool:
+	var rival_cells := {}
+	for other: int in players:
+		if other == slot:
+			continue
+		var state: Array = players[other]
+		if state.size() > BlastGrid.PS_Y:
+			rival_cells[_cell_at(Vector2(float(state[BlastGrid.PS_X]), float(state[BlastGrid.PS_Y])))] = true
+	var r := from / GRID
+	var c := from % GRID
+	for _step in range(1, GRID):
+		r += dir.y
+		c += dir.x
+		if r < 0 or c < 0 or r >= GRID or c >= GRID:
+			return false
+		var cell := r * GRID + c
+		if int(grid[cell]) != BlastGrid.Cell.EMPTY:
+			return false
+		if rival_cells.has(cell):
+			return true
+	return false
 
 
 func _cell_at(pos: Vector2) -> int:
