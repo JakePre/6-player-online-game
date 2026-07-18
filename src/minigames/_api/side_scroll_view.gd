@@ -14,9 +14,22 @@ const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
 const MAX_SAMPLE_INTERVAL := 0.35
 ## World-unit jump treated as a teleport (respawn) rather than motion.
 const TELEPORT_SNAP_DISTANCE := 4.0
-const PLATFORM_COLOR := Color(0.2, 0.23, 0.3)
-const PLATFORM_BORDER := Color(0.38, 0.42, 0.52)
-const BACKDROP_BLOB_COUNT := 14
+## Solid platforms wear stone; jump-through lids wear wood, so a standable
+## surface reads differently from a pass-up ledge at a glance (#925). Both
+## get a bright top edge so the walkable top is obvious.
+const SOLID_TEXTURE := preload("res://assets/generated/textures/castle-stone.png")
+const ONE_WAY_TEXTURE := preload("res://assets/generated/textures/wood-court.png")
+const PLATFORM_TOP_EDGE := Color(0.55, 0.62, 0.75)
+const ONE_WAY_TOP_EDGE := Color(0.78, 0.6, 0.34)
+## Backdrop (#925): a vertical gradient sky, a dim cool parallax silhouette
+## band, and soft far clouds — deliberately cool, low-contrast and cloud-
+## shaped so nothing back here reads as a foreground hazard.
+const SKY_TOP := Color(0.10, 0.13, 0.22)
+const SKY_BOTTOM := Color(0.17, 0.16, 0.24)
+const HILL_COLOR := Color(0.13, 0.16, 0.26)
+const HILL_FAR_COLOR := Color(0.11, 0.14, 0.22)
+const CLOUD_COLOR := Color(0.22, 0.25, 0.34, 0.30)
+const BACKDROP_BLOB_COUNT := 8
 const DRIFT_SPEED := 0.02
 
 var _stage_solids: Array[Rect2] = []
@@ -27,9 +40,30 @@ var _backdrop: Control
 var _platform_layer: Control
 var _rig_layer: Control
 var _platform_nodes: Array[Panel] = []
+var _platform_is_solid: Array[bool] = []
 var _rigs := {}
 var _samples := {}
 var _drift := 0.0
+
+
+## A top-anchored headline offset below the match chrome bar (#925): the
+## side-scroll games hand-rolled a PRESET_TOP_WIDE label at y≈0 that clipped
+## under the chrome. Every side-scroll game (and Magma Ascent) mounts its HUD
+## through this so the clearance lives in one place.
+func make_sidescroll_hud(hud_name: StringName = &"Hud") -> Label:
+	_ensure_layers()
+	var label := Label.new()
+	label.name = String(hud_name)
+	label.theme_type_variation = PartyTheme.HEADER_VARIATION
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Clear the HudBar chrome (~90px) the same way MinigameView3D's status
+	# label does (#924 CHROME_CLEARANCE_Y) — no text under the match bar.
+	label.position.y += MinigameView3D.CHROME_CLEARANCE_Y
+	label.grow_vertical = Control.GROW_DIRECTION_END
+	add_child(label)
+	return label
 
 
 func _ready() -> void:
@@ -64,8 +98,13 @@ func setup_stage(solids: Array[Rect2], one_way: Array[Rect2], world_bounds: Rect
 	for node in _platform_nodes:
 		node.queue_free()
 	_platform_nodes.clear()
-	for platform in solids + one_way:
-		_platform_nodes.append(_make_platform())
+	_platform_is_solid.clear()
+	for _solid in solids:
+		_platform_nodes.append(_make_platform(true))
+		_platform_is_solid.append(true)
+	for _lid in one_way:
+		_platform_nodes.append(_make_platform(false))
+		_platform_is_solid.append(false)
 	_layout_stage()
 	_backdrop.queue_redraw()
 
@@ -112,14 +151,22 @@ func _layer() -> Control:
 	return layer
 
 
-func _make_platform() -> Panel:
+## Textured platform (#925): a tiled stone/wood fill instead of a bare outline
+## slab, with a bright top edge so the walkable surface reads at a glance.
+func _make_platform(is_solid: bool) -> Panel:
 	var node := Panel.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = PLATFORM_COLOR
-	style.border_color = PLATFORM_BORDER
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(PartyTheme.RADIUS_SM)
+	var style := StyleBoxTexture.new()
+	style.texture = SOLID_TEXTURE if is_solid else ONE_WAY_TEXTURE
+	# Tile rather than stretch, so a wide floor keeps stone-sized detail.
+	style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
 	node.add_theme_stylebox_override(&"panel", style)
+	# The bright standable lip (a child so it rides the top edge on resize).
+	var edge := ColorRect.new()
+	edge.name = "TopEdge"
+	edge.color = PLATFORM_TOP_EDGE if is_solid else ONE_WAY_TOP_EDGE
+	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	node.add_child(edge)
 	_platform_layer.add_child(node)
 	return node
 
@@ -130,21 +177,37 @@ func _layout_stage() -> void:
 		var rect := rects[i]
 		# The rect's top-left on screen is its y-up top-left corner.
 		var top_left := world_to_screen(Vector2(rect.position.x, rect.position.y + rect.size.y))
-		_platform_nodes[i].position = top_left
-		_platform_nodes[i].size = rect.size * _world_scale()
+		var node := _platform_nodes[i]
+		node.position = top_left
+		node.size = rect.size * _world_scale()
+		var edge: ColorRect = node.get_node("TopEdge")
+		edge.position = Vector2.ZERO
+		edge.size = Vector2(node.size.x, maxf(2.0, node.size.y * 0.14))
 
 
+## A little character (#925): a rounded body with two arms and two legs and a
+## proper pair of eyes, in the player's palette color with a dark outline —
+## so the fighters read as ducks-in-a-brawl, not bare capsules. Limbs and the
+## second eye are extra children; Body/Eye/Plate keep their names + roles so
+## the shared facing/sizing paths are unchanged.
 func _make_rig(slot: int) -> Control:
 	var rig := Control.new()
 	rig.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var color := PlayerPalette.color_for_slot(slot)
+	var limb_color := color.darkened(0.35)
+	# Limbs first so the body sits over them.
+	for limb_name in ["LegL", "LegR", "ArmL", "ArmR"]:
+		rig.add_child(_rig_part(limb_name, limb_color, 0.0))
 	var body := Panel.new()
 	body.name = "Body"
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
-	style.set_corner_radius_all(PartyTheme.RADIUS_SM)
+	style.border_color = color.darkened(0.5)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(PartyTheme.RADIUS_MD)
 	body.add_theme_stylebox_override(&"panel", style)
 	rig.add_child(body)
+	rig.add_child(_rig_part("Eye2", Color(0.98, 0.98, 0.98), PartyTheme.RADIUS_SM))
 	var eye := Panel.new()
 	eye.name = "Eye"
 	var eye_style := StyleBoxFlat.new()
@@ -167,25 +230,55 @@ func _make_rig(slot: int) -> Control:
 	return rig
 
 
+## A small colored Panel used for a limb or the second eye.
+func _rig_part(part_name: String, color: Color, radius: int) -> Panel:
+	var part := Panel.new()
+	part.name = part_name
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.set_corner_radius_all(radius)
+	part.add_theme_stylebox_override(&"panel", style)
+	return part
+
+
 func _size_rig(rig: Control) -> void:
 	var px := SideScrollSim.HALF * 2.0 * _world_scale()
 	var body: Panel = rig.get_node("Body")
-	body.position = -px / 2.0
-	body.size = px
-	var eye: Panel = rig.get_node("Eye")
-	eye.size = px * 0.22
+	# The body is a touch shorter than the hitbox to leave room for legs below.
+	body.size = Vector2(px.x, px.y * 0.72)
+	body.position = Vector2(-px.x / 2.0, -px.y / 2.0)
+	var eye_px := px * 0.2
+	(rig.get_node("Eye") as Panel).size = eye_px
+	(rig.get_node("Eye2") as Panel).size = eye_px
+	var leg := Vector2(px.x * 0.22, px.y * 0.3)
+	var foot_y := px.y / 2.0 - leg.y
+	(rig.get_node("LegL") as Panel).size = leg
+	(rig.get_node("LegL") as Panel).position = Vector2(-px.x * 0.28 - leg.x / 2.0, foot_y)
+	(rig.get_node("LegR") as Panel).size = leg
+	(rig.get_node("LegR") as Panel).position = Vector2(px.x * 0.28 - leg.x / 2.0, foot_y)
+	var arm := Vector2(px.x * 0.2, px.y * 0.34)
+	var arm_y := -px.y * 0.12
+	(rig.get_node("ArmL") as Panel).size = arm
+	(rig.get_node("ArmL") as Panel).position = Vector2(-px.x / 2.0 - arm.x * 0.4, arm_y)
+	(rig.get_node("ArmR") as Panel).size = arm
+	(rig.get_node("ArmR") as Panel).position = Vector2(px.x / 2.0 - arm.x * 0.6, arm_y)
 	var plate: Label = rig.get_node("Plate")
 	plate.position = Vector2(-60.0, -px.y / 2.0 - 24.0)
 	plate.size = Vector2(120.0, 18.0)
 
 
+## Both eyes track the facing direction (#925: two eyes now, not one) — a pair
+## of pupils that shift together toward where the fighter is heading.
 func _face_rig(rig: Control, facing: int) -> void:
 	var body: Panel = rig.get_node("Body")
 	var eye: Panel = rig.get_node("Eye")
-	var lean := body.size.x * 0.18
-	eye.position = Vector2(
-		-eye.size.x / 2.0 + signf(facing) * lean, -body.size.y * 0.28 - eye.size.y / 2.0
-	)
+	var eye2: Panel = rig.get_node("Eye2")
+	var lean := body.size.x * 0.16
+	var gap := eye.size.x * 0.7
+	var eye_y := -body.size.y * 0.5 - eye.size.y * 0.1
+	var shift := signf(facing) * lean - eye.size.x / 2.0
+	eye.position = Vector2(shift + gap, eye_y)
+	eye2.position = Vector2(shift - gap, eye_y)
 
 
 # --- Snapshot interpolation (M12-04 pattern, world-space samples) -------------
@@ -232,16 +325,53 @@ func _notification(what: int) -> void:
 			_backdrop.queue_redraw()
 
 
-## Soft drifting blobs behind the stage — depth without noise. Seeded off
-## the blob index so the field is stable frame to frame.
+## The backdrop (#925): a vertical gradient sky, two parallax hill bands, and
+## soft far clouds — all cool, dim and low-contrast, and drawn as gradients
+## and wide hill polygons rather than sharp circles, so nothing here can be
+## mistaken for a foreground hazard. Seeded off index so the field is stable.
 func _draw_backdrop() -> void:
+	# Gradient sky: a stack of horizontal bands from SKY_TOP to SKY_BOTTOM.
+	var bands := 24
+	for b in bands:
+		var t := float(b) / float(bands - 1)
+		var y := size.y * float(b) / float(bands)
+		_backdrop.draw_rect(
+			Rect2(0.0, y, size.x, size.y / float(bands) + 1.0), SKY_TOP.lerp(SKY_BOTTOM, t)
+		)
+	_draw_hill_band(0.72, 0.16, HILL_FAR_COLOR, 0.25)
+	_draw_hill_band(0.82, 0.22, HILL_COLOR, 0.6)
 	for i in BACKDROP_BLOB_COUNT:
 		var phase := float(i) * 2.399
-		var x := fposmod(
-			phase * 191.0 + _drift * size.x * (0.35 + 0.4 * fposmod(phase, 1.0)), size.x
+		var x := (
+			fposmod(
+				phase * 191.0 + _drift * size.x * (0.2 + 0.3 * fposmod(phase, 1.0)), size.x + 200.0
+			)
+			- 100.0
 		)
-		var y := fposmod(phase * 127.0, size.y)
-		var radius := 24.0 + 40.0 * fposmod(phase * 0.71, 1.0)
-		var tint := PartyTheme.BG_RAISED
-		tint.a = 0.35
-		_backdrop.draw_circle(Vector2(x, y), radius, tint)
+		var y := size.y * (0.12 + 0.28 * fposmod(phase * 0.37, 1.0))
+		_draw_cloud(Vector2(x, y), 40.0 + 55.0 * fposmod(phase * 0.71, 1.0))
+
+
+## A rolling parallax hill: a filled polygon along a slow sine ridge, its crest
+## at `base` (fraction of height), drifting by `parallax` of the cloud drift.
+func _draw_hill_band(base: float, amplitude: float, color: Color, parallax: float) -> void:
+	var points := PackedVector2Array()
+	var crest := size.y * base
+	var amp := size.y * amplitude
+	var shift := _drift * size.x * parallax
+	var steps := 16
+	for s in steps + 1:
+		var x := size.x * float(s) / float(steps)
+		var y := crest - amp * (0.5 + 0.5 * sin(float(s) * 0.9 + shift * 0.05))
+		points.append(Vector2(x, y))
+	points.append(Vector2(size.x, size.y))
+	points.append(Vector2(0.0, size.y))
+	_backdrop.draw_colored_polygon(points, color)
+
+
+## A soft cloud: three overlapping low-alpha lozenges — wide and flat, never a
+## tight circle, so it never reads like a boulder or a projectile.
+func _draw_cloud(center: Vector2, radius: float) -> void:
+	for dx in [-radius * 0.7, 0.0, radius * 0.7]:
+		_backdrop.draw_circle(center + Vector2(dx, 0.0), radius * 0.6, CLOUD_COLOR)
+	_backdrop.draw_circle(center + Vector2(0.0, -radius * 0.25), radius * 0.7, CLOUD_COLOR)

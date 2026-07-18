@@ -91,3 +91,46 @@ func test_render_tolerates_missing_and_short_data() -> void:
 	view.render_side_scroll({})
 	view.render_side_scroll({0: [1.0]})
 	assert_null(view.rig_for_slot(0), "short samples are ignored")
+
+
+## #925: the shared HUD helper offsets below the match chrome so the headline
+## no longer clips under the bar.
+func test_sidescroll_hud_clears_the_chrome() -> void:
+	var hud := view.make_sidescroll_hud()
+	assert_almost_eq(
+		hud.position.y, MinigameView3D.CHROME_CLEARANCE_Y, 0.5, "HUD sits below the chrome bar"
+	)
+	assert_eq(hud.get_parent(), view, "mounted on the view, over the stage layers")
+
+
+## #925: solid platforms wear the stone texture, jump-through lids wear wood,
+## and each carries a bright standable top edge.
+func test_platforms_are_textured_by_kind_with_a_top_edge() -> void:
+	var solid := view._platform_nodes[0]
+	var lid := view._platform_nodes[1]
+	var solid_style := solid.get_theme_stylebox(&"panel") as StyleBoxTexture
+	var lid_style := lid.get_theme_stylebox(&"panel") as StyleBoxTexture
+	assert_eq(solid_style.texture, view.SOLID_TEXTURE, "solids wear stone")
+	assert_eq(lid_style.texture, view.ONE_WAY_TEXTURE, "one-way lids wear wood")
+	assert_not_null(solid.get_node("TopEdge"), "a walkable top edge")
+	assert_gt((solid.get_node("TopEdge") as ColorRect).size.x, 0.0, "laid out to width")
+
+
+## #925: the fighters are characters now — two eyes and four limbs, not a bare
+## capsule. Body/Eye/Plate keep their names so the shared paths still work.
+func test_rig_has_character_parts() -> void:
+	view.render_side_scroll({0: [0.0, 0.5, 1, 1]})
+	var rig := view.rig_for_slot(0)
+	for part in ["Body", "Eye", "Eye2", "Plate", "LegL", "LegR", "ArmL", "ArmR"]:
+		assert_not_null(rig.get_node(part), "rig has a %s" % part)
+
+
+## #925: both eyes lean toward the facing direction.
+func test_both_eyes_lean_with_facing() -> void:
+	view.render_side_scroll({0: [0.0, 0.5, 1, 1]})
+	var rig := view.rig_for_slot(0)
+	var eye_right: float = (rig.get_node("Eye") as Panel).position.x
+	var eye2_right: float = (rig.get_node("Eye2") as Panel).position.x
+	view.render_side_scroll({0: [0.0, 0.5, -1, 1]})
+	assert_lt((rig.get_node("Eye") as Panel).position.x, eye_right, "lead eye follows facing")
+	assert_lt((rig.get_node("Eye2") as Panel).position.x, eye2_right, "trailing eye too")

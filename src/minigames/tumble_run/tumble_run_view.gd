@@ -6,7 +6,11 @@ extends SideScrollView
 ##
 ## Input: A/D run + W/Space jump through the base move axis. No attacks.
 
-const BOULDER_COLOR := Color(0.4, 0.34, 0.3)
+const BOULDER_COLOR := Color(0.42, 0.29, 0.22)
+## Hazard read (#925): boulders wear a hot warning glow + a dark rim so they
+## never blur into the cool, soft backdrop clouds behind the stage.
+const BOULDER_GLOW := Color(1.0, 0.45, 0.2, 0.35)
+const BOULDER_RIM := Color(0.12, 0.08, 0.06)
 const SUMMIT_COLOR := Color(0.96, 0.79, 0.2)
 const CRUMBLE_COLOR := Color(0.7, 0.45, 0.3)
 const STUN_MODULATE := Color(1.0, 0.7, 0.5, 0.85)
@@ -46,12 +50,8 @@ func _ensure_chrome() -> void:
 	_fx_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fx_layer.draw.connect(_draw_fx)
 	add_child(_fx_layer)
-	_hud = Label.new()
-	_hud.theme_type_variation = PartyTheme.HEADER_VARIATION
-	_hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_hud)
+	# HUD below the match chrome via the shared helper (#925 clip fix).
+	_hud = make_sidescroll_hud()
 	resized.connect(_layout_crumble)
 
 
@@ -179,4 +179,9 @@ func _draw_fx() -> void:
 		var at := world_to_screen(
 			Vector2(float(boulder[TumbleRun.BL_X]), float(boulder[TumbleRun.BL_Y]))
 		)
-		_fx_layer.draw_circle(at, TumbleRun.BOULDER_RADIUS * _world_scale(), BOULDER_COLOR)
+		var r := TumbleRun.BOULDER_RADIUS * _world_scale()
+		# Hot glow halo, dark rim, then the rock — a foreground danger read
+		# that can't be confused with the backdrop's cool clouds (#925).
+		_fx_layer.draw_circle(at, r * 1.5, BOULDER_GLOW)
+		_fx_layer.draw_circle(at, r + 2.0, BOULDER_RIM)
+		_fx_layer.draw_circle(at, r, BOULDER_COLOR)
