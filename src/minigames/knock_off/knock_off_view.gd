@@ -57,12 +57,8 @@ func _ready() -> void:
 	_fx_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fx_layer.draw.connect(_draw_fx)
 	add_child(_fx_layer)
-	_hud = Label.new()
-	_hud.theme_type_variation = PartyTheme.HEADER_VARIATION
-	_hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_hud)
+	# HUD below the match chrome via the shared helper (#925 clip fix).
+	_hud = make_sidescroll_hud()
 
 
 func _setup() -> void:
