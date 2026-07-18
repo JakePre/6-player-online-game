@@ -33,6 +33,7 @@ func test_registry_lists_variants_with_views_and_names() -> void:
 	var ids := FinaleVariants.ids()
 	assert_has(ids, &"gauntlet")
 	assert_has(ids, &"storm_court")
+	assert_has(ids, &"kingslayer")
 	for id: StringName in ids:
 		assert_true(
 			ResourceLoader.exists(FinaleVariants.view_scene_path(id)),
@@ -45,6 +46,7 @@ func test_registry_lists_variants_with_views_and_names() -> void:
 
 func test_instantiate_builds_the_right_sim_and_junk_falls_back() -> void:
 	assert_true(FinaleVariants.instantiate(&"storm_court") is StormCourt)
+	assert_true(FinaleVariants.instantiate(&"kingslayer") is Kingslayer)
 	assert_true(FinaleVariants.instantiate(&"gauntlet") is Gauntlet)
 	assert_true(FinaleVariants.instantiate(&"nonsense") is Gauntlet, "junk = Gauntlet fallback")
 
@@ -81,3 +83,32 @@ func test_unpinned_pick_is_seed_deterministic_and_from_the_pool() -> void:
 	_into_play(b)
 	assert_eq(a._finale_id, b._finale_id, "same seed = same draw")
 	assert_has(FinaleVariants.ids(), a._finale_id, "drawn from the registry pool")
+
+
+## #936 build 2: the crowning hook — the match coin leader is King when the
+## controller enters a pinned Kingslayer finale.
+func test_match_totals_reach_kingslayer_and_crown_the_leader() -> void:
+	var room := _make_room(3)
+	var controller := (
+		MatchController
+		. new(
+			room,
+			{
+				"seed": 7,
+				"finale": true,
+				"finale_only": true,
+				"finale_coins": 0,
+				"finale_variant": "kingslayer",
+			}
+		)
+	)
+	controller.start()
+	# After start(): the finale_only debug purse overwrites scores at start,
+	# so the "match earnings" this test crowns from are set post-clobber.
+	room.members[1].score = 250  # slot 1 leads the match
+	for slot in 3:
+		controller.handle_input(slot, {"shop": {"action": "confirm"}})
+	controller.tick(TICK)
+	var court := controller.game as Kingslayer
+	assert_not_null(court, "the pinned variant runs")
+	assert_eq(court.king, 1, "the coin leader wears the crown")
