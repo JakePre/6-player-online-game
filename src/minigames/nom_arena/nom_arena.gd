@@ -31,6 +31,17 @@ const LUNGE_MASS_COST := 1.2
 const SHRINK_LAST_SEC := 20.0
 const SHRINK_END_RADIUS := 5.0
 const OUT_DAMAGE := 9.0
+## Power Pellet (#954, owner-approved #944 design): one oversized pellet at a
+## time, spawning PELLET_INTERVAL_SEC after round start / after the last one
+## was eaten, never within PELLET_CLEARANCE of any player. The eater gets
+## FRENZY_SEC of frenzy: biting (lunging into) a rival steals FRENZY_STEAL of
+## their mass, once per rival per lunge. Frenzy grants NO speed change — a
+## positioning reversal, not a guaranteed feast.
+const PELLET_INTERVAL_SEC := 20.0
+const PELLET_CLEARANCE := 2.0
+const PELLET_RADIUS := 0.3
+const FRENZY_SEC := 4.0
+const FRENZY_STEAL := 0.3
 
 ## get_snapshot() wire shapes (#708): named indices for the positional arrays
 ## the view and brain read. Array SHAPE on the wire is unchanged — additive.
@@ -38,10 +49,11 @@ const PS_X := 0
 const PS_Y := 1
 const PS_MASS := 2
 const PS_LUNGING := 3
-const PS_COUNT := 4
+const PS_FRENZY := 4
+const PS_COUNT := 5
 ## #946 wire-shape tripwire: the declared type of each slot in a `players`
 ## snapshot row. Validated by test_snapshot_schema against get_snapshot().
-const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_INT]
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_FLOAT]
 
 const DT_X := 0
 const DT_Y := 1
@@ -51,10 +63,17 @@ var move_dirs := {}
 var masses := {}
 var boundary := ARENA_HALF
 var dots: Array[Vector2] = []
+## Power pellet (#954): Vector2.INF = none on the field.
+var pellet := Vector2.INF
 
 var _lunge_left := {}
 var _lunge_cd := {}
 var _lunge_dir := {}
+var _pellet_timer := PELLET_INTERVAL_SEC
+var _frenzy_left := {}
+## slot -> {victim: true} for the current lunge, so one bite can't drain a
+## rival every tick the 0.22 s lunge overlaps them.
+var _bitten := {}
 
 
 static func make_meta() -> MinigameMeta:
@@ -71,7 +90,8 @@ static func make_meta() -> MinigameMeta:
 				"rules":
 				(
 					"Eat dots to grow, LUNGE to swallow smaller blobs, flee the bigger ones —"
-					+ " biggest blob when the ring closes wins!"
+					+ " grab the POWER PELLET to turn the tables and bite anyone for 4s."
+					+ " Biggest blob when the ring closes wins!"
 				),
 				"controls": "Move — WASD / left stick · Lunge — SPACE / pad A",
 				# Device-aware (#608): the button reads as what the player holds.
@@ -98,6 +118,8 @@ func _setup() -> void:
 		_lunge_left[slot] = 0.0
 		_lunge_cd[slot] = 0.0
 		_lunge_dir[slot] = Vector2.ZERO
+		_frenzy_left[slot] = 0.0
+		_bitten[slot] = {}
 	for _i in DOT_COUNT:
 		dots.append(_random_point(ARENA_HALF - 0.5))
 
@@ -118,6 +140,7 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 		_lunge_dir[slot] = aim.normalized()
 		_lunge_left[slot] = LUNGE_SEC
 		_lunge_cd[slot] = LUNGE_COOLDOWN_SEC
+		_bitten[slot] = {}  # a fresh lunge earns a fresh bite per rival (#954)
 		masses[slot] = maxf(MIN_MASS, float(masses[slot]) - LUNGE_MASS_COST)
 
 
@@ -136,6 +159,8 @@ func _tick(delta: float) -> void:
 		if positions[slot].length() > boundary:
 			mass -= OUT_DAMAGE * delta
 		masses[slot] = maxf(MIN_MASS, mass)
+	_tick_pellet(delta)
+	_tick_frenzy(delta)
 	_eat_dots()
 	_eat_players()
 
@@ -149,11 +174,21 @@ func get_snapshot() -> Dictionary:
 			snappedf(pos.y, 0.01),
 			snappedf(float(masses[slot]), 0.05),
 			1 if float(_lunge_left[slot]) > 0.0 else 0,
+			snappedf(float(_frenzy_left[slot]), 0.01),
 		]
 	var dot_list: Array = []
 	for dot in dots:
 		dot_list.append([snappedf(dot.x, 0.01), snappedf(dot.y, 0.01)])
-	return {"players": player_states, "dots": dot_list, "boundary": snappedf(boundary, 0.01)}
+	# `pellet` is an additive key (#954): [] while none is on the field.
+	var pellet_list: Array = []
+	if pellet != Vector2.INF:
+		pellet_list = [snappedf(pellet.x, 0.01), snappedf(pellet.y, 0.01)]
+	return {
+		"players": player_states,
+		"dots": dot_list,
+		"pellet": pellet_list,
+		"boundary": snappedf(boundary, 0.01),
+	}
 
 
 ## Biggest blob wins; equal masses (rare) share the rank.
@@ -186,6 +221,61 @@ func _boundary_radius() -> float:
 		(elapsed - (effective_duration() - SHRINK_LAST_SEC)) / SHRINK_LAST_SEC, 0.0, 1.0
 	)
 	return lerpf(ARENA_HALF, SHRINK_END_RADIUS, t)
+
+
+## #954: the pellet timer runs only while no pellet is on the field, so the
+## next one lands PELLET_INTERVAL_SEC after the previous was eaten.
+func _tick_pellet(delta: float) -> void:
+	if pellet == Vector2.INF:
+		_pellet_timer -= delta
+		if _pellet_timer <= 0.0:
+			pellet = _pellet_spawn_point()
+		return
+	for slot: int in slots:
+		if positions[slot].distance_to(pellet) <= radius_of(slot) + PELLET_RADIUS:
+			pellet = Vector2.INF
+			_pellet_timer = PELLET_INTERVAL_SEC
+			_frenzy_left[slot] = FRENZY_SEC
+			break
+
+
+## Random point inside the ring with PELLET_CLEARANCE from every player; if a
+## crowded endgame ring makes that impossible, the farthest-from-players
+## candidate wins — the spawn never stalls.
+func _pellet_spawn_point() -> Vector2:
+	var best := Vector2.ZERO
+	var best_gap := -INF
+	for _i in 12:
+		var candidate := _random_point(maxf(boundary - 0.5, 2.0))
+		var gap := INF
+		for slot: int in slots:
+			gap = minf(gap, positions[slot].distance_to(candidate))
+		if gap >= PELLET_CLEARANCE:
+			return candidate
+		if gap > best_gap:
+			best_gap = gap
+			best = candidate
+	return best
+
+
+## #954: a frenzied, LUNGING blob that touches a rival bites FRENZY_STEAL of
+## their mass off (the victim keeps at least MIN_MASS; the biter gains exactly
+## what was taken). One bite per rival per lunge — see _bitten.
+func _tick_frenzy(delta: float) -> void:
+	for slot: int in slots:
+		_frenzy_left[slot] = maxf(0.0, float(_frenzy_left[slot]) - delta)
+	for a: int in slots:
+		if float(_frenzy_left[a]) <= 0.0 or float(_lunge_left[a]) <= 0.0:
+			continue
+		for b: int in slots:
+			if a == b or (_bitten[a] as Dictionary).has(b):
+				continue
+			if positions[a].distance_to(positions[b]) > radius_of(a) + radius_of(b):
+				continue
+			var taken := clampf(float(masses[b]) * FRENZY_STEAL, 0.0, float(masses[b]) - MIN_MASS)
+			masses[b] = float(masses[b]) - taken
+			masses[a] = float(masses[a]) + taken
+			_bitten[a][b] = true
 
 
 func _eat_dots() -> void:
@@ -222,6 +312,7 @@ func _respawn(slot: int) -> void:
 	positions[slot] = _random_point(maxf(boundary - 1.0, 2.0))
 	move_dirs[slot] = Vector2.ZERO
 	_lunge_left[slot] = 0.0
+	_frenzy_left[slot] = 0.0  # being swallowed ends a frenzy (#954)
 
 
 func _random_point(radius: float) -> Vector2:
