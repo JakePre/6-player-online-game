@@ -34,6 +34,7 @@ func test_registry_lists_variants_with_views_and_names() -> void:
 	assert_has(ids, &"gauntlet")
 	assert_has(ids, &"storm_court")
 	assert_has(ids, &"kingslayer")
+	assert_has(ids, &"magma_ascent")
 	for id: StringName in ids:
 		assert_true(
 			ResourceLoader.exists(FinaleVariants.view_scene_path(id)),
@@ -47,6 +48,7 @@ func test_registry_lists_variants_with_views_and_names() -> void:
 func test_instantiate_builds_the_right_sim_and_junk_falls_back() -> void:
 	assert_true(FinaleVariants.instantiate(&"storm_court") is StormCourt)
 	assert_true(FinaleVariants.instantiate(&"kingslayer") is Kingslayer)
+	assert_true(FinaleVariants.instantiate(&"magma_ascent") is MagmaAscent)
 	assert_true(FinaleVariants.instantiate(&"gauntlet") is Gauntlet)
 	assert_true(FinaleVariants.instantiate(&"nonsense") is Gauntlet, "junk = Gauntlet fallback")
 

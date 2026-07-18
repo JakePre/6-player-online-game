@@ -12,12 +12,14 @@ const VIEW_SCENES := {
 	&"gauntlet": "res://src/finale/gauntlet_view.tscn",
 	&"storm_court": "res://src/finale/storm_court_view.tscn",
 	&"kingslayer": "res://src/finale/kingslayer_view.tscn",
+	&"magma_ascent": "res://src/finale/magma_ascent_view.tscn",
 }
 ## HUD names without instantiating a sim client-side just for a label.
 const NAMES := {
 	&"gauntlet": "The Gauntlet",
 	&"storm_court": "Storm Court",
 	&"kingslayer": "Kingslayer",
+	&"magma_ascent": "Magma Ascent",
 }
 
 
@@ -48,6 +50,9 @@ static func instantiate(id: StringName) -> MinigameBase:
 		&"kingslayer":
 			game = Kingslayer.new()
 			game.meta = Kingslayer.make_meta()
+		&"magma_ascent":
+			game = MagmaAscent.new()
+			game.meta = MagmaAscent.make_meta()
 		_:
 			game = Gauntlet.new()
 			game.meta = Gauntlet.make_meta()
