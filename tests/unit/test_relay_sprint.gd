@@ -13,10 +13,11 @@ func _game(player_slots: Array[int] = [0, 1, 2, 3, 4, 5]) -> RelaySprint:
 	return game
 
 
-## Runs `team_index`'s active runner straight down a hazard-free line by
-## steering around sweepers — for tests we bypass dodging by teleporting
-## progress just past each hazard when adjacent to it.
+## Runs `team_index`'s active runner straight down the lane. Relay-flow tests
+## aren't hazard tests, so callers disarm the stations first (#1068) — the
+## hazard types get their own targeted coverage below.
 func _sprint_team(game: RelaySprint, team_index: int, legs: int) -> void:
+	game.hazard_stations = []
 	for _leg in legs:
 		var guard := 0
 		while int(game.active_leg[team_index]) < legs and guard < 100_000:
@@ -27,11 +28,6 @@ func _sprint_team(game: RelaySprint, team_index: int, legs: int) -> void:
 			game.tick(TICK)
 			if game.finished:
 				return
-			for i in RelaySprint.HAZARD_POSITIONS.size():
-				var hazard: float = RelaySprint.HAZARD_POSITIONS[i]
-				var progress := float(game.progress[team_index])
-				if absf(progress - hazard) <= RelaySprint.HAZARD_RADIUS + 0.3:
-					game.progress[team_index] = hazard + RelaySprint.HAZARD_RADIUS + 0.31
 			if int(game.active_leg[team_index]) > before:
 				break
 
@@ -118,15 +114,77 @@ func test_running_advances_only_forward() -> void:
 	assert_eq(game.progress[team_index], 0.0, "cannot run backwards below start")
 
 
-func test_hazard_contact_resets_the_leg() -> void:
+## #1068: a hit knocks you back one station gap (recentred), not to zero —
+## a spinner's pivot dot sits at (x, 0) always, so parking there is a
+## guaranteed contact.
+func test_hazard_contact_knocks_back_one_station() -> void:
 	var game := _game([0, 1] as Array[int])
 	var team_index := 0
-	game.progress[team_index] = RelaySprint.HAZARD_POSITIONS[0]
-	game.lateral[team_index] = game.hazard_lateral(0, game.elapsed + TICK)
+	game.hazard_stations = [
+		{"type": RelaySprint.Hazard.SPINNER, "x": 7.0, "phase": 0.0, "gap": 0.0}
+	]
+	game.progress[team_index] = 7.0
+	game.lateral[team_index] = 0.0
 	var runner: int = game.teams[team_index][0]
 	game.handle_input(runner, {"mx": 0.0, "my": 0.0})
 	game.tick(TICK)
-	assert_eq(game.progress[team_index], 0.0)
+	assert_almost_eq(
+		float(game.progress[team_index]), 7.0 - RelaySprint.HIT_KNOCKBACK, 0.001, "one gap back"
+	)
+	assert_eq(game.lateral[team_index], 0.0, "recentred in the lane")
+
+
+## #1068: every round seeds one of each hazard type (plus a random fourth) —
+## variety is guaranteed, and the same seed reproduces the same gauntlet.
+func test_stations_are_seeded_with_all_three_types() -> void:
+	var game := _game([0, 1] as Array[int])
+	assert_eq(game.hazard_stations.size(), RelaySprint.STATION_XS.size())
+	var types := {}
+	for station: Dictionary in game.hazard_stations:
+		types[int(station.type)] = true
+	assert_eq(types.size(), 3, "sweeper, spinner and gate all present")
+	var again := _game([0, 1] as Array[int])
+	for i in game.hazard_stations.size():
+		assert_eq(game.hazard_stations[i], again.hazard_stations[i], "same seed = same gauntlet")
+
+
+## #1068: the spinner replicates as a pivot plus two tips orbiting SPINNER_ARM
+## away, opposite each other — the dot form every consumer already reads.
+func test_spinner_dots_orbit_the_pivot() -> void:
+	var game := _game([0, 1] as Array[int])
+	game.hazard_stations = [
+		{"type": RelaySprint.Hazard.SPINNER, "x": 9.0, "phase": 0.0, "gap": 0.0}
+	]
+	var dots: Array = game.hazard_dots(1.234)
+	assert_eq(dots.size(), 3, "pivot + two tips")
+	var pivot := Vector2(float(dots[0][0]), float(dots[0][1]))
+	assert_eq(pivot, Vector2(9.0, 0.0))
+	for tip_index in [1, 2]:
+		var tip := Vector2(float(dots[tip_index][0]), float(dots[tip_index][1]))
+		assert_almost_eq(tip.distance_to(pivot), RelaySprint.SPINNER_ARM, 0.001, "on the arm")
+	var t1 := Vector2(float(dots[1][0]), float(dots[1][1]))
+	var t2 := Vector2(float(dots[2][0]), float(dots[2][1]))
+	assert_almost_eq(((t1 + t2) / 2.0).distance_to(pivot), 0.0, 0.001, "tips oppose")
+
+
+## #1068: a gate's wall dots cover the lane on both sides of the gap and
+## leave the gap itself clear — a weave, not a wall.
+func test_gate_dots_flank_a_clear_gap() -> void:
+	var game := _game([0, 1] as Array[int])
+	game.hazard_stations = [{"type": RelaySprint.Hazard.GATE, "x": 11.0, "phase": 0.0, "gap": 0.6}]
+	var dots: Array = game.hazard_dots(0.0)
+	assert_gt(dots.size(), 1, "walls on both sides")
+	var above := false
+	var below := false
+	for dot: Array in dots:
+		assert_eq(float(dot[0]), 11.0, "gate dots are static at the station")
+		var lat := float(dot[1])
+		assert_gt(absf(lat - 0.6), RelaySprint.GATE_GAP_HALF - 0.45, "no dot blocks the gap mouth")
+		if lat > 0.6:
+			above = true
+		else:
+			below = true
+	assert_true(above and below, "both sides of the gap are walled")
 
 
 func test_finishing_a_leg_tags_the_partner() -> void:
@@ -175,7 +233,11 @@ func test_snapshot_shape() -> void:
 	assert_eq(snapshot.lanes.size(), 3)
 	assert_eq(snapshot.lanes[0].size(), RelaySprint.LN_COUNT)
 	assert_eq(snapshot.track_len, RelaySprint.TRACK_LEN)
-	assert_eq(snapshot.hazards.size(), RelaySprint.HAZARD_POSITIONS.size())
+	assert_gte(
+		snapshot.hazards.size(), RelaySprint.STATION_XS.size(), "at least one dot per station"
+	)
+	for hazard: Array in snapshot.hazards:
+		assert_eq(hazard.size(), 2, "every hazard dot is [x, lateral]")
 
 
 ## M15: the timeout-ranks-by-progress path must generalize past the original
