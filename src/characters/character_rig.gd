@@ -43,6 +43,14 @@ const NAMEPLATE_BASE_FONT := 48
 ## other. Plates closer to the camera stay lower (nearest the owner's head).
 const PLATE_CLUSTER_RADIUS := 1.7
 const PLATE_STACK_STEP := 0.55
+## Cluster declutter (#923): staggering alone still piled 5 full-size plates
+## into an unreadable tower. Now only the LEAD plate of a cluster (the one no
+## mate ranks ahead of — the local player when present, #216 priority) stays
+## full; every plate ranked below a mate shrinks, fades, and drops to just its
+## number badge, so a pile reads as "one clear leader + faded others" instead
+## of a wall of names.
+const DECLUTTER_FONT_MULT := 0.62
+const DECLUTTER_ALPHA := 0.5
 ## Every plate renders inside the same maximum text width (#180): names and
 ## captions longer than this shrink to fit instead of dwarfing everyone
 ## else's. Measured in font pixels at the base size.
@@ -78,6 +86,9 @@ var _outline_material: ShaderMaterial
 var _xray_material: ShaderMaterial
 var _base_font_size := NAMEPLATE_BASE_FONT
 var _plate_base_y := 0.0
+## Cluster declutter state (#923): true while a mate ranks ahead of this plate,
+## so it renders as a faded badge instead of a full name.
+var _decluttered := false
 ## Held-weapon state (#584): {mesh, bone, offset} while armed, empty otherwise.
 ## Kept as data so a character swap (_rebuild_character) re-arms the new body.
 var _held_weapon := {}
@@ -185,16 +196,30 @@ func set_display_name(value: String) -> void:
 ## to fit; shorter text keeps the base size. The outline scales along so the
 ## through-walls silhouette stays proportional.
 func _fit_nameplate() -> void:
-	_nameplate.text = display_name
+	# Decluttered plates show only the number badge (the first token, always
+	# "P<n>"), so a long caption like "P4  34 pts  (0 balls)" collapses to "P4"
+	# when it's piled behind a leader (#923).
+	var text := _badge_of(display_name) if _decluttered else display_name
+	_nameplate.text = text
 	var font := _nameplate.font
 	if font == null:
 		font = ThemeDB.fallback_font
 	var text_width := (
-		font.get_string_size(display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, NAMEPLATE_BASE_FONT).x
+		font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, NAMEPLATE_BASE_FONT).x
 	)
 	var factor := minf(1.0, NAMEPLATE_MAX_WIDTH / maxf(text_width, 1.0))
+	if _decluttered:
+		factor *= DECLUTTER_FONT_MULT
 	_nameplate.font_size = maxi(1, int(_base_font_size * factor))
 	_nameplate.outline_size = maxi(1, int(20 * factor))
+
+
+## The number badge — the first whitespace-delimited token of the plate text,
+## always "P<n>" whether or not names are shown (#580) or a caption follows.
+func _badge_of(text: String) -> String:
+	var trimmed := text.strip_edges()
+	var space := trimmed.find(" ")
+	return trimmed if space < 0 else trimmed.substr(0, space)
 
 
 func set_show_props(value: bool) -> void:
@@ -283,7 +308,15 @@ func _apply_player_color() -> void:
 	var ghost := player_color
 	ghost.a = XRAY_ALPHA
 	_xray_material.set_shader_parameter("silhouette_color", ghost)
-	_nameplate.modulate = player_color
+	_apply_plate_modulate()
+
+
+## The plate keeps the player's color, faded to DECLUTTER_ALPHA while it's a
+## piled-behind badge (#923) so the leader's plate reads over the others.
+func _apply_plate_modulate() -> void:
+	var color := player_color
+	color.a = DECLUTTER_ALPHA if _decluttered else 1.0
+	_nameplate.modulate = color
 
 
 func _on_animation_finished(_anim_name: StringName) -> void:
@@ -315,6 +348,17 @@ func _update_plate_stack() -> void:
 	var target_y := _plate_base_y + below * PLATE_STACK_STEP
 	if not is_equal_approx(_nameplate.position.y, target_y):
 		_nameplate.position.y = target_y
+	# A plate with any mate ranked ahead is decluttered — shrunk, faded and
+	# badge-only — so only the cluster's single leader shows a full plate (#923).
+	_set_decluttered(below > 0)
+
+
+func _set_decluttered(value: bool) -> void:
+	if value == _decluttered:
+		return
+	_decluttered = value
+	_fit_nameplate()
+	_apply_plate_modulate()
 
 
 func _ranks_ahead(other: CharacterRig) -> bool:
