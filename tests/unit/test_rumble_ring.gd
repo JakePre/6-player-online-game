@@ -113,6 +113,74 @@ func test_guard_blocks_damage_and_slows() -> void:
 	assert_lt(moved, RumbleRing.MOVE_SPEED * TICK * 0.5, "guarding crawls")
 
 
+## #1066 (owner-approved: stamina + chip): a guarded hit still leaks a
+## quarter of its shove and bites the meter — beating on a turtle cracks it.
+func test_guarded_hit_chips_knockback_and_stamina() -> void:
+	var game := _game()
+	_square_up(game, 0, 1)
+	game.handle_input(1, {"guard": true})
+	var pos_before: float = (game.positions[1] as Vector2).x
+	var stamina_before: float = game.stamina[1]
+	game.handle_input(0, {"attack": true})
+	assert_eq(game.hp[1], RumbleRing.MAX_HP, "still no HP through the guard")
+	assert_almost_eq(
+		(game.positions[1] as Vector2).x - pos_before,
+		RumbleRing.SWING_KNOCKBACK * RumbleRing.CHIP_KNOCKBACK_MULT,
+		0.001,
+		"a quarter of the shove leaks through"
+	)
+	assert_almost_eq(
+		float(game.stamina[1]),
+		stamina_before - RumbleRing.CHIP_STAMINA_PER_HP,
+		0.001,
+		"the block bites the meter"
+	)
+
+
+## #1066: holding guard drains stamina; empty = guard break + a stagger that
+## swallows swings and re-guards, and full damage lands while broken.
+func test_guard_drains_to_a_break_and_stagger() -> void:
+	var game := _game()
+	_square_up(game, 0, 1)
+	game.handle_input(1, {"guard": true})
+	var ticks := int(RumbleRing.GUARD_STAMINA_SEC / TICK) + 2
+	for _i in ticks:
+		game.tick(TICK)
+	assert_false(bool(game.guarding[1]), "empty meter drops the guard")
+	assert_gt(float(game.stagger[1]), 0.0, "and staggers")
+	game.handle_input(1, {"attack": true})
+	assert_eq(game.swing_cooldown[1], 0.0, "staggered swings are swallowed")
+	game.handle_input(1, {"guard": true})
+	assert_false(bool(game.guarding[1]), "staggered re-guard is swallowed")
+	game.handle_input(0, {"attack": true})
+	assert_eq(game.hp[1], RumbleRing.MAX_HP - 1, "full damage lands while broken")
+
+
+## #1066: the meter refills while not guarding, at the regen rate.
+func test_stamina_regenerates_when_not_guarding() -> void:
+	var game := _game()
+	game.stamina[0] = 0.0
+	game.stagger[0] = 0.0
+	for _i in 30:
+		game.tick(TICK)
+	assert_almost_eq(
+		float(game.stamina[0]), RumbleRing.GUARD_REGEN_MULT * 30.0 * TICK, 0.02, "regen rate"
+	)
+
+
+## #1066: a break is not a release — no free smash on the way down, even at
+## a full charge.
+func test_guard_break_does_not_fire_the_smash() -> void:
+	var game := _game()
+	_square_up(game, 1, 0)
+	game.handle_input(1, {"guard": true})
+	game.stamina[1] = TICK * 0.5  # about to run dry, well past SMASH_CHARGE_SEC
+	game._guard_held_sec[1] = RumbleRing.SMASH_CHARGE_SEC + 1.0
+	game.tick(TICK)
+	assert_false(bool(game.guarding[1]), "broke")
+	assert_eq(game.hp[0], RumbleRing.MAX_HP, "no smash fired at the neighbor")
+
+
 func test_full_charge_release_smashes() -> void:
 	var game := _game()
 	_square_up(game, 0, 1)
