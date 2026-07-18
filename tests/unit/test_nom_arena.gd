@@ -1,6 +1,7 @@
 extends GutTest
 ## Nom Arena server simulation (M14-10): growth by dots, eating smaller blobs,
-## idle decay, the lunge, the closing boundary, size-vs-speed, and ranking.
+## idle decay, the lunge, the seeded maze walls (#1027, ring removed #1069),
+## the #954 Power Pellet, size-vs-speed, and ranking.
 
 const TICK := 1.0 / 30.0
 
@@ -119,17 +120,50 @@ func test_lunge_without_a_heading_falls_back_forward() -> void:
 	)
 
 
-func test_boundary_closes_in_late_and_bleeds_stragglers() -> void:
+## #1027: the seeded maze — four-fold mirrored walls, deterministic per seed,
+## with every dot spawned clear of them. The ring is gone (#1069).
+func test_walls_are_seeded_symmetric_and_keep_dots_clear() -> void:
 	var game := _game()
-	assert_almost_eq(game._boundary_radius(), NomArena.ARENA_HALF, 0.01, "full arena early")
-	game.elapsed = 60.0  # end of the round
-	assert_lt(game._boundary_radius(), NomArena.ARENA_HALF, "the ring has closed")
-	# A blob left outside the closed ring bleeds mass fast.
+	assert_eq(game.walls.size(), NomArena.WALLS_PER_QUADRANT * 4, "each rect mirrored x4")
+	for wall: Dictionary in game.walls:
+		var mirrored := 0
+		for other: Dictionary in game.walls:
+			var wall_pos: Vector2 = wall.pos
+			var other_pos: Vector2 = other.pos
+			if (
+				absf(absf(wall_pos.x) - absf(other_pos.x)) < 0.001
+				and absf(absf(wall_pos.y) - absf(other_pos.y)) < 0.001
+			):
+				mirrored += 1
+		assert_eq(mirrored, 4, "every wall has its four mirror images")
+	for dot in game.dots:
+		assert_false(game._inside_a_wall(dot), "dots never spawn inside the maze")
+	var again := _game()
+	assert_eq(game.walls, again.walls, "same seed = same maze")
+
+
+## #1027: a blob can't drive through a wall — the deepest a real step can
+## reach is a shallow face overlap, and the sim slides it back out flush.
+func test_walls_block_blobs() -> void:
+	var game := _game()
+	var wall: Dictionary = game.walls[0]
+	var wall_pos: Vector2 = wall.pos
+	var wall_half: Vector2 = wall.half
 	game.dots.clear()
-	game.masses[0] = 20.0
-	game.positions[0] = Vector2(NomArena.ARENA_HALF, 0.0)  # outside the tiny late ring
+	game.positions[0] = wall_pos + Vector2(wall_half.x + game.radius_of(0) * 0.4, 0.0)
 	game.tick(TICK)
-	assert_lt(float(game.masses[0]), 20.0 - 0.2, "outside the ring hurts")
+	var gap: float = absf(float((game.positions[0] as Vector2).x) - wall_pos.x)
+	assert_gte(
+		gap + 0.001, wall_half.x + game.radius_of(0), "the wall pushes the blob back out flush"
+	)
+
+
+## #1027: the pellet never spawns buried in the maze.
+func test_pellet_spawn_clears_the_walls() -> void:
+	var game := _game()
+	for _i in 20:
+		var point := game._pellet_spawn_point()
+		assert_false(game._inside_a_wall(point), "pellet spawn is wall-clear")
 
 
 func test_bigger_blobs_move_slower() -> void:

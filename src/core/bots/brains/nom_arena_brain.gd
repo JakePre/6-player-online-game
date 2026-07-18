@@ -4,7 +4,7 @@ extends BotBrain
 ## inside the closing ring, lunge at anything small enough to swallow, else
 ## graze the nearest dot. Priorities in that order — survival first, growth
 ## second. Snapshot: {players: {slot: [x, y, mass, lunging]}, dots: [[x,y],
-## ...], boundary}. Input: {mx, my} + {lunge: true}. Indices named via
+## ...], walls, pellet}. Input: {mx, my} + {lunge: true}. Indices named via
 ## NomArena.PS_*/DT_* (#708).
 ##
 ## Cost-aware lunging (#715): nom_arena.gd eats on plain proximity contact —
@@ -20,7 +20,6 @@ extends BotBrain
 ## How far out a threat/prey is worth reacting to, scaled by the mass gap so
 ## a much bigger rival is noticed sooner than a marginal one.
 const REACT_RANGE := 6.0
-const BOUNDARY_MARGIN := 1.0
 ## Real lunge reach — firing from farther than this pays LUNGE_MASS_COST
 ## before the burst can possibly connect.
 const LUNGE_REACH := NomArena.LUNGE_SPEED * NomArena.LUNGE_SEC
@@ -45,9 +44,8 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	var threat := _flee_target(players, me, mass)
 	if threat != Vector2.INF:
 		return move_away_from_point(me, threat)
-	var boundary := float(game.get("boundary", NomArena.ARENA_HALF))
-	if me.length() > boundary - BOUNDARY_MARGIN:
-		return move_toward_point(me, Vector2.ZERO, 0.0)
+	# The ring is gone (#1069) — no boundary retreat; the walls (#1027) are
+	# solid, so the sim's slide handles any wall contact for us.
 	# Growth: contest the pellet if closest (#954), else hunt prey, else graze.
 	return _growth_intent(game, players, me, mass)
 

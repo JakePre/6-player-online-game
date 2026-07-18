@@ -1,6 +1,7 @@
 class_name NomArena
 extends MinigameBase
-## Nom Arena (M14-10, PHASE2.md §8): an agar.io homage, kept QUICK per owner
+## Nom Arena (M14-10, PHASE2.md §8; #1069 ring removed, #1027 seeded walls,
+## on top of #954's Power Pellet): an agar.io homage, kept QUICK per owner
 ## directive — a 60 s scramble where you eat dense dots to grow, lunge to catch
 ## smaller blobs and swallow them, and dodge bigger ones, while idle mass decays
 ## and the arena closes in for the finish. Biggest blob at the buzzer wins.
@@ -26,11 +27,15 @@ const LUNGE_SPEED := 17.0
 const LUNGE_SEC := 0.22
 const LUNGE_COOLDOWN_SEC := 1.3
 const LUNGE_MASS_COST := 1.2
-## The closing ring: starts shrinking with this long left, down to the final
-## radius; blobs caught outside bleed mass fast — that's the QUICK endgame.
-const SHRINK_LAST_SEC := 20.0
-const SHRINK_END_RADIUS := 5.0
-const OUT_DAMAGE := 9.0
+## Seeded walls (#1027): WALLS_PER_QUADRANT rects rolled in one quadrant and
+## mirrored across both axes (4-fold symmetry = fair from every spawn angle),
+## sized/placed so lanes always stay wider than the fattest blob. They replace
+## the shrinking ring (#1069, owner playtest) as the crowd-splitting pressure.
+const WALLS_PER_QUADRANT := 2
+const WALL_MIN_HALF := Vector2(0.4, 1.2)
+const WALL_MAX_HALF := Vector2(0.7, 2.6)
+const WALL_CENTER_MIN := 3.0
+const WALL_CENTER_MAX := 8.0
 ## Power Pellet (#954, owner-approved #944 design): one oversized pellet at a
 ## time, spawning PELLET_INTERVAL_SEC after round start / after the last one
 ## was eaten, never within PELLET_CLEARANCE of any player. The eater gets
@@ -61,7 +66,8 @@ const DT_Y := 1
 var positions := {}
 var move_dirs := {}
 var masses := {}
-var boundary := ARENA_HALF
+## Seeded walls (#1027), each {pos, half} — set once in _setup, replicated.
+var walls: Array[Dictionary] = []
 var dots: Array[Vector2] = []
 ## Power pellet (#954): Vector2.INF = none on the field.
 var pellet := Vector2.INF
@@ -91,7 +97,7 @@ static func make_meta() -> MinigameMeta:
 				(
 					"Eat dots to grow, LUNGE to swallow smaller blobs, flee the bigger ones —"
 					+ " grab the POWER PELLET to turn the tables and bite anyone for 4s."
-					+ " Biggest blob when the ring closes wins!"
+					+ " Weave the walls. Biggest blob at the buzzer wins!"
 				),
 				"controls": "Move — WASD / left stick · Lunge — SPACE / pad A",
 				# Device-aware (#608): the button reads as what the player holds.
@@ -120,8 +126,28 @@ func _setup() -> void:
 		_lunge_dir[slot] = Vector2.ZERO
 		_frenzy_left[slot] = 0.0
 		_bitten[slot] = {}
+	_generate_walls()
 	for _i in DOT_COUNT:
-		dots.append(_random_point(ARENA_HALF - 0.5))
+		dots.append(_clear_point(ARENA_HALF - 0.5))
+
+
+## WALLS_PER_QUADRANT seeded rects in the +x/+y quadrant, mirrored across both
+## axes (#1027): every spawn angle faces the same maze, and the center stays
+## open so the pellet and respawns always have room.
+func _generate_walls() -> void:
+	for _i in WALLS_PER_QUADRANT:
+		var half := Vector2(
+			rng.randf_range(WALL_MIN_HALF.x, WALL_MAX_HALF.x),
+			rng.randf_range(WALL_MIN_HALF.y, WALL_MAX_HALF.y)
+		)
+		if rng.randf() < 0.5:
+			half = Vector2(half.y, half.x)
+		var center := Vector2(
+			rng.randf_range(WALL_CENTER_MIN, WALL_CENTER_MAX),
+			rng.randf_range(WALL_CENTER_MIN, WALL_CENTER_MAX)
+		)
+		for mirror: Vector2 in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
+			walls.append({"pos": center * mirror, "half": half})
 
 
 func _handle_input(slot: int, data: Dictionary) -> void:
@@ -145,7 +171,6 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 
 func _tick(delta: float) -> void:
-	boundary = _boundary_radius()
 	for slot: int in slots:
 		_lunge_cd[slot] = maxf(0.0, float(_lunge_cd[slot]) - delta)
 		var velocity: Vector2 = (move_dirs[slot] as Vector2) * _speed(slot)
@@ -153,12 +178,11 @@ func _tick(delta: float) -> void:
 			_lunge_left[slot] = maxf(0.0, float(_lunge_left[slot]) - delta)
 			velocity = (_lunge_dir[slot] as Vector2) * LUNGE_SPEED
 		var pos: Vector2 = positions[slot] + velocity * delta
+		pos = _push_out_of_walls(pos, radius_of(slot))
 		positions[slot] = pos.limit_length(ARENA_HALF)
-		# Idle decay, and heavy bleed if caught outside the closing ring.
-		var mass := float(masses[slot]) * (1.0 - DECAY_RATE * delta)
-		if positions[slot].length() > boundary:
-			mass -= OUT_DAMAGE * delta
-		masses[slot] = maxf(MIN_MASS, mass)
+		# Idle decay — big blobs melt, so you must keep eating (the ring is
+		# gone, #1069: the walls and the pellet make the pressure instead).
+		masses[slot] = maxf(MIN_MASS, float(masses[slot]) * (1.0 - DECAY_RATE * delta))
 	_tick_pellet(delta)
 	_tick_frenzy(delta)
 	_eat_dots()
@@ -183,11 +207,18 @@ func get_snapshot() -> Dictionary:
 	var pellet_list: Array = []
 	if pellet != Vector2.INF:
 		pellet_list = [snappedf(pellet.x, 0.01), snappedf(pellet.y, 0.01)]
+	var wall_list: Array = []
+	for wall: Dictionary in walls:
+		var wall_pos: Vector2 = wall.pos
+		var wall_half: Vector2 = wall.half
+		wall_list.append(
+			[snappedf(wall_pos.x, 0.01), snappedf(wall_pos.y, 0.01), wall_half.x, wall_half.y]
+		)
 	return {
 		"players": player_states,
 		"dots": dot_list,
 		"pellet": pellet_list,
-		"boundary": snappedf(boundary, 0.01),
+		"walls": wall_list,
 	}
 
 
@@ -216,13 +247,6 @@ func _speed(slot: int) -> float:
 	return BASE_SPEED / (1.0 + float(masses[slot]) * SLOW_K)
 
 
-func _boundary_radius() -> float:
-	var t := clampf(
-		(elapsed - (effective_duration() - SHRINK_LAST_SEC)) / SHRINK_LAST_SEC, 0.0, 1.0
-	)
-	return lerpf(ARENA_HALF, SHRINK_END_RADIUS, t)
-
-
 ## #954: the pellet timer runs only while no pellet is on the field, so the
 ## next one lands PELLET_INTERVAL_SEC after the previous was eaten.
 func _tick_pellet(delta: float) -> void:
@@ -246,7 +270,9 @@ func _pellet_spawn_point() -> Vector2:
 	var best := Vector2.ZERO
 	var best_gap := -INF
 	for _i in 12:
-		var candidate := _random_point(maxf(boundary - 0.5, 2.0))
+		var candidate := _random_point(ARENA_HALF - 2.0)
+		if _inside_a_wall(candidate):
+			continue  # never bury the pellet in the maze (#1027)
 		var gap := INF
 		for slot: int in slots:
 			gap = minf(gap, positions[slot].distance_to(candidate))
@@ -283,7 +309,7 @@ func _eat_dots() -> void:
 		for slot: int in slots:
 			if positions[slot].distance_to(dots[i]) <= radius_of(slot):
 				masses[slot] = float(masses[slot]) + DOT_MASS
-				dots[i] = _random_point(maxf(boundary - 0.5, 2.0))
+				dots[i] = _clear_point(ARENA_HALF - 0.5)
 				break
 
 
@@ -309,10 +335,44 @@ func _eat_players() -> void:
 
 func _respawn(slot: int) -> void:
 	masses[slot] = MIN_MASS
-	positions[slot] = _random_point(maxf(boundary - 1.0, 2.0))
+	positions[slot] = _clear_point(ARENA_HALF - 1.0)
 	move_dirs[slot] = Vector2.ZERO
 	_lunge_left[slot] = 0.0
 	_frenzy_left[slot] = 0.0  # being swallowed ends a frenzy (#954)
+
+
+## Solid maze walls (#1027): circle-vs-AABB ejection via the shared #945 math
+## (restitution 0 — blobs slide along walls, they don't bounce).
+func _push_out_of_walls(pos: Vector2, radius: float) -> Vector2:
+	for wall: Dictionary in walls:
+		var result := SimGeometry.bounce_circle_box(
+			pos, Vector2.ZERO, wall.pos, wall.half, radius, 0.0
+		)
+		pos = result.pos
+	return pos
+
+
+## A seeded point guaranteed clear of every wall (#1027) — dots, respawns and
+## the pellet must never land inside the maze geometry. Bounded retry; the
+## walls cover a small fraction of the arena, so this converges immediately.
+func _clear_point(radius: float) -> Vector2:
+	for _attempt in 16:
+		var point := _random_point(radius)
+		if not _inside_a_wall(point):
+			return point
+	return Vector2.ZERO
+
+
+func _inside_a_wall(point: Vector2) -> bool:
+	for wall: Dictionary in walls:
+		var wall_pos: Vector2 = wall.pos
+		var wall_half: Vector2 = wall.half
+		if (
+			absf(point.x - wall_pos.x) <= wall_half.x + 0.6
+			and absf(point.y - wall_pos.y) <= wall_half.y + 0.6
+		):
+			return true
+	return false
 
 
 func _random_point(radius: float) -> Vector2:
