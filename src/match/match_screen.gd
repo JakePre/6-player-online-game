@@ -676,8 +676,9 @@ func _show_panel(panel: PanelContainer, keep_play_area := false) -> void:
 
 
 ## Mounts the minigame's view scene (MinigameCatalog convention path) into the
-## play area; games without a view yet keep the placeholder label. The finale
-## is the one non-catalog mount: its view lives in src/finale/ (#554).
+## play area; games without a view yet keep the placeholder label. Finales are
+## the one non-catalog mount: their views live in src/finale/, routed through
+## the FinaleVariants registry (#554/#936).
 func _mount_view(id: String) -> void:
 	_unmount_view()
 	if id.is_empty():
@@ -685,14 +686,14 @@ func _mount_view(id: String) -> void:
 	# The name stays on the HUD through the whole round (#181, for playtest
 	# notes); the catalog lookup covers rejoiners who never saw the intro,
 	# with the intro's own name as the fallback.
-	if id == "gauntlet":
-		_minigame_name = "The Gauntlet"
+	if FinaleVariants.is_finale(StringName(id)):
+		_minigame_name = FinaleVariants.display_name(StringName(id))
 	elif MinigameCatalog.is_registered(StringName(id)):
 		_minigame_name = MinigameCatalog.meta_of(StringName(id)).display_name
 	_game_name_label.text = _minigame_name
 	var path := (
-		"res://src/finale/gauntlet_view.tscn"
-		if id == "gauntlet"
+		FinaleVariants.view_scene_path(StringName(id))
+		if FinaleVariants.is_finale(StringName(id))
 		else MinigameCatalog.view_scene_path(id)
 	)
 	if not ResourceLoader.exists(path):

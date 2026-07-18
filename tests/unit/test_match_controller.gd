@@ -93,6 +93,9 @@ func _make_finale_controller(room: Room, rounds := 1) -> MatchController:
 				"podium_sec": 0.1,
 				"duration_override": 0.1,
 				"shop_sec": 0.5,
+				# Pinned (#936): these tests assert Gauntlet-specific behavior,
+				# so the random finale draw must not swap the arena under them.
+				"finale_variant": "gauntlet",
 			}
 		)
 	)

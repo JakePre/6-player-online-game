@@ -79,6 +79,11 @@ var _state_left := 0.0
 ## FINALE_PLAY before the transition. _finisher_to_podium routes the finale beat
 ## to the podium instead of the round-results screen.
 var _finisher_left := 0.0
+## The finale arena for THIS match (#936): drawn from FinaleVariants at shop
+## time (random per match, owner decision), overridable via config
+## "finale_variant" for tests and render harnesses (#685).
+var _finale_id: StringName = &"gauntlet"
+var _finale_variant_override := ""
 var _finisher_to_podium := false
 var _rng := RandomNumberGenerator.new()
 var _round_slots: Array[int] = []
@@ -104,6 +109,7 @@ func _init(match_room: Room, config: Dictionary) -> void:
 	_finale_enabled = config.get("finale", true)
 	_finale_only = config.get("finale_only", false)
 	_finale_coins = int(config.get("finale_coins", _finale_coins))
+	_finale_variant_override = String(config.get("finale_variant", ""))
 	# Compress the 3-2-1 gate for the playtest harness too, or a full match
 	# overruns the bot's phase budget (#369).
 	_countdown_step_sec = config.get("countdown_step_sec", _countdown_step_sec)
@@ -344,7 +350,7 @@ func get_snapshot() -> Dictionary:
 		snapshot["minigame"] = String(playlist[round_index])
 		snapshot["game"] = game.get_snapshot()
 	if state == State.FINALE_PLAY:
-		snapshot["minigame"] = "gauntlet"
+		snapshot["minigame"] = String(_finale_id)
 		snapshot["game"] = game.get_snapshot()
 	if state == State.FINALE_SHOP:
 		# Authoritative shop state (#554): the client UI renders purely from
@@ -586,16 +592,22 @@ func _handle_shop_input(slot: int, action: Dictionary) -> void:
 			shop.confirm(slot)
 
 
-## The Gauntlet is entered directly — never via the catalog/playlist — with
-## each player's shop loadout applied on top of the base kit (M5-02).
+## The finale is entered directly — never via the catalog/playlist — with
+## each player's shop loadout applied on top of the base kit (M5-02). Which
+## arena runs is drawn from the FinaleVariants pool (#936), random per match;
+## every variant shares the apply_loadouts() interface.
 func _enter_finale_play() -> void:
 	state = State.FINALE_PLAY
 	_finisher_left = 0.0
-	game = Gauntlet.new()
-	game.meta = Gauntlet.make_meta()
+	_finale_id = (
+		StringName(_finale_variant_override)
+		if FinaleVariants.is_finale(StringName(_finale_variant_override))
+		else FinaleVariants.pick(_rng)
+	)
+	game = FinaleVariants.instantiate(_finale_id)
 	game.duration_override = _duration_override
 	game.setup(_round_slots, _rng.randi(), _bot_slots())
-	(game as Gauntlet).apply_loadouts(shop.loadouts())
+	game.call(&"apply_loadouts", shop.loadouts())
 	event_emitted.emit({"type": "finale_started", "minigame": game.meta.to_dict()})
 
 
