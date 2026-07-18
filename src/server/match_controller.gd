@@ -505,10 +505,22 @@ func _enter_results() -> void:
 				"room": room.code,
 				"round": round_index + 1,
 				"game": String(game.meta.id),
+				# Round wall length (#933 red-flag source; also #759 telemetry):
+				# how long the bot round actually lasted vs its full duration.
+				"elapsed": snappedf(game.elapsed, 0.01),
+				"duration": snappedf(game.effective_duration(), 0.01),
 				"placements": results.placements,
 				"awards": awards,
 				"totals": _totals(),
 			}
+		)
+	)
+	# Greppable line for the render harness (#933): stdout is captured, the
+	# DiagnosticsLog file is not. One line per round — negligible in play.
+	print(
+		(
+			"[match] round_end %s %.2f/%.2f"
+			% [String(game.meta.id), game.elapsed, game.effective_duration()]
 		)
 	)
 	(

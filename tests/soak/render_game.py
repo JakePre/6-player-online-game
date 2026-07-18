@@ -85,6 +85,46 @@ def drain(proc: subprocess.Popen, sink: list[str]) -> None:
     threading.Thread(target=reader, daemon=True).start()
 
 
+def parse_round_elapsed(server_log: list[str]) -> "tuple[float, float] | None":
+    """Pull the (elapsed, duration) of the round from the match controller's
+    greppable `[match] round_end <game> <elapsed>/<duration>` line (#933). None
+    if the round never resolved within the capture window (ran the full budget)."""
+    for line in reversed(server_log):
+        if "[match] round_end " in line:
+            try:
+                elapsed, duration = line.rsplit(" ", 1)[1].split("/")
+                return float(elapsed), float(duration)
+            except (ValueError, IndexError):
+                return None
+    return None
+
+
+def extract_contact_frame(video: str, out_png: str, frac: float = 0.55) -> bool:
+    """Grab one representative mid-round frame at `frac` of the clip (well past
+    the intro card, before results). Falls back to an earlier frame for a very
+    short clip. Needs ffmpeg/ffprobe (present on the render runners)."""
+    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+        return False
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=nk=1:nw=1", video],
+        capture_output=True, text=True,
+    )
+    try:
+        dur = float(probe.stdout.strip())
+    except ValueError:
+        dur = 0.0
+    for t in (dur * frac, dur * 0.3, 0.5):        # fall back earlier if needed
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{max(t, 0.0):.2f}",
+             "-i", video, "-frames:v", "1", out_png],
+            capture_output=True, text=True,
+        )
+        if r.returncode == 0 and os.path.exists(out_png) and os.path.getsize(out_png) > 0:
+            return True
+    return False
+
+
 def convert_to_mp4(src: str, dst: str) -> bool:
     """Best-effort mjpeg-avi -> h264-mp4; keeps the avi if ffmpeg is missing."""
     if shutil.which("ffmpeg") is None:
@@ -122,6 +162,11 @@ def main() -> int:
         "--software-gl",
         action="store_true",
         help="force Mesa software GL (CI runners without a GPU)",
+    )
+    parser.add_argument(
+        "--contact-frame",
+        default=None,
+        help="also write one mid-round PNG here (for the #933 contact sheet)",
     )
     args = parser.parse_args()
 
@@ -218,6 +263,20 @@ def main() -> int:
             print(f"FAIL: no video at {final_path}")
             return 1
         print(f"RENDER OK {final_path} ({os.path.getsize(final_path) // 1024} KiB)")
+
+        # #933: report how long the bot round actually lasted (machine-readable
+        # for the contact-sheet red flag), and drop a mid-round frame if asked.
+        time.sleep(0.5)                            # let the drain thread catch up
+        rd = parse_round_elapsed(server_log)
+        if rd is not None:
+            print(f"ROUND_ELAPSED game={args.game} elapsed={rd[0]:.2f} duration={rd[1]:.2f}")
+        else:
+            print(f"ROUND_ELAPSED game={args.game} elapsed=unknown duration={args.duration:.2f}")
+        if args.contact_frame:
+            if extract_contact_frame(final_path, args.contact_frame):
+                print(f"CONTACT_FRAME {args.contact_frame}")
+            else:
+                print("note: could not extract a contact frame (ffmpeg/ffprobe?)")
         return 0
     finally:
         for proc in procs:
