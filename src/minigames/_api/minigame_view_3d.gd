@@ -34,9 +34,15 @@ const BLACKOUT_DIM := Color(0.0, 0.0, 0.02, 0.88)
 ## to ~90px in match_screen.tscn) instead of drawing under it (#924).
 const CHROME_CLEARANCE_Y := 110.0
 
+## The dusk base tone the party-stadium shell (#939) tints from, before the
+## per-game _floor_tint() nudge — a warm-dark "arena at night" mood.
+const STAGE_MOOD_BASE := Color(0.16, 0.13, 0.2)
+
 ## Arena root all per-minigame 3D content (props, extra geometry) should
 ## parent to; populated by _build_scene_tree() before _setup_3d() runs.
 var arena: Node3D
+## The shared party-stadium backdrop shell (#939), built in _setup().
+var _stage_shell: StageShell
 ## Arena-dressing helper (#948): owns floor-building + rim props. Created once
 ## `arena` exists, in _setup().
 var _dresser: ArenaDresser
@@ -63,6 +69,7 @@ func _setup() -> void:
 	_dresser = ArenaDresser.new(arena)
 	_build_lighting()
 	_build_camera()
+	_build_stage_shell()
 	_build_floor()
 	_build_character_rigs()
 	_apply_view_flags()
@@ -246,6 +253,10 @@ func _now_sec() -> float:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_INTERNAL_PROCESS:
 		_interpolate_rigs(_now_sec())
+		# Party-stadium ambiance (#939): the spotlight sweep + crowd sway hold
+		# still under reduced motion (M12-03), leaving the shell a calm pose.
+		if _stage_shell != null and not ArenaFX.reduced_motion:
+			_stage_shell.update(get_process_delta_time())
 
 
 ## Victory dance (M6-02): the round's winners (first tie group) cheer while
@@ -431,6 +442,15 @@ func _floor_tint() -> Color:
 	return Color.WHITE
 
 
+## Per-game mood color for the party-stadium shell (#939): the warm-dark base
+## the shared StageShell tints its dome, ring, crowd and spotlights from.
+## Defaults to a dusk tone nudged by the game's own _floor_tint(), so every
+## arena gets a coherent backdrop with no per-game code; override for a
+## distinct mood (bullet_waltz dark/elegant, treasure_divers poolside, …).
+func _mood() -> Color:
+	return STAGE_MOOD_BASE.lerp(_floor_tint(), 0.25)
+
+
 ## Per-game floor tile mesh (#813): override to tile the arena with a different
 ## in-repo Kenney block — `block-grass.glb`, `block-snow.glb`, etc. — instead of
 ## the default grey `platform.glb`. Any flat 1x1 block from the kits works: the
@@ -507,6 +527,13 @@ func _build_lighting() -> void:
 	environment.ambient_light_energy = 0.6
 	world_env.environment = environment
 	arena.add_child(world_env)
+
+
+## The shared party-stadium backdrop (#939): mounted once, framing the arena
+## at its extent and themed from _mood(). Pure presentation — no per-game code.
+func _build_stage_shell() -> void:
+	_stage_shell = StageShell.new()
+	_stage_shell.build(arena, _arena_half(), _mood())
 
 
 func _build_camera() -> void:
