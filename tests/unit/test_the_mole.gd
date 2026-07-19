@@ -55,8 +55,66 @@ func test_setup_handles_eight_players() -> void:
 func test_role_reaches_only_the_mole() -> void:
 	var game := _game()
 	assert_true(game.mole in game.slots, "someone is the mole")
-	assert_eq(game.get_private_snapshot(game.mole), {"role": "mole"})
+	# #958: the private payload now also carries the mole's own blackout charge.
+	assert_eq(game.get_private_snapshot(game.mole), {"role": "mole", "blackout_ready": true})
 	assert_eq(game.get_private_snapshot(_crew(game)), {}, "the crew learns nothing")
+
+
+## #958: the mole's one lights-out. Public that the lights are out (everyone
+## darkens) but never who did it; task progress pauses; single-use per round.
+func test_blackout_is_public_pauses_tasks_and_expires() -> void:
+	var game := _game()
+	var hauler := _crew(game)
+	game.carrying[hauler] = true
+	game.positions[hauler] = TheMole.MACHINE_POS
+	game.handle_input(game.mole, {"blackout": true})
+	assert_true(game.blackout_used, "the charge is spent")
+	assert_gt(game.blackout_left, 0.0, "the lights-out window is open")
+	var snapshot := game.get_snapshot()
+	assert_true(snapshot.blackout, "the lights-out is public")
+	assert_false(JSON.stringify(snapshot).contains("role"), "but it never names the mole")
+	# Delivery does NOT land while the lights are out — the task is paused.
+	var before := game.progress
+	game.tick(TICK)
+	assert_eq(game.progress, before, "no delivery during blackout")
+	assert_true(game.carrying[hauler], "still holding the cell")
+	# The window closes; deliveries resume.
+	game.blackout_left = 0.0
+	game.tick(TICK)
+	assert_false(game.get_snapshot().blackout, "the lights come back")
+	assert_eq(game.progress, before + 1, "the delivery lands once the lights return")
+
+
+func test_only_the_mole_can_cut_the_lights() -> void:
+	var game := _game()
+	game.handle_input(_crew(game), {"blackout": true})
+	assert_false(game.blackout_used, "the crew can't touch the lights")
+	assert_false(game.get_snapshot().blackout)
+
+
+func test_blackout_is_once_per_round() -> void:
+	var game := _game()
+	game.handle_input(game.mole, {"blackout": true})
+	game.blackout_left = 0.0
+	game.tick(TICK)
+	assert_false(game.get_snapshot().blackout, "first window closed")
+	game.handle_input(game.mole, {"blackout": true})
+	assert_false(game.get_snapshot().blackout, "the charge does not recharge")
+
+
+## The blackout charge lives in the mole's private snapshot only, and flips to
+## spent — the shared snapshot never carries it (#254/#958).
+func test_blackout_ready_is_private_and_flips_when_spent() -> void:
+	var game := _game()
+	assert_true(game.get_private_snapshot(game.mole).get("blackout_ready"), "armed at the start")
+	assert_false(
+		game.get_private_snapshot(_crew(game)).has("blackout_ready"), "the crew never learns it"
+	)
+	assert_false(
+		JSON.stringify(game.get_snapshot()).contains("blackout_ready"), "never in the shared wire"
+	)
+	game.handle_input(game.mole, {"blackout": true})
+	assert_false(game.get_private_snapshot(game.mole).get("blackout_ready"), "spent after use")
 
 
 func test_shared_snapshot_never_leaks_the_role_before_reveal() -> void:

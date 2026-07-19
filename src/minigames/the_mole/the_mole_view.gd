@@ -26,6 +26,18 @@ const AIM_HEIGHT := 2.6
 const VOTE_CORRECT_COLOR := Color(0.4, 0.9, 0.45)
 const VOTE_WRONG_COLOR := Color(0.5, 0.5, 0.55, 0.7)
 const ARROW_HEIGHT := 0.12
+## Blackout (#958): the lights-out vignette — a radial dark whose transparent
+## center follows the local rig, so you see only your own patch. The mole never
+## renders it (they keep full vision, private-side). Reduced-motion unaffected:
+## it's darkness, not movement, and colorblind-safe (value, not hue).
+const BLACKOUT_CLEAR := Color(0.0, 0.0, 0.02, 0.0)
+const BLACKOUT_EDGE := Color(0.0, 0.0, 0.02, 0.9)
+## Fractions of the vignette texture radius (the texture spans ~2.2x the
+## viewport so the dark reaches every corner with the hole anywhere): transparent
+## out to _INNER, fully dark by _OUTER. Kept small so only a tight patch around
+## your own rig stays lit — the rest goes black.
+const BLACKOUT_HOLE_INNER := 0.06
+const BLACKOUT_HOLE_OUTER := 0.15
 
 ## Latest replicated state, straight from TheMole.get_snapshot().
 var phase := TheMole.Phase.WORK
@@ -33,11 +45,14 @@ var phase_left := 0.0
 var progress := 0
 var target := TheMole.CELL_TARGET
 var sparked := false
+var blackout := false
 var players := {}
 var cells: Array = []
 var votes_in := 0
 var voted: Array = []
 var reveal := {}
+## The lights-out vignette (#958); null until _setup_3d builds it.
+var _blackout_overlay: TextureRect
 
 var _machine_material: StandardMaterial3D
 # Pooled (#709): reused across snapshots, hiding surplus instead of freeing.
@@ -63,9 +78,15 @@ func _physics_process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed(&"action_primary"):
-		return
 	if NetManager.multiplayer.multiplayer_peer == null:
+		return
+	# Blackout (#958): the mole's distinct second button, WORK phase only. The sim
+	# gates it to the mole too, but gating the send keeps a crew press silent.
+	if event.is_action_pressed(&"action_secondary"):
+		if phase == TheMole.Phase.WORK and private_state.get("role", "") == "mole":
+			NetManager.send_match_input({"blackout": true})
+		return
+	if not event.is_action_pressed(&"action_primary"):
 		return
 	if phase == TheMole.Phase.VOTE:
 		_cycle_vote()
@@ -129,6 +150,30 @@ func _setup_3d() -> void:
 	cell_material.emission_energy_multiplier = 0.3
 	_cell_mesh.material = cell_material
 	_build_aim_marker()
+	_build_blackout_overlay()
+
+
+## The lights-out vignette (#958): a radial dark whose transparent center is the
+## lit patch. Lives inside the arena SubViewport so the camera unproject that
+## re-centers it each frame lands in the same coordinate space.
+func _build_blackout_overlay() -> void:
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, BLACKOUT_HOLE_INNER, BLACKOUT_HOLE_OUTER, 1.0])
+	grad.colors = PackedColorArray([BLACKOUT_CLEAR, BLACKOUT_CLEAR, BLACKOUT_EDGE, BLACKOUT_EDGE])
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	tex.width = 256
+	tex.height = 256
+	_blackout_overlay = TextureRect.new()
+	_blackout_overlay.name = "BlackoutOverlay"
+	_blackout_overlay.texture = tex
+	_blackout_overlay.stretch_mode = TextureRect.STRETCH_SCALE
+	_blackout_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_blackout_overlay.visible = false
+	_viewport.add_child(_blackout_overlay)
 
 
 ## A downward chevron (an inverted cone) that floats over the accused suspect
@@ -157,6 +202,7 @@ func _render_3d(game: Dictionary) -> void:
 	progress = int(game.get("progress", 0))
 	target = int(game.get("target", TheMole.CELL_TARGET))
 	sparked = bool(game.get("sparked", false))
+	blackout = bool(game.get("blackout", false))
 	players = game.get("players", {})
 	cells = game.get("cells", [])
 	votes_in = int(game.get("votes_in", 0))
@@ -167,7 +213,31 @@ func _render_3d(game: Dictionary) -> void:
 	_update_machine()
 	_update_vote_aim()
 	_update_reveal_fx()
+	_update_blackout()
 	_update_banner()
+
+
+## Shows the lights-out vignette for everyone but the mole (who keeps full
+## vision, private-side per #254), centered on the local rig so only your own
+## patch stays lit. Public `blackout` never says who flipped the switch.
+func _update_blackout() -> void:
+	if _blackout_overlay == null:
+		return
+	var is_mole: bool = private_state.get("role", "") == "mole"
+	var show := blackout and not is_mole
+	_blackout_overlay.visible = show
+	if not show:
+		return
+	# Cover the viewport even with the lit hole at a corner, then center on the rig.
+	var viewport_size := Vector2(_viewport.size)
+	var span := maxf(viewport_size.x, viewport_size.y) * 2.2
+	_blackout_overlay.size = Vector2(span, span)
+	var center := viewport_size * 0.5
+	var cam: Camera3D = _camera_rig.camera() if _camera_rig != null else null
+	var rig := rig_for_slot(my_slot)
+	if cam != null and rig != null:
+		center = cam.unproject_position(rig.global_position + Vector3(0.0, 1.0, 0.0))
+	_blackout_overlay.position = center - _blackout_overlay.size * 0.5
 
 
 func _update_players() -> void:
@@ -338,11 +408,22 @@ func _update_banner() -> void:
 	match phase:
 		TheMole.Phase.WORK:
 			if private_state.get("role", "") == "mole":
-				_banner.text = (
-					"You are the MOLE — sabotage near the machine (SPACE)  ·  %d/%d"
-					% [progress, target]
-				)
+				if blackout:
+					_banner.text = "Lights out! Reposition — the reveal retraces where you stand"
+				else:
+					var bl := (
+						"  ·  Blackout ready (E)"
+						if private_state.get("blackout_ready", false)
+						else ""
+					)
+					_banner.text = (
+						"You are the MOLE — sabotage near the machine (SPACE)%s  ·  %d/%d"
+						% [bl, progress, target]
+					)
 				_banner.modulate = MOLE_COLOR
+			elif blackout:
+				_banner.text = "⚫ LIGHTS OUT — remember who's where!"
+				_banner.modulate = Color(0.75, 0.75, 0.85)
 			else:
 				_banner.text = "Fuel the machine — %d/%d (%0.0fs)" % [progress, target, phase_left]
 				_banner.modulate = CELL_COLOR

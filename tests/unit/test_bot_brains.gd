@@ -314,6 +314,37 @@ func test_the_mole_brain_mole_votes_an_innocent() -> void:
 	assert_ne(int(intent.vote), 1, "never votes itself")
 
 
+## #958: the mole cuts the lights when rivals crowd the machine and the charge
+## is still in hand; a spent charge never re-triggers.
+func test_the_mole_brain_cuts_the_lights_when_the_crew_crowds_the_machine() -> void:
+	var brain := BotBrains.brain_for(&"the_mole", 0, 1)
+	var game := {
+		"phase": TheMole.Phase.WORK,
+		"progress": 4,
+		"sparked": false,
+		# Two rivals right on the machine with the mole — about to pin the drain.
+		"players": {0: [0.5, 0.0, 0], 1: [0.0, 0.5, 0], 2: [-0.5, 0.0, 0]},
+		"cells": [],
+	}
+	var private := {"role": "mole", "blackout_ready": true}
+	var intent := brain.think(_play_state("the_mole", game), private)
+	assert_true(bool(intent.get("blackout", false)), "a crowded machine spends the blackout")
+
+
+func test_the_mole_brain_holds_a_spent_blackout() -> void:
+	var brain := BotBrains.brain_for(&"the_mole", 0, 1)
+	var game := {
+		"phase": TheMole.Phase.WORK,
+		"progress": 4,
+		"sparked": false,
+		"players": {0: [0.5, 0.0, 0], 1: [0.0, 0.5, 0], 2: [-0.5, 0.0, 0]},
+		"cells": [],
+	}
+	var private := {"role": "mole", "blackout_ready": false}
+	var intent := brain.think(_play_state("the_mole", game), private)
+	assert_false(bool(intent.get("blackout", false)), "no charge -> no blackout")
+
+
 func test_faulty_wiring_brain_saboteur_cuts_the_best_node_off_cooldown() -> void:
 	var brain := BotBrains.brain_for(&"faulty_wiring", 0, 1)
 	var game := {

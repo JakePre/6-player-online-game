@@ -5,11 +5,18 @@ extends BotBrain
 ## worth it; as crew, haul fuel and build a suspicion model from the
 ## unattributed sparks so the vote isn't a coin flip.
 ##
-## Snapshot: {phase, progress, target, sparked, players: {slot: [x, y, carrying]},
-## cells: [[x, y], ...]}. Private: {"role": "mole"} for the mole only, WORK
-## phase only (TheMole, #254). Input: {mx, my} + {act: true} (mole sabotage in
-## range) during WORK; {vote: slot} during VOTE. Indices named via
-## TheMole.PS_*/CL_* (#708).
+## Snapshot: {phase, progress, target, sparked, blackout, players: {slot: [x, y,
+## carrying]}, cells: [[x, y], ...]}. Private: {"role": "mole", "blackout_ready"}
+## for the mole only, WORK phase only (TheMole, #254). Input: {mx, my} + {act:
+## true} (mole sabotage in range) + {blackout: true} (mole lights-out, #958)
+## during WORK; {vote: slot} during VOTE. Indices named via TheMole.PS_*/CL_*
+## (#708).
+
+## Blackout (#958): the mole kills the lights when at least this many rivals are
+## crowding the machine — right as the drain is about to be pinned on them.
+const BLACKOUT_MIN_CROWD := 2
+## A rival within this of the machine counts toward the crowd.
+const BLACKOUT_CROWD_RADIUS := TheMole.MACHINE_RADIUS + 1.5
 
 ## Per-rival suspicion, accrued when a spark fires while they stand at the
 ## machine — the only tell the crew ever gets.
@@ -29,7 +36,8 @@ func think(match_state: Dictionary, private: Dictionary) -> Dictionary:
 	var is_mole := String(private.get("role", "")) == "mole"
 	if phase == TheMole.Phase.WORK:
 		_track_suspicion(game, players, me)
-		return _work(game, players, me, is_mole)
+		var blackout_ready := is_mole and bool(private.get("blackout_ready", false))
+		return _work(game, players, me, is_mole, blackout_ready)
 	if phase == TheMole.Phase.VOTE:
 		return _vote(players, is_mole)
 	return {}
@@ -49,9 +57,17 @@ func _track_suspicion(game: Dictionary, players: Dictionary, _me: Vector2) -> vo
 	_was_sparked = sparked
 
 
-func _work(game: Dictionary, players: Dictionary, me: Vector2, is_mole: bool) -> Dictionary:
+func _work(
+	game: Dictionary, players: Dictionary, me: Vector2, is_mole: bool, blackout_ready: bool
+) -> Dictionary:
 	var carrying := int((players[slot] as Array)[TheMole.PS_CARRYING]) == 1
 	if is_mole:
+		# Blackout (#958): the crew is crowding the machine and about to pin the
+		# drain — kill the lights and slip the read, still drifting in to drain.
+		if blackout_ready and _rivals_near_machine(players) >= BLACKOUT_MIN_CROWD:
+			var escape := move_toward_point(me, TheMole.MACHINE_POS, TheMole.MACHINE_RADIUS * 0.5)
+			escape["blackout"] = true
+			return escape
 		# Worth draining once there's progress banked; otherwise haul to blend
 		# (and a carried cell delivered is perfect cover early on).
 		if int(game.get("progress", 0)) >= 3:
@@ -105,6 +121,17 @@ func _any_other(players: Dictionary) -> int:
 	if others.is_empty():
 		return -1
 	return int(others[rng.randi_range(0, others.size() - 1)])
+
+
+## Rivals (not me) clustered around the machine — the cue to spend the blackout.
+func _rivals_near_machine(players: Dictionary) -> int:
+	var n := 0
+	for other: int in players:
+		if other == slot:
+			continue
+		if _player_pos(players[other]).distance_to(TheMole.MACHINE_POS) <= BLACKOUT_CROWD_RADIUS:
+			n += 1
+	return n
 
 
 func _player_pos(state: Array) -> Vector2:
