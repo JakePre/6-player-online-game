@@ -87,6 +87,31 @@ func test_ko_edge_shakes_and_stings_once_seeded() -> void:
 	assert_signal_emitted_with_parameters(view, "sfx_requested", [&"ko"])
 
 
+## #1038: a duel hit is an instant KO, so the KO edge is where the shared hit
+## reaction fires — the impact spark burst reads even as the rig greys out.
+func test_ko_plays_the_shared_hit_reaction() -> void:
+	var alive := {
+		"players": {0: _fighter(0.0, 0.5, 1, 1, 0)},
+		"shots": [],
+		"daises": [],
+		"phase": LoadoutDuel.Phase.FIGHT,
+		"scores": {}
+	}
+	view.render(alive)
+	var before := view._rig_layer.get_child_count()
+	view.render(
+		{
+			"players": {0: _fighter(0.0, 0.5, 1, 0, 0)},
+			"shots": [],
+			"daises": [],
+			"phase": LoadoutDuel.Phase.FIGHT,
+			"scores": {}
+		}
+	)
+	assert_true(view.is_hit_playing(0), "a KO fires the shared hit reaction")
+	assert_gt(view._rig_layer.get_child_count(), before, "the impact spark burst spawns")
+
+
 func test_hud_reflects_phase_and_scores() -> void:
 	view.render(
 		{

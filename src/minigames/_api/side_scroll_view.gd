@@ -31,6 +31,16 @@ const HILL_FAR_COLOR := Color(0.11, 0.14, 0.22)
 const CLOUD_COLOR := Color(0.22, 0.25, 0.34, 0.30)
 const BACKDROP_BLOB_COUNT := 8
 const DRIFT_SPEED := 0.02
+## Shared hit reaction (#1038): the 2D sibling of MinigameView3D.play_hit for the
+## side-scroll games — a red flinch flash that eases back, plus a spark burst at
+## the rig. The flash rides rig.modulate (a game view guards its own WHITE reset
+## with is_hit_playing); the sparks are independent nodes, so the "got hit" pop
+## still reads even when the rig greys out on a killing blow.
+const HIT_FLASH_COLOR := Color(1.0, 0.4, 0.35)
+const HIT_HOLD_SEC := 0.3
+const HIT_SPARK_COUNT := 6
+const HIT_SPARK_LIFE := 0.3
+const HIT_SPARK_REACH := 26.0
 
 var _stage_solids: Array[Rect2] = []
 var _stage_one_way: Array[Rect2] = []
@@ -44,6 +54,8 @@ var _platform_is_solid: Array[bool] = []
 var _rigs := {}
 var _samples := {}
 var _drift := 0.0
+## slot -> world time the flinch flash protects the rig's modulate until (#1038).
+var _hit_until := {}
 
 
 ## A top-anchored headline offset below the match chrome bar (#925): the
@@ -126,6 +138,47 @@ func render_side_scroll(players: Dictionary) -> void:
 
 func rig_for_slot(slot: int) -> Control:
 	return _rigs.get(slot)
+
+
+## Shared 2D hit reaction (#1038): a red flinch flash easing back to normal plus
+## a spark burst at the rig — the side-scroll sibling of MinigameView3D.play_hit.
+## A game view calls it from its hit/shove/KO edge instead of hand-rolling a
+## flash. The flash is pose-protected for `hold` seconds (is_hit_playing), so a
+## view guarding its own `modulate = WHITE` reset won't stomp it mid-flinch;
+## under reduced motion the flash still fires but the sparks are skipped. No-op
+## without a rig.
+func play_hit(slot: int, hold := HIT_HOLD_SEC) -> void:
+	var rig: Control = _rigs.get(slot)
+	if rig == null:
+		return
+	_hit_until[slot] = _now_sec() + hold
+	rig.modulate = HIT_FLASH_COLOR
+	create_tween().tween_property(rig, "modulate", Color.WHITE, hold)
+	if not ArenaFX.reduced_motion:
+		_spawn_hit_sparks(rig.position, PlayerPalette.color_for_slot(slot))
+
+
+## True while a slot's flinch flash is still protecting its modulate (#1038) —
+## a game view checks this before resetting the rig to WHITE on its next render.
+func is_hit_playing(slot: int) -> bool:
+	return _now_sec() < float(_hit_until.get(slot, 0.0))
+
+
+## A short-lived ring of color sparks flying out from a hit, each freeing itself
+## when it finishes (#1038). Screen-space, mounted on the rig layer.
+func _spawn_hit_sparks(at: Vector2, color: Color) -> void:
+	for i in HIT_SPARK_COUNT:
+		var spark := ColorRect.new()
+		spark.color = color
+		spark.size = Vector2(6.0, 6.0)
+		spark.position = at
+		spark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_rig_layer.add_child(spark)
+		var dest := at + Vector2.RIGHT.rotated(TAU * i / HIT_SPARK_COUNT) * HIT_SPARK_REACH
+		var tween := create_tween().set_parallel(true)
+		tween.tween_property(spark, "position", dest, HIT_SPARK_LIFE)
+		tween.tween_property(spark, "modulate:a", 0.0, HIT_SPARK_LIFE)
+		tween.finished.connect(spark.queue_free)
 
 
 ## Uniform-scale world→screen mapping with the y flip, letterboxed to

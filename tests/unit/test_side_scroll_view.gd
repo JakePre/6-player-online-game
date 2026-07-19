@@ -125,6 +125,38 @@ func test_rig_has_character_parts() -> void:
 		assert_not_null(rig.get_node(part), "rig has a %s" % part)
 
 
+## #1038: the shared hit reaction flashes the rig, opens a pose-protection
+## window, and throws a spark burst.
+func test_play_hit_flashes_and_sparks_the_rig() -> void:
+	view.render_side_scroll({0: [0.0, 0.5, 1, 1]})
+	var rig := view.rig_for_slot(0)
+	var before := view._rig_layer.get_child_count()
+	view.play_hit(0)
+	assert_ne(rig.modulate, Color.WHITE, "the flinch flashes the rig")
+	assert_true(view.is_hit_playing(0), "the flinch window is open")
+	assert_eq(
+		view._rig_layer.get_child_count(), before + view.HIT_SPARK_COUNT, "a spark burst spawns"
+	)
+
+
+## #1038: no rig for the slot -> nothing happens.
+func test_play_hit_is_a_noop_without_a_rig() -> void:
+	view.play_hit(99)
+	assert_false(view.is_hit_playing(99), "no rig means no flinch")
+
+
+## #1038: reduced motion keeps the (static) flash but drops the flying sparks.
+func test_play_hit_under_reduced_motion_flashes_without_sparks() -> void:
+	var saved := ArenaFX.reduced_motion
+	ArenaFX.reduced_motion = true
+	view.render_side_scroll({0: [0.0, 0.5, 1, 1]})
+	var before := view._rig_layer.get_child_count()
+	view.play_hit(0)
+	assert_ne(view.rig_for_slot(0).modulate, Color.WHITE, "the flash still fires")
+	assert_eq(view._rig_layer.get_child_count(), before, "no flying sparks under reduced motion")
+	ArenaFX.reduced_motion = saved
+
+
 ## #925: both eyes lean toward the facing direction.
 func test_both_eyes_lean_with_facing() -> void:
 	view.render_side_scroll({0: [0.0, 0.5, 1, 1]})
