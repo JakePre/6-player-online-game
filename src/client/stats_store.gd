@@ -19,6 +19,8 @@ const DEFAULTS := {
 	"games": {},
 	## Lifetime end-of-match superlatives (#934): award_id (String) -> count.
 	"awards": {},
+	## Persistent coin wallet (#935): banked match earnings, spent on hats.
+	"coins": 0,
 	## Newest first: {date (unix seconds), placement (1-based), player_count,
 	## standout_game (String, "" if no round completed), standout_placement}.
 	"recent": [],
@@ -66,6 +68,7 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 					"plays": maxi(0, int(entry.get("plays", 0))),
 					"wins": maxi(0, int(entry.get("wins", 0))),
 				}
+	clean.coins = maxi(0, int(raw.get("coins", 0)))
 	var raw_awards: Variant = raw.get("awards", {})
 	if raw_awards is Dictionary:
 		for award_id: String in raw_awards:
@@ -99,6 +102,8 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 static func record_match(stats: Dictionary, result: Dictionary) -> Dictionary:
 	var clean := sanitize(stats)
 	clean.matches += 1
+	# Bank this match's coins into the wallet (#935).
+	clean.coins += maxi(0, int(result.get("coins_earned", 0)))
 	# Lifetime superlative tally (#934): the award ids this client took home.
 	for award_id: Variant in result.get("my_awards", []):
 		var key := String(award_id)
@@ -143,4 +148,14 @@ static func record_match(stats: Dictionary, result: Dictionary) -> Dictionary:
 		)
 	)
 	clean.recent = clean.recent.slice(0, MAX_RECENT)
+	return clean
+
+
+## Wardrobe purchase (#935): deducts `amount` from the wallet and returns the
+## updated stats, or the unchanged stats if it can't be afforded. Pure.
+static func spend(stats: Dictionary, amount: int) -> Dictionary:
+	var clean := sanitize(stats)
+	if amount <= 0 or amount > int(clean.coins):
+		return clean
+	clean.coins = int(clean.coins) - amount
 	return clean

@@ -78,6 +78,9 @@ static var _live_rigs: Array = []
 ## spot in a cluster — views give the local player 1 so their own plate
 ## stays glued to their head while others stagger upward.
 @export var nameplate_priority := 0
+## Worn hat id (#935): the chosen HatCatalog cosmetic, applied to the head bone
+## by set_hat(). Public so views can push it from the appearance payload.
+var hat_id: StringName = HatCatalog.NONE
 
 var _character_root: Node3D
 var _anim_player: AnimationPlayer
@@ -93,6 +96,7 @@ var _decluttered := false
 ## Kept as data so a character swap (_rebuild_character) re-arms the new body.
 var _held_weapon := {}
 var _held_weapon_node: BoneAttachment3D
+var _hat_node: BoneAttachment3D
 ## Msec (Time.get_ticks_msec) through which this rig's one-shot pose is
 ## protected from update_rig's stationary walk/idle overwrite (#942).
 var _pose_protected_until := 0
@@ -247,6 +251,43 @@ func has_held_weapon() -> bool:
 	return not _held_weapon.is_empty()
 
 
+## Put a hat on the rig's head (#935): a Node3D (HatCatalog.build) attached to
+## the shared "head" bone so it rides every animation, like the held weapon on
+## the hand. `id` == HatCatalog.NONE (or unknown) clears it. Survives character
+## swaps via _rebuild_character re-applying.
+func set_hat(id: StringName) -> void:
+	hat_id = id
+	_apply_hat()
+
+
+func has_hat() -> bool:
+	return hat_id != HatCatalog.NONE
+
+
+func _apply_hat() -> void:
+	if _hat_node != null and is_instance_valid(_hat_node):
+		_hat_node.get_parent().remove_child(_hat_node)
+		_hat_node.free()
+	_hat_node = null
+	if _character_root == null:
+		return
+	var hat := HatCatalog.build(hat_id)
+	if hat == null:
+		return
+	var skeletons := _character_root.find_children("*", "Skeleton3D", true, false)
+	if skeletons.is_empty():
+		return
+	var skeleton: Skeleton3D = skeletons[0]
+	if skeleton.find_bone(HatCatalog.HEAD_BONE) == -1:
+		push_warning("CharacterRig: no head bone to wear a hat")
+		return
+	_hat_node = BoneAttachment3D.new()
+	_hat_node.name = "Hat"
+	skeleton.add_child(_hat_node)
+	_hat_node.bone_name = HatCatalog.HEAD_BONE
+	_hat_node.add_child(hat)
+
+
 func _apply_held_weapon() -> void:
 	if _held_weapon_node != null and is_instance_valid(_held_weapon_node):
 		# Freed immediately, not queued: a character swap rebuilds in the same
@@ -293,6 +334,7 @@ func _rebuild_character() -> void:
 		mesh.material_overlay = _outline_material
 	_apply_prop_visibility()
 	_apply_held_weapon()  # a character swap mid-hold re-arms the new body (#584)
+	_apply_hat()  # and re-seats the hat on the new head (#935)
 	play(&"idle")
 
 

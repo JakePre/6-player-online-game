@@ -582,15 +582,22 @@ func _record_match_stats(standings: Array, awards: Array = []) -> void:
 	if placement == 0:
 		return
 	var my_awards: Array = []
+	var coins_earned := 0
 	for award: Dictionary in awards:
 		if int(award.get("slot", -1)) == NetManager.my_slot:
 			my_awards.append(String(award.get("id", "")))
+	for row: Dictionary in standings:
+		if int(row.slot) == NetManager.my_slot:
+			coins_earned = int(row.get("score", 0))
+			break
 	var result := {
 		"date": Time.get_unix_time_from_system(),
 		"placement": placement,
 		"player_count": standings.size(),
 		"rounds": _round_history,
 		"my_awards": my_awards,
+		# The wallet banks this match's coin total (#935).
+		"coins_earned": coins_earned,
 	}
 	StatsStore.save_stats(StatsStore.record_match(StatsStore.load_stats(), result))
 

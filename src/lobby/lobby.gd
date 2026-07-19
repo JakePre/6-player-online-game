@@ -25,6 +25,8 @@ var _color_swatches: Array[ColorRect] = []
 ## per-game exclusion list so there is no .tscn churn.
 var _debug_all_games_toggle: CheckBox
 var _playtest_mode_toggle: CheckBox
+## The hat wardrobe (#935), built in code under the character card.
+var _wardrobe: WardrobePanel
 
 @onready var _code_label: Label = %CodeLabel
 @onready var _copy_button: Button = %CopyButton
@@ -70,6 +72,7 @@ func _ready() -> void:
 	_build_debug_toggle()
 	_build_playtest_toggle()
 	_build_color_swatches()
+	_build_wardrobe()
 	_code_label.text = NetManager.my_room_code
 	_color_swatch.color = PlayerPalette.color_for_slot(NetManager.my_slot)
 	_ready_button.grab_focus()
@@ -258,6 +261,14 @@ func _build_color_swatches() -> void:
 		swatch.gui_input.connect(_on_swatch_input.bind(i))
 		row.add_child(swatch)
 		_color_swatches.append(swatch)
+
+
+## The hat wardrobe (#935): mounted under the character card next to the color
+## swatches, seeded from the stores; equipping pushes the hat over the room RPC.
+func _build_wardrobe() -> void:
+	_wardrobe = WardrobePanel.new()
+	_wardrobe.name = "Wardrobe"
+	_character_preview.get_parent().add_child(_wardrobe)
 
 
 ## Only a left click on an enabled swatch requests it; the server validates

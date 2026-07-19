@@ -95,3 +95,35 @@ func test_declutter_restores_when_the_cluster_breaks_up() -> void:
 	assert_almost_eq(
 		(mover.get_node("Nameplate") as Label3D).modulate.a, 1.0, 0.001, "opaque again"
 	)
+
+
+# --- Hats (#935) -------------------------------------------------------------
+
+
+## set_hat attaches a hat node to the head bone; NONE / clear removes it.
+func test_set_hat_attaches_and_clears_on_the_head() -> void:
+	var rig := _rig()
+	rig.set_hat(&"top_hat")
+	assert_true(rig.has_hat(), "wearing a hat")
+	assert_eq(rig.hat_id, &"top_hat")
+	var attach := rig._character_root.find_children("Hat", "BoneAttachment3D", true, false)
+	assert_false(attach.is_empty(), "a head BoneAttachment3D carries the hat")
+	assert_eq((attach[0] as BoneAttachment3D).bone_name, HatCatalog.HEAD_BONE)
+	rig.set_hat(HatCatalog.NONE)
+	assert_false(rig.has_hat(), "cleared")
+	assert_true(
+		rig._character_root.find_children("Hat", "BoneAttachment3D", true, false).is_empty(),
+		"the attachment is gone"
+	)
+
+
+## A character swap re-seats the hat on the new body (#935 rebuild hook).
+func test_hat_survives_a_character_swap() -> void:
+	var rig := _rig()
+	rig.set_hat(&"crown")
+	rig.character_scene = CharacterRoster.scene_for(CharacterRoster.DEFAULT_ID)
+	assert_true(rig.has_hat(), "still wearing it after the swap")
+	assert_false(
+		rig._character_root.find_children("Hat", "BoneAttachment3D", true, false).is_empty(),
+		"re-attached to the new head"
+	)

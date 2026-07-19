@@ -3,9 +3,8 @@ extends Node
 ## client<->server RPC protocol (SPEC $9). Server-authoritative: clients only
 ## send requests; every gameplay-relevant mutation happens server-side.
 ##
-## The same script runs on both sides. Requests are @rpc("any_peer") and are
-## only honoured when this instance is the server; responses/broadcasts are
-## @rpc("authority") and only handled on clients.
+## The same script runs on both sides: @rpc("any_peer") requests are honoured
+## only on the server; @rpc("authority") broadcasts only on clients.
 
 # Client-side signals (UI listens to these).
 signal connected_to_server
@@ -28,32 +27,24 @@ signal peer_left_room(room: Room)
 signal match_started(room: Room)
 
 const SNAPSHOT_INTERVAL := 1.0 / NetConfig.SNAPSHOT_HZ
-## How often the server pumps a practice bot's intent (#577), matching the
-## human client input cadence.
+## How often the server pumps a practice bot's intent (#577), matching a client.
 const BOT_INPUT_INTERVAL_SEC := 0.25
-# TokenBucket (#770) config; see that class for the burst/refill math.
-## Emote anti-spam (#592): a small burst reads as snappy party chat, the
-## sustained rate still caps a 24-player room.
+## Emote anti-spam (#592, TokenBucket #770): a burst reads snappy, rate caps a room.
 const EMOTE_BURST_MAX := 3.0
 const EMOTE_REFILL_MS := 500.0
-## Gameplay-input flood guard (#707): sized far above real play (a legit peak is
-## ~30-40/s) so no honest client is throttled, while still capping a hostile
-## packet-rate flood whose every intent costs an O(n) sim scan before rejection.
+## Gameplay-input flood guard (#707): sized far above real play (~30-40/s peak)
+## so no honest client throttles, while still capping a hostile packet flood.
 const INPUT_BURST_MAX := 30.0
 const INPUT_REFILL_MS := 15.0
 ## Rolling window size for the load-soak tick timer (#710).
 const TICK_SAMPLE_CAP := 600
-## The only MatchController states whose per-tick snapshot the client acts on:
-## MatchScreen._on_snapshot renders COUNTDOWN/PLAY/FINALE_PLAY/FINALE_SHOP and
-## early-returns on every other state. Broadcasting outside this set (a LOBBY
-## with no controller, or the INTRO/RESULTS/LEADERBOARD/PODIUM/DONE chrome
-## states) ships a 30 Hz snapshot the client discards — pure idle/between-round
-## bandwidth a 24-player room pays 30x per member per second (#765, the #710
-## deferred follow-up). State and phase still sync over the reliable
-## _broadcast_room_state + match-event channels, and the client interpolation
-## clock is wall-clock paced and re-bases on the next changed sample, so the
-## skip is invisible to clients, rejoin, and the soak bots (which detect phase
-## from events, not snapshot arrival).
+## The only MatchController states whose per-tick snapshot the client renders
+## (#765): broadcasting outside this set ships a 30 Hz snapshot the client
+## discards — idle bandwidth a 24-player room pays 30x/member/s. State/phase
+## still sync over the reliable room-state + match-event channels, and the
+## interpolation clock re-bases on the next changed sample, so the skip is
+## invisible to clients, rejoin, and the soak bots (which read phase from
+## events).
 const CLIENT_CONSUMED_STATES := [
 	MatchController.State.COUNTDOWN,
 	MatchController.State.PLAY,
@@ -67,42 +58,36 @@ var room_manager: RoomManager
 # Server-only: live matches keyed by room code.
 var match_controllers := {}
 
-# Server-only: allows test harnesses to force room state via RPC. Enabled by
-# the `--debug-rpcs` user arg; never enable on a public server.
+# Server-only test hook, enabled by `--debug-rpcs`; never on a public server.
 var debug_rpcs_enabled := false
 
 # Client-side session mirror of the last successful join.
 var my_room_code := ""
 var my_slot := -1
 var my_session_token := ""
-# Last room state broadcast, kept so screens instantiated mid-session can
-# seed themselves (a node connected during an emission misses that emission).
+# Last room-state broadcast, so screens built mid-session can seed themselves.
 var my_room_state := {}
 
-# Artificial latency/loss applied to client-received snapshots, for testing
-# minigames under bad network conditions (M1-05). Configured via
-# `--fake-lag=<ms> --fake-loss=<0..1>` user args.
+# Artificial latency/loss on client-received snapshots for bad-network testing
+# (M1-05); set via `--fake-lag=<ms> --fake-loss=<0..1>` user args.
 var fake_lag_ms := 0
 var fake_loss := 0.0
 
-# Server-only: per-peer emote token-bucket state, {tokens: float, last_ms: int}.
+# Server-only per-peer token-bucket state {tokens, last_ms}: emote + input (#707).
 var _emote_tokens := {}
-# Server-only: per-peer gameplay-input token-bucket state (#707), same shape.
 var _input_tokens := {}
 var _lag_rng := RandomNumberGenerator.new()
 var _lag_queue: Array[Dictionary] = []
 var _snapshot_accum := 0.0
 var _server_tick := 0
 var _expiry_accum := 0.0
-## Server-tick wall-time samples (usec) for the multi-room load soak (#710),
-## a rolling window; p95/max printed every ~10 s under --debug-rpcs. Only the
-## broadcast frame is timed — that's the 30 Hz work (all rooms' sims + the
-## per-peer snapshot fan-out) that must fit the SNAPSHOT_INTERVAL budget.
+## Server-tick wall-time samples (usec) for the multi-room load soak (#710):
+## a rolling window of the timed broadcast frame; p95/max printed under
+## --debug-rpcs. That 30 Hz work must fit the SNAPSHOT_INTERVAL budget.
 var _tick_samples: Array[int] = []
-## Practice-bot input cadence (#577): brains keyed "code:slot" (M19, #684),
-## pumped every BOT_INPUT_INTERVAL_SEC like a human client's send_match_input.
-## Each entry is {"id": StringName, "brain": BotBrain}; the brain is rebuilt
-## whenever the round's minigame changes.
+## Practice-bot input cadence (#577): brains keyed "code:slot", each
+## {"id": StringName, "brain": BotBrain}, pumped every BOT_INPUT_INTERVAL_SEC
+## like a human client and rebuilt when the round's minigame changes.
 var _bot_input_accum := 0.0
 var _bot_brains := {}
 
@@ -186,7 +171,7 @@ func request_kick(slot: int) -> void:
 	_rpc_kick.rpc_id(1, slot)
 
 
-## Host-only: add / remove a server-owned practice bot (#577).
+## Host-only: add/remove a server-owned practice bot (#577).
 func request_add_bot() -> void:
 	_rpc_add_bot.rpc_id(1)
 
@@ -199,9 +184,13 @@ func request_set_character(character_id: StringName) -> void:
 	_rpc_set_character.rpc_id(1, character_id)
 
 
-## Choose a player color (#581); `index` is a palette index. The server accepts
-## it only if no other member already shows that colour (uniqueness), so the
-## authoritative pick echoes back via room_updated.
+## Wardrobe equip (#935): mirror the character pick, lobby-only, catalog-checked.
+func request_set_hat(hat_id: StringName) -> void:
+	_rpc_set_hat.rpc_id(1, hat_id)
+
+
+## Choose a player color (#581); server enforces per-room uniqueness, echoing
+## the authoritative pick back via room_updated.
 func request_set_color(index: int) -> void:
 	_rpc_set_color.rpc_id(1, index)
 
@@ -353,6 +342,20 @@ func _rpc_set_character(character_id: StringName) -> void:
 	if member == null:
 		return
 	member.character_id = character_id
+	_broadcast_room_state(room)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_hat(hat_id: StringName) -> void:
+	if not is_server:
+		return
+	var room: Room = room_manager.room_of_peer(multiplayer.get_remote_sender_id())
+	if room == null or room.state != Room.State.LOBBY or not HatCatalog.is_valid(hat_id):
+		return
+	var member := room.find_by_peer(multiplayer.get_remote_sender_id())
+	if member == null:
+		return
+	member.hat_id = hat_id
 	_broadcast_room_state(room)
 
 
