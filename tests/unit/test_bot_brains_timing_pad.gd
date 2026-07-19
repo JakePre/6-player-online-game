@@ -151,6 +151,18 @@ func _shred_row(meter: int, active: int) -> Array:
 	return [0, 0, 0, -1, 0, meter, active]
 
 
+## The live snapshot row is the full 7-field shape (meter 0, not active). The
+## Star Power check must not swallow the normal lane press in that case (#957).
+func test_shred_session_brain_presses_normally_with_a_full_shape_row() -> void:
+	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
+	var game := {"elapsed": 10.0, "players": {0: _shred_row(0, 0)}, "notes": [[10.05, 2]]}
+	assert_eq(
+		int(brain.think(_play_state("shred_session", game), {}).get("lane", -1)),
+		2,
+		"an empty meter falls through to pressing the in-window note",
+	)
+
+
 func test_shred_session_brain_spends_star_on_a_dense_stretch() -> void:
 	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
 	var game := {
