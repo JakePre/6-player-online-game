@@ -190,3 +190,42 @@ func test_snake_chain_brain_ignores_its_own_grace_segments() -> void:
 	}
 	var intent := brain.think(_play_state("snake_chain", game), {})
 	assert_gt(float(intent.get("mx", 0.0)), 0.5, "own grace segments don't spook the heading")
+
+
+# --- #926: flee spacing + rim-orbit -------------------------------------------
+
+
+## Two hot_potato fleers stacked side-on to the carrier push apart instead of
+## smearing into the same spot (the corner-stacking degeneracy).
+func test_hot_potato_brain_fleers_spread_apart() -> void:
+	var game := {
+		"carrier": 2,
+		"alive": [0, 1, 2],
+		"players": {0: [-0.1, 2.0], 1: [0.1, 2.0], 2: [0.0, -4.0]},
+		"fuse": 5.0,
+		"holds": {},
+	}
+	var i0 := BotBrains.brain_for(&"hot_potato", 0, 1).think(_play_state("hot_potato", game), {})
+	var i1 := BotBrains.brain_for(&"hot_potato", 1, 1).think(_play_state("hot_potato", game), {})
+	assert_lt(float(i0.mx), float(i1.mx), "stacked fleers push apart, not together")
+
+
+## Two clean shock_tag fleers stacked side-on to the zapped chaser spread apart.
+func test_shock_tag_brain_fleers_spread_apart() -> void:
+	var game := {
+		"zapped": 2,
+		"immunity": 0.0,
+		"players": {0: [-0.1, 2.0, 0], 1: [0.1, 2.0, 0], 2: [0.0, -4.0, 0]},
+	}
+	var i0 := BotBrains.brain_for(&"shock_tag", 0, 1).think(_play_state("shock_tag", game), {})
+	var i1 := BotBrains.brain_for(&"shock_tag", 1, 1).think(_play_state("shock_tag", game), {})
+	assert_lt(float(i0.mx), float(i1.mx), "clean fleers spread instead of stacking")
+
+
+## A shock_tag fleer pinned at the rim, chased outward, slides along the edge
+## instead of pushing uselessly off it.
+func test_shock_tag_brain_slides_along_the_rim() -> void:
+	var game := {"zapped": 1, "immunity": 0.0, "players": {0: [8.7, 0.0, 0], 1: [6.0, 0.0, 0]}}
+	var intent := BotBrains.brain_for(&"shock_tag", 0, 1).think(_play_state("shock_tag", game), {})
+	assert_lt(absf(float(intent.mx)), 0.2, "the outward radial push is dropped at the rim")
+	assert_gt(absf(float(intent.my)), 0.9, "slides tangentially along the rim instead")
