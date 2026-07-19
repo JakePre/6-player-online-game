@@ -6,6 +6,14 @@ extends MinigameView3D
 ## charge meter that greens inside the perfect-release window. Dunks burst at
 ## the hoop, fumbles puff dust. Renders get_snapshot() only.
 
+## Declarative button input (#947): act (steal/contest) is momentary; the
+## shot is a hold — release fires it, and timing against the meter (not the
+## hold itself) decides quality.
+const INPUT_ACTIONS := {
+	&"action_primary": "act",
+	&"action_secondary": {"key": "shoot", "held": true},
+}
+
 const BALL_COLOR := Color(0.95, 0.6, 0.15)
 const HOOP_ALPHA := 0.4
 const BALL_RADIUS := 0.35
@@ -80,18 +88,6 @@ func _physics_process(delta: float) -> void:
 		_perfect_left -= delta
 		if _perfect_left <= 0.0 and _perfect_label != null:
 			_perfect_label.visible = false
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if NetManager.multiplayer.multiplayer_peer == null:
-		return
-	if event.is_action_pressed(&"action_primary"):
-		NetManager.send_match_input({"act": true})
-	elif event.is_action_pressed(&"action_secondary"):
-		NetManager.send_match_input({"shoot": true})
-	elif event.is_action_released(&"action_secondary"):
-		# Release fires the shot — timing against the meter decides quality.
-		NetManager.send_match_input({"shoot": false})
 
 
 ## Warm hardwood-court floor (#589).

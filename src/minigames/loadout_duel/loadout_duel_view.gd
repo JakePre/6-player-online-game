@@ -7,6 +7,14 @@ extends SideScrollView
 ## Input: A/D run + W/Space jump go through the base's move axis; J fires,
 ## K throws (action_primary / action_secondary).
 
+## Declarative button input (#947): jump/fire/throw are momentary; the move
+## axis stays a hand-rolled _physics_process send (a continuous vector).
+const INPUT_ACTIONS := {
+	&"move_up": "jump",
+	&"action_primary": "fire",
+	&"action_secondary": "throw",
+}
+
 const KIND_COLORS := {
 	LoadoutDuel.Kind.BLASTER: Color(0.5, 0.8, 1.0),
 	LoadoutDuel.Kind.SCATTER: Color(1.0, 0.7, 0.35),
@@ -64,17 +72,6 @@ func _physics_process(_delta: float) -> void:
 	if NetManager.multiplayer.multiplayer_peer == null:
 		return
 	NetManager.send_match_input({"mx": Input.get_axis(&"move_left", &"move_right")})
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if NetManager.multiplayer.multiplayer_peer == null:
-		return
-	if event.is_action_pressed(&"move_up"):
-		NetManager.send_match_input({"jump": true})
-	elif event.is_action_pressed(&"action_primary"):
-		NetManager.send_match_input({"fire": true})
-	elif event.is_action_pressed(&"action_secondary"):
-		NetManager.send_match_input({"throw": true})
 
 
 func _render(game: Dictionary) -> void:
