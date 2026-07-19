@@ -88,10 +88,14 @@ const PS_Y := 1
 const PS_ACT_SEQ := 2
 const PS_ACT_KIND := 3
 const PS_SHOVE_CD := 4
-const PS_COUNT := 5
+## Monotonic per-victim counter (#1038): bumps whenever a shove actually
+## knocks this slot, independent of the shover's own PS_ACT_SEQ, so the view
+## can play the victim's hit reaction too.
+const PS_SHOVE_HIT_SEQ := 5
+const PS_COUNT := 6
 ## #946 wire-shape tripwire: the declared type of each slot in a `players`
 ## snapshot row. Validated by test_snapshot_schema against get_snapshot().
-const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT, TYPE_FLOAT]
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT, TYPE_FLOAT, TYPE_INT]
 
 var teams: Array = []
 var phase := Phase.SIEGE
@@ -117,6 +121,7 @@ var relic_return_left := 0.0
 var gate_cooldowns := {}
 var act_seq := {}
 var act_kind := {}
+var shove_hits := {}
 ## One entry per attacking team once its siege resolves:
 ## {captured, time, progress}.
 var runs: Array = [{}, {}]
@@ -179,6 +184,7 @@ func _setup() -> void:
 		# tracking survives the swap — only the transient cooldowns reset per side.
 		act_seq[slot] = 0
 		act_kind[slot] = Act.NONE
+		shove_hits[slot] = 0
 	_start_siege(0)
 
 
@@ -271,6 +277,7 @@ func _shove(slot: int) -> void:
 			continue
 		var away: Vector2 = positions[raider] - positions[slot]
 		knocks[raider] = (away.normalized() if away.length() > 0.001 else Vector2.UP) * SHOVE_KNOCK
+		shove_hits[raider] = int(shove_hits.get(raider, 0)) + 1
 		if raider == relic_carrier:
 			_drop_relic(positions[raider])
 	_record_act(slot, Act.SHOVE)
@@ -399,6 +406,7 @@ func get_snapshot() -> Dictionary:
 			int(act_seq.get(slot, 0)),
 			int(act_kind.get(slot, Act.NONE)),
 			snappedf(clampf(float(shove_cooldowns[slot]) / SHOVE_COOLDOWN_SEC, 0.0, 1.0), 0.01),
+			int(shove_hits.get(slot, 0)),
 		]
 	var limit := SIEGE_SEC if phase == Phase.SIEGE else SWAP_SEC
 	var times: Array = []

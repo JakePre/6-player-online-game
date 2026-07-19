@@ -73,6 +73,7 @@ var _wall_banners: Array[MeshInstance3D] = []
 ## Per-slot: the play-once action-counter edge (#945). The swing/shove pose
 ## hold now lives on the rig (#942). Plus a lazily-built shove cooldown ring.
 var _act_edges := EdgeTracker.new()
+var _hit_edges := EdgeTracker.new()
 var _rings := {}
 # FX seeds: last-seen gate for the breach burst and crack thirds, last-seen
 # times for the escape burst, last-seen relic state for grab/drop/return cues.
@@ -265,6 +266,7 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		_play_action(slot, state, rig)
+		_play_shove_hit(slot, state)
 		var pos := Vector2(float(state[FortSiege.PS_X]), float(state[FortSiege.PS_Y]))
 		if rig.is_pose_protected():
 			# A swing/shove owns the pose (#587 idiom): move it, don't re-animate.
@@ -300,6 +302,16 @@ func _play_action(slot: int, state: Array, rig: CharacterRig) -> void:
 			rig.play_protected(&"attack", ACT_HOLD_SEC)
 			fx_burst(at, COOLDOWN_RING_COLOR, 0.6)
 			play_sfx(&"bump")
+
+
+## The shove's actual target flinches too (#1038) — a defender's swing only
+## used to animate the defender; the raider it hit had no reaction at all.
+func _play_shove_hit(slot: int, state: Array) -> void:
+	if state.size() <= FortSiege.PS_SHOVE_HIT_SEQ:
+		return
+	if not _hit_edges.rose(slot, int(state[FortSiege.PS_SHOVE_HIT_SEQ])):
+		return
+	play_hit(slot)
 
 
 ## A flat ring under a defender showing their shove cooldown (#808): visible and
