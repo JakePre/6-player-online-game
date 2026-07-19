@@ -12,6 +12,12 @@ const TILE_WORLD := 1.5
 const ARENA_HALF := GRID_SIZE * TILE_WORLD / 2.0
 const MOVE_SPEED := 6.0
 const PLAYER_RADIUS := 0.45
+## Home-turf speed (#955): move-speed multipliers by the paint you're crossing —
+## your own color is a highway, enemy color drags, neutral is base. Tuned so a
+## boxed-in team can still fight out (M12-01 comparability; nightly balance job).
+const OWN_PAINT_SPEED := 1.25
+const ENEMY_PAINT_SPEED := 0.85
+const NEUTRAL_SPEED := 1.0
 ## Team play starts at this player count (SPEC: FFA at 2-3, teams at 4+).
 const TEAM_THRESHOLD := 4
 ## Most teams a large lobby splits into (ADR 003: 4 teams of 6 at 24).
@@ -70,6 +76,27 @@ static func arena_half_for(count: int) -> float:
 	return grid_dim_for(count) * TILE_WORLD / 2.0
 
 
+## Flat grid index of the tile containing `pos` on a `dim`-wide board of the
+## given half-extent, clamped to the board. Shared by _paint, the home-turf
+## speed lookup, and the view's surf FX so all three read one definition of
+## "which tile is under this point" (the #971 sim/view desync class).
+static func tile_index_at(pos: Vector2, dim: int, half: float) -> int:
+	var col := clampi(int(floor((pos.x + half) / TILE_WORLD)), 0, dim - 1)
+	var row := clampi(int(floor((pos.y + half) / TILE_WORLD)), 0, dim - 1)
+	return row * dim + col
+
+
+## Home-turf move-speed multiplier for a player of `faction` crossing a tile
+## owned by `tile_owner`: own paint +25% (a highway), enemy paint −15% (drag),
+## neutral base. "Enemy" is any owner that is neither yours nor UNPAINTED.
+static func speed_mult(tile_owner: int, faction: int) -> float:
+	if tile_owner == UNPAINTED:
+		return NEUTRAL_SPEED
+	if tile_owner == faction:
+		return OWN_PAINT_SPEED
+	return ENEMY_PAINT_SPEED
+
+
 ## How many balanced teams a lobby of `n` splits into (0 = FFA). Targets the
 ## 6-player baseline team size, then searches nearby counts for one that
 ## divides `n` evenly with at least 2 per team; a count with no clean split
@@ -97,12 +124,17 @@ static func make_meta() -> MinigameMeta:
 				"min_players": 2,
 				"max_players": 24,
 				"duration_sec": 45.0,
-				"rules": "Paint the floor by walking on it — most tiles when time runs out wins!",
-				# Structured spec (#832/#844): a move row plus a plain note row.
+				"rules":
+				(
+					"Paint the floor by walking on it — most tiles when time runs out wins! "
+					+ "Your own paint speeds you up; enemy paint slows you down."
+				),
+				# Structured spec (#832/#844): a move row plus plain note rows.
 				"control_spec":
 				[
 					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
 					{"note": "Paint by walking"},
+					{"note": "Your paint = speed; enemy paint = slow"},
 				],
 			}
 		)
@@ -151,7 +183,17 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 
 func _tick(delta: float) -> void:
 	for slot: int in slots:
-		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
+		var dir: Vector2 = move_dirs[slot]
+		# Home-turf speed (#955): classify the turf a full tile ahead in our
+		# heading, not the tile underfoot. A mover repaints the tile it stands on
+		# to its own color every tick, so "the tile you're on" always reads as
+		# yours — looking one tile ahead (where we haven't painted yet) is what
+		# makes crossing enemy turf a sustained −15% drag and own turf a sustained
+		# highway. One grid lookup per player per tick against the existing grid.
+		var probe: Vector2 = positions[slot] + dir.normalized() * TILE_WORLD
+		var owner := int(grid[tile_index_at(probe, grid_dim, arena_half)])
+		var mult := speed_mult(owner, int(faction_of[slot]))
+		var pos: Vector2 = positions[slot] + dir * MOVE_SPEED * mult * delta
 		var limit := arena_half - PLAYER_RADIUS
 		positions[slot] = pos.clamp(Vector2(-limit, -limit), Vector2(limit, limit))
 		_paint(slot)
@@ -230,10 +272,7 @@ func _rank_players() -> Array:
 
 
 func _paint(slot: int) -> void:
-	var pos: Vector2 = positions[slot]
-	var col := clampi(int(floor((pos.x + arena_half) / TILE_WORLD)), 0, grid_dim - 1)
-	var row := clampi(int(floor((pos.y + arena_half) / TILE_WORLD)), 0, grid_dim - 1)
-	grid[row * grid_dim + col] = faction_of[slot]
+	grid[tile_index_at(positions[slot], grid_dim, arena_half)] = faction_of[slot]
 
 
 func _tile_counts() -> Dictionary:

@@ -14,6 +14,11 @@ extends BotBrain
 ## grid_changes?}. Input: {mx, my} only (painting is walking, no button).
 ## Indices named via ColorClash.PS_*/GC_* (#708).
 
+## Home-turf bias (#955): a target that touches our own paint is reached along
+## our own color — a speed highway — so weight it as if it were nearer. Cheap
+## 4-neighbour check, biasing the existing pick, not real pathfinding.
+const OWN_EDGE_BIAS := 0.5
+
 var _grid: Array = []
 var _dim := 0
 
@@ -49,11 +54,13 @@ func think(match_state: Dictionary, _private: Dictionary) -> Dictionary:
 	return move_toward_point(me, target, ColorClash.TILE_WORLD * 0.3)
 
 
-## World position of the nearest tile whose owner isn't `faction`, or INF if
-## every tile already reads ours.
+## World position of the nearest tile worth painting, or INF if every tile
+## already reads ours. Distance is weighted by OWN_EDGE_BIAS for tiles touching
+## our own paint so the bot grows its own edge (staying on its color highway,
+## #955) rather than lunging across enemy turf for a marginally closer tile.
 func _nearest_unowned_tile(me: Vector2, faction: int, dim: int, half: float) -> Vector2:
 	var best := Vector2.INF
-	var best_dist := INF
+	var best_score := INF
 	for index in _grid.size():
 		if int(_grid[index]) == faction:
 			continue
@@ -62,8 +69,26 @@ func _nearest_unowned_tile(me: Vector2, faction: int, dim: int, half: float) -> 
 		var pos := Vector2(
 			-half + (col + 0.5) * ColorClash.TILE_WORLD, -half + (row + 0.5) * ColorClash.TILE_WORLD
 		)
-		var dist := me.distance_squared_to(pos)
-		if dist < best_dist:
-			best_dist = dist
+		var score := me.distance_squared_to(pos)
+		if _touches_faction(index, faction, dim):
+			score *= OWN_EDGE_BIAS
+		if score < best_score:
+			best_score = score
 			best = pos
 	return best
+
+
+## True if any orthogonal neighbour of tile `index` is owned by `faction` — i.e.
+## the tile sits on the edge of our own territory.
+func _touches_faction(index: int, faction: int, dim: int) -> bool:
+	var col := index % dim
+	var row := index / dim
+	if col > 0 and int(_grid[index - 1]) == faction:
+		return true
+	if col < dim - 1 and int(_grid[index + 1]) == faction:
+		return true
+	if row > 0 and int(_grid[index - dim]) == faction:
+		return true
+	if row < dim - 1 and int(_grid[index + dim]) == faction:
+		return true
+	return false

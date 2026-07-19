@@ -15,6 +15,12 @@ const PAINT_DARKEN := 0.15
 const MAX_SPLATS_PER_SNAPSHOT := 8
 const SHIMMER_PERIOD_TICKS := 16
 const SHIMMER_STRENGTH := 0.12
+## Home-turf surf FX (#955): a subtle dust streak in your own color when a rig
+## is boosted — moving into a tile its faction owns (the sim's +25% highway).
+## Throttled and staggered per slot so it stays a hint, not a haze; ArenaFX
+## already emits nothing under reduced motion (design: reduced-motion = none).
+const SURF_FX_EVERY := 4
+const MIN_SURF_MOVE := 0.12
 
 ## Latest replicated state, straight from ColorClash.get_snapshot().
 var players := {}
@@ -37,6 +43,8 @@ var _counts := {}
 var _pulse_ticks := 0
 ## Last-seen leading faction, for the take-the-lead cue (#728).
 var _leading_seen := ColorClash.UNPAINTED
+## Last-snapshot positions per slot, for the surf-FX movement/boost check (#955).
+var _prev_player_pos := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -138,6 +146,7 @@ func _render_3d(game: Dictionary) -> void:
 	_pulse_ticks += 1
 	_update_tiles()
 	_update_players()
+	_update_surf_fx()
 	# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): taking the lead
 	# is a positive checkpoint, same spirit as musical_platforms' claim bell.
 	var leading := leading_faction()
@@ -229,6 +238,46 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		update_rig(slot, Vector2(state[ColorClash.PS_X], state[ColorClash.PS_Y]))
+
+
+## Surf streaks (#955): for each rig that moved far enough this snapshot and is
+## boosted (entering a tile its faction owns — the same probe the sim uses to
+## apply +25%, so the streak and the speedup never disagree, #971), emit one
+## subtle own-color dust puff. Grid may be empty mid-resize (awaiting a keyframe)
+## — skip FX then but still refresh the position baseline so the next real
+## snapshot measures a true step, not a resize jump.
+func _update_surf_fx() -> void:
+	if not grid.is_empty():
+		for slot: int in players:
+			var state: Array = players[slot]
+			if state.size() < ColorClash.PS_COUNT:
+				continue
+			var pos := Vector2(state[ColorClash.PS_X], state[ColorClash.PS_Y])
+			var prev: Vector2 = _prev_player_pos.get(slot, pos)
+			var step := pos - prev
+			if step.length() < MIN_SURF_MOVE or (_pulse_ticks + slot) % SURF_FX_EVERY != 0:
+				continue
+			var faction := int(state[ColorClash.PS_FACTION])
+			# Same full-tile-ahead probe the sim uses to apply the +25% (#955), so
+			# the streak and the speedup never disagree (#971 desync class).
+			var probe := pos + step.normalized() * ColorClash.TILE_WORLD
+			var owner := int(grid[ColorClash.tile_index_at(probe, _dim, _half)])
+			if ColorClash.speed_mult(owner, faction) <= ColorClash.NEUTRAL_SPEED:
+				continue  # neutral or enemy paint: no highway, no streak
+			ArenaFX.dust(
+				arena, to_arena(pos, PAINT_LIFT + 0.03), _faction_color(faction).lightened(0.25)
+			)
+	_prev_player_pos = _snapshot_positions()
+
+
+## {slot: Vector2} of this snapshot's rig positions, for next tick's step check.
+func _snapshot_positions() -> Dictionary:
+	var out := {}
+	for slot: int in players:
+		var state: Array = players[slot]
+		if state.size() >= ColorClash.PS_COUNT:
+			out[slot] = Vector2(state[ColorClash.PS_X], state[ColorClash.PS_Y])
+	return out
 
 
 func _faction_color(faction: int) -> Color:
