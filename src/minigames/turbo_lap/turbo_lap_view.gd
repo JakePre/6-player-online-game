@@ -8,12 +8,18 @@ extends MinigameView3D
 
 const TRACK_COLOR := Color(0.16, 0.17, 0.21)
 const START_COLOR := Color(0.96, 0.79, 0.2)
-## Real finish arch + edge barriers (#785/#911, MDL-006/007): both base-pivoted,
-## meant to be placed/tiled rather than stretched. The arch stands over the
-## existing gold start-line slab (kept as the functional ground marker); the
-## barrier is tiled once per waypoint along both track edges.
-const FINISH_ARCH_SCENE := preload("res://assets/generated/models/finish-arch.glb")
-const TRACK_BARRIER_SCENE := preload("res://assets/generated/models/track-barrier.glb")
+## Continuous curb rails (#1041): the two track edges are drawn as gap-free
+## miter-joined walls tracing the ribbon, replacing the 100+ tiled MDL-007
+## barrier blocks that read as messy concentric arcs and never closed the oval.
+const RAIL_COLOR := Color(0.86, 0.88, 0.94)
+const RAIL_HEIGHT := 0.4
+const RAIL_WIDTH := 0.28
+## Procedural start/finish gate (#1041): the generated finish-arch.glb renders
+## as malformed geometry (a lumpy 6.45u-tall blob that dominates the arena), so
+## the arch is built from primitives — two posts spanning the track under a gold
+## banner beam — sized to the track width. See IMAGE_REQUESTS for the asset re-roll.
+const ARCH_POST_COLOR := Color(0.24, 0.25, 0.3)
+const ARCH_POST_HEIGHT := 2.4
 ## The MDL-015 go-kart (#956): authored neutral grey/white exactly so the view
 ## can tint the whole body to the player color at runtime (its ledger contract).
 ## Base pivot, wheels on the ground; nose points -Z in the GLB.
@@ -73,6 +79,16 @@ func _arena_half() -> float:
 	return TurboLap.course_bound() + TurboLap.TRACK_HALF_WIDTH + 1.0
 
 
+## Opt out of the shared party-stadium shell (#939, #1041). Every other game is
+## a compact arena the stadium frames behind; turbo_lap's track sprawls to the
+## arena extent, so the shell's dark dome and bleacher ring sat around AND over
+## the track at the iso angle, burying the oval in a dark bowl — the owner's
+## "still not a complete oval". Without it the ribbon + curb rails read as a
+## clean closed loop. The base guards its per-frame update against a null shell.
+func _build_stage_shell() -> void:
+	pass
+
+
 func _setup_3d() -> void:
 	_build_track()
 	for pad_pos in TurboLap.boost_pad_positions():
@@ -89,9 +105,9 @@ func _setup_3d() -> void:
 		_add_kart_body(slot)
 
 
-## One flat strip per centerline segment approximates the ellipse ribbon;
-## the start line gets a gold slab across the width, a real arch stands over
-## it, and a barrier is tiled along both edges at every waypoint (#911).
+## One flat strip per centerline segment forms the ribbon; two continuous
+## miter-joined curb rails trace its edges into a clean closed oval; the start
+## line gets a gold slab across the width and a procedural gate stands over it.
 func _build_track() -> void:
 	var points := TurboLap.waypoints()
 	for i in points.size():
@@ -109,8 +125,7 @@ func _build_track() -> void:
 		strip.position = Vector3(mid.x, 0.03, mid.y)
 		strip.rotation.y = -heading
 		arena.add_child(strip)
-		_add_edge_barriers(mid, heading)
-	_add_corner_barriers(points)
+	_build_edge_rails(points)
 	var start := MeshInstance3D.new()
 	start.name = "StartLine"
 	var start_mesh := BoxMesh.new()
@@ -124,38 +139,85 @@ func _build_track() -> void:
 	start.position = Vector3(points[0].x, 0.05, points[0].y)
 	start.rotation.y = -start_heading
 	arena.add_child(start)
-	var arch := FINISH_ARCH_SCENE.instantiate() as Node3D
-	arch.name = "FinishArch"
-	arch.position = Vector3(points[0].x, 0.0, points[0].y)
-	arch.rotation.y = -start_heading
-	arena.add_child(arch)
+	_build_finish_arch(points[0], start_heading)
 
 
-## One barrier segment per track edge at this centerline midpoint, offset
-## perpendicular to `heading` by the track's half-width.
-func _add_edge_barriers(mid: Vector2, heading: float) -> void:
-	var perp := Vector2(sin(heading), -cos(heading))
+## Two continuous curb rails tracing the inner and outer track edges (#1041):
+## each waypoint is offset along its miter normal (the bisector of its two
+## flanking edge normals), so consecutive offset points connect gap-free — a
+## crisp closed oval outline instead of 100+ tiled barrier blocks that never
+## closed the loop.
+func _build_edge_rails(points: PackedVector2Array) -> void:
 	for side: float in [-1.0, 1.0]:
-		var edge: Vector2 = mid + perp * side * TurboLap.TRACK_HALF_WIDTH
-		var barrier := TRACK_BARRIER_SCENE.instantiate() as Node3D
-		barrier.position = Vector3(edge.x, 0.0, edge.y)
-		barrier.rotation.y = -heading
-		arena.add_child(barrier)
+		var loop := _offset_loop(points, side * TurboLap.TRACK_HALF_WIDTH)
+		for i in loop.size():
+			var a: Vector2 = loop[i]
+			var b: Vector2 = loop[(i + 1) % loop.size()]
+			var rail := MeshInstance3D.new()
+			rail.name = "Rail%s%d" % ["Out" if side > 0.0 else "In", i]
+			var mesh := BoxMesh.new()
+			# Overlength (1.06) laps each joint so the miter corners stay sealed.
+			mesh.size = Vector3(a.distance_to(b) * 1.06, RAIL_HEIGHT, RAIL_WIDTH)
+			mesh.material = _flat_material(RAIL_COLOR)
+			rail.mesh = mesh
+			var mid := (a + b) / 2.0
+			rail.position = Vector3(mid.x, RAIL_HEIGHT / 2.0, mid.y)
+			rail.rotation.y = -(b - a).angle()
+			arena.add_child(rail)
 
 
-## #930: each segment's barrier is straight and only ~2u long (MDL-007), so
-## two segments meeting at an angle leave a jagged gap at the vertex between
-## them. One more barrier pair at each vertex, oriented along the bisector of
-## the two flanking headings, bridges the seam.
-func _add_corner_barriers(points: PackedVector2Array) -> void:
-	for i in points.size():
-		var prev := points[(i - 1 + points.size()) % points.size()]
-		var curr := points[i]
-		var next := points[(i + 1) % points.size()]
-		var heading_in := (curr - prev).angle()
-		var heading_out := (next - curr).angle()
-		var bisector := (Vector2.from_angle(heading_in) + Vector2.from_angle(heading_out)).angle()
-		_add_edge_barriers(curr, bisector)
+## Offset a closed CCW polyline outward (+) or inward (-) by `dist`, moving each
+## vertex along its miter normal (the bisector of the two adjacent edge normals)
+## and scaling by 1/cos(half-angle) so the offset distance is held along both
+## flanking edges — the standard gap-free polyline offset.
+func _offset_loop(points: PackedVector2Array, dist: float) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var n := points.size()
+	for i in n:
+		var prev: Vector2 = points[(i - 1 + n) % n]
+		var curr: Vector2 = points[i]
+		var next: Vector2 = points[(i + 1) % n]
+		# Outward edge normal for a CCW loop is the direction rotated -90°.
+		var n_in := (curr - prev).normalized()
+		var n_out := (next - curr).normalized()
+		var normal_in := Vector2(n_in.y, -n_in.x)
+		var normal_out := Vector2(n_out.y, -n_out.x)
+		var miter := normal_in + normal_out
+		if miter.length() < 0.001:
+			miter = normal_out
+		miter = miter.normalized()
+		var cos_half := miter.dot(normal_out)
+		var scale := dist / cos_half if absf(cos_half) > 0.2 else dist
+		out.append(curr + miter * scale)
+	return out
+
+
+## A clean start/finish gate from primitives (#1041): two posts straddling the
+## track under a gold banner beam, replacing the malformed finish-arch.glb blob.
+func _build_finish_arch(at: Vector2, heading: float) -> void:
+	var arch := Node3D.new()
+	arch.name = "FinishArch"
+	arch.position = Vector3(at.x, 0.0, at.y)
+	arch.rotation.y = -heading
+	var span := TurboLap.TRACK_HALF_WIDTH * 2.0 + 0.6
+	for side: float in [-1.0, 1.0]:
+		var post := MeshInstance3D.new()
+		var pm := BoxMesh.new()
+		pm.size = Vector3(0.3, ARCH_POST_HEIGHT, 0.3)
+		pm.material = _flat_material(ARCH_POST_COLOR)
+		post.mesh = pm
+		# Local Z is across-track (the strips lay their width on Z), so the posts
+		# straddle the lane at ±half the span.
+		post.position = Vector3(0.0, ARCH_POST_HEIGHT / 2.0, side * span / 2.0)
+		arch.add_child(post)
+	var beam := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.4, 0.5, span)
+	bm.material = _flat_material(START_COLOR)
+	beam.mesh = bm
+	beam.position = Vector3(0.0, ARCH_POST_HEIGHT + 0.25, 0.0)
+	arch.add_child(beam)
+	arena.add_child(arch)
 
 
 func _add_pad(world_pos: Vector2, color: Color, node_name: String) -> MeshInstance3D:
