@@ -21,14 +21,22 @@ func after_each() -> void:
 	InputGlyphs.active_layout = InputGlyphs.Layout.GENERIC
 
 
-## players entry: [score, streak, last_judgment, last_lane, event_count]
+## players entry: [score, streak, last_judgment, last_lane, event_count,
+## star_meter?, star_active?]. Rows written short are zero-padded to PS_COUNT so
+## the pre-#957 five-field literals still describe a valid full-shape row.
 func _snap(notes: Array, players: Dictionary, elapsed := 0.0) -> Dictionary:
+	var padded := {}
+	for slot: int in players:
+		var row: Array = (players[slot] as Array).duplicate()
+		while row.size() < ShredSession.PS_COUNT:
+			row.append(0)
+		padded[slot] = row
 	return {
 		"elapsed": elapsed,
 		"lanes": ShredSession.LANES,
 		"song_end": 62.0,
 		"notes": notes,
-		"players": players,
+		"players": padded,
 	}
 
 
@@ -73,6 +81,40 @@ func test_scoreboard_reflects_scores() -> void:
 	view.render(_snap([], {0: [40, 3, 1, 1, 5], 1: [90, 0, 3, 2, 4]}))
 	assert_string_contains((view._score_rows[1] as Label).text, "90")
 	assert_string_contains((view._score_rows[0] as Label).text, "40")
+
+
+## #957: rival Star Power state reads on the scoreboard — a ready meter and an
+## active 2x window each show their own marker.
+func test_scoreboard_shows_star_meter_and_active_window() -> void:
+	var rows := {
+		0: [10, 0, 0, -1, 0, ShredSession.STAR_PERFECTS, 0],  # meter ready
+		1: [20, 0, 0, -1, 0, 3, 1],  # mid 2x window
+	}
+	view.render(_snap([], rows))
+	assert_string_contains((view._score_rows[0] as Label).text, "READY")
+	assert_string_contains((view._score_rows[1] as Label).text, "2×")
+
+
+## #957: the local player's 2x window floods every lane gold, then reverts.
+func test_local_star_window_floods_the_lanes_gold() -> void:
+	view.render(_snap([], {0: [0, 0, 0, -1, 0, 0, 1]}, 5.0))  # local player mid-window
+	view._update_flashes()
+	for mat: StandardMaterial3D in view._lane_mats:
+		assert_eq(mat.emission, view.STAR_GOLD, "lanes flood gold while the window runs")
+	view.render(_snap([], {0: [0, 0, 0, -1, 0, 0, 0]}, 11.0))  # window closed
+	view._update_flashes()
+	assert_eq(
+		view._lane_mats[0].emission, view.LANE_COLORS[0], "lanes return to their own color after"
+	)
+
+
+## #957: lighting the meter announces STAR POWER on the rising edge.
+func test_star_activation_announces_star_power() -> void:
+	var label: Label = view.get_node("JudgmentLabel")
+	view.render(_snap([], {0: [0, 0, 0, -1, 0, 0, 0]}))
+	view.render(_snap([], {0: [0, 0, 0, -1, 0, 0, 1]}))  # window just opened
+	assert_true(label.visible, "the call-out shows")
+	assert_string_contains(label.text, "STAR POWER")
 
 
 func test_local_verdict_flashes_on_a_fresh_event() -> void:

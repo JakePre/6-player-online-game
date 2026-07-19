@@ -31,6 +31,14 @@ const GOOD_POINTS := 1
 ## Streak multiplier tiers: x2 from the 8th clean hit, x3 from the 16th (capped).
 const STREAK_X2 := 8
 const STREAK_X3 := 16
+## Star Power (#957): PERFECT hits charge a meter; a full meter spent (action_
+## secondary) grants a short 2x-scoring window. Bank it for a dense chart stretch
+## or burn it now — the spend decision is the intrigue. STAR_MULT stacks on the
+## streak multiplier (2x the whole take, base scoring only — it never touches the
+## meter/streak mechanics themselves).
+const STAR_PERFECTS := 8
+const STAR_WINDOW_SEC := 5.0
+const STAR_MULT := 2
 ## How far ahead the snapshot advertises upcoming notes (the visible highway).
 const LOOKAHEAD_SEC := 4.0
 
@@ -41,10 +49,14 @@ const PS_STREAK := 1
 const PS_LAST_JUDGMENT := 2
 const PS_LAST_LANE := 3
 const PS_EVENT_COUNT := 4
-const PS_COUNT := 5
+## Star Power (#957), additive per #708: the current meter (0..STAR_PERFECTS) and
+## a 1/0 flag for the active 2x window, so rival meters read on the scoreboard.
+const PS_STAR_METER := 5
+const PS_STAR_ACTIVE := 6
+const PS_COUNT := 7
 ## #946 wire-shape tripwire: the declared type of each slot in a `players`
 ## snapshot row. Validated by test_snapshot_schema against get_snapshot().
-const PLAYER_SCHEMA := [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT]
+const PLAYER_SCHEMA := [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT]
 
 ## "notes" (upcoming chart) entries: [time, lane].
 const NT_TIME := 0
@@ -59,6 +71,10 @@ var streak := {}
 var best_streak := {}
 var last_judgment := {}
 var last_lane := {}
+## Star Power (#957): PERFECT count toward a full meter, and the elapsed time the
+## active 2x window runs until (0.0 = not active).
+var star_meter := {}
+var star_until := {}
 ## Bumped on every judgment (hit, whiff, or miss) so the view can tell a fresh
 ## verdict from a stale sticky one.
 var event_count := {}
@@ -84,7 +100,8 @@ static func make_meta() -> MinigameMeta:
 				"rules":
 				(
 					"Hit each lane's note as it crosses the line! "
-					+ "Nail the beat for double, keep a streak for a multiplier."
+					+ "Nail the beat for double, keep a streak for a multiplier. "
+					+ "PERFECTs charge Star Power — spend it for 5s of 2× points!"
 				),
 				# #1033: arrow order matches the physical A, W, D, Space key layout
 				# (was Left, Right, Up, Action — read as garbled on-screen).
@@ -106,6 +123,11 @@ static func make_meta() -> MinigameMeta:
 				[
 					{"note": "Strum ◀ ▲ ▶ (left stick), on the beat"},
 					{"verb": "● lane", "input": &"action_primary"},
+					{
+						"verb": "Star Power",
+						"input": &"action_secondary",
+						"note": "when the meter's full!"
+					},
 				],
 			}
 		)
@@ -120,6 +142,8 @@ func _setup() -> void:
 		last_judgment[slot] = Judgment.NONE
 		last_lane[slot] = -1
 		event_count[slot] = 0
+		star_meter[slot] = 0
+		star_until[slot] = 0.0
 		_hit[slot] = {}
 	_build_chart()
 
@@ -158,6 +182,9 @@ func _tick(_delta: float) -> void:
 ## window; a press with nothing in range is a whiff. Either way the streak and
 ## last-judgment state update for the view.
 func _handle_input(slot: int, data: Dictionary) -> void:
+	if bool(data.get("star", false)):
+		_spend_star(slot)
+		return
 	var lane := int(data.get("lane", -1))
 	if lane < 0 or lane >= LANES:
 		return
@@ -180,8 +207,15 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 	var perfect := best_dt <= PERFECT_SEC
 	streak[slot] = int(streak[slot]) + 1
 	best_streak[slot] = maxi(int(best_streak[slot]), int(streak[slot]))
+	# Only PERFECTs charge Star Power (#957) — the meter rewards precision, not
+	# just contact.
+	if perfect:
+		star_meter[slot] = mini(int(star_meter[slot]) + 1, STAR_PERFECTS)
 	var base_points := PERFECT_POINTS if perfect else GOOD_POINTS
-	score[slot] = int(score[slot]) + base_points * _multiplier(slot)
+	var mult := _multiplier(slot)
+	if _star_active(slot):
+		mult *= STAR_MULT
+	score[slot] = int(score[slot]) + base_points * mult
 	_register(slot, Judgment.PERFECT if perfect else Judgment.GOOD, lane, false)
 
 
@@ -193,6 +227,20 @@ func _register(slot: int, judgment: Judgment, lane: int, break_streak := true) -
 	last_judgment[slot] = judgment
 	last_lane[slot] = lane
 	event_count[slot] = int(event_count[slot]) + 1
+
+
+## Spend a full meter for a STAR_WINDOW_SEC 2x-scoring window; a press with a
+## meter that isn't full does nothing (spend gating). The meter resets on spend.
+func _spend_star(slot: int) -> void:
+	if int(star_meter[slot]) < STAR_PERFECTS:
+		return
+	star_meter[slot] = 0
+	star_until[slot] = elapsed + STAR_WINDOW_SEC
+
+
+## True while this player's spent 2x window is still running.
+func _star_active(slot: int) -> bool:
+	return float(star_until.get(slot, 0.0)) > elapsed
 
 
 func _multiplier(slot: int) -> int:
@@ -223,6 +271,8 @@ func get_snapshot() -> Dictionary:
 			int(last_judgment[slot]),
 			int(last_lane[slot]),
 			int(event_count[slot]),
+			int(star_meter[slot]),
+			1 if _star_active(slot) else 0,
 		]
 	return {
 		"elapsed": snappedf(elapsed, 0.01),

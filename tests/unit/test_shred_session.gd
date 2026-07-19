@@ -123,4 +123,78 @@ func test_snapshot_advertises_the_lookahead_window() -> void:
 	assert_has(snap, "elapsed")
 	assert_has(snap, "players")
 	assert_eq(snap.notes.size(), 1, "only the near note is inside the lookahead")
-	assert_eq(int(snap.players[0].size()), 5, "per-player: score, streak, judgment, lane, events")
+	assert_eq(
+		int(snap.players[0].size()),
+		ShredSession.PS_COUNT,
+		"per-player: score, streak, judgment, lane, events, star meter, star active"
+	)
+
+
+# --- #957: Star Power ---------------------------------------------------------
+
+
+func test_perfect_charges_star_meter_good_does_not() -> void:
+	_load_chart([{"time": 3.0, "lane": 0}, {"time": 5.0, "lane": 1}])
+	game.elapsed = 3.0
+	game.handle_input(0, {"lane": 0})  # dead-on PERFECT
+	assert_eq(int(game.star_meter[0]), 1, "a PERFECT charges the meter")
+	game.elapsed = 5.0 + 0.20  # inside GOOD, outside PERFECT
+	game.handle_input(0, {"lane": 1})
+	assert_eq(int(game.star_meter[0]), 1, "a GOOD does not charge the meter")
+
+
+func test_star_meter_caps_at_full() -> void:
+	_load_chart([{"time": 3.0, "lane": 0}])
+	game.star_meter[0] = ShredSession.STAR_PERFECTS
+	game.elapsed = 3.0
+	game.handle_input(0, {"lane": 0})  # a PERFECT with a full meter
+	assert_eq(int(game.star_meter[0]), ShredSession.STAR_PERFECTS, "the meter never overfills")
+
+
+func test_star_spend_is_gated_until_the_meter_is_full() -> void:
+	game.elapsed = 10.0
+	game.star_meter[0] = ShredSession.STAR_PERFECTS - 1
+	game.handle_input(0, {"star": true})
+	assert_false(game._star_active(0), "a partial meter can't be spent")
+	assert_eq(
+		int(game.star_meter[0]), ShredSession.STAR_PERFECTS - 1, "a blocked spend keeps the charge"
+	)
+	game.star_meter[0] = ShredSession.STAR_PERFECTS
+	game.handle_input(0, {"star": true})
+	assert_true(game._star_active(0), "a full meter spends into the 2x window")
+	assert_eq(int(game.star_meter[0]), 0, "spending drains the meter")
+
+
+func test_star_window_doubles_the_take_then_reverts() -> void:
+	_load_chart([{"time": 3.0, "lane": 0}, {"time": 20.0, "lane": 1}])
+	game.elapsed = 3.0
+	game.star_meter[0] = ShredSession.STAR_PERFECTS
+	game.handle_input(0, {"star": true})  # window runs elapsed 3.0 → 8.0
+	game.handle_input(0, {"lane": 0})  # dead-on PERFECT inside the window
+	assert_eq(
+		int(game.score[0]),
+		ShredSession.PERFECT_POINTS * ShredSession.STAR_MULT,
+		"a hit inside the window scores 2x base"
+	)
+	game.elapsed = 20.0  # past the window
+	game.handle_input(0, {"lane": 1})
+	assert_eq(
+		int(game.score[0]),
+		ShredSession.PERFECT_POINTS * ShredSession.STAR_MULT + ShredSession.PERFECT_POINTS,
+		"scoring reverts to normal after the window closes"
+	)
+
+
+func test_star_meter_and_window_serialize_on_the_scoreboard() -> void:
+	game.star_meter[0] = 3
+	game.star_until[1] = 10.0  # player 1 mid-window
+	game.elapsed = 4.0
+	var snap := game.get_snapshot()
+	var row0: Array = snap.players[0]
+	var row1: Array = snap.players[1]
+	assert_eq(int(row0.size()), ShredSession.PS_COUNT, "the row grew additively to PS_COUNT")
+	assert_eq(
+		int(row0[ShredSession.PS_STAR_METER]), 3, "the meter rides the row for rival scoreboards"
+	)
+	assert_eq(int(row0[ShredSession.PS_STAR_ACTIVE]), 0, "player 0 is not in a window")
+	assert_eq(int(row1[ShredSession.PS_STAR_ACTIVE]), 1, "player 1's active 2x window serializes")

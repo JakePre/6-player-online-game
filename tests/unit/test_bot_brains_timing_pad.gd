@@ -142,3 +142,71 @@ func test_shred_session_brain_ignores_notes_outside_the_window() -> void:
 	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
 	var game := {"elapsed": 10.0, "notes": [[11.0, 1]]}
 	assert_eq(brain.think(_play_state("shred_session", game), {}), {})
+
+
+## Star Power (#957): a full, un-burning meter is cashed in when a dense stretch
+## (>= STAR_SPEND_NOTES within the next window) is coming.
+func _shred_row(meter: int, active: int) -> Array:
+	# [score, streak, last_judgment, last_lane, events, star_meter, star_active]
+	return [0, 0, 0, -1, 0, meter, active]
+
+
+## The live snapshot row is the full 7-field shape (meter 0, not active). The
+## Star Power check must not swallow the normal lane press in that case (#957).
+func test_shred_session_brain_presses_normally_with_a_full_shape_row() -> void:
+	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
+	var game := {"elapsed": 10.0, "players": {0: _shred_row(0, 0)}, "notes": [[10.05, 2]]}
+	assert_eq(
+		int(brain.think(_play_state("shred_session", game), {}).get("lane", -1)),
+		2,
+		"an empty meter falls through to pressing the in-window note",
+	)
+
+
+func test_shred_session_brain_spends_star_on_a_dense_stretch() -> void:
+	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
+	var game := {
+		"elapsed": 10.0,
+		"players": {0: _shred_row(ShredSession.STAR_PERFECTS, 0)},
+		"notes": [[10.4, 0], [10.8, 1], [11.2, 2], [11.6, 3], [12.0, 0]],  # 5 in the next 3s
+	}
+	assert_eq(brain.think(_play_state("shred_session", game), {}), {"star": true})
+
+
+func test_shred_session_brain_holds_star_until_the_meter_is_full() -> void:
+	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
+	var game := {
+		"elapsed": 10.0,
+		"players": {0: _shred_row(ShredSession.STAR_PERFECTS - 1, 0)},
+		"notes": [[10.4, 0], [10.8, 1], [11.2, 2], [11.6, 3], [12.0, 0]],
+	}
+	assert_ne(
+		brain.think(_play_state("shred_session", game), {}),
+		{"star": true},
+		"a partial meter never spends"
+	)
+
+
+func test_shred_session_brain_banks_star_through_a_sparse_stretch() -> void:
+	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
+	var game := {
+		"elapsed": 10.0,
+		"players": {0: _shred_row(ShredSession.STAR_PERFECTS, 0)},
+		"notes": [[10.05, 2], [13.5, 1]],  # only one note in the next 3s
+	}
+	var intent := brain.think(_play_state("shred_session", game), {})
+	assert_eq(int(intent.get("lane", -1)), 2, "banks star and presses the in-window note instead")
+
+
+func test_shred_session_brain_does_not_double_spend_an_active_window() -> void:
+	var brain := BotBrains.brain_for(&"shred_session", 0, 1)
+	var game := {
+		"elapsed": 10.0,
+		"players": {0: _shred_row(ShredSession.STAR_PERFECTS, 1)},  # full but already burning
+		"notes": [[10.4, 0], [10.8, 1], [11.2, 2], [11.6, 3], [12.0, 0]],
+	}
+	assert_ne(
+		brain.think(_play_state("shred_session", game), {}),
+		{"star": true},
+		"never re-spends while the 2x window is already active"
+	)

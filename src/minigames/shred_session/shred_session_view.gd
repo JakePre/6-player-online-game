@@ -39,6 +39,9 @@ const TRACK_LEN := ShredSession.LOOKAHEAD_SEC * NOTE_SPEED
 const NOTE_H := 0.35
 const FLASH_SEC := 0.16
 const JUDGMENT_HOLD_SEC := 0.55
+## Star Power (#957): the lane highway floods this gold while the local player's
+## 2x window runs — a flat tint under reduced motion, a gentle flare otherwise.
+const STAR_GOLD := Color(1.0, 0.84, 0.2)
 
 var _clock := 0.0
 var _snapshot_at := 0.0
@@ -57,6 +60,8 @@ var _judgment_until := 0.0
 var _score_rows := {}  # slot -> Label
 var _scoreboard: VBoxContainer
 var _my_last_event := 0
+## Star Power (#957): last-seen local 2x-active flag, for the rising-edge cue.
+var _star_seen := false
 
 ## Screen-space lane-header glyph labels (#585): the device-aware bound input
 ## per lane, refreshed live on InputGlyphs.device_changed.
@@ -101,6 +106,11 @@ func _render_3d(game: Dictionary) -> void:
 	_handle_local_judgment()
 	_update_scoreboard()
 	_update_rigs()
+	# Star Power call-out on the rising edge of the local player's 2x window (#957).
+	var star := _local_star_active()
+	if star and not _star_seen:
+		_announce_star()
+	_star_seen = star
 
 
 # --- Build --------------------------------------------------------------------
@@ -312,6 +322,10 @@ func _read_input() -> void:
 			NetManager.send_match_input({"lane": lane})
 			_lane_flash_until[lane] = _now_sec() + FLASH_SEC
 			_play_drum(lane)
+	# Star Power spend (#957): the server gates it to a full meter, so a press
+	# with a half-charged meter is a harmless no-op.
+	if Input.is_action_just_pressed(&"action_secondary"):
+		NetManager.send_match_input({"star": true})
 
 
 ## The server's verdict for the local player: flash the lane and call it out.
@@ -403,11 +417,38 @@ func _update_streak(streak: int) -> void:
 
 func _update_flashes() -> void:
 	var now := _now_sec()
+	# Gold flood while the local 2x window runs (#957): a flat gold tint under
+	# reduced motion, a gentle flare pulse otherwise; a fresh strum still reads
+	# brighter on top.
+	var star := _local_star_active()
+	var flare := 1.6 if ArenaFX.reduced_motion else 1.4 + 0.5 * sin(now * TAU * 1.5)
 	for lane in _lane_mats.size():
 		var lit := now < _lane_flash_until[lane]
-		_lane_mats[lane].emission_energy_multiplier = 1.4 if lit else 0.12
+		if star:
+			_lane_mats[lane].emission = STAR_GOLD
+			_lane_mats[lane].emission_energy_multiplier = 1.9 if lit else flare
+		else:
+			_lane_mats[lane].emission = LANE_COLORS[lane]
+			_lane_mats[lane].emission_energy_multiplier = 1.4 if lit else 0.12
 	if _judgment_label != null and _judgment_label.visible and now >= _judgment_until:
 		_judgment_label.visible = false
+
+
+## True while the local player's spent 2x window is running (#957).
+func _local_star_active() -> bool:
+	var me: Array = _players.get(my_slot, [])
+	return me.size() > ShredSession.PS_STAR_ACTIVE and int(me[ShredSession.PS_STAR_ACTIVE]) == 1
+
+
+## Local player just lit Star Power (#957): a gold call-out plus a cue. Purely a
+## text/audio flash — no motion, so reduced motion is unaffected.
+func _announce_star() -> void:
+	if _judgment_label != null:
+		_judgment_label.text = "STAR POWER!"
+		_judgment_label.add_theme_color_override(&"font_color", STAR_GOLD)
+		_judgment_label.visible = true
+		_judgment_until = _now_sec() + JUDGMENT_HOLD_SEC
+	play_sfx(&"bell")
 
 
 # --- Scoreboard & rigs --------------------------------------------------------
@@ -430,12 +471,29 @@ func _update_scoreboard() -> void:
 			_score_rows[slot] = row
 		var stats: Array = _players[slot]
 		var row: Label = _score_rows[slot]
-		row.text = "%s  %d" % [player_name(slot), int(stats[ShredSession.PS_SCORE])]
+		row.text = (
+			"%s  %d%s" % [player_name(slot), int(stats[ShredSession.PS_SCORE]), _star_suffix(stats)]
+		)
 		row.add_theme_color_override(
 			&"font_color", PartyTheme.ACCENT_BRIGHT if slot == my_slot else PartyTheme.TEXT
 		)
 	for i in order.size():
 		(_score_rows[order[i]] as Label).get_parent().move_child(_score_rows[order[i]], i)
+
+
+## Star Power state for a scoreboard row (#957): the spent 2x window, a ready
+## meter, or the running charge — so rivals can read the race for the boost.
+func _star_suffix(stats: Array) -> String:
+	if stats.size() <= ShredSession.PS_STAR_ACTIVE:
+		return ""
+	if int(stats[ShredSession.PS_STAR_ACTIVE]) == 1:
+		return "  ★2×"
+	var meter := int(stats[ShredSession.PS_STAR_METER])
+	if meter >= ShredSession.STAR_PERFECTS:
+		return "  ★READY"
+	if meter > 0:
+		return "  ★%d/%d" % [meter, ShredSession.STAR_PERFECTS]
+	return ""
 
 
 func _update_rigs() -> void:
