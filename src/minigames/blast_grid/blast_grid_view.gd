@@ -4,6 +4,11 @@ extends MinigameView3D
 ## vanish when blasted), bombs with a fuse pulse, the blast-cross flames,
 ## floating power-ups, and the players. Renders get_snapshot() only.
 
+## Declarative button input (#947): drop a bomb. Was a raw Input poll in
+## _physics_process with no null-peer guard — the event-based base structurally
+## closes that gap.
+const INPUT_ACTIONS := {&"action_primary": "bomb"}
+
 ## Brighter, higher-contrast blocks (#786): the old muted grey/brown pair
 ## read as flat and dark, especially against the light #589 floor tint.
 const PILLAR_COLOR := Color(0.58, 0.6, 0.68)
@@ -71,8 +76,6 @@ func _setup_3d() -> void:
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
-	if Input.is_action_just_pressed(&"action_primary"):
-		NetManager.send_match_input({"bomb": true})
 
 
 ## Ashy warm floor under the crate grid (#589).

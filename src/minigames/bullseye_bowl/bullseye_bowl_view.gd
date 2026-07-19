@@ -4,6 +4,11 @@ extends MinigameView3D
 ## stand at their lane's foul line; score and balls-left ride the nameplate.
 ## Bullseyes rattle the screen.
 
+## Declarative button input (#947): roll the ball. Was a raw Input poll in
+## _process with no null-peer guard — the event-based base structurally
+## closes that gap.
+const INPUT_ACTIONS := {&"action_primary": "roll"}
+
 ## Solid, high-contrast boards (#236): the old translucent rings and lane
 ## washed out against the orange floor.
 const LANE_COLOR := Color(0.16, 0.14, 0.2, 0.88)
@@ -24,11 +29,6 @@ var players := {}
 
 var _lanes := {}  # slot -> {target: Node3D, ball: MeshInstance3D, center_x: float}
 var _edges := EdgeTracker.new()
-
-
-func _process(_delta: float) -> void:
-	if Input.is_action_just_pressed(&"action_primary"):
-		NetManager.send_match_input({"roll": true})
 
 
 ## Camera framing grows with the lane bank (M15-07): lanes keep their tuned

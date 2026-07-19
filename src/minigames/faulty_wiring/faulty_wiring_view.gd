@@ -6,6 +6,11 @@ extends MinigameView3D
 ## role and cut-cooldown, read from private_state (#254). A REVEAL banner
 ## names the saboteur and the outcome. Renders get_snapshot() only.
 
+## Declarative button input (#947): cut a wire (the saboteur's verb). Was a
+## raw Input poll in _process with no null-peer guard — the event-based base
+## structurally closes that gap.
+const INPUT_ACTIONS := {&"action_primary": "cut"}
+
 const BROKEN_COLOR := Color(0.9, 0.2, 0.15)
 const FIXED_COLOR := Color(0.3, 0.9, 0.4)
 const NODE_RADIUS := 0.6
@@ -64,8 +69,6 @@ func _arena_half() -> float:
 
 func _process(_delta: float) -> void:
 	send_move_intent()
-	if Input.is_action_just_pressed(&"action_primary"):
-		NetManager.send_match_input({"cut": true})
 
 
 func _setup_3d() -> void:
