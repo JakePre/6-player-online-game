@@ -55,6 +55,8 @@ func test_save_load_round_trip() -> void:
 		"diagnostics_log": true,
 		"keybinds": {"move_up": KEY_UP},
 		"padbinds": {"emote": {"button": JOY_BUTTON_LEFT_SHOULDER}},
+		"owned_hats": ["none", "top_hat"],
+		"selected_hat": "top_hat",
 	}
 	SettingsStore.save_settings(settings)
 	assert_eq(SettingsStore.load_settings(), settings)

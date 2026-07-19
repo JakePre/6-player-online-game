@@ -24,6 +24,9 @@ var character_id: StringName = CharacterRoster.DEFAULT_ID
 ## Unlike character, colors are server-validated unique within the room.
 ## Persists across rounds and rejoin like character_id.
 var color_index: int = -1
+## Worn hat cosmetic (#935): a HatCatalog id, "none" for bare-headed. Client-
+## chosen like character_id (no server uniqueness — anyone can wear any hat).
+var hat_id: StringName = HatCatalog.NONE
 ## Server clock (ms) when this member's connection last dropped, or -1 while
 ## connected. Drives the lobby ghost reaper (#1040): a held lobby seat whose
 ## owner never comes back (Alt+F4, crash) is reaped after a short grace instead
@@ -40,5 +43,6 @@ func to_dict() -> Dictionary:
 		"ready": ready,
 		"character_id": character_id,
 		"color_index": color_index,
+		"hat_id": hat_id,
 		"is_bot": is_bot,
 	}

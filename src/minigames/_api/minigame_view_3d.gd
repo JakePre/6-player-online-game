@@ -592,18 +592,21 @@ func _build_floor() -> void:
 
 
 func _build_character_rigs() -> void:
-	var character_ids := _character_ids_by_slot()
+	var appearance := _appearance_by_slot()
 	var slots: Array = names.keys()
 	slots.sort()
 	for slot: int in slots:
+		var look: Dictionary = appearance.get(slot, {})
 		var rig: CharacterRig = CHARACTER_RIG_SCENE.instantiate()
 		rig.name = "PlayerRig%d" % slot
 		rig.character_scene = CharacterRoster.scene_for(
-			character_ids.get(slot, CharacterRoster.DEFAULT_ID)
+			StringName(look.get("character_id", CharacterRoster.DEFAULT_ID))
 		)
 		rig.player_color = player_color(slot)
 		rig.display_name = player_name(slot)
 		rig.nameplate_priority = 1 if slot == my_slot else 0
+		# The worn hat (#935) rides the appearance payload next to character.
+		rig.set_hat(StringName(look.get("hat_id", HatCatalog.NONE)))
 		# Pooled hidden (#601): revealed on the slot's first update_rig() /
 		# reveal_rig(). Slots never present in a round's snapshot stay invisible.
 		rig.visible = false
@@ -619,8 +622,13 @@ func _on_identity_colors_changed() -> void:
 		(_rigs[slot] as CharacterRig).player_color = player_color(slot)
 
 
-func _character_ids_by_slot() -> Dictionary:
+## Per-slot appearance from the room state (#581/#935): character + hat, read
+## with .get() so an older/partial payload never breaks the build.
+func _appearance_by_slot() -> Dictionary:
 	var out := {}
 	for member: Dictionary in NetManager.my_room_state.get("members", []):
-		out[int(member.slot)] = member.character_id
+		out[int(member.slot)] = {
+			"character_id": member.get("character_id", CharacterRoster.DEFAULT_ID),
+			"hat_id": member.get("hat_id", HatCatalog.NONE),
+		}
 	return out

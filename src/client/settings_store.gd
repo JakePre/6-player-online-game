@@ -25,7 +25,7 @@ const MIGRATIONS: Array[Dictionary] = []
 ## reset). Partitions DEFAULTS exactly — a new key must be assigned a section
 ## (guarded by a test) so it can never be orphaned from the UI.
 const SECTIONS := {
-	"Gameplay": ["player_name", "nameplate_scale", "show_names"],
+	"Gameplay": ["player_name", "nameplate_scale", "show_names", "owned_hats", "selected_hat"],
 	"Video": ["fullscreen", "colorblind", "reduced_motion"],
 	"Audio": ["master_volume", "music_volume", "sfx_volume"],
 	"Controls": ["keybinds", "padbinds"],
@@ -99,6 +99,9 @@ const DEFAULTS := {
 	## Gamepad rebind overrides (M17-03): action -> {button: idx} or
 	## {axis: idx, sign: -1|1}. Same only-changed-actions convention.
 	"padbinds": {},
+	## Owned + equipped hats (#935 wardrobe). "none" is always owned/equippable.
+	"owned_hats": ["none"],
+	"selected_hat": "none",
 }
 
 
@@ -186,7 +189,22 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 		clean.diagnostics_log = bool(raw.diagnostics_log)
 	clean.keybinds = _sanitize_keybinds(raw.get("keybinds", {}))
 	clean.padbinds = _sanitize_padbinds(raw.get("padbinds", {}))
+	clean.owned_hats = _sanitize_owned_hats(raw.get("owned_hats", ["none"]))
+	var selected := String(raw.get("selected_hat", "none"))
+	# An equipped hat you no longer own (stale file) falls back to bare-headed.
+	clean.selected_hat = selected if selected in clean.owned_hats else "none"
 	return clean
+
+
+## Only real, catalog-known hat ids survive; "none" is always present.
+static func _sanitize_owned_hats(raw: Variant) -> Array:
+	var owned: Array = ["none"]
+	if raw is Array:
+		for id: Variant in raw:
+			var sid := String(id)
+			if sid != "none" and HatCatalog.is_valid(StringName(sid)) and sid not in owned:
+				owned.append(sid)
+	return owned
 
 
 ## Keeps only overrides for known actions shaped like {button: idx} or
