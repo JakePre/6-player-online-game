@@ -292,3 +292,49 @@ func test_update_cooldown_ring_builds_shrinks_and_hides() -> void:
 	# Ready again: hidden, ring kept for reuse.
 	view.update_cooldown_ring(rings, 0, rig, 0.0, Color.RED)
 	assert_false(ring.visible, "hidden the instant it's ready")
+
+
+# --- Feedback animations framework hook (#1038) ------------------------------
+
+
+func _particle_count(v: MinigameView3D) -> int:
+	var n := 0
+	for child in v.arena.get_children():
+		if child is CPUParticles3D:
+			n += 1
+	return n
+
+
+## play_hit plays the rig's hit reaction (Hit_A) pose-held and puffs an impact.
+func test_play_hit_reacts_and_impacts() -> void:
+	var v := _two_player_view()
+	var before := _particle_count(v)
+	v.play_hit(0)
+	assert_eq(v.rig_for_slot(0).current_action(), &"hit", "the hit reaction plays")
+	assert_true(v.rig_for_slot(0).is_pose_protected(), "and is pose-held so it reads")
+	assert_gt(_particle_count(v), before, "an impact puff spawns")
+
+
+func test_play_hit_is_a_noop_without_a_rig() -> void:
+	# slot 5 has no pooled rig in a 2-player view — must not crash.
+	view.play_hit(5)
+	assert_true(true, "no rig -> no-op")
+
+
+## A teleport-sized rig jump flashes a departure + arrival cue; the first
+## sighting (spawn) and small moves stay silent.
+func test_teleport_jump_flashes_arrival_and_departure() -> void:
+	var v := _two_player_view()
+	v.update_rig(0, Vector2(0.0, 0.0))  # first sighting: seeds, no FX
+	var seeded := _particle_count(v)
+	v.update_rig(0, Vector2(0.3, 0.0))  # a normal step: no teleport
+	assert_eq(_particle_count(v), seeded, "a small move does not flash")
+	v.update_rig(0, Vector2(9.0, 0.0))  # > TELEPORT_SNAP_DISTANCE: a warp
+	assert_gt(_particle_count(v), seeded, "a teleport-sized jump flashes a cue")
+
+
+func test_first_rig_sighting_never_flashes_a_teleport() -> void:
+	var v := _two_player_view()
+	var before := _particle_count(v)
+	v.update_rig(1, Vector2(8.0, 8.0))  # far from origin, but first sight
+	assert_eq(_particle_count(v), before, "spawning in place is not a teleport")
