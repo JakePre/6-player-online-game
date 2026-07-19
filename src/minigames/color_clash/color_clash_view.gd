@@ -15,6 +15,13 @@ const PAINT_DARKEN := 0.15
 const MAX_SPLATS_PER_SNAPSHOT := 8
 const SHIMMER_PERIOD_TICKS := 16
 const SHIMMER_STRENGTH := 0.12
+## Home-turf surf FX (#955): a subtle own-color sparkle trailing the LOCAL rig
+## when it's boosted — moving into a tile its faction owns (the sim's +25%
+## highway). Local-only personal feedback so six trails never clutter the board
+## (the leader shimmer already reads the race), throttled to a hint; ArenaFX
+## already emits nothing under reduced motion (design: reduced-motion = none).
+const SURF_FX_EVERY := 4
+const MIN_SURF_MOVE := 0.12
 
 ## Latest replicated state, straight from ColorClash.get_snapshot().
 var players := {}
@@ -37,6 +44,8 @@ var _counts := {}
 var _pulse_ticks := 0
 ## Last-seen leading faction, for the take-the-lead cue (#728).
 var _leading_seen := ColorClash.UNPAINTED
+## Last-snapshot positions per slot, for the surf-FX movement/boost check (#955).
+var _prev_player_pos := {}
 
 
 func _physics_process(_delta: float) -> void:
@@ -138,6 +147,7 @@ func _render_3d(game: Dictionary) -> void:
 	_pulse_ticks += 1
 	_update_tiles()
 	_update_players()
+	_update_surf_fx()
 	# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): taking the lead
 	# is a positive checkpoint, same spirit as musical_platforms' claim bell.
 	var leading := leading_faction()
@@ -229,6 +239,40 @@ func _update_players() -> void:
 		if rig == null:
 			continue
 		update_rig(slot, Vector2(state[ColorClash.PS_X], state[ColorClash.PS_Y]))
+
+
+## Surf sparkle (#955): when the LOCAL rig moved far enough this snapshot and is
+## boosted (entering a tile its faction owns — the same full-tile-ahead probe the
+## sim uses to apply the +25%, so the sparkle and the speedup never disagree,
+## #971), emit one subtle own-color sparkle. Local-only so six trails never
+## clutter the board. Grid may be empty mid-resize (awaiting a keyframe) — skip FX
+## then but still refresh the baseline so the next real snapshot measures a true
+## step, not a resize jump.
+func _update_surf_fx() -> void:
+	var state: Array = players.get(my_slot, [])
+	if not grid.is_empty() and state.size() >= ColorClash.PS_COUNT:
+		var pos := Vector2(state[ColorClash.PS_X], state[ColorClash.PS_Y])
+		var prev: Vector2 = _prev_player_pos.get(my_slot, pos)
+		var step := pos - prev
+		if step.length() >= MIN_SURF_MOVE and _pulse_ticks % SURF_FX_EVERY == 0:
+			var faction := int(state[ColorClash.PS_FACTION])
+			var probe := pos + step.normalized() * ColorClash.TILE_WORLD
+			var owner := int(grid[ColorClash.tile_index_at(probe, _dim, _half)])
+			if ColorClash.speed_mult(owner, faction) > ColorClash.NEUTRAL_SPEED:
+				ArenaFX.sparkle(
+					arena, to_arena(pos, PAINT_LIFT + 0.03), _faction_color(faction).lightened(0.3)
+				)
+	_prev_player_pos = _snapshot_positions()
+
+
+## {slot: Vector2} of this snapshot's rig positions, for next tick's step check.
+func _snapshot_positions() -> Dictionary:
+	var out := {}
+	for slot: int in players:
+		var state: Array = players[slot]
+		if state.size() >= ColorClash.PS_COUNT:
+			out[slot] = Vector2(state[ColorClash.PS_X], state[ColorClash.PS_Y])
+	return out
 
 
 func _faction_color(faction: int) -> Color:

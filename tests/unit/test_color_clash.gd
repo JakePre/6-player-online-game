@@ -308,3 +308,108 @@ func test_n_team_ranking_orders_every_team() -> void:
 	assert_eq(placements[1], game.teams[0])
 	assert_eq(placements[2], game.teams[3])
 	assert_eq(placements[3], game.teams[1], "fewest tiles last")
+
+
+## --- #955: home-turf speed --------------------------------------------------
+
+
+## The speed multiplier reads purely off tile ownership vs the player's faction:
+## own paint is a highway, enemy paint drags, neutral is base.
+func test_speed_mult_by_tile_ownership() -> void:
+	assert_almost_eq(
+		ColorClash.speed_mult(ColorClash.UNPAINTED, 0), ColorClash.NEUTRAL_SPEED, 0.0001
+	)
+	assert_almost_eq(ColorClash.speed_mult(0, 0), ColorClash.OWN_PAINT_SPEED, 0.0001)
+	assert_almost_eq(ColorClash.speed_mult(1, 0), ColorClash.ENEMY_PAINT_SPEED, 0.0001)
+	# Team indices flow through the same rule (own team vs the other team).
+	assert_almost_eq(ColorClash.speed_mult(2, 2), ColorClash.OWN_PAINT_SPEED, 0.0001)
+	assert_almost_eq(ColorClash.speed_mult(3, 2), ColorClash.ENEMY_PAINT_SPEED, 0.0001)
+	assert_gt(
+		ColorClash.OWN_PAINT_SPEED, ColorClash.ENEMY_PAINT_SPEED, "own paint beats enemy paint"
+	)
+
+
+## +x displacement of `subject` sliding for `ticks` when the whole board reads
+## `board_owner`, with every other player parked off in a corner so only the
+## subject paints along its lane. A uniform board keeps the multiplier constant,
+## so the distance is exactly MOVE_SPEED * mult * TICK * ticks.
+func _slide_on(game: ColorClash, subject: int, board_owner: int, ticks: int) -> float:
+	game.grid.fill(board_owner)
+	for other: int in game.slots:
+		if other != subject:
+			game.positions[other] = Vector2(game.arena_half, game.arena_half)
+			game.handle_input(other, {"mx": 0.0, "my": 0.0})
+	game.positions[subject] = Vector2(-5.0, 0.0)
+	game.handle_input(subject, {"mx": 1.0, "my": 0.0})
+	var start: float = game.positions[subject].x
+	for _i in ticks:
+		game.tick(TICK)
+	return game.positions[subject].x - start
+
+
+## FFA: a player crossing its own paint moves faster than over neutral, which
+## beats crossing enemy paint — the whole mechanic, measured on the tick path.
+func test_home_turf_speed_ffa() -> void:
+	var ticks := 8
+	var own := _slide_on(_game([0] as Array[int]), 0, 0, ticks)
+	var neutral := _slide_on(_game([0] as Array[int]), 0, ColorClash.UNPAINTED, ticks)
+	var enemy := _slide_on(_game([0] as Array[int]), 0, 1, ticks)
+	var base := ColorClash.MOVE_SPEED * TICK * ticks
+	assert_almost_eq(own, base * ColorClash.OWN_PAINT_SPEED, 0.001, "own paint is a highway")
+	assert_almost_eq(neutral, base * ColorClash.NEUTRAL_SPEED, 0.001, "neutral is base speed")
+	assert_almost_eq(enemy, base * ColorClash.ENEMY_PAINT_SPEED, 0.001, "enemy paint drags")
+	assert_gt(own, neutral)
+	assert_gt(neutral, enemy)
+
+
+## Team mode: speed keys off the team that owns the tile, not the individual —
+## own-team paint boosts, the other team's paint drags.
+func test_home_turf_speed_team_mode() -> void:
+	var ticks := 8
+	var game := _game([0, 1, 2, 3] as Array[int])
+	assert_true(game.team_mode)
+	var subject: int = game.teams[0][0]
+	var own_team: int = game.faction_of[subject]
+	var own := _slide_on(game, subject, own_team, ticks)
+
+	var game2 := _game([0, 1, 2, 3] as Array[int])
+	var subject2: int = game2.teams[0][0]
+	var enemy_team: int = 1 if game2.faction_of[subject2] == 0 else 0
+	var enemy := _slide_on(game2, subject2, enemy_team, ticks)
+
+	var base := ColorClash.MOVE_SPEED * TICK * ticks
+	assert_almost_eq(own, base * ColorClash.OWN_PAINT_SPEED, 0.001, "own-team paint boosts")
+	assert_almost_eq(
+		enemy, base * ColorClash.ENEMY_PAINT_SPEED, 0.001, "the other team's paint drags"
+	)
+	assert_gt(own, enemy)
+
+
+## Enemy paint keeps costing the −15% across a sustained crossing: the sim probes
+## the tile ahead (not the one underfoot, which a mover repaints to its own colour
+## every tick), so the drag never silently turns into a boost mid-crossing.
+func test_enemy_paint_drags_the_whole_crossing() -> void:
+	var game := _game([0] as Array[int])
+	var enemy := _slide_on(game, 0, 1, 12)
+	assert_almost_eq(
+		enemy,
+		ColorClash.MOVE_SPEED * ColorClash.ENEMY_PAINT_SPEED * TICK * 12,
+		0.001,
+		"a mover on enemy turf stays slowed — the drag doesn't decay as it paints"
+	)
+
+
+## The mechanic is pure server-side movement: no new snapshot fields, so the
+## #479 delta shape and the #946 player-row schema are untouched.
+func test_home_turf_speed_keeps_the_wire_shape() -> void:
+	var game := _game()
+	game.tick(TICK)
+	var snapshot := game.get_snapshot()
+	assert_eq(
+		snapshot.players[0].size(), ColorClash.PLAYER_SCHEMA.size(), "player row shape unchanged"
+	)
+	var keys: Array = snapshot.keys()
+	keys.sort()
+	var expected := ["counts", "dim", "grid", "half", "players", "teams"]
+	expected.sort()
+	assert_eq(keys, expected, "no extra snapshot fields leaked in")
