@@ -3,9 +3,15 @@ extends MinigameView3D
 ## chain is a trail of glowing segments in your color, pellets dot the
 ## floor, invulnerable heads shimmer.
 
+## Tail Burn (#950): action_primary held boosts and burns tail — the sim toggles
+## it on press/release; the base's declarative input (#947) sends the edges.
+const INPUT_ACTIONS := {&"action_primary": {"key": "boost", "held": true}}
 const PELLET_COLOR := Color(0.55, 0.95, 0.5)
 const SEGMENT_POOL_PER_PLAYER := 24
 const SEGMENT_HEIGHT := 0.3
+## Boost trail (#950): a color-flecked spark off a boosting head, staggered per
+## slot so a boosting pack doesn't haze; ArenaFX is silent under reduced motion.
+const BOOST_FX_EVERY := 2
 
 ## Latest replicated state, straight from SnakeChain.get_snapshot().
 var players := {}
@@ -17,6 +23,8 @@ var _segment_pools := {}
 var _pellet_pool: Array[MeshInstance3D] = []
 var _counts_seen := {}
 var _invuln_seen := {}
+## Snapshot counter driving the staggered boost-trail cadence (#950).
+var _pulse := 0
 
 
 func _physics_process(_delta: float) -> void:
@@ -85,6 +93,7 @@ func _render_3d(game: Dictionary) -> void:
 	trails = game.get("trails", {})
 	pellets = game.get("pellets", [])
 	teams = game.get("teams", [])
+	_pulse += 1
 	for i in _pellet_pool.size():
 		var node := _pellet_pool[i]
 		if i < pellets.size():
@@ -99,6 +108,13 @@ func _render_3d(game: Dictionary) -> void:
 		if rig == null:
 			continue
 		update_rig(slot, Vector2(state[SnakeChain.PS_X], state[SnakeChain.PS_Y]))
+		# Tail Burn trail (#950): a color spark off a boosting head, staggered.
+		if int(state[SnakeChain.PS_BOOSTING]) == 1 and (_pulse + slot) % BOOST_FX_EVERY == 0:
+			ArenaFX.sparkle(
+				arena,
+				to_arena(Vector2(state[SnakeChain.PS_X], state[SnakeChain.PS_Y]), 0.3),
+				player_color(slot).lightened(0.2)
+			)
 		var invulnerable := float(state[SnakeChain.PS_INVULN]) > 0.0
 		rig.player_color = (
 			player_color(slot).lightened(0.5) if invulnerable else player_color(slot)

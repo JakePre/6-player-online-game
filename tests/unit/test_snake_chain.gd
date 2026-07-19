@@ -47,16 +47,16 @@ func test_eating_grows_the_chain() -> void:
 	assert_eq(game._max_segments(0), SnakeChain.BASE_SEGMENTS + 1)
 
 
-func test_head_into_another_body_crashes_and_spills() -> void:
+func test_head_into_another_body_crashes_and_scatters_the_whole_tail() -> void:
 	var game := _game()
 	game.pellets_eaten[0] = 6
 	game.pellets.clear()
 	game.trails[1] = [game.positions[0] + Vector2(0.1, 0.0)]
 	game.tick(TICK)
-	assert_eq(game.pellets_eaten[0], 3, "half the pellets spilled")
-	assert_gt(game.pellets.size(), 0, "spill lands on the floor")
+	assert_eq(game.pellets_eaten[0], 0, "the whole grown tail spills, not half (#950)")
+	assert_eq(game.pellets.size(), 6, "every dropped segment scatters as a pellet")
 	assert_gt(float(game.invuln_left[0]), 0.0)
-	assert_eq((game.trails[0] as Array).size(), 0, "chain resets")
+	assert_eq((game.trails[0] as Array).size(), 0, "chain resets to base")
 
 
 func test_own_fresh_segments_are_safe_but_old_ones_kill() -> void:
@@ -202,3 +202,60 @@ func test_two_teams_of_six_at_twelve() -> void:
 	assert_eq(game.teams.size(), 2)
 	assert_eq(game.teams[0].size(), 6)
 	assert_eq(game.teams[1].size(), 6)
+
+
+# --- #950: Tail Burn -----------------------------------------------------------
+
+
+func test_tail_burn_burns_one_grown_segment_per_second() -> void:
+	var game := _game([0] as Array[int])
+	game.pellets.clear()
+	game.pellets_eaten[0] = 5
+	game.handle_input(0, {"boost": true})
+	for _i in 31:  # just over one second of boosting
+		game.tick(TICK)
+	assert_eq(game.pellets_eaten[0], 4, "one grown segment burned per second of boost")
+
+
+func test_tail_burn_covers_more_ground() -> void:
+	var game := _game([0] as Array[int])
+	game.pellets.clear()
+	game.pellets_eaten[0] = 10
+	game.positions[0] = Vector2(-8.0, 0.0)
+	game.headings[0] = Vector2.RIGHT
+	game.handle_input(0, {"boost": true})
+	game.tick(TICK)
+	assert_almost_eq(
+		game.positions[0].x - -8.0,
+		SnakeChain.MOVE_SPEED * SnakeChain.BOOST_MULT * TICK,
+		0.001,
+		"one boosted tick covers 1.6x the ground"
+	)
+
+
+func test_tail_burn_stops_at_the_base_and_never_self_kills() -> void:
+	var game := _game([0] as Array[int])
+	game.pellets.clear()
+	game.pellets_eaten[0] = 1
+	game.handle_input(0, {"boost": true})
+	for _i in 90:  # three seconds, well past the single grown segment
+		game.tick(TICK)
+	assert_eq(game.pellets_eaten[0], 0, "burns down to zero grown segments, never negative")
+	assert_false(game._is_boosting(0), "boost stops with nothing left to burn — no self-kill")
+
+
+func test_boost_serializes_only_while_actually_burning() -> void:
+	var game := _game([0] as Array[int])
+	game.pellets_eaten[0] = 3
+	game.handle_input(0, {"boost": true})
+	assert_eq(
+		int(game.get_snapshot().players[0][SnakeChain.PS_BOOSTING]),
+		1,
+		"an active boost rides the wire"
+	)
+	game.pellets_eaten[0] = 0
+	assert_eq(
+		int(game.get_snapshot().players[0][SnakeChain.PS_BOOSTING]),
+		0,
+		"held with no grown segments left is not boosting"
+	)

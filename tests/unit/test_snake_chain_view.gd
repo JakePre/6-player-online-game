@@ -25,7 +25,7 @@ func test_render_places_trail_segments_from_the_pool() -> void:
 		view
 		. render(
 			{
-				"players": {0: [1.0, 1.0, 3, 0.0]},
+				"players": {0: [1.0, 1.0, 3, 0.0, 0]},
 				"trails": {0: [[0.5, 0.5], [0.0, 0.0]]},
 				"pellets": [[2.0, 2.0]],
 				"teams": [],
@@ -45,6 +45,30 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.pellets, [])
+
+
+## #950: holding action_primary sends a boost; releasing stops it (Tail Burn).
+func test_boost_input_maps_to_a_held_boost_action() -> void:
+	var press := InputEventAction.new()
+	press.action = &"action_primary"
+	press.pressed = true
+	assert_true(view.input_sends_for_event(press).has({"boost": true}), "hold -> boost on")
+	var release := InputEventAction.new()
+	release.action = &"action_primary"
+	release.pressed = false
+	assert_true(view.input_sends_for_event(release).has({"boost": false}), "release -> boost off")
+
+
+## #950: a boosting head trails a color spark (the Tail Burn FX).
+func test_a_boosting_head_trails_a_spark() -> void:
+	var base := view.arena.get_child_count()
+	var snap := {
+		"players": {0: [1.0, 0.0, 3, 0.0, 1]}, "trails": {0: []}, "pellets": [], "teams": []
+	}
+	# Render twice so the staggered per-slot cadence fires at least once.
+	view.render(snap)
+	view.render(snap)
+	assert_gt(view.arena.get_child_count(), base, "a boosting head spawns a trail spark")
 
 
 ## ADR 003: a 12-player view sizes its pellet pool to the scaled supply (plus
