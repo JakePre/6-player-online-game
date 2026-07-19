@@ -281,6 +281,10 @@ func _apply_hat() -> void:
 	if skeleton.find_bone(HatCatalog.HEAD_BONE) == -1:
 		push_warning("CharacterRig: no head bone to wear a hat")
 		return
+	# Seat the brim at this character's measured head top — the head-bone
+	# origin sits far below the crown on chibi rigs (Knight helmet: ~0.7u),
+	# so a fixed offset buries the hat inside the head (#935 follow-up).
+	hat.position = Vector3(0.0, HatCatalog.head_top_lift(_character_root, skeleton), 0.0)
 	_hat_node = BoneAttachment3D.new()
 	_hat_node.name = "Hat"
 	skeleton.add_child(_hat_node)
