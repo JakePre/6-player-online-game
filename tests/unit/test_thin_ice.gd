@@ -43,6 +43,20 @@ func test_spawns_scale_with_player_count() -> void:
 			assert_almost_eq(pos.length(), game._half_extent * 0.6, 0.001, "%d players" % count)
 
 
+## #961 round-length guard: the 6-player floor must stay dense enough that a
+## bot brawl lasts past the #933 ≥18s bar. The fix raised the baseline to a
+## 12x12 floor (≈24 tiles/player); a probe put a 7x7 (the old value) at ~6s and
+## 11x11 still under the bar at 6p, so a future shrink below ~12x12 regresses
+## the collapse. Guarding the tiles-per-player floor, not the exact constant.
+func test_six_player_floor_is_dense_enough_for_round_length() -> void:
+	var game := _game([0, 1, 2, 3, 4, 5] as Array[int])
+	assert_gte(
+		float(game.tiles.size()) / 6.0,
+		24.0,
+		"6-player floor keeps ≈24 tiles/player so rounds clear the ≥18s bar (#961)"
+	)
+
+
 ## M15: grid area scales with player count (sqrt of MinigameScaling.growth),
 ## so tiles-per-player density stays close to the 6-player baseline instead
 ## of the destruction rate spiking with more feet on a fixed-size grid.

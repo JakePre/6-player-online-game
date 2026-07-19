@@ -18,7 +18,14 @@ const STAND_DAMAGE_SEC := 1.5
 ## Grid size at the 6-player baseline; scales with lobby size (M15) so
 ## tiles-per-player density stays ~constant (the destruction rate keeps
 ## feeling the same at 12 as it does at 6). Unchanged at <=6 players.
-const GRID_SIZE := 7
+##
+## #961 round-length fix: raised 7 -> 12 (≈3x the tiles-per-player, the owner's
+## "more ice" lever). At 7 the floor cleared in ~6-8s with brains — far under the
+## #933 ≥18s bar — because a 7x7 grid packs movers close enough that tiles take
+## their second (breaking) hit almost immediately. More ice spreads them out;
+## bot-driven round probe medians land ~20s at 6-8p (4p ~19s, 12p ~30s), all
+## clearing the bar with no timeout stalemates.
+const GRID_SIZE := 12
 const TILE_SIZE := 2.0
 const MOVE_SPEED := 5.0
 const PLAYER_RADIUS := 0.4
