@@ -28,6 +28,9 @@ const PLAYER_RADIUS := 0.4
 const PS_X := 0
 const PS_Y := 1
 const PS_COUNT := 2
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT]
 
 var positions := {}
 var move_dirs := {}
