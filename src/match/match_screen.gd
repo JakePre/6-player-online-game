@@ -245,8 +245,9 @@ func _on_match_event(event: Dictionary) -> void:
 			AudioManager.play_music(&"finale")
 			AudioManager.play_sfx(&"podium")
 			_unmount_view()
-			_show_podium(event.standings, event.get("series", {}))
-			_record_match_stats(event.standings)
+			var match_awards: Array = event.get("awards", [])
+			_show_podium(event.standings, event.get("series", {}), match_awards)
+			_record_match_stats(event.standings, match_awards)
 			var standings: Array = event.standings
 			if not standings.is_empty():
 				_log_line(
@@ -572,7 +573,7 @@ func _record_round_history(placements: Array) -> void:
 ## podium standings the client already receives plus this session's own round
 ## history. Zero protocol change; skipped if our slot never lands in
 ## `standings` (e.g. a very late join that never got tracked server-side).
-func _record_match_stats(standings: Array) -> void:
+func _record_match_stats(standings: Array, awards: Array = []) -> void:
 	var placement := 0
 	for i in standings.size():
 		if int(standings[i].slot) == NetManager.my_slot:
@@ -580,11 +581,16 @@ func _record_match_stats(standings: Array) -> void:
 			break
 	if placement == 0:
 		return
+	var my_awards: Array = []
+	for award: Dictionary in awards:
+		if int(award.get("slot", -1)) == NetManager.my_slot:
+			my_awards.append(String(award.get("id", "")))
 	var result := {
 		"date": Time.get_unix_time_from_system(),
 		"placement": placement,
 		"player_count": standings.size(),
 		"rounds": _round_history,
+		"my_awards": my_awards,
 	}
 	StatsStore.save_stats(StatsStore.record_match(StatsStore.load_stats(), result))
 
@@ -599,9 +605,34 @@ func _show_results(event: Dictionary) -> void:
 	_results_presenter.fly_coins(event.awards)
 
 
-func _show_standings(title: String, totals: Dictionary, subtitle := "") -> void:
-	_standings_panel.show_lines(title, subtitle, MatchFormat.standings_lines(totals, _names))
+func _show_standings(
+	title: String, totals: Dictionary, subtitle := "", extra_lines: Array[String] = []
+) -> void:
+	var lines := MatchFormat.standings_lines(totals, _names)
+	lines.append_array(extra_lines)
+	_standings_panel.show_lines(title, subtitle, lines)
 	_show_panel(_standings_panel)
+
+
+## The #934 superlatives, one themed line each ("🥇 Frontrunner — P2 Alice"),
+## shown under the final standings on the podium.
+func _award_lines(awards: Array) -> Array[String]:
+	var lines: Array[String] = []
+	for award: Dictionary in awards:
+		(
+			lines
+			. append(
+				(
+					"%s %s — %s"
+					% [
+						String(award.get("icon", "")),
+						String(award.get("title", "")),
+						MatchFormat.player_name(_names, int(award.get("slot", -1))),
+					]
+				)
+			)
+		)
+	return lines
 
 
 ## True while any phase panel with real event content is on screen — the guard
@@ -630,7 +661,7 @@ func _show_reconnect_holding() -> void:
 	_show_panel(_standings_panel)
 
 
-func _show_podium(standings: Array, series: Dictionary = {}) -> void:
+func _show_podium(standings: Array, series: Dictionary = {}, awards: Array = []) -> void:
 	var totals := {}
 	for row: Dictionary in standings:
 		totals[row.slot] = row.score
@@ -650,7 +681,7 @@ func _show_podium(standings: Array, series: Dictionary = {}) -> void:
 			subtitle += (
 				"  ·  series: " + " / ".join(MatchFormat.series_lines(rows, _names).slice(0, 3))
 			)
-	_show_standings("Final standings", totals, subtitle)
+	_show_standings("Final standings", totals, subtitle, _award_lines(awards))
 
 
 ## Shows one center panel (or none, during play). The play area placeholder

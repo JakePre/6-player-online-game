@@ -208,6 +208,23 @@ func test_match_ended_standings_sorted_by_score() -> void:
 	assert_eq(slots, [0, 1, 2])
 
 
+## #934: the match_ended payload carries end-of-match superlatives derived
+## from the rounds. SlotOrderGame ranks slot 0 first every round, so slot 0
+## takes Frontrunner and slot 2 (dead last) takes the Wooden Spoon.
+func test_match_ended_carries_superlative_awards() -> void:
+	var room := _make_room(3)
+	var controller := _make_controller(room, 2)
+	controller.start()
+	_run_until(controller, func() -> bool: return controller.is_done())
+	var ended: Dictionary = events[_event_types().find("match_ended")]
+	assert_true(ended.has("awards"), "awards ride the additive match_ended key")
+	var by_id := {}
+	for award: Dictionary in ended.awards:
+		by_id[String(award.id)] = int(award.slot)
+	assert_eq(by_id.get("frontrunner", -1), 0, "slot 0 won every round")
+	assert_eq(by_id.get("wooden_spoon", -1), 2, "slot 2 finished dead last")
+
+
 func test_leaderboard_every_five_rounds_but_not_at_match_end() -> void:
 	var room := _make_room(2)
 	var controller := _make_controller(room, 10)
