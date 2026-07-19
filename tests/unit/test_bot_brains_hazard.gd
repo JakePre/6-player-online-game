@@ -43,6 +43,39 @@ func test_bullet_waltz_brain_eases_to_a_ring_when_clear() -> void:
 	assert_true(intent.has("mx"), "no threat -> still produces a gentle move")
 
 
+## #959: with no imminent threat, chase graze EV toward a mid-range stream
+## instead of fleeing to a corner (the #926 camping realignment).
+func test_bullet_waltz_brain_hunts_a_mid_range_stream() -> void:
+	var brain := BotBrains.brain_for(&"bullet_waltz", 0, 1)
+	var game := {"players": {0: [3.0, 0.0, 0, 1]}, "bullets": [[5.2, 0.0]], "out": []}
+	var intent := brain.think(_play_state("bullet_waltz", game), {})
+	assert_gt(float(intent.mx), 0.0, "no danger -> drift toward the stream for grazes")
+
+
+## #959: a crush of bullets converging in the panic radius spends the held bomb.
+func test_bullet_waltz_brain_bombs_a_converging_crush() -> void:
+	var brain := BotBrains.brain_for(&"bullet_waltz", 0, 1)
+	var game := {
+		"players": {0: [0.0, 0.0, 0, 1]},
+		"bullets": [[1.5, 0.0], [-1.4, 0.3], [0.0, 1.6]],
+		"out": [],
+	}
+	var intent := brain.think(_play_state("bullet_waltz", game), {})
+	assert_true(intent.get("bomb", false), "a converging crush spends the held bomb")
+
+
+## #959: an already-spent bomb (flag 0) never re-triggers — just dodge.
+func test_bullet_waltz_brain_holds_a_spent_bomb() -> void:
+	var brain := BotBrains.brain_for(&"bullet_waltz", 0, 1)
+	var game := {
+		"players": {0: [0.0, 0.0, 0, 0]},
+		"bullets": [[1.5, 0.0], [-1.4, 0.3], [0.0, 1.6]],
+		"out": [],
+	}
+	var intent := brain.think(_play_state("bullet_waltz", game), {})
+	assert_false(intent.get("bomb", false), "no charge left -> no bomb")
+
+
 # --- blast_grid ----------------------------------------------------------------
 
 

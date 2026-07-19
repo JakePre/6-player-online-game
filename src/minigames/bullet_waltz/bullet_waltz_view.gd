@@ -3,6 +3,10 @@ extends MinigameView3D
 ## pooled glowing spheres, graze count on nameplates, KO'd rigs hidden.
 ## Renders the replicated snapshot in the shared iso-arena.
 
+## Waltz Bomb (#959): action_primary spends the once-per-round panic clear. The
+## sim reads {bomb = true}; the base's declarative input plumbing (#947) sends it.
+const INPUT_ACTIONS := {&"action_primary": "bomb"}
+
 ## Real emitter model (#929, MDL-014), base-pivoted (probed AABB: y 0..1.2).
 const EMITTER_SCENE := preload("res://assets/generated/models/music-box-emitter.glb")
 const BULLET_COLOR := Color(1.0, 0.45, 0.3)
@@ -22,6 +26,12 @@ const FLOOR_DIM_COLOR := Color(0.04, 0.05, 0.1, 0.78)
 const TRACER_STRETCH := 2.6
 const TRACER_MIN_RADIUS := 0.5
 const GRAZE_COLOR := Color(0.55, 0.9, 1.0)
+## Waltz Bomb bloom (#959): an elegant radial burst in the same violet as the
+## rim glow when the panic clear detonates. Bigger and faster than a graze spark.
+const BOMB_BLOOM_COLOR := Color(0.82, 0.72, 1.0)
+const BOMB_BLOOM_AMOUNT := 44
+const BOMB_BLOOM_SPEED := 9.0
+const BOMB_BLOOM_LIFETIME := 0.6
 ## The dark stage overlay (#208) swallowed the floor edge into the
 ## background — a bright ring at the arena boundary (#929) sells where the
 ## stage actually ends.
@@ -35,6 +45,9 @@ var out: Array = []
 
 var _bullet_pool: Array[MeshInstance3D] = []
 var _last_grazes := {}  # slot (int) -> graze count already sparked at
+## slot (int) -> bool: last-seen Waltz Bomb charge, so a true->false read fires
+## the spend bloom exactly once. Defaults to held, so no bloom on a first frame.
+var _last_bomb := {}
 var _was_out := {}  # slot (int) -> bool (last-seen KO state, for the KO blast)
 ## Turret readability (#1036): the model otherwise sits as an inert prop with
 ## no visible tie to the bullets it spawns. Held so _pulse_turret can punch it.
@@ -195,6 +208,30 @@ func _render_3d(game: Dictionary) -> void:
 				# `pop`'s vocabulary entry names "graze coin" as its example use.
 				play_sfx(&"pop")
 		_last_grazes[slot] = grazes
-		rig.display_name = (
-			"%s  ✦%d" % [player_name(slot), grazes] if grazes > 0 else player_name(slot)
-		)
+		# Waltz Bomb (#959): a still-held charge shows a ◈ pip; the frame it drops
+		# to spent, an elegant radial bloom clears the storm around the dancer.
+		# Only acts when the row actually carries the bomb slot, so a legacy
+		# 3-field snapshot never blooms from an absent field reading as spent.
+		var has_bomb := false
+		if state.size() > BulletWaltz.PS_BOMB:
+			has_bomb = int(state[BulletWaltz.PS_BOMB]) == 1
+			if bool(_last_bomb.get(slot, true)) and not has_bomb:
+				(
+					ArenaFX
+					. burst(
+						arena,
+						to_arena(Vector2(rig.position.x, rig.position.z), 0.6),
+						BOMB_BLOOM_COLOR,
+						BOMB_BLOOM_AMOUNT,
+						BOMB_BLOOM_SPEED,
+						BOMB_BLOOM_LIFETIME,
+					)
+				)
+				play_sfx(&"explosion")
+			_last_bomb[slot] = has_bomb
+		var label := player_name(slot)
+		if grazes > 0:
+			label += "  ✦%d" % grazes
+		if has_bomb:
+			label += "  ◈"
+		rig.display_name = label

@@ -16,6 +16,10 @@ const BULLET_RADIUS := 0.25
 ## A bullet passing within this ring (but not hitting) is a graze.
 const GRAZE_RADIUS := 1.1
 const GRAZE_COIN := 1
+## Waltz Bomb (#959): one panic clear per round. action_primary detonates a
+## radial bloom that culls every bullet within this radius of the caster — the
+## bullet-hell escape hatch. Spend it early or hold it for the dense finale.
+const WALTZ_BOMB_RADIUS := 4.0
 ## Escalation: pattern cadence and bullet speed ramp over the round.
 const RAMP_SEC := 50.0
 ## Quiet opening (#208): no volleys until players have had a beat to read
@@ -33,10 +37,14 @@ const RING_BULLETS := 10
 const PS_X := 0
 const PS_Y := 1
 const PS_GRAZE := 2
-const PS_COUNT := 3
+## 1 while the player still holds their once-per-round Waltz Bomb, else 0 —
+## drives the nameplate ready pip and the spend bloom (a 1->0 transition), and
+## lets a bot brain know whether it can still panic-clear (#959).
+const PS_BOMB := 3
+const PS_COUNT := 4
 ## #946 wire-shape tripwire: the declared type of each slot in a `players`
 ## snapshot row. Validated by test_snapshot_schema against get_snapshot().
-const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT]
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT]
 
 const BU_X := 0
 const BU_Y := 1
@@ -46,6 +54,8 @@ var move_dirs := {}
 ## Active bullets, each {pos: Vector2, vel: Vector2}.
 var bullets: Array[Dictionary] = []
 var graze_coins := {}
+## Slot -> true while its once-per-round Waltz Bomb is unspent (#959).
+var bomb_ready := {}
 ## Slots in KO order; same-tick KOs share a tie group.
 var ko_order: Array = []
 
@@ -75,9 +85,21 @@ static func make_meta() -> MinigameMeta:
 				"min_players": 2,
 				"max_players": 24,
 				"duration_sec": 60.0,
-				"rules": "Dodge the storm — one hit and you're out! Skim bullets for bonus coins.",
-				# Structured spec (#832/#844): the bare-movement template shape.
-				"control_spec": [{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE}],
+				"rules":
+				(
+					"Dodge the storm — one hit and you're out! Skim bullets for coins, "
+					+ "and spend your one Waltz Bomb to clear the crush."
+				),
+				# Structured spec (#832/#844): move cluster + the #959 panic bomb.
+				"control_spec":
+				[
+					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
+					{
+						"verb": "Waltz Bomb",
+						"input": &"action_primary",
+						"note": "one per round — clears nearby bullets",
+					},
+				],
 			}
 		)
 	)
@@ -95,6 +117,7 @@ func _setup() -> void:
 		positions[slots[i]] = spawns[i]
 		move_dirs[slots[i]] = Vector2.ZERO
 		graze_coins[slots[i]] = 0
+		bomb_ready[slots[i]] = true
 		_grazing[slots[i]] = []
 	# Negative accumulator = the opening grace before the first volley.
 	_fire_accum = -SPAWN_GRACE_SEC
@@ -105,6 +128,22 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 		return
 	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
 	move_dirs[slot] = dir.limit_length(1.0)
+	if data.get("bomb", false):
+		_trigger_bomb(slot)
+
+
+## Waltz Bomb (#959): the once-per-round panic clear. Culls every bullet inside
+## the bloom radius around the caster and spends the charge; a no-op once spent.
+## Bullets are removed mid-array the same way expiry and hits already thin the
+## field, so the loose graze index-tracking needs no special handling here.
+func _trigger_bomb(slot: int) -> void:
+	if not bomb_ready.get(slot, false):
+		return
+	bomb_ready[slot] = false
+	var center: Vector2 = positions[slot]
+	for i in range(bullets.size() - 1, -1, -1):
+		if (bullets[i].pos as Vector2).distance_to(center) <= WALTZ_BOMB_RADIUS:
+			bullets.remove_at(i)
 
 
 func _tick(delta: float) -> void:
@@ -144,7 +183,12 @@ func get_snapshot() -> Dictionary:
 	var players := {}
 	for slot: int in _in_slots():
 		var pos: Vector2 = positions[slot]
-		players[slot] = [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), int(graze_coins[slot])]
+		players[slot] = [
+			snappedf(pos.x, 0.01),
+			snappedf(pos.y, 0.01),
+			int(graze_coins[slot]),
+			int(bomb_ready.get(slot, false)),
+		]
 	var bullet_list: Array = []
 	for bullet in bullets:
 		var pos: Vector2 = bullet.pos
@@ -152,17 +196,48 @@ func get_snapshot() -> Dictionary:
 	return {"players": players, "bullets": bullet_list, "out": ko_order.duplicate(true)}
 
 
-## Survivors tie ahead of the KO'd in reverse order. Graze coins double as
-## capped pickup coins (SPEC $5).
+## Survivors rank ahead of the KO'd (who rank in reverse elimination order).
+## Within each tier — the survivor pack and every same-tick KO group — graze
+## score breaks the tie (#959): dancing close to death out-places corner-hiding,
+## which is exactly the incentive #926's camping bots were missing. Graze coins
+## also double as capped pickup coins (SPEC $5).
 func _rank_players() -> Array:
-	var survivors := _in_slots()
+	_pickup_coins = graze_coins.duplicate()
 	var placements: Array = []
+	var survivors := _in_slots()
 	if not survivors.is_empty():
-		placements.append(survivors)
+		placements.append_array(_split_by_graze(survivors))
 	var out := ko_order.duplicate(true)
 	out.reverse()
-	_pickup_coins = graze_coins.duplicate()
-	return placements + out
+	for group: Array in out:
+		placements.append_array(_split_by_graze(group))
+	return placements
+
+
+## Orders a tie group by graze score (highest first) and splits it into
+## sub-tiers at each distinct score; equal graze stays tied. Slot number is the
+## final tiebreak so the ordering is deterministic run to run (#959).
+func _split_by_graze(group: Array) -> Array:
+	var ranked := group.duplicate()
+	ranked.sort_custom(
+		func(a: int, b: int) -> bool:
+			var ga := int(graze_coins.get(a, 0))
+			var gb := int(graze_coins.get(b, 0))
+			return ga > gb if ga != gb else a < b
+	)
+	var tiers: Array = []
+	var current: Array = []
+	var current_graze := -1
+	for slot: int in ranked:
+		var g := int(graze_coins.get(slot, 0))
+		if g != current_graze and not current.is_empty():
+			tiers.append(current)
+			current = []
+		current_graze = g
+		current.append(slot)
+	if not current.is_empty():
+		tiers.append(current)
+	return tiers
 
 
 func _fire_pattern(alive: Array) -> void:
