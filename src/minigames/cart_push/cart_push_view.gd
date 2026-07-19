@@ -10,6 +10,10 @@ extends MinigameView3D
 ## Carts use the MDL-013 mine-cart model (#932 follow-up); the per-lane
 ## progress bars and finish banners remain for a later gameplay pass.
 
+## Declarative button input (#947): shove. Was a raw Input poll in _process
+## with no null-peer guard — the event-based base structurally closes that gap.
+const INPUT_ACTIONS := {&"action_primary": "shove"}
+
 const TEAM_COLORS: Array[Color] = [Color(0.9, 0.5, 0.2), Color(0.35, 0.6, 0.95)]
 const RAIL_COLOR := Color(0.35, 0.3, 0.25)
 const START_COLOR := Color(0.85, 0.85, 0.85)
@@ -34,11 +38,6 @@ var _staggered := {}  # slot (int) -> bool, for one-shot shove-impact puffs
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
-
-
-func _process(_delta: float) -> void:
-	if Input.is_action_just_pressed(&"action_primary"):
-		NetManager.send_match_input({"shove": true})
 
 
 ## Dusty mine floor (#589).
