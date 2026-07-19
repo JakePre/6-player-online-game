@@ -40,9 +40,11 @@ const PS_Y := 1
 const PS_ACT_SEQ := 2
 ## Seconds of shove cooldown left, for the view's cooldown ring (#792/#808).
 const PS_SHOVE_CD := 3
+## Monotonic per-victim counter (#1038): see `shove_hits`.
+const PS_SHOVE_HIT_SEQ := 4
 ## #946 wire-shape tripwire: the declared type of each slot in a `players`
 ## snapshot row. Validated by test_snapshot_schema against get_snapshot().
-const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_FLOAT]
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_FLOAT, TYPE_INT]
 
 var positions := {}
 var move_dirs := {}
@@ -58,6 +60,9 @@ var down_order: Array = []
 var knocks := {}
 var shove_cd := {}
 var act_seq := {}
+## Monotonic per-victim counter (#1038): bumps whenever a shove actually
+## knocks this slot, so the view can play the victim's hit reaction too.
+var shove_hits := {}
 
 var _phase_left := SHOW_SEC
 
@@ -100,6 +105,7 @@ func _setup() -> void:
 		knocks[slots[i]] = Vector2.ZERO
 		shove_cd[slots[i]] = 0.0
 		act_seq[slots[i]] = 0
+		shove_hits[slots[i]] = 0
 	_deal_pattern()
 
 
@@ -154,6 +160,7 @@ func _shove(slot: int) -> void:
 			continue
 		var dir := away.normalized() if away.length() > 0.001 else Vector2.UP
 		knocks[other] = dir * SHOVE_KNOCK
+		shove_hits[other] = int(shove_hits.get(other, 0)) + 1
 
 
 ## Soft body separation (#784): overlapping players are pushed apart so a crowd
@@ -184,6 +191,7 @@ func get_snapshot() -> Dictionary:
 			snappedf(pos.y, 0.01),
 			int(act_seq[slot]),
 			snappedf(shove_cd[slot], 0.01),
+			int(shove_hits.get(slot, 0)),
 		]
 	return {
 		"players": players,

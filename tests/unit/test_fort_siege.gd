@@ -307,6 +307,7 @@ func test_shove_bounces_attackers() -> void:
 	game.handle_input(defender, {"act": true})
 	assert_gt((game.knocks[raider] as Vector2).length(), 0.0, "shove knocks the raider")
 	assert_gt(float(game.shove_cooldowns[defender]), 0.0, "shove starts its cooldown")
+	assert_eq(game.shove_hits[raider], 1, "the raider's hit counter ticks once")
 
 
 func test_attackers_cannot_shove() -> void:

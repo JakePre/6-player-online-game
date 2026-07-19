@@ -137,6 +137,7 @@ func test_shove_knocks_a_nearby_rival_and_then_cools_down() -> void:
 		float(game.shove_cd[0]), MemoryMatch.SHOVE_COOLDOWN_SEC, 0.001, "cooldown armed"
 	)
 	assert_eq(game.act_seq[0], seq_before + 1, "the swing counter ticks once")
+	assert_eq(game.shove_hits[1], 1, "the victim's hit counter ticks once")
 	game.knocks[1] = Vector2.ZERO
 	game.handle_input(0, {"shove": true})  # still cooling
 	assert_eq(game.knocks[1], Vector2.ZERO, "a shove on cooldown does nothing")
@@ -170,8 +171,9 @@ func test_soft_separation_prevents_stacking() -> void:
 func test_snapshot_appends_act_seq_and_cooldown() -> void:
 	var game := _game_with(2)
 	var row: Array = game.get_snapshot().players[0]
-	assert_eq(row.size(), 4, "[x, y, act_seq, shove_cd]")
+	assert_eq(row.size(), 5, "[x, y, act_seq, shove_cd, shove_hit_seq]")
 	assert_almost_eq(float(row[MemoryMatch.PS_SHOVE_CD]), 0.0, 0.001, "starts ready")
+	assert_eq(int(row[MemoryMatch.PS_SHOVE_HIT_SEQ]), 0, "no hits taken yet")
 
 
 func test_tile_of_maps_positions_to_indices() -> void:

@@ -54,6 +54,7 @@ var _fallen_seen := -1
 ## Shove state (#784): play-once swing edge (#945); the swing-hold now lives on
 ## the rig (#942). Plus the pooled cooldown rings.
 var _act_edges := EdgeTracker.new()
+var _hit_edges := EdgeTracker.new()
 var _rings := {}
 ## Fall animation state (#784): downed slots still sinking, and tile indices
 ## dropping into the pit (reset when the floor reforms each round).
@@ -229,6 +230,7 @@ func _update_players() -> void:
 			continue
 		var pos := Vector2(float(state[MemoryMatch.PS_X]), float(state[MemoryMatch.PS_Y]))
 		_play_shove(slot, state, rig)
+		_play_shove_hit(slot, state)
 		# While the shove swing plays, drive the rig by hand so update_rig's
 		# walk/idle can't overwrite it (#808 idiom); otherwise move normally.
 		if rig.is_pose_protected():
@@ -258,6 +260,16 @@ func _play_shove(slot: int, state: Array, rig: CharacterRig) -> void:
 		COOLDOWN_RING_COLOR,
 		0.6
 	)
+
+
+## The shove's target flinches too (#1038) — the shover's own swing used to be
+## the only reaction; the player actually knocked away had none.
+func _play_shove_hit(slot: int, state: Array) -> void:
+	if state.size() <= MemoryMatch.PS_SHOVE_HIT_SEQ:
+		return
+	if not _hit_edges.rose(slot, int(state[MemoryMatch.PS_SHOVE_HIT_SEQ])):
+		return
+	play_hit(slot)
 
 
 ## A flat ring under a player showing their shove cooldown (#792/#808): visible
