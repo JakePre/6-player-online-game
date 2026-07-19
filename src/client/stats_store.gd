@@ -17,6 +17,8 @@ const DEFAULTS := {
 	"podiums": 0,
 	## game_id (String) -> {"plays": int, "wins": int}.
 	"games": {},
+	## Lifetime end-of-match superlatives (#934): award_id (String) -> count.
+	"awards": {},
 	## Newest first: {date (unix seconds), placement (1-based), player_count,
 	## standout_game (String, "" if no round completed), standout_placement}.
 	"recent": [],
@@ -64,6 +66,10 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 					"plays": maxi(0, int(entry.get("plays", 0))),
 					"wins": maxi(0, int(entry.get("wins", 0))),
 				}
+	var raw_awards: Variant = raw.get("awards", {})
+	if raw_awards is Dictionary:
+		for award_id: String in raw_awards:
+			clean.awards[award_id] = maxi(0, int(raw_awards[award_id]))
 	var raw_recent: Variant = raw.get("recent", [])
 	if raw_recent is Array:
 		for entry: Variant in raw_recent:
@@ -93,6 +99,10 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 static func record_match(stats: Dictionary, result: Dictionary) -> Dictionary:
 	var clean := sanitize(stats)
 	clean.matches += 1
+	# Lifetime superlative tally (#934): the award ids this client took home.
+	for award_id: Variant in result.get("my_awards", []):
+		var key := String(award_id)
+		clean.awards[key] = int(clean.awards.get(key, 0)) + 1
 	var placement := int(result.get("placement", 0))
 	if placement == 1:
 		clean.wins += 1

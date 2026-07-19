@@ -155,3 +155,40 @@ func test_record_match_is_pure_and_does_not_mutate_the_input() -> void:
 	var before := original.duplicate(true)
 	StatsStore.record_match(original, {"date": 1, "placement": 1, "player_count": 2, "rounds": []})
 	assert_eq(original, before, "record_match returns a new dict, the input is untouched")
+
+
+# --- Lifetime superlative counts (#934) --------------------------------------
+
+
+func test_record_match_tallies_won_awards() -> void:
+	var stats := StatsStore.record_match(
+		StatsStore.defaults(),
+		{
+			"date": 100,
+			"placement": 1,
+			"player_count": 4,
+			"rounds": [],
+			"my_awards": ["coin_baron", "clutch"]
+		}
+	)
+	assert_eq(int(stats.awards.get("coin_baron", 0)), 1)
+	assert_eq(int(stats.awards.get("clutch", 0)), 1)
+	# A second match with the same award accumulates.
+	var again := StatsStore.record_match(
+		stats,
+		{"date": 200, "placement": 2, "player_count": 4, "rounds": [], "my_awards": ["coin_baron"]}
+	)
+	assert_eq(int(again.awards.get("coin_baron", 0)), 2, "lifetime count accumulates")
+
+
+func test_awards_survive_the_sanitizer() -> void:
+	var clean := StatsStore.sanitize({"awards": {"frontrunner": 3, "junk": -5}})
+	assert_eq(int(clean.awards.get("frontrunner", 0)), 3)
+	assert_eq(int(clean.awards.get("junk", 0)), 0, "negative counts floor to 0")
+
+
+func test_no_awards_key_is_harmless() -> void:
+	var stats := StatsStore.record_match(
+		StatsStore.defaults(), {"date": 100, "placement": 1, "player_count": 4, "rounds": []}
+	)
+	assert_eq(stats.awards, {}, "no my_awards -> no tally")

@@ -91,6 +91,11 @@ var _skip_votes := {}
 ## Playtest mode (#1070): every game already played this match, in order —
 ## shown on the pick screen so the host can see roster coverage at a glance.
 var _played_ids: Array = []
+## End-of-match superlatives (#934): per-round {placements, pickup_coins,
+## totals_before} accumulated across the match, plus the finale's attributed
+## KOs — fed to MatchAwards.derive() at the podium.
+var _round_records: Array = []
+var _finale_kos := {}
 
 
 ## config: rounds (int), seed (int), and for test harnesses only (server must
@@ -474,6 +479,9 @@ func _enter_results() -> void:
 	state = State.RESULTS
 	_state_left = _results_sec
 	var results := game.get_results()
+	# Superlative telemetry (#934): the standings BEFORE this round's coins
+	# land, so a win from the back reads as the comeback it was.
+	var totals_before := _totals()
 	# Mutator economy knobs (M9-04): Golden Round scales the pickup cap,
 	# Double Coins multiplies the combined award.
 	var cap := Economy.PICKUP_CAP
@@ -490,6 +498,16 @@ func _enter_results() -> void:
 		awards = current_mutator.apply_award_multiplier(awards)
 	for member in room.members:
 		member.score += int(awards.get(member.slot, 0))
+	(
+		_round_records
+		. append(
+			{
+				"placements": results.placements,
+				"pickup_coins": results.get("pickup_coins", {}),
+				"totals_before": totals_before,
+			}
+		)
+	)
 	# Robin Hood (M9-05): the transfer moves standing coins after the round's
 	# awards land, so the broadcast totals already reflect it.
 	if current_mutator != null and current_mutator.end_transfer_amount > 0:
@@ -570,8 +588,17 @@ func _enter_podium(standings: Array) -> void:
 	# Best-of-N accumulation (M11-01): the room's tracker carries points
 	# and the coin tiebreak across matches; idle at series length 1.
 	room.series.record_match(standings)
-	event_emitted.emit(
-		{"type": "match_ended", "standings": standings, "series": room.series.to_dict()}
+	var awards := MatchAwards.derive(_round_records, standings, _finale_kos)
+	(
+		event_emitted
+		. emit(
+			{
+				"type": "match_ended",
+				"standings": standings,
+				"series": room.series.to_dict(),
+				"awards": awards,
+			}
+		)
 	)
 
 
@@ -649,6 +676,8 @@ func _enter_podium_from_finale() -> void:
 	# answers the #584 weapons-vs-hazards tuning question once bots (#705)
 	# start feeding real balance data.
 	if results.has("ko_causes"):
+		# The finale's attributed KOs feed the #934 Assassin award.
+		_finale_kos = results.get("axe_kills", {}).duplicate()
 		(
 			event_emitted
 			. emit(
