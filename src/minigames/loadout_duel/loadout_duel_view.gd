@@ -103,10 +103,13 @@ func _render_fighter(slot: int, state: Array) -> void:
 	var flags := int(state[LoadoutDuel.PS_FLAGS])
 	var alive := flags & 1 > 0
 	rig.modulate = Color.WHITE if alive else KO_MODULATE
-	# KO edge: shake + the shared elimination cue for everyone, seeded so a
-	# rejoiner stays quiet.
+	# KO edge: the hit reaction (#1038 — a duel hit is an instant KO, so this is
+	# the "got hit" feedback), then shake + the shared elimination cue for
+	# everyone, seeded so a rejoiner stays quiet. The spark burst reads even
+	# though the grey KO_MODULATE overrides the flinch flash a frame later.
 	var was_alive: bool = _alive_seen.get(slot, true)
 	if _seen_snapshot and was_alive and not alive:
+		play_hit(slot)
 		request_shake(7.0)
 		play_sfx(&"ko")
 	_alive_seen[slot] = alive

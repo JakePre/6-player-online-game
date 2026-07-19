@@ -101,16 +101,18 @@ func test_swing_pops_a_lunge_that_settles_back() -> void:
 	assert_eq(body.scale, Vector2.ONE, "the lunge settles back out")
 
 
-## #789: a landed hit flashes the victim red — the flinch cue Rumble Ring's
-## anim pass (#777) established, adapted to this tier's plain modulate tint.
-func test_landing_a_hit_flashes_red_then_clears() -> void:
+## #789/#1038: a landed hit flashes the victim red through the shared
+## SideScrollView.play_hit surface, pose-protected until its window elapses.
+func test_landing_a_hit_flashes_the_victim() -> void:
 	view.render({"players": {0: _fighter(0.0, 0.5, 1, 1, 0, 0)}, "phase": KnockOff.Phase.FIGHT})
 	view.render({"players": {0: _fighter(0.0, 0.5, 1, 1, 20, 0)}, "phase": KnockOff.Phase.FIGHT})
 	var rig := view.rig_for_slot(0)
-	view._process(view.HIT_POSE_SEC * 0.5)
-	assert_ne(rig.modulate, Color.WHITE, "mid-flash the rig reads hurt")
-	view._process(view.HIT_POSE_SEC)
-	assert_eq(rig.modulate, Color.WHITE, "the flash clears back to normal")
+	assert_ne(rig.modulate, Color.WHITE, "the landed hit flashes the victim")
+	assert_true(view.is_hit_playing(0), "the flinch window protects the flash from the WHITE reset")
+	# Once the flinch window elapses, the next render clears back to normal.
+	view._hit_until[0] = 0.0
+	view.render({"players": {0: _fighter(0.0, 0.5, 1, 1, 20, 0)}, "phase": KnockOff.Phase.FIGHT})
+	assert_eq(rig.modulate, Color.WHITE, "after the flinch window the rig reads normal again")
 
 
 ## #789: the sim frees a KO'd body immediately (test_falling_off_the_stage_is_a_ko

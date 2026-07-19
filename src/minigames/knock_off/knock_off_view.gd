@@ -28,11 +28,10 @@ const KO_TUMBLE_SEC := 0.7
 const KO_SPIN_SPEED := 9.0
 const KO_DRIFT := Vector2(3.5, -3.0)
 
-## Brief rig poses layered on top of the base pose/interpolation: a lunge on
-## your own swing, a red flinch flash when a hit lands.
+## A lunge on your own swing, layered on top of the base pose/interpolation. The
+## flinch flash on a landed hit now comes from the shared SideScrollView.play_hit
+## (#1038).
 const SWING_POSE_SEC := 0.15
-const HIT_POSE_SEC := 0.22
-const HIT_FLASH_COLOR := Color(1.0, 0.35, 0.3)
 
 var players := {}
 var phase: int = KnockOff.Phase.COUNTDOWN
@@ -53,8 +52,6 @@ var _last_alive_facing := {}
 var _tumbles := {}
 ## slot -> {facing, age}, active while an attack lunge is playing.
 var _swing_pose := {}
-## slot -> {age}, active while a landed-hit flash is playing.
-var _hit_pose := {}
 
 
 func _ready() -> void:
@@ -92,8 +89,6 @@ func _process(delta: float) -> void:
 		_advance_tumbles(delta)
 	if not _swing_pose.is_empty():
 		_advance_swing_pose(delta)
-	if not _hit_pose.is_empty():
-		_advance_hit_pose(delta)
 
 
 ## Drifts a KO'd rig away from its last real pose, spinning and fading it
@@ -143,24 +138,6 @@ func _advance_swing_pose(delta: float) -> void:
 		_swing_pose.erase(slot)
 
 
-## A brief red flash on a landed hit — the flinch a KO'd tumble doesn't cover.
-func _advance_hit_pose(delta: float) -> void:
-	var done: Array[int] = []
-	for slot: int in _hit_pose:
-		var pose: Dictionary = _hit_pose[slot]
-		pose.age = float(pose.age) + delta
-		var t: float = clampf(float(pose.age) / HIT_POSE_SEC, 0.0, 1.0)
-		var rig := rig_for_slot(slot)
-		if rig != null:
-			rig.modulate = Color.WHITE.lerp(HIT_FLASH_COLOR, 1.0 - t)
-		if t >= 1.0:
-			if rig != null:
-				rig.modulate = Color.WHITE
-			done.append(slot)
-	for slot: int in done:
-		_hit_pose.erase(slot)
-
-
 func _start_tumble(slot: int) -> void:
 	var origin: Vector2 = _last_alive_pos.get(slot, Vector2.ZERO)
 	var facing: int = int(_last_alive_facing.get(slot, 1))
@@ -187,7 +164,7 @@ func _render_fighter(slot: int, state: Array) -> void:
 		return
 	var alive := int(state[KnockOff.PS_ALIVE]) == 1
 	if alive:
-		if not _hit_pose.has(slot):
+		if not is_hit_playing(slot):
 			rig.modulate = Color.WHITE
 		if not _swing_pose.has(slot):
 			(rig.get_node("Body") as Panel).scale = Vector2.ONE
@@ -215,7 +192,9 @@ func _render_fighter(slot: int, state: Array) -> void:
 	var prev_percent: int = _percent_seen.get(slot, percent)
 	if _seen_snapshot and percent > prev_percent:
 		play_sfx(&"hit_heavy" if percent - prev_percent >= 12 else &"hit")
-		_hit_pose[slot] = {"age": 0.0}
+		# The shared flinch flash + spark burst (#1038), replacing the old
+		# hand-rolled _hit_pose fade.
+		play_hit(slot)
 	_percent_seen[slot] = percent
 	var attack := int(state[KnockOff.PS_ATTACK])
 	if attack > 0:
