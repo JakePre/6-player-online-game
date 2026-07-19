@@ -25,9 +25,17 @@ const SELF_GRACE_SEGMENTS := 4
 const PELLET_RADIUS := 0.6
 const PELLET_WAVE_SEC := 1.2
 const MAX_ACTIVE_PELLETS := 10
-## Crash spill can push the floor this far over the steady-state cap.
-const SPILL_HEADROOM := 6
+## Crash spill can push the floor this far over the steady-state cap. A crash now
+## scatters the crasher's WHOLE grown tail (#950), so the headroom must fit a
+## large snake's full spill for the feeding frenzy to actually land.
+const SPILL_HEADROOM := 14
 const CRASH_INVULN_SEC := 2.0
+## Tail Burn (#950): holding action_primary boosts speed while burning one grown
+## segment per second. Length is health/score, so it's the slither.io economy —
+## spend your lead for position. Burning stops at 0 grown segments and never eats
+## the base chain, so a boost can never self-kill.
+const BOOST_MULT := 1.6
+const BOOST_BURN_SEC := 1.0
 const TEAM_THRESHOLD := 4
 ## No 180s (#796): a direction this close to dead opposite of the current
 ## heading is ignored instead of snapping the head straight back into its own
@@ -42,10 +50,13 @@ const PS_X := 0
 const PS_Y := 1
 const PS_COUNT_EATEN := 2
 const PS_INVULN := 3
-const PS_COUNT := 4
+## 1 while actually boosting (held AND a grown segment left to burn), so the view
+## only trails the boost when it's really happening (#950, additive per #708).
+const PS_BOOSTING := 4
+const PS_COUNT := 5
 ## #946 wire-shape tripwire: the declared type of each slot in a `players`
 ## snapshot row. Validated by test_snapshot_schema against get_snapshot().
-const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_FLOAT]
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_FLOAT, TYPE_INT]
 
 const TR_X := 0
 const TR_Y := 1
@@ -56,6 +67,8 @@ var headings := {}
 var trails := {}
 var pellets_eaten := {}
 var invuln_left := {}
+## Tail Burn (#950): whether each player's boost is currently held.
+var boosting := {}
 var pellets: Array[Vector2] = []
 ## Two teams of slots at even counts >= 4; empty in FFA.
 var teams: Array = []
@@ -65,6 +78,9 @@ var max_pellets := MAX_ACTIVE_PELLETS
 
 var _sample_accum := {}
 var _pellet_accum := 0.0
+## Tail Burn (#950): the fractional-second accumulator that spends one grown
+## segment each full second of boosting.
+var _boost_burn := {}
 
 
 static func make_meta() -> MinigameMeta:
@@ -73,15 +89,28 @@ static func make_meta() -> MinigameMeta:
 		. create(
 			{
 				"id": &"snake_chain",
-				"controls": "Steer — WASD / left stick",
-				# Structured spec (#832/#844): bare movement, own verb kept.
-				"control_spec": [{"verb": "Steer", "input": InputGlyphs.CLUSTER_MOVE}],
+				"controls": "Steer — WASD / left stick · Boost — hold SPACE (burns your tail!)",
+				# Structured spec (#832/#844): steer plus the Tail Burn hold (#950).
+				"control_spec":
+				[
+					{"verb": "Steer", "input": InputGlyphs.CLUSTER_MOVE},
+					{
+						"verb": "Boost",
+						"input": &"action_primary",
+						"hold": true,
+						"note": "burns your tail!"
+					},
+				],
 				"name": "Snake Chain",
 				"category": MinigameMeta.Category.TEAM,
 				"min_players": 2,
 				"max_players": 12,
 				"duration_sec": 60.0,
-				"rules": "Eat to grow the conga — crash into ANY body and you spill your pellets!",
+				"rules":
+				(
+					"Eat to grow the conga — hold to boost, but it burns your tail! "
+					+ "Crash into ANY body and you spill it all."
+				),
 			}
 		)
 	)
@@ -120,12 +149,16 @@ func _setup() -> void:
 		trails[slot] = []
 		pellets_eaten[slot] = 0
 		invuln_left[slot] = 0.0
+		boosting[slot] = false
+		_boost_burn[slot] = 0.0
 		_sample_accum[slot] = 0.0
 	_spawn_pellets()
 
 
-## Steering only — the chain never stops moving; input turns the head.
+## Steering turns the head; a held boost (Tail Burn, #950) rides the same input.
 func _handle_input(slot: int, data: Dictionary) -> void:
+	if data.has("boost"):
+		boosting[slot] = bool(data.boost)
 	var dir := Vector2(float(data.get("mx", 0.0)), float(data.get("my", 0.0)))
 	if dir.length() <= 0.2:
 		return
@@ -138,7 +171,17 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 func _tick(delta: float) -> void:
 	for slot: int in slots:
 		invuln_left[slot] = maxf(float(invuln_left[slot]) - delta, 0.0)
-		var pos: Vector2 = positions[slot] + (headings[slot] as Vector2) * MOVE_SPEED * delta
+		var speed := MOVE_SPEED
+		if _is_boosting(slot):
+			# Tail Burn (#950): faster, but spend one grown segment per second.
+			speed = MOVE_SPEED * BOOST_MULT
+			_boost_burn[slot] = float(_boost_burn[slot]) + delta
+			if float(_boost_burn[slot]) >= BOOST_BURN_SEC:
+				_boost_burn[slot] = float(_boost_burn[slot]) - BOOST_BURN_SEC
+				pellets_eaten[slot] = int(pellets_eaten[slot]) - 1
+		else:
+			_boost_burn[slot] = 0.0
+		var pos: Vector2 = positions[slot] + (headings[slot] as Vector2) * speed * delta
 		# Walls turn you, they don't kill you: clamp and slide.
 		positions[slot] = pos.clamp(
 			Vector2(-arena_half, -arena_half), Vector2(arena_half, arena_half)
@@ -168,6 +211,7 @@ func get_snapshot() -> Dictionary:
 			snappedf(pos.y, 0.01),
 			int(pellets_eaten[slot]),
 			snappedf(invuln_left[slot], 0.01),
+			1 if _is_boosting(slot) else 0,
 		]
 		var points: Array = []
 		for point: Vector2 in trails[slot]:
@@ -218,6 +262,12 @@ func _max_segments(slot: int) -> int:
 	return BASE_SEGMENTS + int(pellets_eaten[slot])
 
 
+## Boosting is active only while held AND a grown segment remains to burn — the
+## base chain is never consumed, so a boost can't self-kill (#950).
+func _is_boosting(slot: int) -> bool:
+	return bool(boosting.get(slot, false)) and int(pellets_eaten[slot]) >= 1
+
+
 func _eat_pellets() -> void:
 	for i in range(pellets.size() - 1, -1, -1):
 		for slot: int in slots:
@@ -246,20 +296,26 @@ func _head_hits_a_body(slot: int) -> bool:
 	return false
 
 
-## Half the pellets spill back onto the floor near the wreck; the chain
-## shrinks to match and the player restarts from the nearest edge.
+## Crash-kill (#950): the whole grown tail scatters back onto the floor as
+## pellets strewn along the body line — a feeding frenzy for everyone else — and
+## the crasher respawns short (base chain) from the nearest edge with a grace
+## window. Dropped pellet count == the grown segments lost (capped only by the
+## spill headroom so a huge snake can't flood the floor past the pool).
 func _crash(slot: int) -> void:
-	var spilled := int(pellets_eaten[slot]) / 2
-	pellets_eaten[slot] = int(pellets_eaten[slot]) - spilled
-	for _i in spilled:
+	var dropped := int(pellets_eaten[slot])
+	var trail: Array = trails[slot]
+	for i in dropped:
 		if pellets.size() >= max_pellets + SPILL_HEADROOM:
 			break
-		var offset := Vector2(rng.randf_range(-2.0, 2.0), rng.randf_range(-2.0, 2.0))
+		var anchor: Vector2 = trail[i % trail.size()] if not trail.is_empty() else positions[slot]
+		var jitter := Vector2(rng.randf_range(-0.4, 0.4), rng.randf_range(-0.4, 0.4))
 		pellets.append(
-			((positions[slot] as Vector2) + offset).clamp(
+			(anchor + jitter).clamp(
 				Vector2(-arena_half, -arena_half), Vector2(arena_half, arena_half)
 			)
 		)
+	pellets_eaten[slot] = 0
+	_boost_burn[slot] = 0.0
 	var pos: Vector2 = positions[slot]
 	var edge := Vector2(signf(pos.x) if absf(pos.x) > absf(pos.y) else 0.0, 0.0)
 	if edge == Vector2.ZERO:

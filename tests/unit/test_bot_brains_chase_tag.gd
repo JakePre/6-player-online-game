@@ -192,6 +192,34 @@ func test_snake_chain_brain_ignores_its_own_grace_segments() -> void:
 	assert_gt(float(intent.get("mx", 0.0)), 0.5, "own grace segments don't spook the heading")
 
 
+## #950 Tail Burn: with segments to spare, a rival head crossing perpendicular
+## just ahead is a cut opportunity — spend tail and boost to slice across it.
+func test_snake_chain_brain_boosts_to_cut_a_crossing_rival() -> void:
+	var brain := BotBrains.brain_for(&"snake_chain", 0, 1)
+	var game := {
+		"players": {0: [0.0, 0.0, 3, 0.0, 0], 1: [3.0, 0.0, 0, 0.0, 0]},
+		# Rival's newest trail point is just below its head -> heading +y, crossing
+		# our +x line perpendicular.
+		"trails": {0: [], 1: [[3.0, -0.5]]},
+		"pellets": [[5.0, 0.0]],
+	}
+	var intent := brain.think(_play_state("snake_chain", game), {})
+	assert_gt(float(intent.get("mx", 0.0)), 0.0, "heads at the cut, toward the pellet")
+	assert_true(intent.get("boost", false), "spends tail to cut across the crossing rival")
+
+
+## #950: no boost with too few segments to spare, even on a perfect cut.
+func test_snake_chain_brain_holds_boost_when_short_on_tail() -> void:
+	var brain := BotBrains.brain_for(&"snake_chain", 0, 1)
+	var game := {
+		"players": {0: [0.0, 0.0, 2, 0.0, 0], 1: [3.0, 0.0, 0, 0.0, 0]},
+		"trails": {0: [], 1: [[3.0, -0.5]]},
+		"pellets": [[5.0, 0.0]],
+	}
+	var intent := brain.think(_play_state("snake_chain", game), {})
+	assert_false(intent.get("boost", false), "keeps its buffer — never boosts down past the floor")
+
+
 # --- #926: flee spacing + rim-orbit -------------------------------------------
 
 
