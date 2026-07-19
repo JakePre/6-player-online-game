@@ -36,13 +36,39 @@ func test_setup_builds_track_pads_and_karts() -> void:
 	assert_not_null(view.rig_for_slot(0).get_node("KartBody"), "every racer rides a kart")
 
 
-## #930: two straight ~2u barrier segments meeting at an angled waypoint
-## vertex leave a jagged gap — one bridging pair per vertex closes it.
-func test_corner_barriers_bridge_every_waypoint_seam() -> void:
-	var before := view.arena.get_child_count()
-	view._add_corner_barriers(TurboLap.waypoints())
-	var after := view.arena.get_child_count()
-	assert_eq(after - before, TurboLap.WAYPOINT_COUNT * 2, "one bridging pair per waypoint vertex")
+## #1041: the track edges are two continuous miter-joined curb loops (inner +
+## outer), one rail segment per waypoint each — a gap-free closed oval outline,
+## not the old 100+ tiled barrier blocks.
+func test_edge_rails_form_two_closed_loops() -> void:
+	assert_not_null(view.arena.get_node("RailOut0"), "outer rail exists")
+	assert_not_null(view.arena.get_node("RailIn0"), "inner rail exists")
+	assert_not_null(view.arena.get_node("RailOut%d" % (TurboLap.WAYPOINT_COUNT - 1)))
+	assert_not_null(view.arena.get_node("RailIn%d" % (TurboLap.WAYPOINT_COUNT - 1)))
+
+
+## #1041: the malformed finish-arch.glb blob is replaced by a procedural gate —
+## two posts plus a banner beam under the "FinishArch" root.
+func test_finish_arch_is_a_procedural_gate() -> void:
+	var arch: Node3D = view.arena.get_node("FinishArch")
+	assert_not_null(arch, "finish gate exists")
+	assert_eq(arch.get_child_count(), 3, "two posts + a banner beam")
+
+
+## The gap-free offset keeps the inner rail inside the centerline and the outer
+## rail outside it — each roughly a half-width off, so the loop never crosses.
+func test_offset_loop_brackets_the_centerline() -> void:
+	var points := TurboLap.waypoints()
+	var outer: PackedVector2Array = view._offset_loop(points, TurboLap.TRACK_HALF_WIDTH)
+	var inner: PackedVector2Array = view._offset_loop(points, -TurboLap.TRACK_HALF_WIDTH)
+	assert_eq(outer.size(), points.size(), "one offset vertex per waypoint")
+	for i in points.size():
+		var c: Vector2 = points[i]
+		assert_gt(
+			(outer[i] as Vector2).length(),
+			(inner[i] as Vector2).length() - 0.001,
+			"outer vertex sits farther from center than the inner at waypoint %d" % i
+		)
+		assert_almost_eq((outer[i] as Vector2).distance_to(c), TurboLap.TRACK_HALF_WIDTH, 0.35)
 
 
 func test_render_moves_rigs_and_dims_cooling_pads() -> void:
