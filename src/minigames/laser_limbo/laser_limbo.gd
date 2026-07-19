@@ -94,7 +94,11 @@ static func make_meta() -> MinigameMeta:
 				"min_players": 2,
 				"max_players": 24,
 				"duration_sec": 60.0,
-				"rules": "Jump the low lasers, duck the high ones, slip through the gaps. 3 lives.",
+				"rules":
+				(
+					"Jump the low amber lasers, duck the high cyan ones, "
+					+ "slip through the violet gaps. 3 lives."
+				),
 			}
 		)
 	)
