@@ -102,6 +102,17 @@ func test_ko_pops_a_blast() -> void:
 	assert_gt(_particle_count(), before, "a KO blasts a burst")
 
 
+## #959: a held Waltz Bomb shows a ◈ pip; the frame it drops to spent, a bloom
+## bursts at the dancer and the pip clears.
+func test_waltz_bomb_blooms_on_spend() -> void:
+	view.render({"players": {0: [0.0, 0.0, 0, 1]}, "bullets": [], "out": []})
+	assert_string_contains(view.rig_for_slot(0).display_name, "◈")
+	var before := _particle_count()
+	view.render({"players": {0: [0.0, 0.0, 0, 0]}, "bullets": [], "out": []})
+	assert_gt(_particle_count(), before, "spending the bomb blooms a burst")
+	assert_false(view.rig_for_slot(0).display_name.contains("◈"), "the pip clears once spent")
+
+
 ## #1036: a volley firing punches the turret and bursts a flash at the muzzle
 ## — otherwise it's an inert prop with no visible tie to the bullets.
 func test_a_fresh_volley_pulses_the_turret() -> void:

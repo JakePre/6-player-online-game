@@ -99,7 +99,39 @@ func test_graze_coins_become_pickup_coins() -> void:
 	game.tick(TICK)
 	assert_true(game.finished)
 	assert_eq(game.get_results().pickup_coins[0], 7)
-	assert_eq(game.get_results().placements[0].size(), 3, "timeout survivors tie")
+	# #959: graze score breaks the timeout survivor tie — the bold dancer
+	# out-places the coin-shy pair rather than everyone tying flat.
+	assert_eq(game.get_results().placements, [[0], [1, 2]], "graze breaks the survivor tie")
+
+
+## #959: within a same-tick KO group, more grazes place higher — dying while
+## dancing close beats dying in a corner.
+func test_graze_breaks_a_same_tick_ko_tie() -> void:
+	var game := _game([0, 1, 2] as Array[int])
+	game.graze_coins[1] = 5
+	game.bullets.append({"pos": game.positions[0], "vel": Vector2.ZERO})
+	game.bullets.append({"pos": game.positions[1], "vel": Vector2.ZERO})
+	game.tick(TICK)
+	assert_true(game.finished)
+	assert_eq(game.get_results().placements, [[2], [1], [0]], "grazier KO ranks above")
+
+
+## #959: the Waltz Bomb culls bullets inside its radius, leaves the rest, and
+## fires only once per round.
+func test_waltz_bomb_clears_nearby_bullets_and_is_single_use() -> void:
+	var game := _game()
+	var here: Vector2 = game.positions[0]
+	game.bullets.append({"pos": here + Vector2(1.0, 0.0), "vel": Vector2.ZERO})
+	game.bullets.append(
+		{"pos": here + Vector2(BulletWaltz.WALTZ_BOMB_RADIUS + 2.0, 0.0), "vel": Vector2.ZERO}
+	)
+	game.handle_input(0, {"bomb": true})
+	assert_eq(game.bullets.size(), 1, "only the bullet inside the bloom is culled")
+	assert_false(game.bomb_ready[0], "the once-per-round charge is spent")
+	# A second press with no charge left leaves the field untouched.
+	game.bullets.append({"pos": here + Vector2(1.0, 0.0), "vel": Vector2.ZERO})
+	game.handle_input(0, {"bomb": true})
+	assert_eq(game.bullets.size(), 2, "a spent bomb does nothing")
 
 
 func test_bullets_expire_out_of_range() -> void:
@@ -115,6 +147,7 @@ func test_snapshot_shape() -> void:
 	var snapshot := game.get_snapshot()
 	assert_eq(snapshot.players.size(), 2)
 	assert_eq(snapshot.players[0].size(), BulletWaltz.PS_COUNT)
+	assert_eq(snapshot.players[0][BulletWaltz.PS_BOMB], 1, "everyone starts holding the Waltz Bomb")
 	assert_eq(snapshot.bullets, [[1.0, 2.0]])
 	assert_eq(snapshot.out, [])
 
