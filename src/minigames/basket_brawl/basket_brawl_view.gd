@@ -315,6 +315,9 @@ func _update_ball() -> void:
 	# shot is not a fumble. Seeded via _holder_seen/_scores_seen.
 	if _holder_seen >= 0 and ball_holder == -1 and scores == _scores_seen and not shooting:
 		fx_dust(ball_pos)
+		# The shoved-off carrier now recoils, not just puffs dust (#1038): the
+		# shared hit reaction (Hit_A + impact) sells the steal.
+		play_hit(_holder_seen)
 		# Signature cue (#728): heard by the player who got shoved off the
 		# ball — a `bump`, not a score/UI sound.
 		if _holder_seen == my_slot:

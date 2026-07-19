@@ -166,6 +166,33 @@ func fx_dust(world_pos: Vector2) -> void:
 	ArenaFX.dust(arena, to_arena(world_pos, 0.05))
 
 
+## Play a slot's hit reaction (#1038): the rig's `hit` action (Hit_A), pose-
+## held so it reads (play_protected #942), plus an impact dust puff in the
+## player's color at the rig. The shared cue for "this player just took a
+## shove / got knocked / lost a life" — views call it from their event streams
+## instead of each re-rolling `rig.play(&"hit")` + a puff. No-op without a rig.
+func play_hit(slot: int, hold := 0.4) -> void:
+	var rig: CharacterRig = _rigs.get(slot)
+	if rig == null:
+		return
+	rig.play_protected(&"hit", hold)
+	ArenaFX.dust(arena, rig.position, rig.player_color)
+
+
+## Whether teleport-sized rig jumps flash an arrival/departure cue (#1038).
+## Default on for every 3D game; a view whose rigs legitimately snap far each
+## frame (none today) can override to silence it.
+func _teleport_fx_enabled() -> bool:
+	return true
+
+
+## Departure twinkle + arrival burst for a teleport-sized jump (#1038), tinted
+## the rig's color so the warp reads as that player's.
+func _teleport_fx(rig: CharacterRig, from_pos: Vector3, to_pos: Vector3) -> void:
+	ArenaFX.sparkle(arena, from_pos, rig.player_color)
+	ArenaFX.burst(arena, to_pos, rig.player_color, 12, 4.0)
+
+
 ## Moves the slot's rig to `world_pos` (top-down world units) and switches
 ## between "walk"/"idle" + faces the movement direction, based on the
 ## displacement since the last call. No-op for slots without a pooled rig.
@@ -217,6 +244,13 @@ func _record_rig_sample(slot: int, rig: CharacterRig, target: Vector3) -> void:
 	var now := _now_sec()
 	var sample: Dictionary = _rig_samples.get(slot, {})
 	if sample.is_empty() or target.distance_to(sample.to) > TELEPORT_SNAP_DISTANCE:
+		# A teleport-sized jump (a respawn, a warp, an item yanking you across
+		# the arena) shouldn't just pop the rig with no cue (#1038). Twinkle the
+		# vacated spot and burst at the arrival in the player's color so the
+		# move reads. Silent on the first-ever sample (spawn / rejoiner) and
+		# while the rig is hidden, so no phantom teleport fires.
+		if not sample.is_empty() and rig.visible and _teleport_fx_enabled():
+			_teleport_fx(rig, sample.to, target)
 		_rig_samples[slot] = {
 			"from": target, "to": target, "at": now, "interval": SNAPSHOT_INTERVAL
 		}
