@@ -129,6 +129,55 @@ func test_beam_has_a_kind_colored_floor_stripe() -> void:
 	)
 
 
+## #928: a beam gets full-height emitter posts at both depth ends — the vertical
+## ruler the eye reads its attach height against.
+func test_beam_has_emitter_posts_as_a_height_ruler() -> void:
+	view.render({"players": {}, "walls": [[1.0, 1, LaserLimbo.WallKind.LOW, 0.0]], "fallen": []})
+	var wall: Node3D = view.arena.get_node("Wall0")
+	var near: MeshInstance3D = wall.get_node("PostNear")
+	var far: MeshInstance3D = wall.get_node("PostFar")
+	assert_true(near.visible and far.visible, "a beam gets emitter posts at both ends")
+	assert_almost_eq(
+		(near.mesh as CylinderMesh).height, view.POST_HEIGHT, 0.001, "posts are full-height rulers"
+	)
+	assert_lt(near.position.z, 0.0, "posts sit at opposite depth ends")
+	assert_gt(far.position.z, 0.0)
+
+
+## #928: the jump and duck beams are elevated cylinders at clearly different
+## heights — the core "can't tell high from low" fix.
+func test_low_and_high_beams_sit_at_their_true_heights() -> void:
+	(
+		view
+		. render(
+			{
+				"players": {},
+				"walls":
+				[
+					[1.0, 1, LaserLimbo.WallKind.LOW, 0.0],
+					[-1.0, 1, LaserLimbo.WallKind.HIGH, 0.0],
+				],
+				"fallen": []
+			}
+		)
+	)
+	var low: MeshInstance3D = view.arena.get_node("Wall0/Low")
+	var high: MeshInstance3D = view.arena.get_node("Wall1/High")
+	assert_almost_eq(low.position.y, view.LOW_BEAM_Y, 0.001, "the jump beam sits low")
+	assert_almost_eq(high.position.y, view.HIGH_BEAM_Y, 0.001, "the duck beam sits high")
+	assert_gt(high.position.y - low.position.y, 1.0, "a clear height gap between jump and duck")
+	assert_true(low.mesh is CylinderMesh, "beams are cylinders, not flat floor bars")
+
+
+## #928: the GAP wall's tall halves are their own vertical reference, so it
+## skips the emitter posts.
+func test_gap_wall_skips_emitter_posts() -> void:
+	view.render({"players": {}, "walls": [[0.0, 1, LaserLimbo.WallKind.GAP, 2.0]], "fallen": []})
+	var wall: Node3D = view.arena.get_node("Wall0")
+	assert_false(wall.get_node("PostNear").visible, "the gap wall reads on its own — no posts")
+	assert_false(wall.get_node("PostFar").visible)
+
+
 ## #779: a back wall gives beam height a fixed reference the camera can't flatten.
 func test_back_wall_reference_exists() -> void:
 	var back: MeshInstance3D = view.arena.get_node("BackWall")
