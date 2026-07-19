@@ -13,6 +13,10 @@ extends MinigameView3D
 ## gate is a realistic doorway width (~2.5u), so the front wall is now the
 ## gate flanked by tiled stone, matching the two requests as they were meant
 ## to pair.
+## Declarative button input (#947): batter/repair/shove — the same one
+## button whichever meaning the sim gives it (Act.*).
+const INPUT_ACTIONS := {&"action_primary": "act"}
+
 const GATE_SCENE := preload("res://assets/generated/models/castle-gate.glb")
 const WALL_SCENE := preload("res://assets/generated/models/castle-wall-segment.glb")
 ## Measured from the delivered models (#911's probe) — the gate's own width
@@ -101,12 +105,6 @@ func _process(delta: float) -> void:
 		return
 	var jitter := sin(Time.get_ticks_msec() * 0.05) * _gate_shake
 	_gate_node.position = _gate_rest + Vector3(jitter, 0.0, 0.0)
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"action_primary"):
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"act": true})
 
 
 ## Cool stone floor for the fortress clash (#589).

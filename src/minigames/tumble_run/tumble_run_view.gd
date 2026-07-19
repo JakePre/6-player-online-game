@@ -6,6 +6,10 @@ extends SideScrollView
 ##
 ## Input: A/D run + W/Space jump through the base move axis. No attacks.
 
+## Declarative button input (#947): jump is momentary; the move axis stays a
+## hand-rolled _process send (a continuous vector, not a button).
+const INPUT_ACTIONS := {&"move_up": "jump"}
+
 const BOULDER_COLOR := Color(0.42, 0.29, 0.22)
 ## Hazard read (#925): boulders wear a hot warning glow + a dark rim so they
 ## never blur into the cool, soft backdrop clouds behind the stage.
@@ -95,13 +99,6 @@ func _physics_process(_delta: float) -> void:
 	if NetManager.multiplayer.multiplayer_peer == null:
 		return
 	NetManager.send_match_input({"mx": Input.get_axis(&"move_left", &"move_right")})
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if NetManager.multiplayer.multiplayer_peer == null:
-		return
-	if event.is_action_pressed(&"move_up"):
-		NetManager.send_match_input({"jump": true})
 
 
 func _render(game: Dictionary) -> void:

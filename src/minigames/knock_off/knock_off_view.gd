@@ -6,6 +6,14 @@ extends SideScrollView
 ##
 ## Input: A/D run + W/Space jump through the base move axis; J jabs, K smashes.
 
+## Declarative button input (#947): jump/jab/smash are momentary; the move
+## axis stays a hand-rolled _process send (a continuous vector, not a button).
+const INPUT_ACTIONS := {
+	&"move_up": "jump",
+	&"action_primary": "jab",
+	&"action_secondary": "smash",
+}
+
 const KO_MODULATE := Color(0.4, 0.4, 0.45, 0.7)
 const SWING_COLOR := Color(1.0, 0.95, 0.6)
 const SMASH_COLOR := Color(1.0, 0.55, 0.3)
@@ -69,17 +77,6 @@ func _physics_process(_delta: float) -> void:
 	if NetManager.multiplayer.multiplayer_peer == null:
 		return
 	NetManager.send_match_input({"mx": Input.get_axis(&"move_left", &"move_right")})
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if NetManager.multiplayer.multiplayer_peer == null:
-		return
-	if event.is_action_pressed(&"move_up"):
-		NetManager.send_match_input({"jump": true})
-	elif event.is_action_pressed(&"action_primary"):
-		NetManager.send_match_input({"jab": true})
-	elif event.is_action_pressed(&"action_secondary"):
-		NetManager.send_match_input({"smash": true})
 
 
 func _process(delta: float) -> void:
