@@ -1,6 +1,6 @@
 extends GutTest
-## The hat wardrobe catalog (#935): ids, prices, validation, and primitive
-## Node3D builders for the seed hats.
+## The hat wardrobe catalog (#935): ids, prices, validation, and the
+## generated-model Node3D builders (MDL-019/020/021).
 
 
 func test_none_is_free_and_valid() -> void:

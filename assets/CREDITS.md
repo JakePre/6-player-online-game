@@ -29,6 +29,9 @@ screen (task M7-04).
 
 | Mine Cart (MDL-013, #929 Cart Push) | `assets/generated/models/mine-cart.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Power Pellet (MDL-017, #954 Nom Arena) | `assets/generated/models/power-pellet.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
+| Party Cone Hat (MDL-019, #935 Hat Shop) | `assets/generated/models/hat-party-cone.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
+| Top Hat (MDL-020, #935 Hat Shop) | `assets/generated/models/hat-top-hat.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
+| Gold Crown (MDL-021, #935 Hat Shop) | `assets/generated/models/hat-crown.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 Import note for the four Kenney packs above (M8-02, `docs/adr/002-iso-arena-rendering.md`): only
 the `Models/GLB format/` (or `Models/GLTF format/` — same content, Kenney's
 older zip naming) subfolder was kept, flattened into the pack's asset
