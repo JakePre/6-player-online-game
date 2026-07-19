@@ -64,6 +64,29 @@ func test_mole_banner_only_with_private_role() -> void:
 	assert_true(banner.text.contains("MOLE"), "the private role flips the banner")
 
 
+## #958: the lights-out vignette shows for the crew, hides for the mole (full
+## vision, private-side), and only while the snapshot says the lights are out.
+func test_blackout_overlay_shows_for_crew_hides_for_mole() -> void:
+	var dark := {
+		"phase": TheMole.Phase.WORK,
+		"players": {0: [0.0, 0.0, 0]},
+		"cells": [],
+		"progress": 0,
+		"target": 10,
+		"blackout": true,
+	}
+	view.render(dark)
+	assert_true(view._blackout_overlay.visible, "the crew sees the dark")
+	view.private_state = {"role": "mole"}
+	view.render(dark)
+	assert_false(view._blackout_overlay.visible, "the mole keeps full vision")
+	view.private_state = {}
+	var lit := dark.duplicate()
+	lit["blackout"] = false
+	view.render(lit)
+	assert_false(view._blackout_overlay.visible, "lights on -> no overlay")
+
+
 func test_spark_bursts_on_rising_edge_only() -> void:
 	view.render({"players": {}, "cells": [], "sparked": false})
 	var before: int = view.arena.get_child_count()

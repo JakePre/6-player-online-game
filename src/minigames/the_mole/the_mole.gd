@@ -34,6 +34,11 @@ const VOTE_CIRCLE_RADIUS_JITTER := 0.4
 const SABOTAGE_COOLDOWN_SEC := 6.0
 ## The unattributed tell: the machine sparks for this long after sabotage.
 const SPARK_SEC := 1.2
+## Blackout (#958): once per round the mole kills the lights for this long.
+## Every client's view darkens to a radius around its own rig and task progress
+## pauses; the mole keeps full vision (private-side only). When the lights come
+## back, where everyone stands is the accusation material.
+const BLACKOUT_SEC := 3.0
 const WORK_SEC := 60.0
 const VOTE_SEC := 12.0
 const REVEAL_SEC := 4.0
@@ -67,6 +72,11 @@ var cells: Array[Vector2] = []
 ## slot -> voted slot, recorded only during VOTE; self-votes are ignored.
 var votes := {}
 var caught := false
+## Blackout (#958): one charge per round; blackout_left > 0 while the lights
+## are out. Public that the lights are out (everyone renders dark) — never who
+## flipped the switch, so the shared snapshot leaks no role.
+var blackout_used := false
+var blackout_left := 0.0
 
 var _sabotage_cooldown := 0.0
 var _spark_left := 0.0
@@ -104,6 +114,11 @@ static func make_meta() -> MinigameMeta:
 				[
 					{"verb": "Move", "input": InputGlyphs.CLUSTER_MOVE},
 					{"verb": "Sabotage (mole) / cycle vote", "input": &"action_primary"},
+					{
+						"verb": "Blackout (mole)",
+						"input": &"action_secondary",
+						"note": "once per round — kill the lights"
+					},
 				],
 			}
 		)
@@ -125,7 +140,9 @@ func _setup() -> void:
 ## The one place the role exists outside the server until the reveal (#254).
 func get_private_snapshot(slot: int) -> Dictionary:
 	if slot == mole and phase != Phase.REVEAL:
-		return {"role": "mole"}
+		# blackout_ready is private-side too (#958): only the mole learns whether
+		# the charge is still in hand, so the shared snapshot never hints at it.
+		return {"role": "mole", "blackout_ready": not blackout_used}
 	return {}
 
 
@@ -142,6 +159,17 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 	move_dirs[slot] = dir.limit_length(1.0)
 	if data.get("act", false) and slot == mole:
 		_try_sabotage()
+	if data.get("blackout", false) and slot == mole:
+		_try_blackout()
+
+
+## Blackout (#958): the mole's once-per-round lights-out. A no-op once spent or
+## while already dark — the charge only arms a fresh 3s window.
+func _try_blackout() -> void:
+	if blackout_used or blackout_left > 0.0:
+		return
+	blackout_used = true
+	blackout_left = BLACKOUT_SEC
 
 
 func _try_sabotage() -> void:
@@ -170,13 +198,18 @@ func _tick(delta: float) -> void:
 func _tick_work(delta: float) -> void:
 	_sabotage_cooldown = maxf(_sabotage_cooldown - delta, 0.0)
 	_spark_left = maxf(_spark_left - delta, 0.0)
+	blackout_left = maxf(blackout_left - delta, 0.0)
 	for slot: int in slots:
 		var pos: Vector2 = positions[slot] + move_dirs[slot] * MOVE_SPEED * delta
 		positions[slot] = pos.clamp(
 			Vector2(-ARENA_HALF, -ARENA_HALF), Vector2(ARENA_HALF, ARENA_HALF)
 		)
-	_pickups()
-	_deliveries()
+	# Blackout (#958): task progress pauses while the lights are out — everyone
+	# is fumbling in the dark. Movement still resolves so the reveal catches the
+	# repositioning; only pickups and deliveries freeze.
+	if blackout_left <= 0.0:
+		_pickups()
+		_deliveries()
 	_wave_accum += delta
 	if _wave_accum >= CELL_WAVE_SEC:
 		_wave_accum -= CELL_WAVE_SEC
@@ -284,6 +317,9 @@ func get_snapshot() -> Dictionary:
 		"progress": progress,
 		"target": CELL_TARGET,
 		"sparked": _spark_left > 0.0,
+		# Public that the lights are out (every client darkens) — never who did
+		# it, so no role leaks through the shared snapshot (#254/#958).
+		"blackout": blackout_left > 0.0,
 		"players": players,
 		"cells": cell_list,
 		"votes_in": votes.size(),
