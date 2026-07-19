@@ -35,6 +35,11 @@ const PS_SCORE := 2
 ## (a bool) before lock-in was removed (#799).
 const PS_ANSWER := 3
 const PS_COUNT := 4
+## #946 wire-shape tripwire: the declared type of each slot in a `players`
+## snapshot row. Validated by test_snapshot_schema against get_snapshot().
+## PS_ANSWER is a plain int at every phase (-1 or a pad value) since #799
+## removed the lock-in bool it used to conditionally become.
+const PLAYER_SCHEMA := [TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT]
 
 const SW_X := 0
 const SW_Y := 1
