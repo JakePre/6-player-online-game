@@ -112,6 +112,10 @@ func _mood() -> Color:
 	return Color(0.2, 0.15, 0.12).lerp(FOUNTAIN_COLOR, 0.25)
 
 
+## formula-twin — must mirror KingOfTheHill._setup (scaled _play_half). The sim
+## derives _play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size());
+## this view re-derives the same value. If the scaling formula changes in the
+## sim but not here, the rendered floor/camera will mismatch the sim's arena.
 func _arena_half() -> float:
 	# Grow the framed floor with the lobby to match the sim's scaled play area
 	# (M15, ADR 003 F4); at <=6 players this is the tuned KingOfTheHill.ARENA_HALF.

@@ -91,6 +91,11 @@ func _estimate_grid() -> int:
 	return roundi(ThinIce.GRID_SIZE * sqrt(MinigameScaling.growth(names.size())))
 
 
+## shared-static — the grid size is derived from the ThinIce.GRID_SIZE const
+## (same as the sim), but the view's _estimate_grid re-derives it from the
+## tile layout rather than reading from the snapshot. If the grid formula
+## changes in the sim (e.g. GRID_SIZE or TILE_SIZE), the view's floor grid
+## will silently diverge from the sim's ice grid.
 func _arena_half() -> float:
 	return _view_half if _view_half > 0.0 else _estimate_grid() * ThinIce.TILE_SIZE / 2.0
 

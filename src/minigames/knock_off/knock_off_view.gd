@@ -76,6 +76,10 @@ func _ready() -> void:
 	_hud = make_sidescroll_hud()
 
 
+## shared-static — calls KnockOff.solid_platforms()/one_way_platforms()/
+## stage_bounds(). Safe today (these return genuinely static geometry). If
+## the platform layout ever becomes seeded or sim-tweakable (the Putt Panic
+## bug class, #971), this must switch to reading stage data from the snapshot.
 func _setup() -> void:
 	setup_stage(KnockOff.solid_platforms(), KnockOff.one_way_platforms(), KnockOff.stage_bounds())
 

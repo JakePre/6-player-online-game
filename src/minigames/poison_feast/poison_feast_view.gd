@@ -122,6 +122,10 @@ func _mood() -> Color:
 	return Color(0.2, 0.12, 0.08).lerp(Color(0.45, 0.25, 0.12), 0.3)
 
 
+## formula-twin — must mirror PoisonFeast._setup (scaled _play_half). The sim
+## derives _play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size());
+## this view re-derives the same value. If the scaling formula changes in the
+## sim but not here, the rendered floor/camera will mismatch the sim's arena.
 func _arena_half() -> float:
 	# Sim and view derive the same play size from the lobby count via the
 	# shared base const, so the rendered floor/camera match the scaled arena.

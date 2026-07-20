@@ -118,6 +118,10 @@ func _floor_tint() -> Color:
 	return Color(0.78, 0.9, 1.0)
 
 
+## formula-twin — must mirror TreasureDivers._setup (scaled _play_half). The
+## sim derives _play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size());
+## this view re-derives the same value. If the scaling formula changes in the
+## sim but not here, the rendered floor/camera will mismatch the sim's arena.
 func _arena_half() -> float:
 	# Grow the framed floor with the lobby to match the sim's scaled play area
 	# (M15, ADR 003 F4); at <=6 players this is the tuned TreasureDivers.ARENA_HALF.

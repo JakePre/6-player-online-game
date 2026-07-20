@@ -99,11 +99,18 @@ func _build_floor() -> void:
 			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
 
 
+## formula-twin — must mirror LaserLimbo._setup (scaled ARENA_HALF). The sim
+## derives _play_half from the same MinigameScaling.arena_half call; changing
+## the scaling formula there without updating this function will cause the
+## rendered floor/camera to mismatch the sim's play area.
 func _arena_half() -> float:
 	# Sim and view derive the same scaled play size from the lobby count (M15).
 	return MinigameScaling.arena_half(LaserLimbo.ARENA_HALF, names.size())
 
 
+## formula-twin — must mirror LaserLimbo._gap_half(). The sim's gap width is a
+## fixed fraction of the arena; if that fraction changes or the gap scaling
+## formula diverges, the rendered survivable opening will not match the sim's.
 ## Gap half-width scaled to match the sim's `_gap_half` (same fraction of the
 ## arena), so the rendered opening lines up with the survivable band.
 func _gap_half() -> float:

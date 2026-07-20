@@ -166,6 +166,10 @@ func _build_floor() -> void:
 			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
 
 
+## formula-twin — must mirror MusicalPlatforms._setup (scaled _play_half). The
+## sim derives _play_half = MinigameScaling.arena_half(ARENA_HALF, slots.size());
+## this view re-derives the same value. If the scaling formula changes in the
+## sim but not here, the rendered floor/camera will mismatch the sim's arena.
 func _arena_half() -> float:
 	# Grow the framed floor with the lobby to match the sim's scaled play area
 	# (M15, ADR 003 F4); at <=6 players this is the tuned MusicalPlatforms.ARENA_HALF.

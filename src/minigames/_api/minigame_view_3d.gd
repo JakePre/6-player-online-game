@@ -463,6 +463,13 @@ func update_cooldown_ring(
 
 ## World half-extent of the arena floor/camera framing. Override to match the
 ## minigame's own arena size (e.g. CoinScramble.ARENA_HALF).
+##
+## CAVEAT (shared-static, #971): most overrides read a *static* const from the
+## sim class (e.g. `return Game.ARENA_HALF`). This is safe today but is a
+## tripwire: if that const's meaning changes, or if the arena size becomes
+## seeded/sim-tweakable (the Putt Panic bug class), the view will silently
+## diverge from the sim. When that happens, this value must be read from the
+## snapshot instead.
 func _arena_half() -> float:
 	return 10.0
 

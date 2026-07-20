@@ -66,9 +66,14 @@ func _ensure_chrome() -> void:
 	resized.connect(_layout_crumble)
 
 
+## shared-static — calls TumbleRun.solid_platforms()/ledges()/stage_bounds().
+## Safe today (static layout). If the layout ever becomes seeded or
+## sim-tweakable (#971), this must switch to reading stage data from the
+## snapshot. Also note: crumble ledges are rebuilt per tick (one-way changes
+## with state), so the solid data IS static but the one-way set is dynamic
+## — already driven by snapshot state, not consts.
 func _setup() -> void:
 	# The base draws solids + one-way from the sim's static layout; the
-	# always-solid floor and summit go through it, plus the full ledge
 	# ladder. Crumble ledges get their own toggleable panels on top.
 	# Order matters: setup_stage() builds the base layers (bottom), then
 	# _ensure_chrome() puts the fx layer + HUD on top of them.

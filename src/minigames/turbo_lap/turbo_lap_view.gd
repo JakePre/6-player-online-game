@@ -108,6 +108,10 @@ func _mood() -> Color:
 	return Color(0.35, 0.22, 0.12)
 
 
+## shared-static — calls TurboLap.course_bound() + TRACK_HALF_WIDTH. Safe today
+## (course geometry is static data). If the waypoints ever become seeded or
+## sim-tweakable (like the Putt Panic bug class, #971), this must switch to
+## reading the course bounds from the snapshot instead.
 func _arena_half() -> float:
 	# The shaped course (#785) can reach past TRACK_RX, so size to its real extent.
 	return TurboLap.course_bound() + TurboLap.TRACK_HALF_WIDTH + 1.0

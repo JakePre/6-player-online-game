@@ -84,6 +84,9 @@ func _ready() -> void:
 	resized.connect(_wall_layer.queue_redraw)
 
 
+## shared-static — calls LoadoutDuel.solid_platforms()/one_way_platforms()/
+## stage_bounds(). Safe today (static platform layout). If the layout ever
+## becomes seeded or sim-tweakable (#971), this must read from the snapshot.
 func _setup() -> void:
 	setup_stage(
 		LoadoutDuel.solid_platforms(), LoadoutDuel.one_way_platforms(), LoadoutDuel.stage_bounds()

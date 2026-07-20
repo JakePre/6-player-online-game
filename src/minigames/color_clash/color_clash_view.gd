@@ -52,6 +52,10 @@ var _tile_colors: Array = []
 ## This match's scaled grid dimension / arena size (M15 → 24). Derived from the
 ## head count with the sim's own helpers, so the tile mesh matches the grid
 ## the server paints without threading the size through the snapshot.
+## formula-twin — must mirror ColorClash._setup. The sim's grid_dim and
+## arena_half are derived from ColorClash.grid_dim_for()/arena_half_for() with
+## the same MinigameScaling.growth factor; if that scaling formula changes in
+## the sim but not here, the tile grid will not match the sim's paint area.
 var _dim := ColorClash.GRID_SIZE
 var _half := ColorClash.ARENA_HALF
 # M13-21 FX state: last-seen tile owners for splat diffing, tile counts for
@@ -91,6 +95,10 @@ func _build_floor() -> void:
 			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
 
 
+## formula-twin — must mirror ColorClash._setup (grid_dim + arena_half derived
+## from grid_dim_for/arena_half_for). If the scaling formula changes in the
+## sim but not here, the rendered floor and tile grid will not match the sim's
+## paint area.
 func _arena_half() -> float:
 	return ColorClash.arena_half_for(names.size()) + 1.0
 

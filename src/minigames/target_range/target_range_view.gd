@@ -104,6 +104,11 @@ func _floor_tint() -> Color:
 	return Color(1.0, 0.9, 0.74)
 
 
+## formula-twin — must mirror TargetRange._setup (arena_half_for =
+## MinigameScaling.arena_half). The sim derives arena_half = arena_half_for(
+## slots.size()); this view re-derives from the same helper. If the scaling
+## formula changes in the sim but not here, the rendered floor/camera will
+## mismatch the sim's target area.
 func _arena_half() -> float:
 	return TargetRange.arena_half_for(names.size())
 

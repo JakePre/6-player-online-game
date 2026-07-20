@@ -60,6 +60,11 @@ func _floor_tint() -> Color:
 	return Color(1.0, 0.92, 0.78)
 
 
+## formula-twin — must mirror BullseyeBowl._setup. The sim's arena is derived
+## from the same consts + MinigameScaling.growth; this view re-derives the
+## camera framing from the same formula. If the growth or lane-length constants
+## change in the sim but not here, the camera framing will not match the sim's
+## lane layout.
 func _arena_half() -> float:
 	return BullseyeBowl.LANE_LENGTH * 0.75 * MinigameScaling.growth(names.size())
 
