@@ -14,12 +14,18 @@ const START_COLOR := Color(0.96, 0.79, 0.2)
 const RAIL_COLOR := Color(0.86, 0.88, 0.94)
 const RAIL_HEIGHT := 0.4
 const RAIL_WIDTH := 0.28
-## Procedural start/finish gate (#1041): the generated finish-arch.glb renders
-## as malformed geometry (a lumpy 6.45u-tall blob that dominates the arena), so
-## the arch is built from primitives — two posts spanning the track under a gold
-## banner beam — sized to the track width. See IMAGE_REQUESTS for the asset re-roll.
-const ARCH_POST_COLOR := Color(0.24, 0.25, 0.3)
-const ARCH_POST_HEIGHT := 2.4
+## Start/finish gate (#1041, MDL-022): the re-rolled finish-arch.glb — two
+## short gold pylons under a wood-plank checkered banner, pivot at base
+## center. The original MDL-006 build rendered as a malformed blob (a lumpy
+## 6.45u-tall mass); MDL-022 fixes it AND ships a leading-indicator lesson:
+## its texture-stage xatlas UV-split fragmented the exported mesh into
+## hundreds of disconnected patches that still LOOKED solid in every preview
+## (component count is the tell — see the pipeline-side writeup). Scaled
+## uniformly so its own ~4.5u span matches the track's dynamic width exactly.
+const ARCH_SCENE := preload("res://assets/generated/models/finish-arch.glb")
+## The model's own span at its baked scale (bbox X-extent) — divide the
+## track's dynamic span by this to size the instance correctly.
+const ARCH_MODEL_SPAN := 4.5
 ## The MDL-015 go-kart (#956): authored neutral grey/white exactly so the view
 ## can tint the whole body to the player color at runtime (its ledger contract).
 ## Base pivot, wheels on the ground; nose points -Z in the GLB.
@@ -192,31 +198,18 @@ func _offset_loop(points: PackedVector2Array, dist: float) -> PackedVector2Array
 	return out
 
 
-## A clean start/finish gate from primitives (#1041): two posts straddling the
-## track under a gold banner beam, replacing the malformed finish-arch.glb blob.
+## Start/finish gate (#1041, MDL-022): the generated ARCH_SCENE straddling
+## the track, uniformly scaled so its own span matches the track's dynamic
+## width. Local Z is across-track (the ribbon strips lay their width on Z),
+## but the model's span is baked along its own local X, so it's rotated 90°
+## to line the posts up across the lane like the old primitive gate did.
 func _build_finish_arch(at: Vector2, heading: float) -> void:
-	var arch := Node3D.new()
+	var span := TurboLap.TRACK_HALF_WIDTH * 2.0 + 0.6
+	var arch := ARCH_SCENE.instantiate() as Node3D
 	arch.name = "FinishArch"
 	arch.position = Vector3(at.x, 0.0, at.y)
-	arch.rotation.y = -heading
-	var span := TurboLap.TRACK_HALF_WIDTH * 2.0 + 0.6
-	for side: float in [-1.0, 1.0]:
-		var post := MeshInstance3D.new()
-		var pm := BoxMesh.new()
-		pm.size = Vector3(0.3, ARCH_POST_HEIGHT, 0.3)
-		pm.material = _flat_material(ARCH_POST_COLOR)
-		post.mesh = pm
-		# Local Z is across-track (the strips lay their width on Z), so the posts
-		# straddle the lane at ±half the span.
-		post.position = Vector3(0.0, ARCH_POST_HEIGHT / 2.0, side * span / 2.0)
-		arch.add_child(post)
-	var beam := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.4, 0.5, span)
-	bm.material = _flat_material(START_COLOR)
-	beam.mesh = bm
-	beam.position = Vector3(0.0, ARCH_POST_HEIGHT + 0.25, 0.0)
-	arch.add_child(beam)
+	arch.rotation.y = -heading + PI / 2.0
+	arch.scale = Vector3.ONE * (span / ARCH_MODEL_SPAN)
 	arena.add_child(arch)
 
 

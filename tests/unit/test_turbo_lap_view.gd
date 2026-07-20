@@ -46,12 +46,15 @@ func test_edge_rails_form_two_closed_loops() -> void:
 	assert_not_null(view.arena.get_node("RailIn%d" % (TurboLap.WAYPOINT_COUNT - 1)))
 
 
-## #1041: the malformed finish-arch.glb blob is replaced by a procedural gate —
-## two posts plus a banner beam under the "FinishArch" root.
-func test_finish_arch_is_a_procedural_gate() -> void:
+## #1041/MDL-022: the malformed original finish-arch.glb blob was re-rolled;
+## the "FinishArch" root now instances the fixed generated model, sized to
+## the track's dynamic span (the model's own baked span is 4.5u).
+func test_finish_arch_is_the_generated_gate() -> void:
 	var arch: Node3D = view.arena.get_node("FinishArch")
 	assert_not_null(arch, "finish gate exists")
-	assert_eq(arch.get_child_count(), 3, "two posts + a banner beam")
+	var span := TurboLap.TRACK_HALF_WIDTH * 2.0 + 0.6
+	assert_almost_eq(arch.scale.x, span / 4.5, 0.001, "scaled to the track's span")
+	assert_gt(arch.get_child_count(), 0, "the generated scene instanced children")
 
 
 ## The gap-free offset keeps the inner rail inside the centerline and the outer

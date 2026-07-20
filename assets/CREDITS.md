@@ -18,7 +18,7 @@ screen (task M7-04).
 | Dodgeball (MDL-003, #791 Dodgeball) | `assets/generated/models/dodgeball.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Castle Gate (MDL-004, #808 Fort Siege) | `assets/generated/models/castle-gate.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Castle Wall Segment (MDL-005, #808 Fort Siege) | `assets/generated/models/castle-wall-segment.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
-| Finish Arch (MDL-006, #785 Turbo Lap) | `assets/generated/models/finish-arch.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
+| Finish Arch (MDL-022, re-roll of MDL-006, #1041 Turbo Lap) | `assets/generated/models/finish-arch.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Track Barrier (MDL-007, #785 Turbo Lap) | `assets/generated/models/track-barrier.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Golf Flagstick (MDL-008, #793 Putt Panic) | `assets/generated/models/golf-flagstick.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
 | Hill Crest (MDL-010, #919 King of the Hill) | `assets/generated/models/hill-crest.glb` | owner-generated (via Modly) | CC0 1.0 (original) | — |
