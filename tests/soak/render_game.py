@@ -22,7 +22,10 @@ Usage:
     python tests/soak/render_game.py --godot path/to/godot --game coin_scramble
     python tests/soak/render_game.py --godot path/to/godot --game bey_brawl \
         --bots 5 --duration 30 --capture movie --out renders/
-Exit code 0 = a video file exists at the printed path.
+    python tests/soak/render_game.py --godot path/to/godot --game bey_brawl \
+        --bots 5 --duration 30 --capture movie --stills-only --contact-frame frame.png
+Exit code 0 = a video file exists at the printed path, or a contact frame when
+--stills-only is set.
 """
 
 from __future__ import annotations
@@ -164,6 +167,11 @@ def main() -> int:
         help="force Mesa software GL (CI runners without a GPU)",
     )
     parser.add_argument(
+        "--stills-only",
+        action="store_true",
+        help="skip video output: capture a short clip just for the --contact-frame PNG",
+    )
+    parser.add_argument(
         "--contact-frame",
         default=None,
         help="also write one mid-round PNG here (for the #933 contact sheet)",
@@ -178,7 +186,11 @@ def main() -> int:
         )
     os.makedirs(args.out, exist_ok=True)
     final_path = os.path.join(args.out, f"{args.game}.mp4")
-    budget = LEAD_IN_SEC + args.duration + LEAD_OUT_SEC
+    if args.stills_only:
+        # Still images don't need the full round + results payout.
+        budget = LEAD_IN_SEC + min(args.duration * 0.4, 12) + 3
+    else:
+        budget = LEAD_IN_SEC + args.duration + LEAD_OUT_SEC
 
     server_log: list[str] = []
     server = start(
@@ -250,7 +262,10 @@ def main() -> int:
             except subprocess.TimeoutExpired:
                 recorder.kill()
         elif os.path.exists(movie_path):
-            if convert_to_mp4(movie_path, final_path):
+            if args.stills_only:
+                # Keep the raw avi — we only need it for frame extraction.
+                final_path = movie_path
+            elif convert_to_mp4(movie_path, final_path):
                 pass
             else:
                 final_path = movie_path
@@ -259,25 +274,30 @@ def main() -> int:
                 "(see render_game.py docstring)"
             )
 
-        if not os.path.exists(final_path) or os.path.getsize(final_path) == 0:
-            print(f"FAIL: no video at {final_path}")
-            return 1
-        print(f"RENDER OK {final_path} ({os.path.getsize(final_path) // 1024} KiB)")
-
-        # #933: report how long the bot round actually lasted (machine-readable
-        # for the contact-sheet red flag), and drop a mid-round frame if asked.
+        # Round elapsed report.
         time.sleep(0.5)                            # let the drain thread catch up
         rd = parse_round_elapsed(server_log)
         if rd is not None:
             print(f"ROUND_ELAPSED game={args.game} elapsed={rd[0]:.2f} duration={rd[1]:.2f}")
         else:
             print(f"ROUND_ELAPSED game={args.game} elapsed=unknown duration={args.duration:.2f}")
+        # Extract the contact frame from whatever capture file we have.
         if args.contact_frame:
             if extract_contact_frame(final_path, args.contact_frame):
                 print(f"CONTACT_FRAME {args.contact_frame}")
             else:
                 print("note: could not extract a contact frame (ffmpeg/ffprobe?)")
-        return 0
+        # Success check depends on mode.
+        if args.stills_only:
+            if not args.contact_frame or not os.path.exists(args.contact_frame) or os.path.getsize(args.contact_frame) == 0:
+                print("FAIL: --stills-only requires --contact-frame and a successful extraction")
+                return 1
+            print(f"STILL OK {args.contact_frame} ({os.path.getsize(args.contact_frame) // 1024} KiB)")
+        else:
+            if not os.path.exists(final_path) or os.path.getsize(final_path) == 0:
+                print(f"FAIL: no video at {final_path}")
+                return 1
+            print(f"RENDER OK {final_path} ({os.path.getsize(final_path) // 1024} KiB)")
     finally:
         for proc in procs:
             if proc.poll() is None:
