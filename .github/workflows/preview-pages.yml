@@ -86,6 +86,9 @@ jobs:
           retention-days: 30
 
   assemble:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     name: Assemble and deploy
     needs: render
     runs-on: ubuntu-latest
