@@ -14,6 +14,9 @@
 #     # solo-play one minigame round for view/UX iteration. Requires
 #     # scripts/dev-server.sh --debug-rpcs (see its usage comment). Add
 #     # --address=/--port=/--name= to point elsewhere or rename the player.
+#   scripts/dev-client.sh --compat   # use OpenGL compatibility renderer
+#     # (for VMs/CI without Vulkan; adds --rendering-method gl_compatibility
+#     # --rendering-driver opengl3 to the Godot launch flags)
 #
 # Godot binary resolution: $GODOT env var, then `godot4`/`godot` on PATH,
 # then the macOS app bundle default install location.
@@ -41,5 +44,17 @@ if [[ -z "$GODOT_BIN" ]]; then
 	exit 1
 fi
 
+# Check for --compat flag: use OpenGL compatibility renderer instead of Vulkan
+# (needed in VMs/CI with virtio-gpu or other software renderers).
+RENDERER_FLAGS=()
+ARGS=()
+for arg in "$@"; do
+	if [[ "$arg" == "--compat" ]]; then
+		RENDERER_FLAGS=("--rendering-method" "gl_compatibility" "--rendering-driver" "opengl3")
+	else
+		ARGS+=("$arg")
+	fi
+done
+
 echo "using Godot binary: $GODOT_BIN"
-exec "$GODOT_BIN" --path . -- "$@"
+exec "$GODOT_BIN" "${RENDERER_FLAGS[@]}" --path . -- "${ARGS[@]}"
