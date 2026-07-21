@@ -27,6 +27,26 @@ const BLAST_COLOR := Color(0.95, 0.35, 0.15)
 ## Fuse-critical warning (#728): matches BombCourierBrain.DUMP_THRESHOLD, the
 ## same "worth dumping instead of risking it" point the bots already play to.
 const ALARM_FUSE_SEC := 1.5
+const STONE_FLOOR := preload("res://assets/generated/textures/stone-pavers.png")
+## City backdrop (#1122): Kenney City Kit Commercial low-detail buildings as
+## rim props around the arena perimeter for an urban courier feel.
+const RIM_BUILDINGS: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-a.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-b.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-c.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-d.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-e.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-f.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-g.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-h.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-i.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-j.glb"),
+]
+const RIM_PROP_COUNT := 20
+const RIM_PROP_SEED := 45260
+## Zone structure models (#1122): crate stack at Pile, desk at Depot, panel at Defuse.
+const CRATE_PROP := preload("res://assets/environment/kenney_platformer_kit/crate.glb")
+const CRATE_ITEM := preload("res://assets/environment/kenney_platformer_kit/crate-item.glb")
 
 var players := {}
 var pile: Array = []
@@ -54,6 +74,23 @@ func _process(delta: float) -> void:
 	_trail_fuse_sparks(delta)
 
 
+## Street texture (#1122): replace the flat tinted floor with IMG-053 stone
+## pavers for an urban street feel, giving the bomb-run arena a grounded
+## city look instead of the default grey tile.
+func _build_floor() -> void:
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(_arena_half() * 2.0, _arena_half() * 2.0)
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = STONE_FLOOR
+	material.albedo_color = Color(1.0, 0.92, 0.85)
+	mesh.material = material
+	var floor_node := MeshInstance3D.new()
+	floor_node.name = "Floor"
+	floor_node.mesh = mesh
+	floor_node.position.y = -0.01
+	arena.add_child(floor_node)
+
+
 ## Ember-warm floor for the lit-fuse sprint (#589).
 func _floor_tint() -> Color:
 	return Color(1.0, 0.86, 0.75)
@@ -67,6 +104,8 @@ func _setup_3d() -> void:
 	_build_zone("Pile", BombCourier.PILE_POS, PILE_COLOR)
 	_build_zone("Depot", BombCourier.DEPOT_POS, DEPOT_COLOR)
 	_build_zone("Defuse", BombCourier.DEFUSE_POS, DEFUSE_COLOR)
+	_build_zone_structures()
+	scatter_rim_props(RIM_BUILDINGS, RIM_PROP_COUNT, RIM_PROP_SEED)
 	_score_label = make_status_label(&"HintLabel")
 	_score_label.text = "Pile → Depot before it blows!"
 
@@ -282,3 +321,108 @@ func _build_zone_label(node_name: String, pos: Vector2, color: Color) -> void:
 	label.modulate = color.lightened(0.4)
 	label.position = to_arena(pos, 1.4)
 	arena.add_child(label)
+
+
+## Decorative structures on top of each zone ring (#1122) so the three
+## functional areas read as real places, not just colored floor rings.
+func _build_zone_structures() -> void:
+	_build_pile_structure(BombCourier.PILE_POS)
+	_build_depot_structure(BombCourier.DEPOT_POS)
+	_build_defuse_structure(BombCourier.DEFUSE_POS)
+
+
+## Pile zone: a small stack of wooden crates at the spawn point — two crates
+## side-by-side with a third on top, read as the package staging area.
+func _build_pile_structure(pos: Vector2) -> void:
+	var stack := Node3D.new()
+	stack.name = "PileStructure"
+	# Bottom layer: two crates side by side.
+	for side in [-1, 1]:
+		var crate: Node3D = CRATE_PROP.instantiate()
+		crate.position = Vector3(side * 0.5, 0.0, 0.0)
+		stack.add_child(crate)
+	# Top crate, rotated 45° and raised.
+	var top: Node3D = CRATE_ITEM.instantiate()
+	top.position = Vector3(0.0, 0.7, 0.0)
+	top.rotation.y = PI / 4.0
+	stack.add_child(top)
+	stack.position = to_arena(pos, 0.0)
+	arena.add_child(stack)
+
+
+## Depot zone: a delivery desk — a wooden plank surface on two legs, with
+## a small label reading "DELIVER HERE".
+func _build_depot_structure(pos: Vector2) -> void:
+	var desk := Node3D.new()
+	desk.name = "DepotStructure"
+	# Table top.
+	var top := MeshInstance3D.new()
+	var tmesh := BoxMesh.new()
+	tmesh.size = Vector3(1.8, 0.06, 0.9)
+	var tmat := StandardMaterial3D.new()
+	tmat.albedo_color = Color(0.55, 0.4, 0.25)
+	tmesh.material = tmat
+	top.mesh = tmesh
+	top.position = Vector3(0.0, 1.0, 0.0)
+	desk.add_child(top)
+	# Two legs.
+	for side in [-0.75, 0.75]:
+		var leg := MeshInstance3D.new()
+		var lmesh := CylinderMesh.new()
+		lmesh.top_radius = 0.06
+		lmesh.bottom_radius = 0.06
+		lmesh.height = 0.95
+		var lmat := StandardMaterial3D.new()
+		lmat.albedo_color = Color(0.35, 0.25, 0.15)
+		lmesh.material = lmat
+		leg.mesh = lmesh
+		leg.position = Vector3(side, 0.475, 0.0)
+		desk.add_child(leg)
+	desk.position = to_arena(pos, 0.0)
+	arena.add_child(desk)
+
+
+## Defuse zone: a control panel — a dark box with a glowing green button
+## on top, reading as the defuse terminal.
+func _build_defuse_structure(pos: Vector2) -> void:
+	var panel := Node3D.new()
+	panel.name = "DefuseStructure"
+	# Panel base.
+	var base := MeshInstance3D.new()
+	var bmesh := BoxMesh.new()
+	bmesh.size = Vector3(1.0, 0.6, 0.6)
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = Color(0.2, 0.22, 0.25)
+	bmesh.material = bmat
+	base.mesh = bmesh
+	base.position = Vector3(0.0, 0.3, 0.0)
+	panel.add_child(base)
+	# Glowing button on top.
+	var button := MeshInstance3D.new()
+	var smesh := SphereMesh.new()
+	smesh.radius = 0.12
+	smesh.height = 0.24
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = DEFUSE_COLOR
+	smat.emission_enabled = true
+	smat.emission = DEFUSE_COLOR
+	smat.emission_energy_multiplier = 0.8
+	smesh.material = smat
+	button.mesh = smesh
+	button.position = Vector3(0.0, 0.65, 0.0)
+	panel.add_child(button)
+	# Small screen panel on the front.
+	var screen := MeshInstance3D.new()
+	var scmesh := BoxMesh.new()
+	scmesh.size = Vector3(0.5, 0.25, 0.03)
+	var scmat := StandardMaterial3D.new()
+	scmat.albedo_color = Color(0.05, 0.08, 0.1)
+	scmat.emission_enabled = true
+	scmat.emission = Color(0.0, 0.4, 0.15)
+	scmat.emission_energy_multiplier = 0.3
+	scmesh.material = scmat
+	screen.mesh = scmesh
+	screen.position = Vector3(0.0, 0.35, -0.32)
+	panel.add_child(screen)
+	panel.position = to_arena(pos, 0.0)
+	arena.add_child(panel)
