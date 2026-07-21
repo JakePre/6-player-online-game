@@ -10,6 +10,9 @@ extends MinigameView3D
 ## height driven by the replicated time-left so the fall is perfectly synced
 ## with the sim. Landings fire an impact burst + dust; knockdowns burst at
 ## the rig. Impacts shake the screen.
+##
+## GFX pass (#1146): ember-rock floor texture, ash particles, lava glow ring,
+## camera flash on impact, and pooled crater decals at landing positions.
 
 const ZONE_DISC_HEIGHT := 0.04
 ## Physical safe-zone platform (#918): keeps the #813 open-grass-field feel as
@@ -17,6 +20,10 @@ const ZONE_DISC_HEIGHT := 0.04
 ## (discs, rigs, meteors) is unchanged. Crumble dust rings the rim it sheds.
 const PLATFORM_THICKNESS := 0.4
 const PLATFORM_COLOR := Color(0.47, 0.72, 0.36)
+## Ember-rock floor texture (#1146): volcanic rock with glowing orange cracks,
+## matching the "hot doom from above" theme. UV-scaled to tile naturally on
+## the shrinking cylinder platform.
+const EMBER_FLOOR := preload("res://assets/generated/textures/ember-rock.png")
 const CRUMBLE_PUFFS := 6
 ## Shrink telegraph (#583, Gauntlet convention): the band about to shed
 ## reddens as the countdown closes; slow pulse, steady under reduced motion.
@@ -33,6 +40,24 @@ const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
 const METEOR_SCENE := preload("res://assets/generated/models/meteor.glb")
 const METEOR_DROP_HEIGHT := 14.0
 const METEOR_TRAIL_COLOR := Color(1.0, 0.55, 0.15, 0.7)
+## Ash particle system (#1146): gentle falling ash throughout the match,
+## building the volcanic atmosphere. Dark grey quads, slow descent.
+const ASH_COLOR := Color(0.35, 0.33, 0.3, 0.25)
+const ASH_AMOUNT := 40
+const ASH_FALL_SPEED := 1.2
+const ASH_LIFETIME := 6.0
+## Lava glow ring (#1146): a warm orange-red glow from below the platform rim,
+## giving the safe zone a volcanic underlight and reinforcing "danger below."
+const LAVA_GLOW_COLOR := Color(0.9, 0.25, 0.08, 0.18)
+## Screen flash (#1146): brief white alpha overlay on meteor impact, adding
+## visceral punch to the "hot doom from above" feel.
+const FLASH_COLOR := Color(1.0, 0.95, 0.85, 0.35)
+const FLASH_DECAY_SEC := 0.25
+## Crater decal pool size (#1146): dark scorched discs left where meteors land,
+## fading over several seconds so the battlefield tells a story.
+const CRATER_POOL := 20
+const CRATER_FADE_SEC := 6.0
+const CRATER_COLOR := Color(0.15, 0.1, 0.06, 0.6)
 const IMPACT_BURST_COLOR := Color(1.0, 0.5, 0.1)
 
 ## Latest replicated state, straight from MeteorShower.get_snapshot().
@@ -51,6 +76,13 @@ var _shrink_telegraph_mat: StandardMaterial3D
 var _shrink_base_alpha := SHRINK_TELEGRAPH_MIN_ALPHA
 var _telegraph_pool: Array[MeshInstance3D] = []
 var _meteor_pool: Array[Node3D] = []
+var _ash_particles: CPUParticles3D
+var _lava_glow: MeshInstance3D
+var _lava_glow_mesh: TorusMesh
+var _flash_overlay: ColorRect
+var _flash_alpha := 0.0
+var _crater_pool: Array[MeshInstance3D] = []
+var _active_craters: Array[Dictionary] = []
 # [x, y, left] rows from the previous snapshot, to spot landings.
 var _meteors_seen: Array = []
 var _downed := {}  # slot (int) -> true, once the ko pose + dim have been applied
@@ -64,9 +96,9 @@ func _physics_process(_delta: float) -> void:
 
 
 ## The floor IS the safe zone now (#918): a grass island that sheds a band per
-## shrink stage, replacing the #813 square field + faint ring (the grass feel
-## stays — it's the platform's color). Own floor, no tiled base (the
-## thin_ice/memory_match pattern; no super call).
+## shrink stage, replacing the #813 square field + faint ring. Now textured
+## with ember-rock and ringed by a lava glow (#1146). Own floor, no tiled base
+## (the thin_ice/memory_match pattern; no super call).
 func _build_floor() -> void:
 	var start_radius := MinigameScaling.arena_half(MeteorShower.ZONE_START_RADIUS, names.size())
 	_last_radius = start_radius
@@ -75,7 +107,9 @@ func _build_floor() -> void:
 	_platform_mesh.top_radius = start_radius
 	_platform_mesh.bottom_radius = start_radius
 	var material := StandardMaterial3D.new()
-	material.albedo_color = PLATFORM_COLOR
+	material.albedo_texture = EMBER_FLOOR
+	material.albedo_color = Color(0.85, 0.7, 0.55)
+	material.uv1_scale = Vector3(3.0, 3.0, 1.0)
 	_platform_mesh.material = material
 	_platform = MeshInstance3D.new()
 	_platform.name = "ZonePlatform"
@@ -83,6 +117,25 @@ func _build_floor() -> void:
 	# Top seats at y=0, like the tiled floor it replaces.
 	_platform.position = Vector3(0.0, -PLATFORM_THICKNESS / 2.0, 0.0)
 	arena.add_child(_platform)
+
+	# Lava glow ring below the platform bottom (#1146).
+	_lava_glow_mesh = TorusMesh.new()
+	_lava_glow_mesh.inner_radius = start_radius * 0.85
+	_lava_glow_mesh.outer_radius = start_radius * 1.02
+	var glow_mat := StandardMaterial3D.new()
+	glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glow_mat.albedo_color = LAVA_GLOW_COLOR
+	glow_mat.emission_enabled = true
+	glow_mat.emission = Color(LAVA_GLOW_COLOR, 1.0)
+	glow_mat.emission_energy_multiplier = 2.0
+	_lava_glow_mesh.material = glow_mat
+	_lava_glow = MeshInstance3D.new()
+	_lava_glow.name = "LavaGlow"
+	_lava_glow.mesh = _lava_glow_mesh
+	# Just below the platform's bottom face.
+	_lava_glow.position = Vector3(0.0, -PLATFORM_THICKNESS - 0.05, 0.0)
+	arena.add_child(_lava_glow)
 
 	_shrink_telegraph_mesh = TorusMesh.new()
 	_shrink_telegraph_mesh.inner_radius = maxf(start_radius - 0.1, 0.05)
@@ -109,12 +162,57 @@ func _arena_half() -> float:
 	return MinigameScaling.arena_half(MeteorShower.ARENA_HALF, names.size())
 
 
+## Warm-dark volcanic mood (#1146): pushes the party-stadium shell toward a
+## hot-orange atmosphere, matching the ember-rock floor and meteor theme.
+func _mood() -> Color:
+	return Color(0.3, 0.15, 0.1)
+
+
 func _setup_3d() -> void:
 	for i in TELEGRAPH_POOL:
 		var marker := _build_disc("Telegraph%d" % i, TELEGRAPH_COLOR)
 		marker.visible = false
 		_telegraph_pool.append(marker)
 		_meteor_pool.append(_build_meteor(i))
+
+	# Ash particle system (#1146): gentle falling ash throughout the match.
+	_ash_particles = CPUParticles3D.new()
+	_ash_particles.name = "AshParticles"
+	_ash_particles.one_shot = false
+	_ash_particles.emitting = false
+	_ash_particles.amount = ASH_AMOUNT
+	_ash_particles.lifetime = ASH_LIFETIME
+	_ash_particles.color = ASH_COLOR
+	_ash_particles.direction = Vector3.DOWN
+	_ash_particles.spread = 45.0
+	_ash_particles.gravity = Vector3(0.0, -ASH_FALL_SPEED, 0.0)
+	_ash_particles.initial_velocity_min = 0.3
+	_ash_particles.initial_velocity_max = 0.6
+	_ash_particles.scale_amount_min = 0.5
+	_ash_particles.scale_amount_max = 1.5
+	_ash_particles.orbit_velocity = 0.2
+	var ash_mesh := QuadMesh.new()
+	ash_mesh.size = Vector2(0.08, 0.08)
+	_ash_particles.mesh = ash_mesh
+	# Emit from a wide disc above the arena.
+	_ash_particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	_ash_particles.emission_sphere_radius = _arena_half() * 1.2
+	_ash_particles.position.y = _arena_half() * 0.6
+	arena.add_child(_ash_particles)
+
+	# Camera flash overlay (#1146): full-rect ColorRect, initially transparent.
+	_flash_overlay = ColorRect.new()
+	_flash_overlay.name = "ImpactFlash"
+	_flash_overlay.color = Color(FLASH_COLOR, 0.0)
+	_flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_flash_overlay)
+
+	# Crater decal pool (#1146): pre-build dark discs for reuse.
+	for i in CRATER_POOL:
+		var disc := _build_disc("Crater%d" % i, CRATER_COLOR)
+		disc.visible = false
+		_crater_pool.append(disc)
 
 
 ## A falling rock: the MDL-009 meteor model with a stretched emissive trail
@@ -184,6 +282,9 @@ func _render_3d(game: Dictionary) -> void:
 	_update_falling_meteors()
 	_burst_on_landings()
 	_shake_on_new_downs()
+	# Start ash emission once the match is running.
+	if not _ash_particles.emitting:
+		_ash_particles.emitting = true
 
 
 func _update_players() -> void:
@@ -236,7 +337,7 @@ func _update_falling_meteors() -> void:
 
 
 ## A meteor that left the snapshot with its timer nearly spent just landed:
-## impact burst + dust at its last position (M13-07).
+## impact burst + dust + screen flash + crater decal at its last position.
 func _burst_on_landings() -> void:
 	for old: Array in _meteors_seen:
 		if float(old[MeteorShower.MT_LEFT]) > 0.2:
@@ -253,20 +354,41 @@ func _burst_on_landings() -> void:
 			var at := Vector2(float(old[MeteorShower.MT_X]), float(old[MeteorShower.MT_Y]))
 			fx_burst(at, IMPACT_BURST_COLOR)
 			fx_dust(at)
+			# Camera flash (#1146): brief white overlay.
+			_flash_alpha = FLASH_COLOR.a
+			# Crater decal (#1146): place a dark disc at the impact point.
+			_place_crater(at)
 			# Signature cue (#728, docs/AUDIO_GUIDE.md — Bombs & blasts): a
 			# heavy object landing — the vocabulary's literal meteor example.
 			play_sfx(&"thud")
 	_meteors_seen = meteors.duplicate(true)
 
 
+## Place a dark scorched disc at `world_pos` that fades over CRATER_FADE_SEC.
+func _place_crater(world_pos: Vector2) -> void:
+	# Reuse a pooled disc or skip if the pool is exhausted.
+	var disc: MeshInstance3D = _crater_pool.pop_front()
+	if disc == null:
+		return
+	disc.visible = true
+	disc.position = to_arena(world_pos, ZONE_DISC_HEIGHT * 0.5)
+	disc.scale = Vector3(MeteorShower.METEOR_RADIUS * 2.0, 1.0, MeteorShower.METEOR_RADIUS * 2.0)
+	# Return to back of pool for fade tracking.
+	_crater_pool.append(disc)
+	_active_craters.append({"disc": disc, "alpha": 1.0})
+
+
 ## The platform tracks the replicated zone radius; each stage shed crumbles
-## dust off the rim it just lost (the Gauntlet FX idiom).
+## dust off the rim it just lost. The lava glow ring follows the radius.
 func _update_platform() -> void:
 	if zone.size() != MeteorShower.ZN_COUNT:
 		return
 	var radius := maxf(float(zone[MeteorShower.ZN_RADIUS]), 0.001)
 	_platform_mesh.top_radius = radius
 	_platform_mesh.bottom_radius = radius
+	# Lava glow tracks the platform rim (#1146).
+	_lava_glow_mesh.inner_radius = radius * 0.85
+	_lava_glow_mesh.outer_radius = radius * 1.02
 	if radius < _last_radius - 0.01:
 		for k in CRUMBLE_PUFFS:
 			var angle := TAU * k / CRUMBLE_PUFFS
@@ -296,12 +418,33 @@ func _update_shrink_telegraph() -> void:
 		_shrink_telegraph_mat.albedo_color.a = _shrink_base_alpha
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _shrink_telegraph == null or not _shrink_telegraph.visible or ArenaFX.reduced_motion:
-		return
-	var t := Time.get_ticks_msec() / 1000.0
-	var pulse := 0.75 + 0.25 * sin(TAU * t / SHRINK_TELEGRAPH_PULSE_SEC)
-	_shrink_telegraph_mat.albedo_color.a = _shrink_base_alpha * pulse
+		pass  # Skip shrink pulse if not needed, but still do flash/crater fade.
+	else:
+		var t := Time.get_ticks_msec() / 1000.0
+		var pulse := 0.75 + 0.25 * sin(TAU * t / SHRINK_TELEGRAPH_PULSE_SEC)
+		_shrink_telegraph_mat.albedo_color.a = _shrink_base_alpha * pulse
+
+	# Screen flash decay (#1146).
+	if _flash_alpha > 0.0:
+		_flash_alpha -= delta / FLASH_DECAY_SEC
+		if _flash_alpha <= 0.0:
+			_flash_alpha = 0.0
+		_flash_overlay.color = Color(FLASH_COLOR, _flash_alpha)
+
+	# Crater decal fade (#1146).
+	var i := 0
+	while i < _active_craters.size():
+		var entry: Dictionary = _active_craters[i]
+		entry.alpha -= delta / CRATER_FADE_SEC
+		if entry.alpha <= 0.0:
+			entry.disc.visible = false
+			_active_craters.remove_at(i)
+		else:
+			var mat = entry.disc.mesh.material as StandardMaterial3D
+			mat.albedo_color.a = CRATER_COLOR.a * entry.alpha
+			i += 1
 
 
 ## Telegraph discs grow from half to full impact size as the timer runs out,
