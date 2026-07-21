@@ -57,8 +57,10 @@ jobs:
           unzip -q godot.zip
           mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
           chmod +x godot-bin
-      - name: Install xvfb + ffmpeg
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb ffmpeg
+      - name: Install xvfb + ffmpeg + software Vulkan
+        # mesa-vulkan-drivers = lavapipe, the software Vulkan device Godot's
+        # Forward+ renderer uses on GPU-less runners (#1119).
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb ffmpeg mesa-vulkan-drivers
       - name: Import resources
         run: ./godot-bin --headless --import || true
       - name: Render + extract a mid-round frame
@@ -69,7 +71,7 @@ jobs:
               --game "${{ matrix.game }}" \
               --bots "${{ inputs.bots || '5' }}" \
               --duration "${{ inputs.duration || '30' }}" \
-              --software-gl --out renders \
+              --software --out renders \
               --contact-frame "frames/${{ matrix.game }}.png" | tee out.txt
           # Turn the harness's ROUND_ELAPSED line into a "<elapsed> <duration>"
           # meta the sheet reads; default to "unknown" if the round never

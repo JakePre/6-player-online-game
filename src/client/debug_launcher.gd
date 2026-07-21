@@ -94,6 +94,12 @@ func start_config() -> Dictionary:
 	else:
 		config["playlist"] = [minigame_id]
 		config["rounds"] = 1
+		# #1119: end at the podium after the one round — WITHOUT this the match
+		# runs its normal round -> gauntlet finale transition (finale defaults on
+		# and bots count toward the >=2 gate), so every render/preview clip spent
+		# half its length in the gauntlet and the mid-round still landed there.
+		# A single-game debug session wants ONLY that game.
+		config["finale"] = false
 	if duration_sec > 0.0:
 		config["duration_override"] = duration_sec
 	return config

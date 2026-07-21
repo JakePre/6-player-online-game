@@ -162,9 +162,15 @@ def main() -> int:
         help="auto = x11grab when a Linux DISPLAY exists, else movie",
     )
     parser.add_argument(
-        "--software-gl",
+        "--software",
+        "--software-gl",  # back-compat alias for the old flag name
+        dest="software",
         action="store_true",
-        help="force Mesa software GL (CI runners without a GPU)",
+        help=(
+            "no-GPU CI: render on Mesa software Vulkan (lavapipe), keeping the "
+            "default Forward+ renderer. NOT gl_compatibility — that backend drops "
+            "the game's Forward+ content (rig shaders, floor, stage shell), #1119."
+        ),
     )
     parser.add_argument(
         "--stills-only",
@@ -206,10 +212,14 @@ def main() -> int:
 
         client_cmd = [args.godot, "--path", ".", "--resolution", RESOLUTION]
         env = os.environ.copy()
-        if args.software_gl:
-            # CI runners: Mesa llvmpipe GL + no audio device.
-            client_cmd += ["--rendering-method", "gl_compatibility", "--audio-driver", "Dummy"]
-            env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+        if args.software:
+            # CI runners have no GPU. Keep the DEFAULT Forward+ renderer on Mesa's
+            # software Vulkan (lavapipe — the workflows apt-install mesa-vulkan-
+            # drivers). The old path forced gl_compatibility, which rendered the
+            # Forward+ scene under the Compatibility backend: custom rig shaders
+            # didn't run (characters invisible), the floor and stage shell dropped
+            # out, and every CI clip was a washed-out empty arena (#1119).
+            client_cmd += ["--rendering-driver", "vulkan", "--audio-driver", "Dummy"]
         movie_path = os.path.join(args.out, f"{args.game}.avi")
         if args.capture == "movie":
             client_cmd += [

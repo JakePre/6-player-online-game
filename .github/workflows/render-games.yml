@@ -4,7 +4,7 @@
 # Also runnable on demand for any game via workflow_dispatch.
 #
 # NOT a required check: a render hiccup must never block a green PR. The video
-# is honest wall-time capture (xvfb + ffmpeg x11grab, Mesa software GL) — see
+# is honest wall-time capture (xvfb + ffmpeg x11grab, Mesa software Vulkan) — see
 # tests/soak/render_game.py for the mechanism and the local (movie-mode) path.
 name: Render games
 
@@ -68,10 +68,11 @@ jobs:
           unzip -q godot.zip
           mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
           chmod +x godot-bin
-      - name: Install xvfb + ffmpeg
+      - name: Install xvfb + ffmpeg + software Vulkan
         # ffmpeg is NOT preinstalled on current ubuntu-latest images (shakedown
-        # run 28812902887 failed on exactly this).
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb ffmpeg
+        # run 28812902887 failed on exactly this). mesa-vulkan-drivers = lavapipe,
+        # the software Vulkan device Godot's Forward+ renderer needs (#1119).
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb ffmpeg mesa-vulkan-drivers
       - name: Import resources
         run: ./godot-bin --headless --import || true
       - name: Render ${{ matrix.game }}
@@ -81,7 +82,7 @@ jobs:
               --game "${{ matrix.game }}" \
               --bots "${{ inputs.bots || '5' }}" \
               --duration "${{ inputs.duration || '30' }}" \
-              --software-gl --out renders
+              --software --out renders
       - name: Upload video
         uses: actions/upload-artifact@v4
         with:
