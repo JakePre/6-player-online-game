@@ -3,14 +3,15 @@
 # Build from the REPO ROOT (the compose file does this for you):
 #   docker build -f server/deploy/Dockerfile -t party-rush-server .
 #
-# Stage 1 exports the "Linux Server" preset with the exact image + commands
-# the repo's CI uses (.github/workflows/ci.yml), so the risky step is the one
-# already proven green on every PR.
+# Stage 1 exports the "Linux Server" preset. Mirrors .github/workflows/ci.yml,
+# which creates the output dir before exporting (Godot does not auto-create the
+# export path and fails with "the given export path doesn't exist" otherwise).
 
 FROM barichello/godot-ci:4.4.1 AS build
 WORKDIR /src
 COPY . .
-RUN godot --headless --import || true \
+RUN mkdir -p build/server \
+	&& (godot --headless --import || true) \
 	&& godot --headless --export-release "Linux Server" \
 	&& ls -l build/server
 
