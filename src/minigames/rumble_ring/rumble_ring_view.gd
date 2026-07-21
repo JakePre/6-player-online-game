@@ -29,6 +29,16 @@ const ROPE_COLOR := Color(0.95, 0.3, 0.3)
 const ROPE_HEIGHT := 0.9
 const ROPE_THICKNESS := 0.09
 const POST_COLOR := Color(0.85, 0.85, 0.9)
+## GFX Enhancements (#1152): ring canvas texture, double ropes, corner pads,
+## turnbuckle, and round-start bell.
+const RING_TEXTURE := preload("res://assets/generated/textures/wood-court.png")
+const RING_TEXTURE_TILES := 4.0
+const ROPE_LOWER_HEIGHT := 0.35
+const CORNER_PAD_COLOR_A := Color(0.85, 0.15, 0.15)
+const CORNER_PAD_COLOR_B := Color(0.15, 0.15, 0.85)
+const TURNBUCKLE_COLOR := Color(0.95, 0.95, 0.95)
+const BELL_COLOR := Color(0.85, 0.7, 0.15)
+const BELL_POSITION_OFFSET := 0.6
 
 ## Latest replicated state, straight from RumbleRing.get_snapshot().
 var players := {}
@@ -50,6 +60,9 @@ var _swing_arcs := {}
 ## stays authoritative for the actual swing; this only drives local feedback.
 var _local_swing_ready_at := 0.0
 var _swing_hint_until := 0.0
+## Track whether the round-start bell has been rung (#1152).
+var _round_started := false
+var _bell_node: MeshInstance3D
 
 
 func _physics_process(_delta: float) -> void:
@@ -93,12 +106,24 @@ func _floor_tint() -> Color:
 	return Color(1.0, 0.82, 0.8)
 
 
+## GFX Tier 1 (#1152): apply wood-court.png canvas texture over the floor
+## tiles so the ring reads as a real boxing ring mat, not a flat tint.
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = RING_TEXTURE
+			mat.uv1_scale = Vector3(RING_TEXTURE_TILES, RING_TEXTURE_TILES, 1.0)
+
+
 func _arena_half() -> float:
 	return RumbleRing.ARENA_HALF
 
 
 func _setup_3d() -> void:
 	_build_ring()
+	_build_bell()
 	_coin_mesh = CylinderMesh.new()
 	_coin_mesh.top_radius = 0.3
 	_coin_mesh.bottom_radius = 0.3
@@ -112,7 +137,8 @@ func _setup_3d() -> void:
 
 ## Ropes on all four sides at the movement clamp, plus corner posts and a
 ## faint edge line on the floor — where the arena ends must be readable at
-## a glance (#237).
+## a glance (#237). GFX (#1152): double ropes (upper + lower), corner pads,
+## and turnbuckles for the classic boxing ring look.
 func _build_ring() -> void:
 	var half := RumbleRing.ARENA_HALF
 	var rope_material := StandardMaterial3D.new()
@@ -120,25 +146,44 @@ func _build_ring() -> void:
 	rope_material.emission_enabled = true
 	rope_material.emission = ROPE_COLOR
 	rope_material.emission_energy_multiplier = 0.5
+	var lower_rope_material := StandardMaterial3D.new()
+	lower_rope_material.albedo_color = ROPE_COLOR
+	lower_rope_material.emission_enabled = true
+	lower_rope_material.emission = ROPE_COLOR
+	lower_rope_material.emission_energy_multiplier = 0.3
 	var post_material := StandardMaterial3D.new()
 	post_material.albedo_color = POST_COLOR
 	for side in 4:
 		var along_x := side % 2 == 0
 		var offset := half if side < 2 else -half
-		var rope_mesh := BoxMesh.new()
-		rope_mesh.size = (
+		# Upper rope (existing).
+		var upper_mesh := BoxMesh.new()
+		upper_mesh.size = (
 			Vector3(half * 2.0, ROPE_THICKNESS, ROPE_THICKNESS)
 			if along_x
 			else Vector3(ROPE_THICKNESS, ROPE_THICKNESS, half * 2.0)
 		)
-		rope_mesh.material = rope_material
-		var rope := MeshInstance3D.new()
-		rope.name = "Rope%d" % side
-		rope.mesh = rope_mesh
-		rope.position = (
+		upper_mesh.material = rope_material
+		var upper_rope := MeshInstance3D.new()
+		upper_rope.name = "RopeUpper%d" % side
+		upper_rope.mesh = upper_mesh
+		upper_rope.position = (
 			Vector3(0.0, ROPE_HEIGHT, offset) if along_x else Vector3(offset, ROPE_HEIGHT, 0.0)
 		)
-		arena.add_child(rope)
+		arena.add_child(upper_rope)
+		# Lower rope (#1152): second rope layer for the classic boxing ring look.
+		var lower_mesh := BoxMesh.new()
+		lower_mesh.size = upper_mesh.size
+		lower_mesh.material = lower_rope_material
+		var lower_rope := MeshInstance3D.new()
+		lower_rope.name = "RopeLower%d" % side
+		lower_rope.mesh = lower_mesh
+		lower_rope.position = (
+			Vector3(0.0, ROPE_LOWER_HEIGHT, offset)
+			if along_x
+			else Vector3(offset, ROPE_LOWER_HEIGHT, 0.0)
+		)
+		arena.add_child(lower_rope)
 		# Floor edge line under each rope, so the clamp reads even when the
 		# camera crops the ropes.
 		var line_mesh := BoxMesh.new()
@@ -148,20 +193,94 @@ func _build_ring() -> void:
 		line_mesh.material = rope_material
 		var line := MeshInstance3D.new()
 		line.mesh = line_mesh
-		line.position = Vector3(rope.position.x, 0.03, rope.position.z)
+		line.position = Vector3(upper_rope.position.x, 0.03, upper_rope.position.z)
 		arena.add_child(line)
 	var post_mesh := CylinderMesh.new()
 	post_mesh.top_radius = 0.14
 	post_mesh.bottom_radius = 0.18
 	post_mesh.height = ROPE_HEIGHT + 0.3
 	post_mesh.material = post_material
-	for corner: Vector2 in [
-		Vector2(-half, -half), Vector2(half, -half), Vector2(-half, half), Vector2(half, half)
-	]:
+	var corner_pad_mesh := BoxMesh.new()
+	corner_pad_mesh.size = Vector3(0.35, 0.12, 0.35)
+	var turnbuckle_mesh := BoxMesh.new()
+	turnbuckle_mesh.size = Vector3(0.18, 0.08, 0.18)
+	var turnbuckle_material := StandardMaterial3D.new()
+	turnbuckle_material.albedo_color = TURNBUCKLE_COLOR
+	turnbuckle_material.metallic = 0.6
+	for corner_idx: int in 4:
+		var corner: Vector2 = [
+			Vector2(-half, -half), Vector2(half, -half), Vector2(-half, half), Vector2(half, half)
+		][corner_idx]
+		# Corner post.
 		var post := MeshInstance3D.new()
 		post.mesh = post_mesh
 		post.position = Vector3(corner.x, (ROPE_HEIGHT + 0.3) / 2.0, corner.y)
 		arena.add_child(post)
+		# Corner pad (#1152): colored pad at each post like a real boxing ring.
+		var pad_material := StandardMaterial3D.new()
+		pad_material.albedo_color = CORNER_PAD_COLOR_A if corner_idx < 2 else CORNER_PAD_COLOR_B
+		corner_pad_mesh.material = pad_material
+		var pad := MeshInstance3D.new()
+		pad.name = "CornerPad%d" % corner_idx
+		pad.mesh = corner_pad_mesh
+		pad.position = Vector3(corner.x, ROPE_HEIGHT * 0.66, corner.y)
+		arena.add_child(pad)
+		# Turnbuckle (#1152): small detail at the rope intersection.
+		for rope_height in [ROPE_LOWER_HEIGHT, ROPE_HEIGHT]:
+			var tb := MeshInstance3D.new()
+			tb.name = "Turnbuckle%d_%d" % [corner_idx, int(rope_height * 100)]
+			tb.mesh = turnbuckle_mesh
+			tb.material = turnbuckle_material
+			tb.position = Vector3(corner.x, rope_height, corner.y)
+			arena.add_child(tb)
+
+
+## Round bell (#1152): a cone + sphere model at one ring corner, rung on the
+## first render to signal match start.
+func _build_bell() -> void:
+	var half := RumbleRing.ARENA_HALF
+	var bell_pos := Vector3(half - BELL_POSITION_OFFSET, 0.6, half - BELL_POSITION_OFFSET)
+	var bell_material := StandardMaterial3D.new()
+	bell_material.albedo_color = BELL_COLOR
+	bell_material.metallic = 0.7
+	# Bell body: sphere.
+	var body := SphereMesh.new()
+	body.radius = 0.15
+	body.material = bell_material
+	_bell_node = MeshInstance3D.new()
+	_bell_node.name = "RoundBell"
+	_bell_node.mesh = body
+	_bell_node.position = bell_pos
+	arena.add_child(_bell_node)
+	# Bell clapper: tapered cylinder below.
+	var clapper_mesh := CylinderMesh.new()
+	clapper_mesh.top_radius = 0.0
+	clapper_mesh.bottom_radius = 0.06
+	clapper_mesh.height = 0.12
+	var clapper_material := StandardMaterial3D.new()
+	clapper_material.albedo_color = Color(0.5, 0.5, 0.5)
+	clapper_material.metallic = 0.5
+	clapper_mesh.material = clapper_material
+	var clapper := MeshInstance3D.new()
+	clapper.name = "BellClapper"
+	clapper.mesh = clapper_mesh
+	clapper.position = bell_pos + Vector3(0.0, -0.18, 0.0)
+	arena.add_child(clapper)
+
+
+## Animate the round-start bell (#1152): a brief ring animation — scale pulse
+## and rotation wobble — that fades out, signaling match start.
+func _ring_bell() -> void:
+	if _bell_node == null:
+		return
+	play_sfx(&"bell")
+	var tween := _bell_node.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(_bell_node, "scale", Vector3(1.3, 1.3, 1.3), 0.1)
+	tween.tween_property(_bell_node, "rotation.z", deg_to_rad(15.0), 0.06)
+	tween.chain().tween_property(_bell_node, "scale", Vector3.ONE, 0.3)
+	tween.parallel().tween_property(_bell_node, "rotation.z", 0.0, 0.3)
+	tween.tween_property(_bell_node, "modulate:a", 0.4, 2.0)
 
 
 func _process(_delta: float) -> void:
@@ -186,6 +305,10 @@ func _process(_delta: float) -> void:
 
 
 func _render_3d(game: Dictionary) -> void:
+	# Ring the round-start bell on the very first render (#1152).
+	if not _round_started:
+		_round_started = true
+		_ring_bell()
 	players = game.get("players", {})
 	coins = game.get("coins", [])
 	_expire_swing_arcs()
