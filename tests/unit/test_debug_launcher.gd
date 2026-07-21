@@ -25,6 +25,9 @@ func test_defaults_solo_full_length() -> void:
 	assert_eq(config["playlist"], [&"coin_scramble"])
 	assert_eq(config["rounds"], 1)
 	assert_true(config["debug_force_start"])
+	# #1119: a single-game session must NOT append the gauntlet finale, or half
+	# the render/preview clip is the gauntlet.
+	assert_false(config.get("finale", true), "single-game debug ends at podium, no finale")
 	assert_false(config.has("duration_override"), "no override key unless asked")
 
 
