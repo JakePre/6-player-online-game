@@ -64,13 +64,13 @@ func test_ambient_lighting_is_unaffected() -> void:
 	assert_almost_eq(world_env.environment.ambient_light_energy, 0.6, 0.001)
 
 
-## #939: every 3D arena is mounted inside the shared party-stadium shell, with
-## no per-game code — the base builds it for KotH (a plain fixture) unprompted.
-func test_stage_shell_is_mounted_in_every_arena() -> void:
-	var shell := view.arena.get_node("StageShell")
-	assert_not_null(shell, "the party-stadium shell frames the arena")
-	assert_not_null(shell.get_node("SkyDome"), "with its sky dome")
-	assert_not_null(shell.get_node("BleacherRing"), "and bleacher ring")
+## #1119: the #939 party-stadium shell is disabled by default — its giant
+## dome/band enclosed the shared orthographic camera and occluded the arena
+## (invisible characters, missing floor). The hook is off and no shell mounts,
+## until the shell is redesigned to frame without wrapping the ortho camera.
+func test_stage_shell_is_disabled_by_default() -> void:
+	assert_false(view.call(&"_stage_shell_enabled"), "the occluding shell is off (#1119)")
+	assert_null(view.arena.get_node_or_null("StageShell"), "so nothing mounts to occlude")
 
 
 ## #939: the mood defaults from the game's floor tint, so every arena gets a

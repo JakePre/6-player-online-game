@@ -566,8 +566,23 @@ func _build_lighting() -> void:
 ## The shared party-stadium backdrop (#939): mounted once, framing the arena
 ## at its extent and themed from _mood(). Pure presentation — no per-game code.
 func _build_stage_shell() -> void:
+	if not _stage_shell_enabled():
+		return
 	_stage_shell = StageShell.new()
 	_stage_shell.build(arena, _arena_half(), _mood())
+
+
+## The #939 party-stadium shell is off by default (#1119). Its dome/band are
+## ~4.5x the arena extent, so the shared orthographic camera sits INSIDE them;
+## the huge opaque meshes then occlude the arena — the floor, and (even with the
+## dome's depth-write disabled) the SKINNED character meshes, fail to render,
+## leaving only the depth-test-disabled xray silhouettes as colored wisps. Every
+## MinigameView3D game rendered with invisible characters and a missing map. The
+## shell needs a redesign that frames the scene without enclosing the ortho
+## camera in giant meshes (e.g. an Environment sky + near-field-only props); a
+## game may override this to re-enable once that lands.
+func _stage_shell_enabled() -> bool:
+	return false
 
 
 func _build_camera() -> void:
