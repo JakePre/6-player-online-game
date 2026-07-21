@@ -46,6 +46,24 @@ const RELIC_LOOSE_HEIGHT := 0.6
 const COOLDOWN_RING_COLOR := Color(0.4, 0.75, 0.95)
 ## How long a swing/repair/shove animation owns the rig before walk/idle resumes.
 const ACT_HOLD_SEC := 0.45
+## Castle-stone floor texture (IMG-060, Tier 1): a courtyard feel for the
+## fortress arena instead of the default grey tiles.
+const CASTLE_FLOOR := preload("res://assets/generated/textures/castle-stone.png")
+const FLOOR_TILES := 10.0
+## Siege-themed rim props (Tier 2): rocks, barrels, crates, flags, and pine
+## trees scattered around the arena perimeter for a siege-camp atmosphere.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallB.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_tallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_tallE.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/barrel.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/crate.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/flag.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/tree-pine-small.glb"),
+]
+const RIM_PROP_COUNT := 24
+const RIM_PROP_SEED := 0x53E6
 
 ## Latest replicated state, straight from FortSiege.get_snapshot().
 var phase := FortSiege.Phase.SIEGE
@@ -112,6 +130,25 @@ func _floor_tint() -> Color:
 	return Color(0.85, 0.88, 0.95)
 
 
+## Castle-stone floor texture (Tier 1, #1136): replace the default tiled
+## platform with IMG-060 castle-stone.png for a courtyard feel — the fortress
+## clash reads on a proper stone floor.
+func _build_floor() -> void:
+	var half := _arena_half()
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(half * 2.0, half * 2.0)
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = CASTLE_FLOOR
+	material.albedo_color = Color(0.85, 0.88, 0.95)
+	material.uv1_scale = Vector3(FLOOR_TILES, FLOOR_TILES, 1.0)
+	mesh.material = material
+	var floor_node := MeshInstance3D.new()
+	floor_node.name = "Floor"
+	floor_node.mesh = mesh
+	floor_node.position.y = -0.01
+	arena.add_child(floor_node)
+
+
 func _arena_half() -> float:
 	return FortSiege.ARENA_HALF + 1.0
 
@@ -120,6 +157,10 @@ func _setup_3d() -> void:
 	_build_gate()
 	_build_walls()
 	_build_core()
+	# Siege-camp rim dressing (#1136, Tier 2): rocks, barrels, crates, flags,
+	# and pine trees ring the arena perimeter, so the fort reads as a contested
+	# stronghold set in a rocky siege camp rather than a bare grey space.
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 	_banner = make_banner(&"Role", 26)
 	_scores = make_status_label(&"Scores")
 
