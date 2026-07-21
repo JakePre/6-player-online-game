@@ -5,9 +5,14 @@ extends MinigameView3D
 ## character rig, pooled shells and oil slicks — without simulating anything
 ## locally. Gas is action_primary (held, #1067), the item is action_secondary;
 ## drifting is steering hard at speed.
-
 const TRACK_COLOR := Color(0.16, 0.17, 0.21)
 const START_COLOR := Color(0.96, 0.79, 0.2)
+## Tier 1 — Track texture (#1165): IMG-052 asphalt-track.png is the single most
+## impactful visual upgrade for this game — transforms the flat grey ribbon
+## into a real race track. UV tiles along the strip length so scale changes
+## (shaped course) don't stretch the grain.
+const ASPHALT_TEXTURE := preload("res://assets/generated/textures/asphalt-track.png")
+const TRACK_TEXTURE_TILES := 2.0  # tiling per unit length
 ## Continuous curb rails (#1041): the two track edges are drawn as gap-free
 ## miter-joined walls tracing the ribbon, replacing the 100+ tiled MDL-007
 ## barrier blocks that read as messy concentric arcs and never closed the oval.
@@ -42,6 +47,33 @@ const ITEM_ICONS := {
 	TurboLap.ITEM_OIL: "🛢",
 	TurboLap.ITEM_BOOST: "⚡"
 }
+## Grandstand buildings (#1165): Kenney City Kit Commercial buildings scattered
+## around the arena perimeter as spectator grandstands.
+const GRANDSTAND_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-a.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-b.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-c.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-d.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-e.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-f.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-g.glb"),
+]
+const GRANDSTAND_COUNT := 12
+const GRANDSTAND_SEED := 0x7442
+## Track lighting (#1165): street lamps along the track straight sections.
+const LAMP_POLE_HEIGHT := 0.6
+const LAMP_ARM_LENGTH := 0.3
+const LAMP_LIGHT_COLOR := Color(1.0, 0.92, 0.6)
+const LAMP_LIGHT_ENERGY := 2.0
+const LAMP_COUNT := 8
+## Pit lane (#1165): a colored service strip inside the track with pit buildings.
+const PIT_COLOR := Color(0.5, 0.5, 0.55)
+const PIT_BUILDING_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_city_kit_commercial/detail-awning.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/detail-overhang.glb"),
+]
+## Lap counter (#1165): 3D floating display above the start/finish line.
+const LAP_COUNTER_HEIGHT := 4.0
 
 var players := {}
 var standings: Array = []
@@ -75,9 +107,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			NetManager.send_match_input({"use": true})
 
 
-## Dark asphalt floor for the race track (#589).
+## Warm asphalt-hued floor (#589, #1165): a mid-grey warm tone amplifying the
+## texture-based floor (asphalt-track.png) so they read as one surface.
 func _floor_tint() -> Color:
-	return Color(0.85, 0.86, 0.9)
+	return Color(0.72, 0.7, 0.68)
+
+
+## Warm evening-race mood (#1165): pushes the (disabled) stadium shell toward
+## a golden-hour race atmosphere. Though the shell is opted out, the mood
+## override documents the intended tone.
+func _mood() -> Color:
+	return Color(0.35, 0.22, 0.12)
 
 
 func _arena_half() -> float:
@@ -97,6 +137,10 @@ func _build_stage_shell() -> void:
 
 func _setup_3d() -> void:
 	_build_track()
+	_build_grandstands()
+	_build_pit_lane()
+	_build_track_lighting()
+	_build_lap_counter()
 	for pad_pos in TurboLap.boost_pad_positions():
 		_add_pad(pad_pos, BOOST_PAD_COLOR, "BoostPad")
 	for pad_pos in TurboLap.item_pad_positions():
@@ -116,6 +160,14 @@ func _setup_3d() -> void:
 ## line gets a gold slab across the width and a procedural gate stands over it.
 func _build_track() -> void:
 	var points := TurboLap.waypoints()
+	# Asphalt material (#1165): reuse one StandardMaterial3D with the IMG-052
+	# texture for all strips, adjusting UV tiling per strip length so the grain
+	# direction follows the track ribbon.
+	var asphalt_mat := StandardMaterial3D.new()
+	asphalt_mat.albedo_texture = ASPHALT_TEXTURE
+	asphalt_mat.albedo_color = TRACK_COLOR
+	asphalt_mat.metallic = 0.1
+	asphalt_mat.roughness = 0.85
 	for i in points.size():
 		var a := points[i]
 		var b := points[(i + 1) % points.size()]
@@ -124,8 +176,13 @@ func _build_track() -> void:
 		strip.name = "Track%d" % i
 		var mesh := BoxMesh.new()
 		# Overlength covers the polygon gap at each joint.
-		mesh.size = Vector3(a.distance_to(b) * 1.12, 0.06, TurboLap.TRACK_HALF_WIDTH * 2.0)
-		mesh.material = _flat_material(TRACK_COLOR)
+		var strip_len := a.distance_to(b) * 1.12
+		mesh.size = Vector3(strip_len, 0.06, TurboLap.TRACK_HALF_WIDTH * 2.0)
+		# Tile the asphalt texture along the strip length; width tiling stays
+		# constant so the aggregate grain reads as a continuous surface.
+		var tile_mat := asphalt_mat.duplicate()
+		tile_mat.uv1_scale = Vector3(strip_len * TRACK_TEXTURE_TILES, 2.0, 1.0)
+		mesh.material = tile_mat
 		strip.mesh = mesh
 		var mid := (a + b) / 2.0
 		strip.position = Vector3(mid.x, 0.03, mid.y)
@@ -357,3 +414,173 @@ func _render_pool(pool: Array[MeshInstance3D], items: Array, height: float) -> v
 			)
 		else:
 			pool[i].visible = false
+
+
+## Grandstands (#1165): scatter Kenney City Kit low-detail buildings around the
+## arena perimeter as spectator grandstands framing the track.
+func _build_grandstands() -> void:
+	scatter_rim_props(GRANDSTAND_SCENES, GRANDSTAND_COUNT, GRANDSTAND_SEED)
+
+
+## Pit lane (#1165): a grey service strip along one straight of the track, with
+## small pit buildings (awnings, overhangs) placed along it to sell the race
+## weekend feel.
+func _build_pit_lane() -> void:
+	var points := TurboLap.waypoints()
+	if points.size() < 4:
+		return
+	# Find the longest straight: the span between two waypoints with the
+	# smallest heading change (most parallel consecutive edges).
+	var straight_idx := 0
+	var max_len := 0.0
+	for i in points.size():
+		var a := points[i]
+		var b := points[(i + 1) % points.size()]
+		var len := a.distance_to(b)
+		if len > max_len:
+			max_len = len
+			straight_idx = i
+	# Place the pit lane as a coloured strip just outside the inner edge of the
+	# chosen straight, offset inward by TRACK_HALF_WIDTH.
+	var a := points[straight_idx]
+	var b := points[(straight_idx + 1) % points.size()]
+	var heading := (b - a).angle()
+	var mid := (a + b) / 2.0
+	# Pit lane strip: a narrow BoxMesh running parallel to the track.
+	var pit_strip := MeshInstance3D.new()
+	pit_strip.name = "PitLane"
+	var pit_mesh := BoxMesh.new()
+	pit_mesh.size = Vector3(max_len * 0.9, 0.04, 1.2)
+	pit_mesh.material = _flat_material(PIT_COLOR)
+	pit_strip.mesh = pit_mesh
+	pit_strip.position = Vector3(mid.x, 0.02, mid.y)
+	pit_strip.rotation.y = -heading
+	pit_strip.position += Vector3(
+		-TurboLap.TRACK_HALF_WIDTH * sin(heading), 0.0, TurboLap.TRACK_HALF_WIDTH * cos(heading)
+	)
+	arena.add_child(pit_strip)
+	# Place pit buildings along the strip.
+	var pit_count := mini(3, PIT_BUILDING_SCENES.size())
+	for i in pit_count:
+		var t := float(i + 1) / float(pit_count + 1)
+		var pos := a.lerp(b, t)
+		var building := PIT_BUILDING_SCENES[i].instantiate() as Node3D
+		building.name = "PitBuilding%d" % i
+		building.position = Vector3(pos.x, 0.0, pos.y)
+		building.position += Vector3(
+			-(TurboLap.TRACK_HALF_WIDTH + 0.5) * sin(heading),
+			0.0,
+			(TurboLap.TRACK_HALF_WIDTH + 0.5) * cos(heading)
+		)
+		arena.add_child(building)
+
+
+## Lap counter (#1165): a 3D floating display above the start/finish line showing
+## the current lap. Uses a Label3D so it reads as a real stadium element.
+func _build_lap_counter() -> void:
+	var points := TurboLap.waypoints()
+	if points.is_empty():
+		return
+	var start_pos := points[0]
+	var heading := (points[1] - points[0]).angle() if points.size() > 1 else 0.0
+	# Post: a thin pole holding the display.
+	var post := MeshInstance3D.new()
+	post.name = "LapCounterPost"
+	var post_mesh := CylinderMesh.new()
+	post_mesh.top_radius = 0.04
+	post_mesh.bottom_radius = 0.04
+	post_mesh.height = LAP_COUNTER_HEIGHT
+	post_mesh.material = _flat_material(RAIL_COLOR)
+	post.mesh = post_mesh
+	post.position = Vector3(start_pos.x, LAP_COUNTER_HEIGHT / 2.0, start_pos.y)
+	post.position += Vector3(
+		-(TurboLap.TRACK_HALF_WIDTH + 0.3) * sin(heading),
+		0.0,
+		(TurboLap.TRACK_HALF_WIDTH + 0.3) * cos(heading)
+	)
+	arena.add_child(post)
+	# Display panel: a small box with "LAP" text.
+	var panel := MeshInstance3D.new()
+	panel.name = "LapCounterPanel"
+	var panel_mesh := BoxMesh.new()
+	panel_mesh.size = Vector3(0.6, 0.15, 0.3)
+	var panel_mat := StandardMaterial3D.new()
+	panel_mat.albedo_color = Color(0.12, 0.12, 0.15)
+	panel_mat.emission_enabled = true
+	panel_mat.emission = Color(0.96, 0.79, 0.2)
+	panel_mat.emission_energy_multiplier = 0.3
+	panel_mesh.material = panel_mat
+	panel.mesh = panel_mesh
+	panel.position = Vector3(start_pos.x, LAP_COUNTER_HEIGHT + 0.1, start_pos.y)
+	panel.position += Vector3(
+		-(TurboLap.TRACK_HALF_WIDTH + 0.3) * sin(heading),
+		0.0,
+		(TurboLap.TRACK_HALF_WIDTH + 0.3) * cos(heading)
+	)
+	arena.add_child(panel)
+
+
+## Track lighting (#1165): street lamps along the track straight sections,
+## built from procedural CylinderMesh poles with glowing SphereMesh lights.
+func _build_track_lighting() -> void:
+	var points := TurboLap.waypoints()
+	if points.size() < 2:
+		return
+	# Place lamps at intervals along the straight sections of the track.
+	var placed := 0
+	var goal := LAMP_COUNT
+	var total_len := 0.0
+	for i in points.size():
+		total_len += points[i].distance_to(points[(i + 1) % points.size()])
+	var step := total_len / float(goal)
+	var accum := 0.0
+	for i in range(goal):
+		# Walk along the track centerline to find the lamp position.
+		var target := accum
+		accum += step
+		var walked := 0.0
+		for j in points.size():
+			var a := points[j]
+			var b := points[(j + 1) % points.size()]
+			var seg_len := a.distance_to(b)
+			if walked + seg_len >= target:
+				var t := (target - walked) / seg_len
+				var pos := a.lerp(b, t)
+				var heading := (b - a).angle()
+				# Place one lamp on each side of the track.
+				for side: float in [-1.0, 1.0]:
+					var lamp_name := "Lamp%d_%s" % [i, "Out" if side > 0.0 else "In"]
+					# Pole: thin cylinder.
+					var pole := MeshInstance3D.new()
+					pole.name = lamp_name + "Pole"
+					var pole_mesh := CylinderMesh.new()
+					pole_mesh.top_radius = 0.025
+					pole_mesh.bottom_radius = 0.035
+					pole_mesh.height = LAMP_POLE_HEIGHT
+					pole_mesh.material = _flat_material(RAIL_COLOR)
+					pole.mesh = pole_mesh
+					var offset := side * (TurboLap.TRACK_HALF_WIDTH + 0.15)
+					pole.position = Vector3(pos.x, LAMP_POLE_HEIGHT / 2.0, pos.y)
+					pole.position += Vector3(-offset * sin(heading), 0.0, offset * cos(heading))
+					arena.add_child(pole)
+					# Light fixture: a small glowing sphere.
+					var light_node := MeshInstance3D.new()
+					light_node.name = lamp_name + "Light"
+					var light_mesh := SphereMesh.new()
+					light_mesh.radius = 0.08
+					light_mesh.height = 0.16
+					var light_mat := StandardMaterial3D.new()
+					light_mat.albedo_color = LAMP_LIGHT_COLOR
+					light_mat.emission_enabled = true
+					light_mat.emission = LAMP_LIGHT_COLOR
+					light_mat.emission_energy_multiplier = LAMP_LIGHT_ENERGY
+					light_mesh.material = light_mat
+					light_node.mesh = light_mesh
+					light_node.position = Vector3(pos.x, LAMP_POLE_HEIGHT, pos.y)
+					light_node.position += Vector3(
+						-offset * sin(heading), 0.0, offset * cos(heading)
+					)
+					arena.add_child(light_node)
+					placed += 1
+				break
+			walked += seg_len
