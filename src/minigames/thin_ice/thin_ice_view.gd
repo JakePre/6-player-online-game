@@ -12,13 +12,36 @@ const INTACT_COLOR := Color(0.55, 0.78, 0.95)
 const CRACKED_COLOR := Color(0.75, 0.68, 0.55)
 const BREAKING_COLOR := Color(1.0, 0.35, 0.25)
 const WATER_COLOR := Color(0.03, 0.05, 0.1)
+const INTACT_TEXTURE := preload("res://assets/generated/textures/ice-cracked.png")
+const WATER_FLOOR_TEXTURE := preload("res://assets/generated/textures/water-pool.png")
+## Under-ice fish: dark silhouettes that drift below the ice, visible through
+## cracked/gone tiles (#1157 Tier 2).
+const FISH_COLOR := Color(0.12, 0.12, 0.15)
+const FISH_COUNT := 4
+const FISH_SPEED := 0.3
+const FISH_RADIUS := 0.03
+const FISH_HEIGHT := 0.12
+## Snowfall (#1157 Tier 2): gentle falling particles throughout the match.
+const SNOW_COLOR := Color(0.95, 0.95, 1.0, 0.85)
+const SNOW_AMOUNT := 40
+const SNOW_LIFETIME := 3.0
+const SNOW_SPEED := 1.5
+## Frost breath (#1157 Tier 2): small white puff from idle rigs.
+const FROST_AMOUNT := 6
+const FROST_LIFETIME := 0.6
+const FROST_SPEED := 0.8
+const FROST_BREATH_Y := 0.8
+## Ice shard debris (#1157 Tier 2): small prisms that fly out when a tile breaks.
+const SHARD_COUNT := 4
+const SHARD_SPEED := 4.0
+const SHARD_LIFETIME := 0.5
+const SHARD_COLOR := Color(0.55, 0.78, 0.95, 0.9)
 const TILE_THICKNESS := 0.3
 const WATER_DEPTH := 0.45
 ## Splash ring where a player goes under (#138 follow-up: falls need sound
 ## and a visible landing spot, not just the rig vanishing).
 const SPLASH_COLOR := Color(0.8, 0.9, 1.0, 0.9)
 const SPLASH_SEC := 0.5
-
 ## Latest replicated state, straight from ThinIce.get_snapshot().
 var tiles: Array = []
 var players := {}
@@ -41,10 +64,21 @@ var _last_seen_pos := {}
 ## Rejoin-quiet rising edge on the fallen count (#941): the first snapshot
 ## seeds and never shakes.
 var _edges := EdgeTracker.new()
+## Continuous snowfall particles (#1157 Tier 2).
+var _snow: CPUParticles3D
+## Under-ice fish nodes (#1157 Tier 2).
+var _fish: Array[MeshInstance3D] = []
+var _fish_angles: Array[float] = []
+## Frost breath accumulator per slot (#1157 Tier 2).
+var _breath_accum := {}
+## Container for tile-break debris so it doesn't pollute the arena child count.
+var _debris_container: Node3D
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	send_move_intent()
+	# Under-ice fish drift (#1157 Tier 2).
+	_animate_fish(delta)
 
 
 ## Setup-time head-count estimate of the grid dimension, mirroring the sim's
@@ -69,6 +103,10 @@ func _build_floor() -> void:
 	var water_mesh := PlaneMesh.new()
 	var water_material := StandardMaterial3D.new()
 	water_material.albedo_color = WATER_COLOR
+	water_material.albedo_texture = WATER_FLOOR_TEXTURE
+	water_material.uv1_scale = Vector3(8.0, 8.0, 1.0)
+	water_material.metallic = 0.1
+	water_material.roughness = 0.6
 	water_mesh.material = water_material
 	_water = MeshInstance3D.new()
 	_water.name = "Water"
@@ -78,6 +116,7 @@ func _build_floor() -> void:
 
 	_intact_material = StandardMaterial3D.new()
 	_intact_material.albedo_color = INTACT_COLOR
+	_intact_material.albedo_texture = INTACT_TEXTURE
 	_intact_material.roughness = 0.2
 	_cracked_material = StandardMaterial3D.new()
 	_cracked_material.albedo_color = CRACKED_COLOR
@@ -116,6 +155,96 @@ func _build_ice_grid(grid_size: int) -> void:
 			)
 			arena.add_child(node)
 			_tile_nodes.append(node)
+
+
+## One-time arena prop setup (#1157): snowfall particles and under-ice fish.
+func _setup_3d() -> void:
+	# Debris container so tile-break shards don't pollute the arena child count.
+	_debris_container = Node3D.new()
+	_debris_container.name = "Debris"
+	arena.add_child(_debris_container)
+	# Snowfall: gentle falling particles throughout the match.
+	_snow = CPUParticles3D.new()
+	_snow.name = "Snowfall"
+	_snow.one_shot = false
+	_snow.emitting = true
+	_snow.amount = SNOW_AMOUNT
+	_snow.lifetime = SNOW_LIFETIME
+	_snow.color = SNOW_COLOR
+	_snow.direction = Vector3.DOWN
+	_snow.spread = 45.0
+	_snow.initial_velocity_min = SNOW_SPEED * 0.5
+	_snow.initial_velocity_max = SNOW_SPEED
+	_snow.gravity = Vector3(0.0, -0.5, 0.0)
+	_snow.scale_amount_min = 1.0
+	_snow.scale_amount_max = 3.0
+	_snow.flatness = 0.5
+	var snow_mesh := SphereMesh.new()
+	snow_mesh.radius = 0.03
+	snow_mesh.height = 0.06
+	_snow.mesh = snow_mesh
+	_snow.position.y = 4.0
+	_snow.visibility_aabb = AABB(Vector3(-6.0, 0.0, -6.0), Vector3(12.0, 8.0, 12.0))
+	arena.add_child(_snow)
+	# Under-ice fish: dark silhouettes drifting below the cracked surface.
+	for i in FISH_COUNT:
+		var fish_mesh := PrismMesh.new()
+		fish_mesh.left_to_right = 0.5
+		fish_mesh.size = Vector3(FISH_RADIUS * 4.0, FISH_HEIGHT, FISH_RADIUS * 2.0)
+		var fish_mat := StandardMaterial3D.new()
+		fish_mat.albedo_color = FISH_COLOR
+		fish_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		fish_mesh.material = fish_mat
+		var fish := MeshInstance3D.new()
+		fish.name = "Fish_%d" % i
+		fish.mesh = fish_mesh
+		# Spread fish in a ring under the ice, at water depth.
+		var angle := TAU * i / FISH_COUNT
+		var radius := 2.0 + (i % 3) * 1.5
+		fish.position = Vector3(cos(angle) * radius, -WATER_DEPTH * 0.6, sin(angle) * radius)
+		arena.add_child(fish)
+		_fish.append(fish)
+		_fish_angles.append(angle)
+
+
+## Drift the under-ice fish in a slow circle (#1157 Tier 2).
+func _animate_fish(delta: float) -> void:
+	for i in _fish.size():
+		_fish_angles[i] = _fish_angles[i] + FISH_SPEED * delta
+		var radius := 2.0 + (i % 3) * 1.5
+		_fish[i].position = Vector3(
+			cos(_fish_angles[i]) * radius, -WATER_DEPTH * 0.6, sin(_fish_angles[i]) * radius
+		)
+		_fish[i].rotation.y = _fish_angles[i] + PI / 2.0
+
+
+## Periodic frost breath puff from idle rigs (#1157 Tier 2).
+func _tick_frost_breath(slot: int, rig: CharacterRig) -> void:
+	if ArenaFX.reduced_motion:
+		return
+	_breath_accum[slot] = _breath_accum.get(slot, 0.0) + get_process_delta_time()
+	if _breath_accum[slot] < 2.0:
+		return
+	_breath_accum[slot] = 0.0
+	var particles := CPUParticles3D.new()
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.amount = FROST_AMOUNT
+	particles.lifetime = FROST_LIFETIME
+	particles.color = SNOW_COLOR
+	particles.direction = Vector3.UP
+	particles.spread = 25.0
+	particles.initial_velocity_min = FROST_SPEED * 0.5
+	particles.initial_velocity_max = FROST_SPEED
+	particles.gravity = Vector3(0.0, 0.3, 0.0)
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.03
+	mesh.height = 0.06
+	particles.mesh = mesh
+	particles.position = rig.position + Vector3(0.0, FROST_BREATH_Y, 0.0)
+	arena.add_child(particles)
+	particles.emitting = true
+	particles.finished.connect(particles.queue_free)
 
 
 ## Honor the sim's authoritative grid dimension (#578): if it disagrees with the
@@ -188,6 +317,32 @@ func _spawn_splash(world_pos: Vector2) -> void:
 	tween.chain().tween_callback(splash.queue_free)
 
 
+## Spawn flying ice shards when a tile breaks through (#1157 Tier 2).
+func _spawn_ice_shards(tile_idx: int) -> void:
+	if ArenaFX.reduced_motion or _debris_container == null:
+		return
+	var center := _tile_center(tile_idx)
+	for i in SHARD_COUNT:
+		var shard_mesh := PrismMesh.new()
+		shard_mesh.size = Vector3(0.08, 0.04, 0.06)
+		var shard_mat := StandardMaterial3D.new()
+		shard_mat.albedo_color = SHARD_COLOR
+		shard_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		shard_mesh.material = shard_mat
+		var shard := MeshInstance3D.new()
+		shard.mesh = shard_mesh
+		shard.position = to_arena(center, -TILE_THICKNESS / 2.0)
+		_debris_container.add_child(shard)
+		var angle := TAU * i / SHARD_COUNT
+		var dir := Vector3(cos(angle), 0.3 + randf() * 0.5, sin(angle)) * SHARD_SPEED
+		var tween := shard.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(shard, "position", shard.position + dir * 0.5, SHARD_LIFETIME)
+		tween.tween_property(shard, "rotation:y", randf() * TAU, SHARD_LIFETIME)
+		tween.tween_property(shard_mat, "albedo_color:a", 0.0, SHARD_LIFETIME)
+		tween.chain().tween_callback(shard.queue_free)
+
+
 func _update_tiles() -> void:
 	var cracked_now := false
 	var breaking_now := false
@@ -206,6 +361,7 @@ func _update_tiles() -> void:
 					fx_dust(_tile_center(idx))
 				elif state == ThinIce.TileState.GONE:
 					fx_splash(_tile_center(idx))
+					_spawn_ice_shards(idx)
 		var node := _tile_nodes[idx]
 		node.visible = state != ThinIce.TileState.GONE
 		if node.visible:
@@ -251,6 +407,8 @@ func _update_players() -> void:
 		var pos := Vector2(state[ThinIce.PS_X], state[ThinIce.PS_Y])
 		_last_seen_pos[slot] = pos
 		update_rig(slot, pos)
+		# Frost breath (#1157 Tier 2): periodic puff when standing still.
+		_tick_frost_breath(slot, rig)
 	for group: Array in fallen:
 		for slot: int in group:
 			var rig := rig_for_slot(slot)
