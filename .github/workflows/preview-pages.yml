@@ -1,0 +1,118 @@
+# Build a browsable preview page of every minigame and deploy it to GitHub
+# Pages via the artifact-based deployment API (no gh-pages branch, no git
+# history accumulation). Frames are rendered at reduced duration to keep the
+# workflow fast: each game runs ~20s of bot play instead of a full round.
+#
+# Triggered manually; the page lives at the repo's Pages URL once deployed.
+# Each run replaces the previous deployment — previous builds are retained
+# only for rollback, not as a growing history.
+name: Minigame preview page
+
+on:
+  workflow_dispatch:
+    inputs:
+      bots:
+        description: "Practice bots per game"
+        default: "5"
+      duration:
+        description: "Round duration override (seconds)"
+        default: "30"
+
+env:
+  GODOT_VERSION: 4.4.1
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  list:
+    name: Enumerate games
+    runs-on: ubuntu-latest
+    outputs:
+      games: ${{ steps.enum.outputs.games }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: enum
+        # Derive the roster from src/minigames/<id>/ at runtime, matching the
+        # nightly contact-sheet convention. Framework dirs (_api) are excluded.
+        run: |
+          games=$(ls -d src/minigames/*/ | xargs -n1 basename | grep -v '^_' | sort -u | jq -R . | jq -sc .)
+          echo "games=$games" >> "$GITHUB_OUTPUT"
+          echo "roster: $games"
+
+  render:
+    name: Render ${{ matrix.game }}
+    needs: list
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.list.outputs.games) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
+          chmod +x godot-bin
+      - name: Install xvfb + ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb ffmpeg
+      - name: Import resources
+        run: ./godot-bin --headless --import || true
+      - name: Render frame
+        run: |
+          mkdir -p frames
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            python3 tests/soak/render_game.py --godot ./godot-bin \
+              --game "${{ matrix.game }}" \
+              --bots "${{ inputs.bots || '5' }}" \
+              --duration "${{ inputs.duration || '30' }}" \
+              --software-gl --out renders \
+              --stills-only \
+              --contact-frame "frames/${{ matrix.game }}.png"
+      - name: Upload frame
+        uses: actions/upload-artifact@v4
+        with:
+          name: frame-${{ matrix.game }}
+          path: frames/
+          retention-days: 30
+
+  assemble:
+    name: Assemble and deploy
+    needs: render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: frame-*
+          path: pages
+          merge-multiple: true
+      - name: Generate preview page
+        run: |
+          python3 tests/soak/preview_md.py --frames pages --out pages/index.md
+          echo "--- page ---"
+          head -20 pages/index.md
+          echo "..."
+          ls pages/ | head -10
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Link in summary
+        run: |
+          echo "### Preview page deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "The preview page is live at the repository's GitHub Pages URL." >> "$GITHUB_STEP_SUMMARY"
+          echo "Run \`workflow_dispatch\` again to refresh with current renders." >> "$GITHUB_STEP_SUMMARY"
