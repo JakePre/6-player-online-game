@@ -44,13 +44,17 @@ if [[ -z "$GODOT_BIN" ]]; then
 	exit 1
 fi
 
-# Check for --compat flag: use OpenGL compatibility renderer instead of Vulkan
-# (needed in VMs/CI with virtio-gpu or other software renderers).
+# Check for --compat flag: use software OpenGL rendering instead of the GPU
+# (needed in VMs/CI with virtio-gpu where the virgl driver can't provide a
+# full OpenGL 3.3 context). Forces llvmpipe software rendering with a proper
+# OpenGL version override, so Godot's gl_compatibility renderer works.
 RENDERER_FLAGS=()
 ARGS=()
 for arg in "$@"; do
 	if [[ "$arg" == "--compat" ]]; then
 		RENDERER_FLAGS=("--rendering-method" "gl_compatibility" "--rendering-driver" "opengl3")
+		export LIBGL_ALWAYS_SOFTWARE=1
+		export MESA_GL_VERSION_OVERRIDE=3.3
 	else
 		ARGS+=("$arg")
 	fi
