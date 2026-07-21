@@ -7,9 +7,11 @@ repos:
         language: python
         additional_dependencies: ["gdtoolkit==4.*"]
         files: \.gd$
+        exclude: ^addons/
       - id: gdlint
         name: gdlint
         entry: gdlint
         language: python
         additional_dependencies: ["gdtoolkit==4.*"]
         files: \.gd$
+        exclude: ^addons/
