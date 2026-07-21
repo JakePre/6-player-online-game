@@ -101,9 +101,9 @@ jobs:
           merge-multiple: true
       - name: Generate preview page
         run: |
-          python3 tests/soak/preview_md.py --frames pages --out pages/index.md
+          python3 tests/soak/preview_md.py --frames pages --out pages/index.html
           echo "--- page ---"
-          head -20 pages/index.md
+          head -20 pages/index.html
           echo "..."
           ls pages/ | head -10
       - name: Upload pages artifact
