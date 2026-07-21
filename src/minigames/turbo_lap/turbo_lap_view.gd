@@ -85,16 +85,6 @@ func _arena_half() -> float:
 	return TurboLap.course_bound() + TurboLap.TRACK_HALF_WIDTH + 1.0
 
 
-## Opt out of the shared party-stadium shell (#939, #1041). Every other game is
-## a compact arena the stadium frames behind; turbo_lap's track sprawls to the
-## arena extent, so the shell's dark dome and bleacher ring sat around AND over
-## the track at the iso angle, burying the oval in a dark bowl — the owner's
-## "still not a complete oval". Without it the ribbon + curb rails read as a
-## clean closed loop. The base guards its per-frame update against a null shell.
-func _build_stage_shell() -> void:
-	pass
-
-
 func _setup_3d() -> void:
 	_build_track()
 	for pad_pos in TurboLap.boost_pad_positions():
