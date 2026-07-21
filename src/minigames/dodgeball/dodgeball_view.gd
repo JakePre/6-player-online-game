@@ -4,7 +4,10 @@ extends MinigameView3D
 ## aim, and hurl balls. Hits KO-tumble the target with a burst; a catch flashes
 ## "CAUGHT!" and reflects — the round's clip moment. Renders get_snapshot()
 ## only; the sim owns all outcomes.
-
+##
+## GFX enhancements (#1135): wood-court floor texture (IMG-054), painted
+## boundary lines, translucent backstop walls, 3D scoreboard above center court,
+## ball shadows under flying balls, and gym-scene rim props.
 ## Real dodgeball model (#791/#911, MDL-003): a two-tone rubber ball replacing
 ## the flat sphere. Base-pivoted (probed AABB: y 0..0.4, matching the
 ## generated-models convention), so positioning needs no radius offset — a
@@ -23,7 +26,38 @@ const SIDE_TINT_ALPHA := 0.2
 const CENTER_LINE_COLOR := Color(0.95, 0.95, 1.0)
 const ELIMINATED_COLOR := Color(0.42, 0.42, 0.46)
 const EVENT_HOLD_SEC := 0.9
-
+## Court surface — IMG-054 hardwood gym floor (#1135).
+const COURT_TEXTURE := preload("res://assets/generated/textures/wood-court.png")
+const COURT_TEXTURE_TILES := 4.0
+## Boundary line constants (#1135): thin white emissive strips around the
+## court perimeter, matching Basket Brawl's court-line pattern.
+const COURT_LINE_COLOR := Color(0.95, 0.95, 0.92)
+const COURT_LINE_WIDTH := 0.12
+const COURT_LINE_HEIGHT := 0.02
+## Backstop wall constants (#1135): translucent wall at each Z-end so balls
+## don't fly into the void — matching Laser Limbo's BACK_WALL pattern.
+const BACK_WALL_COLOR := Color(0.14, 0.1, 0.22, 0.35)
+const BACK_WALL_HEIGHT := 2.6
+## Ball shadow constants (#1135): a dark transparent disc under each flying ball.
+const SHADOW_COLOR := Color(0.0, 0.0, 0.0, 0.35)
+const SHADOW_RADIUS := 0.2
+const SHADOW_HEIGHT := 0.01
+## Scoreboard constants (#1135): 3D labels above center court in team mode.
+const SCOREBOARD_HEIGHT := 2.8
+const SCOREBOARD_PIXEL_SIZE := 0.003
+const SCOREBOARD_FONT_SIZE := 28
+## Rim props (#1135): low-detail buildings around the arena perimeter to read
+## as a gymnasium, matching Bomb Courier's rim-building pattern.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-a.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-b.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-c.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-d.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-e.glb"),
+	preload("res://assets/environment/kenney_city_kit_commercial/low-detail-building-f.glb"),
+]
+const RIM_PROP_COUNT := 20
+const RIM_PROP_SEED := 0xDB0
 ## Latest replicated state, straight from Dodgeball.get_snapshot().
 var players := {}
 var ball_states: Array = []
@@ -44,6 +78,15 @@ var _edges := EdgeTracker.new()
 # going FLYING (no holder) -> HELD (a live holder) is a catch.
 var _ball_holder_seen := {}
 var _ball_state_seen := {}
+## Court surface + boundary lines (#1135).
+var _court_surface: MeshInstance3D
+var _boundary_lines: Array[MeshInstance3D] = []
+## Backstop walls (#1135): translucent PlaneMesh walls at each Z-end.
+var _backstop_walls: Array[MeshInstance3D] = []
+## Scoreboard labels (#1135): team name + alive count, shown in team mode.
+var _scoreboard_labels: Array[Label3D] = []
+## Ball shadows (#1135): small dark disc pool under flying balls.
+var _shadow_pool: Array[MeshInstance3D] = []
 
 
 func _physics_process(_delta: float) -> void:
@@ -62,6 +105,9 @@ func _arena_half() -> float:
 func _setup_3d() -> void:
 	half = _arena_half()
 	_build_court()
+	_build_backstop_walls()
+	_build_scoreboard()
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 	_objective_label = make_status_label(&"ObjectiveLabel")
 	_event_label = make_status_label(&"EventLabel")
 	# #924: offset relative to the chrome-cleared baseline, not a bare pixel
@@ -71,9 +117,24 @@ func _setup_3d() -> void:
 	_event_label.visible = false
 
 
-## The center line + two translucent team-colored halves (team mode); in FFA
-## the court is one open floor, so neither is drawn.
+## The IMG-054 wood-court floor surface, painted boundary lines, center line,
+## and two translucent team-colored halves (team mode).
 func _build_court() -> void:
+	# Court surface — IMG-054 wood-court texture (#1135).
+	_court_surface = MeshInstance3D.new()
+	_court_surface.name = "CourtSurface"
+	var surface_mesh := PlaneMesh.new()
+	surface_mesh.size = Vector2(half * 2.0, half * 2.0)
+	var surface_material := StandardMaterial3D.new()
+	surface_material.albedo_texture = COURT_TEXTURE
+	surface_material.uv1_scale = Vector3(COURT_TEXTURE_TILES, COURT_TEXTURE_TILES, 1.0)
+	surface_mesh.material = surface_material
+	_court_surface.mesh = surface_mesh
+	_court_surface.position = Vector3(0.0, 0.015, 0.0)
+	arena.add_child(_court_surface)
+	# Boundary lines — thin white BoxMesh strips around the court perimeter (#1135).
+	_build_boundary_lines()
+	# Center line (team mode).
 	_center_line = MeshInstance3D.new()
 	_center_line.name = "CenterLine"
 	var line_mesh := BoxMesh.new()
@@ -108,6 +169,76 @@ func _build_court() -> void:
 		_side_tints.append(tint)
 
 
+## Painted boundary lines around the court perimeter (#1135): thin white BoxMesh
+## strips just outside the play area so the court reads as a real gym floor.
+func _build_boundary_lines() -> void:
+	var margin := 0.15
+	var offset := half + margin
+	for _bound: int in 4:
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(COURT_LINE_WIDTH, COURT_LINE_HEIGHT, half * 2.0)
+		var material := StandardMaterial3D.new()
+		material.albedo_color = COURT_LINE_COLOR
+		material.emission_enabled = true
+		material.emission = COURT_LINE_COLOR
+		material.emission_energy_multiplier = 0.3
+		mesh.material = material
+		var node := MeshInstance3D.new()
+		node.mesh = mesh
+		# Two vertical lines at ±X, two horizontal lines at ±Z.
+		var side := -1.0 if _bound < 2 else 1.0
+		if _bound % 2 == 0:
+			# X-boundary vertical line (-X or +X edge).
+			node.position = to_arena(Vector2(side * offset, 0.0), COURT_LINE_HEIGHT / 2.0 + 0.02)
+		else:
+			# Z-boundary horizontal line (-Z or +Z edge), rotated 90°.
+			mesh.size = Vector3(half * 2.0, COURT_LINE_HEIGHT, COURT_LINE_WIDTH)
+			node.position = to_arena(Vector2(0.0, side * offset), COURT_LINE_HEIGHT / 2.0 + 0.02)
+		arena.add_child(node)
+		_boundary_lines.append(node)
+
+
+## Translucent backstop walls at each Z-end of the court (#1135): a dim
+## vertical PlaneMesh so balls don't visually fly into the void, matching
+## Laser Limbo's BACK_WALL pattern.
+func _build_backstop_walls() -> void:
+	var wall_mesh := PlaneMesh.new()
+	wall_mesh.size = Vector2(half * 2.0, BACK_WALL_HEIGHT)
+	var wall_material := StandardMaterial3D.new()
+	wall_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wall_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wall_material.albedo_color = BACK_WALL_COLOR
+	wall_mesh.material = wall_material
+	for side: float in [-1.0, 1.0]:
+		var wall := MeshInstance3D.new()
+		wall.name = "BackstopWall%d" % (0 if side < 0.0 else 1)
+		wall.mesh = wall_mesh
+		# Position at the Z-end of the court, facing inward.
+		wall.position = Vector3(0.0, BACK_WALL_HEIGHT / 2.0, side * half)
+		wall.rotation.y = 0.0 if side < 0.0 else PI
+		arena.add_child(wall)
+		_backstop_walls.append(wall)
+
+
+## 3D scoreboard above center court (#1135): two Label3D nodes showing team
+## name + alive count in team mode, hidden in FFA.
+func _build_scoreboard() -> void:
+	for i in 2:
+		var label := Label3D.new()
+		label.name = "Scoreboard%d" % i
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.no_depth_test = true
+		label.fixed_size = true
+		label.pixel_size = SCOREBOARD_PIXEL_SIZE
+		label.font_size = SCOREBOARD_FONT_SIZE
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.visible = false
+		var side := -1.0 if i == 0 else 1.0
+		label.position = Vector3(side * 2.0, SCOREBOARD_HEIGHT, 0.0)
+		arena.add_child(label)
+		_scoreboard_labels.append(label)
+
+
 func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
 	ball_states = game.get("balls", [])
@@ -116,8 +247,10 @@ func _render_3d(game: Dictionary) -> void:
 	var team_mode := bool(game.get("team_mode", false))
 	_update_court(team_mode)
 	_update_objective(team_mode, game)
+	_update_scoreboard(team_mode)
 	_update_players()
 	_update_balls()
+	_update_ball_shadows()
 	_detect_catches()
 	_shake_on_new_downs(game.get("fallen", []))
 	if not _event_label.visible or Time.get_ticks_msec() / 1000.0 >= _event_until:
@@ -244,3 +377,61 @@ func _down_rig(slot: int) -> void:
 	rig.play(&"ko")
 	rig.player_color = ELIMINATED_COLOR
 	fx_burst(Vector2(rig.position.x, rig.position.z), BALL_COLOR, 0.7)
+
+
+## Update the 3D team scoreboard (#1135): show teams + alive count in team mode.
+func _update_scoreboard(team_mode: bool) -> void:
+	for i in 2:
+		var label: Label3D = _scoreboard_labels[i] if i < _scoreboard_labels.size() else null
+		if label == null:
+			continue
+		if not team_mode or teams.size() < 2 or i >= teams.size():
+			label.visible = false
+			continue
+		var team: Array = teams[i] if i < teams.size() else []
+		var alive := 0
+		for slot: int in team:
+			if players.has(slot):
+				alive += 1
+		var team_name := "TEAM %s" % ["A", "B"][i]
+		label.text = "%s  %d" % [team_name, alive]
+		var color := TEAM_A_COLOR if i == 0 else TEAM_B_COLOR
+		label.modulate = color
+		label.visible = true
+
+
+## Update ball shadows (#1135): a dark disc on the floor under each ball,
+## visible only while flying or held (not while loose/on the ground).
+func _update_ball_shadows() -> void:
+	for i in ball_states.size():
+		var ball: Array = ball_states[i]
+		var state := int(ball[Dodgeball.BL_STATE])
+		var shadow := _shadow_node(i)
+		shadow.visible = state != Dodgeball.BallState.LOOSE
+		if not shadow.visible:
+			continue
+		var pos := Vector2(float(ball[Dodgeball.BL_X]), float(ball[Dodgeball.BL_Y]))
+		shadow.position = to_arena(pos, 0.02)
+	for i in range(ball_states.size(), _shadow_pool.size()):
+		_shadow_pool[i].visible = false
+
+
+## Pooled dark disc under each ball (#1135).
+func _shadow_node(index: int) -> MeshInstance3D:
+	while index >= _shadow_pool.size():
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = SHADOW_RADIUS
+		mesh.bottom_radius = SHADOW_RADIUS
+		mesh.height = SHADOW_HEIGHT
+		var material := StandardMaterial3D.new()
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_color = SHADOW_COLOR
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mesh.material = material
+		var node := MeshInstance3D.new()
+		node.name = "Shadow%d" % _shadow_pool.size()
+		node.mesh = mesh
+		node.visible = false
+		arena.add_child(node)
+		_shadow_pool.append(node)
+	return _shadow_pool[index]
