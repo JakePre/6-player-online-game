@@ -13,11 +13,21 @@ const INPUT_ACTIONS := {&"action_primary": "bomb"}
 ## read as flat and dark, especially against the light #589 floor tint.
 const PILLAR_COLOR := Color(0.58, 0.6, 0.68)
 const SOFT_COLOR := Color(0.85, 0.62, 0.4)
-const BOMB_COLOR := Color(0.15, 0.15, 0.18)
 const FLAME_COLOR := Color(1.0, 0.55, 0.15)
 const RANGE_COLOR := Color(1.0, 0.5, 0.35)
 const BOMB_POWER_COLOR := Color(0.45, 0.75, 1.0)
 const BLOCK_HEIGHT := 1.1
+## Tier 1 GFX (#1125): the metal-deck diamond-plate texture reads perfectly
+## on a grid floor, tiled 6× for visible pattern density.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/metal-deck.png")
+const FLOOR_TEXTURE_TILES := 6.0
+## Tier 1 GFX (#1125): swap the primitive SphereMesh bomb for the Kenney
+## platformer kit bomb model, plus a fuse ring for the emission pulse
+## (Bomb Courier convention — don't repaint the shared model's materials).
+const BOMB_SCENE := preload("res://assets/environment/kenney_platformer_kit/bomb.glb")
+const BOMB_SCALE := 0.65
+const FUSE_RING_INNER := 0.25
+const FUSE_RING_OUTER := 0.4
 ## Soft walls are the landed MDL-018 wooden crate (#817) — the real model this
 ## grid was the named consumer for, replacing the crate-face-textured BoxMesh
 ## (#929). Pillars stay flat-colored — they're structural, not a crate.
@@ -43,9 +53,7 @@ var grid: Array = []
 
 var _blocks := {}  # cell (int) -> Node3D (SOLID pillar boxes + SOFT crate scenes)
 # Pooled (#709): reused across snapshots, hiding surplus instead of freeing, so
-# a dense grid (bombs+flames+powerups at 24 players) stops churning
-# MeshInstance3D/StandardMaterial3D allocations every render.
-var _bomb_nodes: Array[MeshInstance3D] = []
+var _bomb_nodes: Array[Node3D] = []
 var _bomb_materials: Array[StandardMaterial3D] = []
 var _bombs: Array = []
 var _flame_mesh: BoxMesh
@@ -85,6 +93,19 @@ func _floor_tint() -> Color:
 
 func _arena_half() -> float:
 	return BlastGrid.ARENA_HALF + 1.0
+
+
+## Tier 1 GFX (#1125): replace the flat tinted floor with IMG-057
+## metal-deck.png — the diamond-plate pattern reads perfectly on a grid.
+## Keeps the ashy-warm tint so the floor still feels like the existing
+## palette, just with texture detail.
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = FLOOR_TEXTURE
+			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -143,11 +164,35 @@ func _make_block(cell: int, solid: bool) -> Node3D:
 	material.emission_energy_multiplier = 0.25
 	mesh.material = material
 	var node := MeshInstance3D.new()
-	node.name = "Block%d" % cell
 	node.mesh = mesh
-	node.position = to_arena(_cell_pos(cell), BLOCK_HEIGHT * 0.5)
-	arena.add_child(node)
-	return node
+	# Tier 2 GFX (#1125): a thin crown on each pillar so they read as
+	# structural columns, not floating boxes.
+	var cap_height := 0.06
+	var cap_inset := 0.06
+	var cap_mesh := BoxMesh.new()
+	cap_mesh.size = Vector3(
+		BlastGrid.CELL_SIZE * 0.92 - cap_inset * 2.0,
+		cap_height,
+		BlastGrid.CELL_SIZE * 0.92 - cap_inset * 2.0
+	)
+	var cap_material := StandardMaterial3D.new()
+	cap_material.albedo_color = PILLAR_COLOR.lightened(0.25)
+	cap_material.metallic = 0.5
+	cap_material.roughness = 0.3
+	cap_mesh.material = cap_material
+	var cap := MeshInstance3D.new()
+	cap.name = "Cap%d" % cell
+	cap.mesh = cap_mesh
+	var root := Node3D.new()
+	root.name = "Block%d" % cell
+	node.name = "Pillar"
+	node.position.y = BLOCK_HEIGHT * 0.5
+	root.add_child(node)
+	cap.position.y = BLOCK_HEIGHT * 0.5 + cap_height * 0.5
+	root.add_child(cap)
+	root.position = to_arena(_cell_pos(cell), 0.0)
+	arena.add_child(root)
+	return root
 
 
 func _update_bombs(bomb_list: Array) -> void:
@@ -156,17 +201,27 @@ func _update_bombs(bomb_list: Array) -> void:
 
 
 func _make_bomb() -> Node3D:
-	var mesh := SphereMesh.new()
-	mesh.radius = BlastGrid.CELL_SIZE * 0.32
-	mesh.height = mesh.radius * 2.0
-	var material := StandardMaterial3D.new()
-	material.albedo_color = BOMB_COLOR
-	material.emission_enabled = true
-	mesh.material = material
-	_bomb_materials.append(material)
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	return node
+	# Kenney bomb.glb model + a fuse ring for the emission pulse (#1125),
+	# following Bomb Courier's convention: the ring carries the SAFE→HOT
+	# color, leaving the shared model's materials untouched.
+	var root := Node3D.new()
+	var model: Node3D = BOMB_SCENE.instantiate()
+	model.scale = Vector3.ONE * BOMB_SCALE
+	root.add_child(model)
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = FUSE_RING_INNER
+	ring_mesh.outer_radius = FUSE_RING_OUTER
+	var ring_material := StandardMaterial3D.new()
+	ring_material.emission_enabled = true
+	ring_material.emission = FLAME_COLOR
+	ring_mesh.material = ring_material
+	_bomb_materials.append(ring_material)
+	var ring := MeshInstance3D.new()
+	ring.mesh = ring_mesh
+	ring.rotation.x = PI / 2.0
+	ring.position.y = 0.05
+	root.add_child(ring)
+	return root
 
 
 func _place_bomb(node: Node3D, index: int) -> void:
@@ -183,7 +238,7 @@ func _place_bomb(node: Node3D, index: int) -> void:
 		if bomb.size() > BlastGrid.BM_Y
 		else _cell_pos(int(bomb[BlastGrid.BM_CELL]))
 	)
-	node.position = to_arena(world, BlastGrid.CELL_SIZE * 0.32)
+	node.position = to_arena(world, 0.0)
 
 
 ## Flame cells glow; a cell newly on fire pops a burst + shake (the detonation).

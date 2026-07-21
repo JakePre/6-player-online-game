@@ -67,10 +67,14 @@ func test_soft_walls_are_crate_models_pillars_stay_boxes() -> void:
 	g[_cell(2, 2)] = BlastGrid.Cell.SOLID
 	g[_cell(3, 3)] = BlastGrid.Cell.SOFT
 	view.render({"grid": g, "players": {}, "bombs": [], "flames": [], "powerups": []})
-	var pillar := view._blocks[_cell(2, 2)] as MeshInstance3D
-	assert_not_null(pillar, "pillar stays a plain box")
+	var pillar_root: Node3D = view._blocks[_cell(2, 2)] as Node3D
+	assert_not_null(pillar_root, "pillar has a root node")
+	var pillar := pillar_root.find_child("Pillar", true, false) as MeshInstance3D
+	assert_not_null(pillar, "pillar contains a MeshInstance3D child")
 	var pillar_mat := (pillar.mesh as BoxMesh).material as StandardMaterial3D
 	assert_null(pillar_mat.albedo_texture, "pillars stay flat-colored")
+	var meshes := pillar_root.find_children("*", "MeshInstance3D", true, false)
+	assert_gt(meshes.size(), 1, "pillar root has pillar mesh + cap mesh")
 	var crate: Node3D = view._blocks[_cell(3, 3)]
 	assert_false(crate is MeshInstance3D, "soft wall is the instanced crate scene")
 	assert_gt(
