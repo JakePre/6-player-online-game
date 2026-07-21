@@ -40,14 +40,22 @@ func test_render_tolerates_missing_keys() -> void:
 	assert_eq(view.fish, [])
 
 
-## M13-19: fish-shaped bodies that swim (wag driven by replicated progress),
-## and a splash + sparkle at the line on every catch.
-func test_fish_have_bodies_and_tails_that_wag() -> void:
+## M13-19 + #1133: Kenney fish models (fish.glb, fish-bones.glb variant) that
+## swim (wag driven by replicated progress), and a splash + sparkle at the
+## line on every catch.
+func test_fish_have_kenney_models_that_wag() -> void:
 	view.render({"players": {}, "fish": [[1, 0.9]], "swim_sec": 1.8})
 	var fish_node: Node3D = view.arena.get_node("Fish0")
 	assert_true(fish_node.visible)
-	assert_not_null(fish_node.get_node("Body"))
-	assert_not_null(fish_node.get_node("Tail"))
+	## The fish model is instantiated as a child of the root node.
+	assert_eq(fish_node.get_child_count(), 1, "fish root has one model child")
+	var model: Node3D = fish_node.get_child(0) as Node3D
+	assert_not_null(model)
+	## Every 3rd fish is fish-bones (i % 3 == 0). Fish0 = i=0 → bones.
+	if 0 % 3 == 0:
+		assert_string_contains(model.name.to_lower(), "bones", "fish 0 is a skeleton variant")
+	else:
+		assert_string_contains(model.name.to_lower(), "fish", "fish 0 is the standard model")
 	var wag_a: float = fish_node.rotation.y
 	view.render({"players": {}, "fish": [[1, 0.8]], "swim_sec": 1.8})
 	var wag_b: float = fish_node.rotation.y
