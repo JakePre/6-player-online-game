@@ -13,7 +13,31 @@ extends MinigameView3D
 ## Declarative button input (#947): shove. Was a raw Input poll in _process
 ## with no null-peer guard — the event-based base structurally closes that gap.
 const INPUT_ACTIONS := {&"action_primary": "shove"}
-
+const EMBER_FLOOR := preload("res://assets/generated/textures/ember-rock.png")
+## Rim scenery (#1129): rocks and boulders ring the mine track, dressing the
+## arena edge via the shared scatter_rim_props helper.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallB.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_tallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_tallB.glb"),
+	preload("res://assets/environment/kenney_nature_kit/cliff_rock.glb"),
+]
+const RIM_PROP_COUNT := 24
+const RIM_PROP_SEED := 0xCA0E
+## Mine lanterns: pole height, globe radius, glow color.
+const LANTERN_POLE_HEIGHT := 1.8
+const LANTERN_GLOBE_RADIUS := 0.25
+const LANTERN_GLOW := Color(1.0, 0.7, 0.3)
+const LANTERN_COUNT := 6
+## Track cross-ties: spacing and dimensions.
+const TIE_SPACING := 0.5
+const TIE_WIDTH := 0.12
+const TIE_DEPTH := 1.2
+## Scattered gold coins along the track.
+const GOLD_COIN_SCENE := preload("res://assets/environment/kenney_platformer_kit/coin-gold.glb")
+const GOLD_COIN_COUNT := 8
+const GOLD_COIN_SEED := 0x70CA
 const TEAM_COLORS: Array[Color] = [Color(0.9, 0.5, 0.2), Color(0.35, 0.6, 0.95)]
 const RAIL_COLOR := Color(0.35, 0.3, 0.25)
 const START_COLOR := Color(0.85, 0.85, 0.85)
@@ -40,9 +64,27 @@ func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
-## Dusty mine floor (#589).
-func _floor_tint() -> Color:
-	return Color(0.95, 0.88, 0.74)
+## Ember-rock cavern floor (#1129): override the default tiled floor with a
+## single textured plane using the ember-rock texture, giving the mine cart
+## track a cavern-floor feel.
+func _build_floor() -> void:
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(_arena_half() * 2.0, _arena_half() * 2.0)
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = EMBER_FLOOR
+	material.albedo_color = Color(0.85, 0.75, 0.6)
+	mesh.material = material
+	var floor_node := MeshInstance3D.new()
+	floor_node.name = "Floor"
+	floor_node.mesh = mesh
+	floor_node.position.y = -0.01
+	arena.add_child(floor_node)
+
+
+## Warm-dark cavern mood (#1129): pushes the party-stadium shell toward a warm
+## orange-brown atmosphere, matching the ember-rock floor and mine theme.
+func _mood() -> Color:
+	return Color(0.15, 0.1, 0.08).lerp(Color(0.4, 0.25, 0.15), 0.3)
 
 
 func _arena_half() -> float:
@@ -54,6 +96,10 @@ func _setup_3d() -> void:
 	_build_start_finish()
 	_build_carts()
 	_build_labels()
+	_build_track_ties()
+	_build_mine_lights()
+	_build_gold_coins()
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -192,3 +238,92 @@ func _build_carts() -> void:
 
 func _build_labels() -> void:
 	_push_label = make_status_label(&"PushLabel")
+
+
+## Track cross-ties (#1129): small BoxMesh planks across both rails at regular
+## intervals for a railroad look. Placed every TIE_SPACING units along the track.
+func _build_track_ties() -> void:
+	var half_track := CartPush.TRACK_HALF
+	var pos := -half_track
+	while pos <= half_track:
+		var tie := MeshInstance3D.new()
+		tie.name = "Tie%.1f" % pos
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(TIE_WIDTH, 0.03, TIE_DEPTH)
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color(0.25, 0.18, 0.1)
+		mesh.material = material
+		tie.mesh = mesh
+		tie.position = Vector3(pos, 0.01, 0.0)
+		arena.add_child(tie)
+		pos += TIE_SPACING
+
+
+## Mine lanterns (#1129): tall thin poles with a glowing orb at the top,
+## placed on both sides of the track to light the mine path.
+func _build_mine_lights() -> void:
+	for i in LANTERN_COUNT:
+		var t := float(i) / float(LANTERN_COUNT - 1)
+		var x := lerpf(-CartPush.TRACK_HALF, CartPush.TRACK_HALF, t)
+		for side in [-1, 1]:
+			var y: float = side * (CartPush.LANE_Y + 1.2)
+			var pole := MeshInstance3D.new()
+			pole.name = "LanternPole%d_%d" % [i, side]
+			var pmesh := CylinderMesh.new()
+			pmesh.top_radius = 0.04
+			pmesh.bottom_radius = 0.06
+			pmesh.height = LANTERN_POLE_HEIGHT
+			var pmat := StandardMaterial3D.new()
+			pmat.albedo_color = Color(0.45, 0.35, 0.25)
+			pmesh.material = pmat
+			pole.mesh = pmesh
+			pole.position = Vector3(x, LANTERN_POLE_HEIGHT * 0.5, y)
+			arena.add_child(pole)
+			var globe := MeshInstance3D.new()
+			globe.name = "LanternGlobe%d_%d" % [i, side]
+			var gmesh := SphereMesh.new()
+			gmesh.radius = LANTERN_GLOBE_RADIUS
+			gmesh.height = LANTERN_GLOBE_RADIUS * 2.0
+			var gmat := StandardMaterial3D.new()
+			gmat.albedo_color = LANTERN_GLOW
+			gmat.emission_enabled = true
+			gmat.emission = LANTERN_GLOW
+			gmat.emission_energy_multiplier = 0.5
+			gmesh.material = gmat
+			globe.mesh = gmesh
+			globe.position = Vector3(x, LANTERN_POLE_HEIGHT, y)
+			arena.add_child(globe)
+			# A second, larger translucent glow sphere for a soft halo.
+			var halo := MeshInstance3D.new()
+			halo.name = "LanternHalo%d_%d" % [i, side]
+			var hmesh := SphereMesh.new()
+			hmesh.radius = LANTERN_GLOBE_RADIUS * 1.8
+			hmesh.height = LANTERN_GLOBE_RADIUS * 3.6
+			var hmat := StandardMaterial3D.new()
+			hmat.albedo_color = Color(LANTERN_GLOW, 0.15)
+			hmat.emission_enabled = true
+			hmat.emission = LANTERN_GLOW
+			hmat.emission_energy_multiplier = 0.1
+			hmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			hmesh.material = hmat
+			halo.mesh = hmesh
+			halo.position = Vector3(x, LANTERN_POLE_HEIGHT, y)
+			arena.add_child(halo)
+
+
+## Decorative gold coins (#1129): scatter coin-gold.glb models along the track
+## at fixed seeded positions as non-interactive mine-bonus dressing.
+func _build_gold_coins() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = GOLD_COIN_SEED
+	for i in GOLD_COIN_COUNT:
+		var coin := GOLD_COIN_SCENE.instantiate() as Node3D
+		if coin == null:
+			continue
+		coin.name = "GoldCoin%d" % i
+		var x := rng.randf_range(-CartPush.TRACK_HALF, CartPush.TRACK_HALF)
+		var y := rng.randf_range(-CartPush.LANE_Y - 0.5, CartPush.LANE_Y + 0.5)
+		coin.position = to_arena(Vector2(x, y), 0.02)
+		coin.rotation.y = rng.randf() * TAU
+		coin.scale = Vector3(0.4, 0.4, 0.4)
+		arena.add_child(coin)
