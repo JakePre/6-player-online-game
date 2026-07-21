@@ -5,6 +5,9 @@ extends MinigameView3D
 ## sides as CharacterRigs leaning into the pull. Presentation-tier swap only:
 ## state storage and the alternating pull input are unchanged from the 2D
 ## pass (M4-10).
+##
+## GFX enhancements (#1164): sand-packed floor, CylinderMesh rope, team flags,
+## footprint decals, mud splash, rim props, and a desert struggle-pit mood.
 
 const ROPE_COLOR := Color(0.85, 0.65, 0.35)
 const MARKER_COLOR := Color(1.0, 0.9, 0.4)
@@ -42,6 +45,38 @@ const SCUFF_SEC := 0.4
 const WIN_BURST_SEC := 0.7
 const WIN_STREAMERS := 16
 
+# --- GFX pass (#1164) ---------------------------------------------------------
+
+## Sand-packed floor texture (IMG-055): tiled over the arena.
+const SAND_TEXTURE := preload("res://assets/generated/textures/sand-packed.png")
+const FLOOR_TEXTURE_TILES := 6.0
+## Rope: CylinderMesh radius
+const ROPE_RADIUS := 0.15
+## Flag pole dimensions.
+const FLAG_POLE_H := 2.5
+const FLAG_POLE_RADIUS := 0.05
+const FLAG_Z_OFFSET := 2.0  # behind the team row
+## Kenney flag GLB for team flags (#1164).
+const FLAG_SCENE := preload("res://assets/environment/kenney_platformer_kit/flag.glb")
+## Footprint: dark ellipse on the sand, fading over time.
+const FOOTPRINT_W := 0.3
+const FOOTPRINT_D := 0.18
+const FOOTPRINT_FADE_SEC := 4.0
+const FOOTPRINT_MAX := 60
+## Mud splash: brown burst particles during intense pulls.
+const MUD_BURST_COUNT := 6
+const MUD_BURST_SPEED := 1.5
+## Rim props: desert struggle-pit scenery around the perimeter.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_platformer_kit/barrel.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/rocks.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/stones.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/tree-pine-small.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/grass.glb"),
+]
+const RIM_PROP_COUNT := 16
+const RIM_PROP_SEED := 0x1164
+
 ## Latest replicated state, straight from TugOfWar.get_snapshot().
 var rope := 0.0
 var win_offset := TugOfWar.WIN_OFFSET
@@ -59,12 +94,22 @@ var _hud: Control
 var _knot_flare_until := 0.0
 var _win_fired := false
 
+# --- GFX state (#1164) --------------------------------------------------------
+
+## Footprint pool: pooled ellipse decals, their placement times, and positions.
+var _footprint_pool: Array[MeshInstance3D] = []
+var _footprint_times: Array[float] = []
+var _footprint_positions: Array[Vector3] = []
+## Team flag nodes (flag.glb on a pole).
+var _flags: Array[Node3D] = []
+
 
 ## Polled (not event-driven): stick axis motion doesn't deliver discrete
 ## pressed events reliably, which left gamepads unable to pull at all (#136).
 ## is_action_just_pressed unifies keys, d-pad, and stick threshold crossings.
 func _process(_delta: float) -> void:
 	_decay_knot_flare()
+	_decay_footprints(_delta)
 	if NetManager.multiplayer.multiplayer_peer == null:
 		return
 	var phase := -1
@@ -86,27 +131,55 @@ func _decay_knot_flare() -> void:
 	_marker_material.emission_energy_multiplier = 2.6 if flaring else 0.9
 
 
-## A grass field for the rope struggle (#813) — the classic field-day setting;
-## the Kenney grass block replaces the grey platform and carries its own
-## color, so the old dusty-tan tint (#589) is gone.
-func _floor_tile_scene() -> PackedScene:
-	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
+## Sand-packed floor (#1164): PlaneMesh with IMG-055 sand-packed.png replacing the
+## grass block, tiled for a desert struggle-pit feel.
+func _build_floor() -> void:
+	var half := _arena_half()
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(half * 2.0, half * 2.0)
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = SAND_TEXTURE
+	material.albedo_color = Color(0.95, 0.88, 0.72)
+	material.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
+	material.metallic = 0.0
+	material.roughness = 1.0
+	mesh.material = material
+	var floor_node := MeshInstance3D.new()
+	floor_node.name = "SandFloor"
+	floor_node.mesh = mesh
+	floor_node.position.y = -0.01
+	arena.add_child(floor_node)
+
+
+## Warm desert struggle-pit mood (#1164).
+func _mood() -> Color:
+	return Color(0.22, 0.16, 0.08).lerp(Color(0.45, 0.35, 0.18), 0.25)
 
 
 func _arena_half() -> float:
 	return TugOfWar.WIN_OFFSET + 4.0
 
 
+## Replace the flat BoxMesh rope with a CylinderMesh (#1164): teams stand on
+## either side of the stretched rope, which is a long thin cylinder lying
+## along the X axis.
 func _setup_3d() -> void:
-	var rope_mesh := BoxMesh.new()
-	rope_mesh.size = Vector3(TugOfWar.WIN_OFFSET * 2.0 + ROPE_EXTRA, ROPE_THICKNESS, ROPE_THICKNESS)
+	# CylinderMesh rope (#1164): the default CylinderMesh points up (Y); rotate
+	# 90 degrees around Z to lie along the X axis.
+	var rope_mesh := CylinderMesh.new()
+	rope_mesh.top_radius = ROPE_RADIUS
+	rope_mesh.bottom_radius = ROPE_RADIUS
+	rope_mesh.height = TugOfWar.WIN_OFFSET * 2.0 + ROPE_EXTRA
 	var rope_material := StandardMaterial3D.new()
 	rope_material.albedo_color = ROPE_COLOR
+	rope_material.metallic = 0.2
+	rope_material.roughness = 0.7
 	rope_mesh.material = rope_material
 	var rope_node := MeshInstance3D.new()
 	rope_node.name = "Rope"
 	rope_node.mesh = rope_mesh
 	rope_node.position = Vector3(0.0, ROPE_HEIGHT, 0.0)
+	rope_node.rotation.z = PI / 2.0
 	arena.add_child(rope_node)
 
 	var marker_mesh := SphereMesh.new()
@@ -165,12 +238,68 @@ func _setup_3d() -> void:
 		tint.position = Vector3(side * half / 2.0, 0.02, 0.0)
 		arena.add_child(tint)
 
+	# Team flags (#1164): Kenney flag.glb on a pole behind each team line.
+	_build_team_flags()
+
+	# Rim props (#1164): desert scenery around the perimeter.
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
+
 	_hud = Control.new()
 	_hud.name = "TugHud"
 	_hud.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud.draw.connect(_draw_hud)
 	add_child(_hud)
+
+
+## Flags on poles behind each team line (#1164): the Kenney flag.glb in the
+## team's color, mounted on a tall pole.
+func _build_team_flags() -> void:
+	for team_index: int in 2:
+		var side := -1.0 if team_index == 0 else 1.0
+		var team_color := TEAM_A_COLOR if team_index == 0 else TEAM_B_COLOR
+		var flag_group := Node3D.new()
+		flag_group.name = "FlagGroup%d" % team_index
+
+		# Pole: tall thin CylinderMesh
+		var pole_mesh := CylinderMesh.new()
+		pole_mesh.top_radius = FLAG_POLE_RADIUS
+		pole_mesh.bottom_radius = FLAG_POLE_RADIUS
+		pole_mesh.height = FLAG_POLE_H
+		var pole_material := StandardMaterial3D.new()
+		pole_material.albedo_color = Color(0.6, 0.55, 0.45)
+		pole_material.metallic = 0.1
+		pole_material.roughness = 0.8
+		pole_mesh.material = pole_material
+		var pole := MeshInstance3D.new()
+		pole.name = "FlagPole%d" % team_index
+		pole.mesh = pole_mesh
+		pole.position = Vector3(side * 2.5, FLAG_POLE_H / 2.0, side * (TEAM_ROW_Z + FLAG_Z_OFFSET))
+		flag_group.add_child(pole)
+
+		# Flag: Kenney flag.glb, rotated to face the arena center.
+		var flag := FLAG_SCENE.instantiate() as Node3D
+		if flag != null:
+			flag.name = "TeamFlag%d" % team_index
+			# Tint the flag material to the team color.
+			for found in flag.find_children("*", "MeshInstance3D", true, false):
+				var mesh_node := found as MeshInstance3D
+				for surface in mesh_node.mesh.get_surface_count():
+					var mat := mesh_node.get_active_material(surface)
+					if mat is StandardMaterial3D:
+						var tinted: StandardMaterial3D = mat.duplicate()
+						tinted.albedo_color = team_color
+						tinted.emission_enabled = true
+						tinted.emission = team_color
+						tinted.emission_energy_multiplier = 0.3
+						mesh_node.set_surface_override_material(surface, tinted)
+			flag.position = Vector3(
+				side * 2.5, FLAG_POLE_H - 0.3, side * (TEAM_ROW_Z + FLAG_Z_OFFSET)
+			)
+			flag.rotation.y = PI / 2.0 if side < 0.0 else -PI / 2.0
+			flag_group.add_child(flag)
+		arena.add_child(flag_group)
+		_flags.append(flag_group)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -181,26 +310,24 @@ func _render_3d(game: Dictionary) -> void:
 	_fire_pull_fx()
 	_marker.position.x = rope
 	_update_teams()
+	_accumulate_footprints()
 	_last_rope = rope
 	_hud.queue_redraw()
 
 
 ## Juice the rope's motion (#314): each snapshot the rope moved is a pull —
 ## flare the knot and scuff the ground under the team that gained. A rope at
-## the line throws the win burst once.
+## the line throws the win burst once. Also kick mud (#1164) during pulls.
 func _fire_pull_fx() -> void:
 	var delta := rope - _last_rope
 	if absf(delta) >= PULL_EPSILON:
 		_knot_flare_until = _now() + KNOT_FLARE_SEC
 		# Rope moving -x means team A gained ground (they pull toward -x).
-		_scuff_dust(-1.0 if delta < 0.0 else 1.0)
+		var side := -1.0 if delta < 0.0 else 1.0
+		_scuff_dust(side)
+		_mud_splash(side)
 	if not _win_fired and absf(rope) >= win_offset - 0.001 and not (team_a + team_b).is_empty():
 		_win_fired = true
-		# `round_win` is chrome-exclusive (docs/AUDIO_GUIDE.md rule 1 — the
-		# match_screen fires it, games don't); this was reusing the shared
-		# stinger for tug_of_war's own pull-to-the-line, the same meaning
-		# collision the Aim & targets batch found in quick_draw (#728). The
-		# delivery cue is the correct fit here.
 		play_sfx(&"bell")
 		request_shake(10.0)
 		_win_burst(-1.0 if rope < 0.0 else 1.0)
@@ -230,6 +357,37 @@ func _scuff_dust(side: float) -> void:
 		tween.tween_property(puff, "scale", Vector3.ONE * 2.0, SCUFF_SEC)
 		tween.tween_property(material, "albedo_color:a", 0.0, SCUFF_SEC)
 		tween.chain().tween_callback(puff.queue_free)
+
+
+## Brown mud splash burst at the leading edge of the gaining team (#1164),
+## complementing the scuff dust with heavier wet-ground particles.
+func _mud_splash(side: float) -> void:
+	if ArenaFX.reduced_motion:
+		return
+	var base := Vector3(rope + side * 1.6, 0.15, side * TEAM_ROW_Z)
+	for i in MUD_BURST_COUNT:
+		var mesh := SphereMesh.new()
+		mesh.radius = 0.1
+		mesh.height = 0.2
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_color = Color(0.55, 0.35, 0.2, 0.8)
+		mesh.material = material
+		var blob := MeshInstance3D.new()
+		blob.mesh = mesh
+		blob.position = base + Vector3((i - MUD_BURST_COUNT / 2) * 0.3, 0.0, 0.0)
+		arena.add_child(blob)
+		var angle := TAU * float(i) / float(MUD_BURST_COUNT) + (PI if side < 0.0 else 0.0)
+		var target := (
+			base + Vector3(cos(angle) * MUD_BURST_SPEED, 0.8, sin(angle) * MUD_BURST_SPEED * 0.5)
+		)
+		var tween := blob.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(blob, "position", target, 0.35).set_trans(Tween.TRANS_QUAD)
+		tween.tween_property(blob, "scale", Vector3.ZERO, 0.35)
+		tween.tween_property(material, "albedo_color:a", 0.0, 0.35).set_delay(0.15)
+		tween.chain().tween_callback(blob.queue_free)
 
 
 ## Streamers erupt from the knot at the moment it's dragged over the line —
@@ -356,3 +514,89 @@ func _place_team(team: Array, side: float) -> void:
 		var desired: StringName = &"run" if moving else &"idle"
 		if rig.current_action() != desired:
 			rig.play(desired)
+
+
+# --- Footprint decals (#1164) -------------------------------------------------
+
+
+## Accumulate dark ellipse decals at each team member's position. New
+## footprints are added each render; old ones fade out over FOOTPRINT_FADE_SEC.
+func _accumulate_footprints() -> void:
+	if ArenaFX.reduced_motion:
+		return
+	var now := _now()
+	var all_slots: Array = team_a + team_b
+	var added := false
+	for slot: int in all_slots:
+		var rig := rig_for_slot(slot)
+		if rig == null or not rig.visible:
+			continue
+		var pos := rig.position
+		pos.y = 0.02
+		# Only add a footprint if the rig moved (avoid spamming on idle).
+		var is_new := true
+		for existing: Vector3 in _footprint_positions:
+			if pos.distance_to(existing) < 0.3:
+				is_new = false
+				break
+		if is_new:
+			_footprint_positions.append(pos)
+			_footprint_times.append(now)
+			added = true
+
+	# Trim expired footprints past FOOTPRINT_MAX.
+	if added and _footprint_times.size() > FOOTPRINT_MAX:
+		var excess := _footprint_times.size() - FOOTPRINT_MAX
+		for _j in excess:
+			_footprint_times.pop_front()
+			_footprint_positions.pop_front()
+
+	# Sync the pool to the current footprint count.
+	var print_count := mini(_footprint_positions.size(), FOOTPRINT_MAX)
+	sync_pool(_footprint_pool, print_count, _make_footprint, _place_footprint)
+
+
+## Build one footprint decal: a dark ellipse lying flat on the ground.
+func _make_footprint() -> MeshInstance3D:
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(FOOTPRINT_W, FOOTPRINT_D)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(0.35, 0.28, 0.18, 0.4)
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.material = material
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.rotation.x = -PI / 2.0  # lie flat on ground
+	return node
+
+
+## Position a footprint decal at the stored position for this index.
+func _place_footprint(node: MeshInstance3D, index: int) -> void:
+	if index < 0 or index >= _footprint_positions.size():
+		node.visible = false
+		return
+	var pos: Vector3 = _footprint_positions[index]
+	node.position = pos
+	# Random yaw so footprints don't all face the same direction.
+	node.rotation.y = float(index) * 1.7
+	node.visible = true
+
+
+## Fade footprints over time as they age past the fade threshold.
+func _decay_footprints(_delta: float) -> void:
+	var now := _now()
+	for i in _footprint_pool.size():
+		var node: MeshInstance3D = _footprint_pool[i]
+		if not node.visible:
+			continue
+		if i < _footprint_times.size():
+			var age := now - _footprint_times[i]
+			if age >= FOOTPRINT_FADE_SEC:
+				node.visible = false
+			else:
+				var alpha := 1.0 - (age / FOOTPRINT_FADE_SEC)
+				var mat := node.mesh.surface_get_material(0) as StandardMaterial3D
+				if mat != null:
+					mat.albedo_color.a = alpha * 0.4
