@@ -4,7 +4,9 @@ extends MinigameView3D
 ## instances (position/facing/walk-idle from the snapshot, points on the
 ## nameplate), the shrinking scoring zone as a translucent gold disc capping a
 ## real hill-crest model (#919), and shove-horn/anchor pickups as their own
-## shapes rather than colored boxes. Presentation-tier swap only: state
+## shapes rather than colored boxes. Visual enhancements (#1137): gold particle
+## fountain rising from the scoring zone, decorative flag rim props around the
+## hill perimeter, warm golden-hour mood. Presentation-tier swap only: state
 ## storage and the render contract are unchanged from the 2D pass (M4-01).
 
 ## Declarative button input (#947): use the held pickup (shove / anchor).
@@ -45,17 +47,26 @@ const ANCHOR_SCENE := preload("res://assets/generated/models/anchor.glb")
 ## `held` rather than a dedicated event.
 const SHOVE_HOLD_SEC := 0.6
 
-## Rim scenery (#813): pines and rocks ring the grassy hilltop, dressing the
-## arena edge via the shared scatter_rim_props helper. Fixed seed so the layout
-## is stable and reproducible.
+## Rim scenery (#813): pines, rocks, and flags ring the grassy hilltop, dressing
+## the arena edge via the shared scatter_rim_props helper. Fixed seed so the
+## layout is stable and reproducible.
 const RIM_PROP_SCENES: Array[PackedScene] = [
 	preload("res://assets/environment/kenney_nature_kit/tree_pineRoundA.glb"),
 	preload("res://assets/environment/kenney_nature_kit/tree_pineRoundD.glb"),
 	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
 	preload("res://assets/environment/kenney_nature_kit/rock_tallA.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/flag.glb"),
 ]
-const RIM_PROP_COUNT := 16
+const RIM_PROP_COUNT := 20
 const RIM_PROP_SEED := 0x40C
+## Gold particle fountain (#1137): gentle rising gold particles from the scoring
+## zone, making the hill feel like a reward. Continuous CPUParticles3D, not
+## one-shot — the fountain runs as long as the zone is visible.
+const FOUNTAIN_AMOUNT := 30
+const FOUNTAIN_LIFETIME := 2.0
+const FOUNTAIN_SPEED := 2.0
+const FOUNTAIN_COLOR := Color(0.96, 0.79, 0.2)
+const FOUNTAIN_HEIGHT := 0.8
 
 ## Latest replicated state, straight from KingOfTheHill.get_snapshot().
 var players := {}
@@ -79,6 +90,9 @@ var _items: Array = []
 var _held_label: Label
 ## Last-seen held map, for pickup-moment detection (#260).
 var _last_held := {}
+## Continuous gold particle fountain (#1137): rises from the scoring zone
+## center, visible when the zone is active.
+var _fountain: CPUParticles3D
 
 
 func _physics_process(_delta: float) -> void:
@@ -90,6 +104,12 @@ func _physics_process(_delta: float) -> void:
 ## The block carries its own grass color, so no tint is layered over it.
 func _floor_tile_scene() -> PackedScene:
 	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
+
+
+## Warm golden-hour mood (#1137): pushes the party-stadium shell toward a warm
+## amber/gold tone, matching the grassy hilltop and gold fountain theme.
+func _mood() -> Color:
+	return Color(0.2, 0.15, 0.12).lerp(FOUNTAIN_COLOR, 0.25)
 
 
 func _arena_half() -> float:
@@ -123,6 +143,29 @@ func _setup_3d() -> void:
 	# Ring the grassy hilltop with pines and rocks (#813) — the demonstrator for
 	# the shared scatter_rim_props helper.
 	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
+	# Gold particle fountain (#1137): continuous rising gold particles from the
+	# scoring zone, making the hill feel like a reward.
+	_fountain = CPUParticles3D.new()
+	_fountain.name = "Fountain"
+	_fountain.one_shot = false
+	_fountain.emitting = false
+	_fountain.amount = FOUNTAIN_AMOUNT
+	_fountain.lifetime = FOUNTAIN_LIFETIME
+	_fountain.color = FOUNTAIN_COLOR
+	_fountain.direction = Vector3.UP
+	_fountain.spread = 25.0
+	_fountain.initial_velocity_min = FOUNTAIN_SPEED * 0.6
+	_fountain.initial_velocity_max = FOUNTAIN_SPEED
+	_fountain.gravity = Vector3(0.0, 1.5, 0.0)
+	_fountain.scale_amount_min = 0.5
+	_fountain.scale_amount_max = 1.5
+	_fountain.hue_variation_min = 0.0
+	_fountain.hue_variation_max = 0.05
+	var fountain_mesh := SphereMesh.new()
+	fountain_mesh.radius = 0.06
+	fountain_mesh.height = 0.12
+	_fountain.mesh = fountain_mesh
+	arena.add_child(_fountain)
 	# Held-item indicator for the local player (#139), on the always-on-top
 	# banner layer (#258).
 	_held_label = make_banner(&"HeldItem")
@@ -259,9 +302,14 @@ func _update_players() -> void:
 
 
 func _update_zone() -> void:
-	_zone_node.visible = zone.size() == KingOfTheHill.ZN_COUNT
-	_hill_crest.visible = _zone_node.visible
-	if not _zone_node.visible:
+	var zone_visible := zone.size() == KingOfTheHill.ZN_COUNT
+	_zone_node.visible = zone_visible
+	_hill_crest.visible = zone_visible
+	# Gold fountain (#1137): emit only when the zone is visible and motion
+	# is not reduced; position syncs with the zone center below.
+	if _fountain != null:
+		_fountain.emitting = zone_visible and not ArenaFX.reduced_motion
+	if not zone_visible:
 		return
 	# Shimmer throb + relocation FX (M13-03): the disc breathes on a snapshot
 	# cadence, and the zone jumping fires a burst where it was + dust where it
@@ -283,3 +331,7 @@ func _update_zone() -> void:
 	_hill_crest.position = to_arena(center, 0.0)
 	var crest_scale := radius / HILL_CREST_HALF_WIDTH
 	_hill_crest.scale = Vector3(crest_scale, 1.0, crest_scale)
+	# Gold fountain (#1137): rises from the crest top above the zone disc.
+	if _fountain != null:
+		_fountain.position = to_arena(center, HILL_CREST_HEIGHT + FOUNTAIN_HEIGHT)
+		_fountain.scale = Vector3(crest_scale * 0.5, 1.0, crest_scale * 0.5)
