@@ -7,9 +7,14 @@ extends MinigameView3D
 ## drifting is steering hard at speed.
 
 ## Declarative button input (#947): gas is held (press -> {gas=true}, release
-## -> {gas=false}); the item button is momentary. Steering stays a hand-rolled
-## _physics_process send_move_intent() (a continuous vector, not a button).
-const INPUT_ACTIONS := {&"action_primary": {"key": "gas", "held": true}, &"action_secondary": "use"}
+## -> {gas=false}); the item button is held too (#956) — press trails a shell as
+## a shield ({use=true}), release fires it ({use=false}), so a hold shields and a
+## tap attacks. Steering stays a hand-rolled _physics_process send_move_intent()
+## (a continuous vector, not a button).
+const INPUT_ACTIONS := {
+	&"action_primary": {"key": "gas", "held": true},
+	&"action_secondary": {"key": "use", "held": true}
+}
 const TRACK_COLOR := Color(0.16, 0.17, 0.21)
 const START_COLOR := Color(0.96, 0.79, 0.2)
 ## Tier 1 — Track texture (#1165): IMG-052 asphalt-track.png is the single most
@@ -46,6 +51,13 @@ const SHELL_COLOR := Color(0.35, 0.9, 0.45)
 const OIL_COLOR := Color(0.08, 0.07, 0.1)
 const SHELL_POOL := 12
 const OIL_POOL := TurboLap.MAX_OILS
+## Shortcut mud (#956): a muddy brown ribbon across the cut, drawn like a track
+## strip so the tempting shorter (but slower) line reads at a glance.
+const MUD_COLOR := Color(0.34, 0.25, 0.16)
+## Drift lean (#956): the kart body rolls this far into a slide while drifting.
+const DRIFT_TILT_RAD := 0.2
+## The trailed shield-shell that rides behind a shielding kart (#956).
+const TRAIL_SHELL_RADIUS := 0.28
 const ITEM_ICONS := {
 	TurboLap.ITEM_NONE: "",
 	TurboLap.ITEM_SHELL: "🐢",
@@ -86,6 +98,8 @@ var standings: Array = []
 var _item_pad_nodes: Array[MeshInstance3D] = []
 var _shell_pool: Array[MeshInstance3D] = []
 var _oil_pool: Array[MeshInstance3D] = []
+## slot -> the green shell that rides behind a kart while it shields (#956).
+var _trail_shells := {}
 var _spin_seen := {}
 var _finish_seen := {}
 var _seen_snapshot := false
@@ -119,6 +133,7 @@ func _arena_half() -> float:
 
 func _setup_3d() -> void:
 	_build_track()
+	_build_shortcut_mud()
 	_build_grandstands()
 	_build_pit_lane()
 	_build_track_lighting()
@@ -135,6 +150,30 @@ func _setup_3d() -> void:
 		_oil_pool.append(_add_disc("Oil%d" % i, OIL_COLOR, TurboLap.OIL_HIT_RADIUS))
 	for slot: int in names:
 		_add_kart_body(slot)
+		# The shield-shell rides behind its kart, hidden until the kart trails one.
+		var shell := _add_ball("TrailShell%d" % slot, SHELL_COLOR, TRAIL_SHELL_RADIUS)
+		shell.visible = false
+		_trail_shells[slot] = shell
+
+
+## Shortcut mud (#956): a single brown strip laid across the tempting cut so the
+## shorter-but-slower line reads at a glance, matching the sim's mud corridor
+## (TurboLap.shortcut_segment / MUD_HALF_WIDTH).
+func _build_shortcut_mud() -> void:
+	var seg := TurboLap.shortcut_segment()
+	var a := seg[0]
+	var b := seg[1]
+	var mud := MeshInstance3D.new()
+	mud.name = "ShortcutMud"
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(a.distance_to(b), 0.05, TurboLap.MUD_HALF_WIDTH * 2.0)
+	mesh.material = _flat_material(MUD_COLOR)
+	mud.mesh = mesh
+	var mid := (a + b) / 2.0
+	# Sits just above the track strips (0.03) so it reads as painted-on mud.
+	mud.position = Vector3(mid.x, 0.04, mid.y)
+	mud.rotation.y = -(b - a).angle()
+	arena.add_child(mud)
 
 
 ## One flat strip per centerline segment forms the ribbon; two continuous
@@ -364,6 +403,21 @@ func _render_kart(slot: int, state: Array) -> void:
 			# An oil-slick spin-out is a stagger debuff (#728).
 			play_sfx(&"powerdown")
 	_spin_seen[slot] = spinning
+	# Drift lean (#956): roll the kart body into the slide while drifting (bits 4).
+	var kart_body := rig.get_node_or_null("KartBody") as Node3D
+	if kart_body != null:
+		kart_body.rotation.z = DRIFT_TILT_RAD if bits & 4 > 0 else 0.0
+	# Shield-shell (#956): while trailing (bits 16) the shell rides one
+	# TRAIL_DISTANCE off the kart's tail; otherwise it's hidden.
+	var trail_shell := _trail_shells.get(slot) as MeshInstance3D
+	if trail_shell != null:
+		if bits & 16 > 0:
+			var heading := float(state[TurboLap.PS_HEADING])
+			var tail := world - Vector2.from_angle(heading) * TurboLap.TRAIL_DISTANCE
+			trail_shell.position = Vector3(tail.x, 0.35, tail.y)
+			trail_shell.visible = true
+		else:
+			trail_shell.visible = false
 	if bits & 2 > 0:
 		fx_dust(world)
 	var finished := bits & 8 > 0
