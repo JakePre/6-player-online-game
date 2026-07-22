@@ -52,6 +52,21 @@ const DRIBBLE_SIDE := 0.55
 const METER_CHARGE_COLOR := Color(0.95, 0.65, 0.2)
 const METER_SWEET_COLOR := Color(0.3, 0.9, 0.35)
 const PERFECT_FLASH_SEC := 0.8
+## Court-side benches (#1123): plain wooden benches down each sideline, so the
+## arena edge reads as a gym rather than a bare floor.
+const BENCH_COLOR := Color(0.5, 0.36, 0.24)
+const BENCH_COUNT_PER_SIDE := 3
+const BENCH_SIZE := Vector3(2.6, 0.4, 0.7)
+const BENCH_SIDELINE_Z := COURT_HALF_WIDTH + 1.3
+const BENCH_GAP := 0.7
+## 3D scoreboard (#1123): a dark slab floating above center court carrying the
+## live score, so the tally reads from the arena itself, not only the HUD.
+const SCOREBOARD_HEIGHT := 5.5
+const SCOREBOARD_SLAB_COLOR := Color(0.1, 0.11, 0.14)
+const SCOREBOARD_SLAB_SIZE := Vector3(3.8, 1.5, 0.3)
+## Confetti on a basket (#1123): a team-colored sparkle burst rains from the
+## scored-on hoop, on top of the existing dunk burst.
+const CONFETTI_HEIGHT := 3.2
 
 ## Latest replicated state, straight from BasketBrawl.get_snapshot().
 var players := {}
@@ -80,6 +95,8 @@ var _charge_bar: ProgressBar
 var _perfect_label: Label
 var _my_charge_seen := 0.0
 var _perfect_left := 0.0
+## The 3D center-court scoreboard's live-score label (#1123).
+var _scoreboard_label: Label3D
 
 
 func _physics_process(delta: float) -> void:
@@ -137,8 +154,58 @@ func _setup_3d() -> void:
 		# the old signs pointed both rims off-court).
 		hoop.rotation.y = -PI / 2.0 if side < 0.0 else PI / 2.0
 		arena.add_child(hoop)
+	_build_benches()
+	_build_scoreboard()
 	_score_label = make_banner(&"Score", 28)
 	_build_charge_meter()
+
+
+## Wooden benches down both sidelines (#1123). Sit just past the court's
+## z-edge on the floor, spaced along x, so they frame the court without
+## reaching into play (the sim never leaves ±ARENA_HALF).
+func _build_benches() -> void:
+	var span := (BENCH_COUNT_PER_SIDE - 1) * (BENCH_SIZE.x + BENCH_GAP)
+	for side: float in [-1.0, 1.0]:
+		for i in BENCH_COUNT_PER_SIDE:
+			var bench := MeshInstance3D.new()
+			bench.name = "Bench%s%d" % ["P" if side > 0.0 else "N", i]
+			var mesh := BoxMesh.new()
+			mesh.size = BENCH_SIZE
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = BENCH_COLOR
+			mesh.material = mat
+			bench.mesh = mesh
+			var x := float(i) * (BENCH_SIZE.x + BENCH_GAP) - span / 2.0
+			bench.position = to_arena(Vector2(x, side * BENCH_SIDELINE_Z), BENCH_SIZE.y / 2.0)
+			arena.add_child(bench)
+
+
+## A floating scoreboard above center court (#1123): a dark slab backing a
+## billboarded score label that always faces the camera.
+func _build_scoreboard() -> void:
+	var slab := MeshInstance3D.new()
+	slab.name = "Scoreboard"
+	var box := BoxMesh.new()
+	box.size = SCOREBOARD_SLAB_SIZE
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = SCOREBOARD_SLAB_COLOR
+	box.material = mat
+	slab.mesh = box
+	slab.position = to_arena(Vector2.ZERO, SCOREBOARD_HEIGHT)
+	arena.add_child(slab)
+	_scoreboard_label = Label3D.new()
+	_scoreboard_label.name = "ScoreboardLabel"
+	_scoreboard_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	# World-sized (NOT fixed_size, which would render screen-space huge): the
+	# text sits on the slab and foreshortens with the arena. ~1u tall, ~3u wide.
+	_scoreboard_label.pixel_size = 0.01
+	_scoreboard_label.font_size = 96
+	_scoreboard_label.outline_size = 12
+	_scoreboard_label.modulate = Color(0.98, 0.9, 0.55)
+	_scoreboard_label.text = "0 : 0"
+	# Nudged just in front of the slab so the billboard never z-fights it.
+	_scoreboard_label.position = to_arena(Vector2(0.0, -0.4), SCOREBOARD_HEIGHT)
+	arena.add_child(_scoreboard_label)
 
 
 ## The shot meter (#1037, putt_panic's power-bar pattern): bottom-center,
@@ -379,11 +446,20 @@ func _update_score() -> void:
 				fx_burst(
 					Vector2(float(hoop[BasketBrawl.HP_X]), float(hoop[BasketBrawl.HP_Y])), color
 				)
+				# Confetti (#1123): a team-colored sparkle rains from the scored hoop.
+				fx_sparkle(
+					Vector2(float(hoop[BasketBrawl.HP_X]), float(hoop[BasketBrawl.HP_Y])),
+					color,
+					CONFETTI_HEIGHT
+				)
 				# Every dunk is heard from your own team's perspective (M12-02).
 				# Signature cue (#728): `bell` for a scored basket, matching
 				# docs/AUDIO_GUIDE.md's own worked example.
 				if teams.size() == 2:
 					play_sfx(&"bell" if my_slot in teams[team] else &"error")
 	_scores_seen = scores.duplicate()
+	var text := "%d : %d" % [int(scores[0]), int(scores[1])]
 	if _score_label != null:
-		_score_label.text = "%d : %d" % [int(scores[0]), int(scores[1])]
+		_score_label.text = text
+	if _scoreboard_label != null:
+		_scoreboard_label.text = text
