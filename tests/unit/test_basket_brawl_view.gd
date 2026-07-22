@@ -32,6 +32,25 @@ func test_setup_builds_arena_ball_and_hoops() -> void:
 	assert_not_null(view.arena.get_node("HoopModel1"))
 
 
+## #1123 GFX: court-side benches down both sidelines and a floating 3D
+## scoreboard above center court frame the arena as a gym.
+func test_gfx_adds_benches_and_a_scoreboard() -> void:
+	assert_not_null(view.arena.get_node("BenchN0"), "a bench on the near sideline")
+	assert_not_null(view.arena.get_node("BenchP0"), "and one on the far sideline")
+	var board: Node3D = view.arena.get_node("Scoreboard")
+	assert_not_null(board, "the 3D scoreboard slab")
+	assert_gt(board.position.y, 3.0, "floats above the court")
+	var label: Label3D = view.arena.get_node("ScoreboardLabel")
+	assert_not_null(label, "with a billboarded score label")
+	assert_eq(label.billboard, BaseMaterial3D.BILLBOARD_ENABLED, "always faces the camera")
+
+
+## #1123: the 3D scoreboard label mirrors the live score alongside the HUD.
+func test_scoreboard_label_tracks_the_score() -> void:
+	view.render({"players": {}, "ball": [0.0, 0.0, -1, 0], "scores": [3, 5], "teams": []})
+	assert_eq((view.arena.get_node("ScoreboardLabel") as Label3D).text, "3 : 5")
+
+
 ## #929: the wood-court texture over the floor, plus painted lines so the
 ## court reads as a real basketball court rather than a plain tint.
 func test_court_surface_wears_the_wood_texture() -> void:
@@ -175,7 +194,8 @@ func test_dunk_bursts_at_the_attacked_hoop() -> void:
 	var second := base.duplicate()
 	second["scores"] = [1, 0]
 	view.render(second)
-	assert_eq(view.arena.get_child_count(), before + 1, "a dunk = one burst")
+	# A dunk fires the burst plus the #1123 confetti sparkle.
+	assert_eq(view.arena.get_child_count(), before + 2, "a dunk = burst + confetti")
 
 
 func test_render_tolerates_missing_keys() -> void:
