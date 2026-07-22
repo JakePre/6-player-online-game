@@ -39,6 +39,18 @@ func test_arena_rim_is_brightened() -> void:
 	assert_almost_eq(mesh.outer_radius, view._arena_half(), 0.001, "sits at the floor boundary")
 
 
+## #1126 GFX: the floor wears the wood-court grain, and a scanning beam pivot
+## sweeps around the turret over time.
+func test_gfx_floor_texture_and_scan_beam() -> void:
+	var mat := (view.arena.get_node("Floor") as MultiMeshInstance3D).material_override
+	assert_eq((mat as StandardMaterial3D).albedo_texture, view.FLOOR_TEXTURE)
+	var pivot: Node3D = view.arena.get_node("ScanPivot")
+	assert_not_null(pivot.get_node("ScanBeam"), "the beam mesh hangs off the pivot")
+	var before := pivot.rotation.y
+	view._process(1.0)
+	assert_ne(pivot.rotation.y, before, "the pivot sweeps over time")
+
+
 func test_bullets_show_from_the_pool_and_kos_hide_rigs() -> void:
 	(
 		view
