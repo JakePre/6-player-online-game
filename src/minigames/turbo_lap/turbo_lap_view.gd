@@ -5,6 +5,11 @@ extends MinigameView3D
 ## character rig, pooled shells and oil slicks — without simulating anything
 ## locally. Gas is action_primary (held, #1067), the item is action_secondary;
 ## drifting is steering hard at speed.
+
+## Declarative button input (#947): gas is held (press -> {gas=true}, release
+## -> {gas=false}); the item button is momentary. Steering stays a hand-rolled
+## _physics_process send_move_intent() (a continuous vector, not a button).
+const INPUT_ACTIONS := {&"action_primary": {"key": "gas", "held": true}, &"action_secondary": "use"}
 const TRACK_COLOR := Color(0.16, 0.17, 0.21)
 const START_COLOR := Color(0.96, 0.79, 0.2)
 ## Tier 1 — Track texture (#1165): IMG-052 asphalt-track.png is the single most
@@ -83,28 +88,11 @@ var _shell_pool: Array[MeshInstance3D] = []
 var _oil_pool: Array[MeshInstance3D] = []
 var _spin_seen := {}
 var _finish_seen := {}
-var _gas_down := false
 var _seen_snapshot := false
 
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
-
-
-func _process(_delta: float) -> void:
-	# action_primary is GAS now (#1067): held = full throttle, the stick only
-	# steers, and a hard turn at speed drifts server-side.
-	var held := Input.is_action_pressed(&"action_primary")
-	if held != _gas_down:
-		_gas_down = held
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"gas": held})
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"action_secondary"):
-		if NetManager.multiplayer.multiplayer_peer != null:
-			NetManager.send_match_input({"use": true})
 
 
 ## Warm asphalt-hued floor (#589, #1165): a mid-grey warm tone amplifying the
