@@ -55,6 +55,16 @@ jobs:
       image: barichello/godot-ci:4.4.1
     steps:
       - uses: actions/checkout@v4
+      # #1121: cache the imported-asset dir so --import only reprocesses
+      # CHANGED assets. --import still runs every job, so a stale/miss cache
+      # self-corrects — this is a pure speed-up, never a correctness risk.
+      - name: Cache imported resources
+        uses: actions/cache@v4
+        with:
+          path: .godot
+          key: godot-import-${{ runner.os }}-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.import') }}
+          restore-keys: |
+            godot-import-${{ runner.os }}-${{ env.GODOT_VERSION }}-
       - name: Import resources
         run: godot --headless --import || true
       - name: Run GUT
@@ -91,6 +101,15 @@ jobs:
           unzip -q godot.zip
           mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot-bin
           chmod +x godot-bin
+      # #1121: cache the imported-asset dir (see the test job note). --import
+      # still runs, so a stale/miss cache self-corrects.
+      - name: Cache imported resources
+        uses: actions/cache@v4
+        with:
+          path: .godot
+          key: godot-import-${{ runner.os }}-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.import') }}
+          restore-keys: |
+            godot-import-${{ runner.os }}-${{ env.GODOT_VERSION }}-
       - name: Import resources
         run: ./godot-bin --headless --import || true
       - name: Run soak harness
@@ -175,6 +194,16 @@ jobs:
             ~/.local/share/godot/export_templates/
       - name: Prepare output directory
         run: mkdir -p "${{ matrix.out_dir }}"
+      # #1121: cache the imported-asset dir so --import only reprocesses
+      # CHANGED assets. --import still runs every job, so a stale/miss cache
+      # self-corrects — this is a pure speed-up, never a correctness risk.
+      - name: Cache imported resources
+        uses: actions/cache@v4
+        with:
+          path: .godot
+          key: godot-import-${{ runner.os }}-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.import') }}
+          restore-keys: |
+            godot-import-${{ runner.os }}-${{ env.GODOT_VERSION }}-
       - name: Import resources
         run: godot --headless --import || true
       - name: Export
