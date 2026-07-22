@@ -23,6 +23,24 @@ const RING_COLORS_ALT: Array[Color] = [
 ]
 const BALL_RADIUS := 0.3
 const DISC_HEIGHT := 0.04
+## Wood lane texture (#1128): IMG-054 under the translucent lane tint, so the
+## alley reads as real hardwood instead of a flat dark plane.
+const LANE_TEXTURE := preload("res://assets/generated/textures/wood-court.png")
+const LANE_TEXTURE_TILES_X := 1.0
+const LANE_TEXTURE_TILES_Z := 6.0
+## Gutter rails (#1128): raised curbs along both edges of each lane, so it
+## reads as a real bowling lane rather than a bare textured strip.
+const GUTTER_COLOR := Color(0.32, 0.28, 0.22)
+const GUTTER_HEIGHT := 0.14
+const GUTTER_WIDTH := 0.12
+## Rim rubble (#1128): the bowling-alley perimeter dressed with rock props —
+## the issue's flagged "no rim props" gap.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallC.glb"),
+]
+const RIM_PROP_COUNT := 14
+const RIM_PROP_SEED := 0xB0BB
 
 ## Latest replicated state, straight from BullseyeBowl.get_snapshot().
 var players := {}
@@ -69,21 +87,51 @@ func _setup_3d() -> void:
 		if rig != null:
 			rig.position = Vector3(center_x, 0.0, BullseyeBowl.LANE_LENGTH / 2.0)
 			rig.rotation.y = PI  # face down the lane
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 func _build_lane(slot: int, center_x: float, alt_palette: bool) -> void:
+	var lane_width := BullseyeBowl.LANE_SPACING * 0.8
 	var lane_mesh := PlaneMesh.new()
-	lane_mesh.size = Vector2(BullseyeBowl.LANE_SPACING * 0.8, BullseyeBowl.LANE_LENGTH)
+	lane_mesh.size = Vector2(lane_width, BullseyeBowl.LANE_LENGTH)
 	var lane_material := StandardMaterial3D.new()
-	lane_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	lane_material.albedo_color = LANE_COLOR
+	# Opaque wood grain (#1128) replaces the old translucent tint: the tint
+	# was compensating for having no lane texture, letting the base floor's
+	# tile pattern show through as a visual mismatch. A real wood texture
+	# needs no transparency trick.
+	lane_material.albedo_texture = LANE_TEXTURE
+	lane_material.albedo_color = LANE_COLOR.lightened(0.3)
+	lane_material.uv1_scale = Vector3(LANE_TEXTURE_TILES_X, LANE_TEXTURE_TILES_Z, 1.0)
 	lane_mesh.material = lane_material
 	var lane := MeshInstance3D.new()
 	lane.name = "Lane%d" % slot
 	lane.mesh = lane_mesh
 	lane.position = Vector3(center_x, 0.01, 0.0)
 	arena.add_child(lane)
+	_build_gutters(slot, center_x, lane_width)
 
+	_build_target(slot, center_x, alt_palette)
+
+
+## Raised curbs along both edges of a lane (#1128), so the lane reads as a
+## real bowling alley rather than a bare textured strip.
+func _build_gutters(slot: int, center_x: float, lane_width: float) -> void:
+	for side: float in [-1.0, 1.0]:
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(GUTTER_WIDTH, GUTTER_HEIGHT, BullseyeBowl.LANE_LENGTH)
+		var material := StandardMaterial3D.new()
+		material.albedo_color = GUTTER_COLOR
+		mesh.material = material
+		var rail := MeshInstance3D.new()
+		rail.name = "Gutter%d%s" % [slot, "L" if side < 0.0 else "R"]
+		rail.mesh = mesh
+		rail.position = Vector3(
+			center_x + side * (lane_width / 2.0 + GUTTER_WIDTH / 2.0), GUTTER_HEIGHT / 2.0, 0.0
+		)
+		arena.add_child(rail)
+
+
+func _build_target(slot: int, center_x: float, alt_palette: bool) -> void:
 	var target := Node3D.new()
 	target.name = "Target%d" % slot
 	var radii: Array[float] = [
