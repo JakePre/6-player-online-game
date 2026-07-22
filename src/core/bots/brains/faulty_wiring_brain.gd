@@ -25,16 +25,37 @@ func think(match_state: Dictionary, private: Dictionary) -> Dictionary:
 	return _repair(me, nodes)
 
 
-## Cut the highest-value unfinished node — hitting their best progress hurts
-## most. Fire the moment the private cooldown is up and we're in range.
+## Cut the highest-value node — INCLUDING fully-repaired ones. The crew wins
+## the instant all four read full, so a completed node is the juiciest target:
+## re-cutting it denies the win outright and wastes the most crew work (a node
+## the crew has to travel back and redo). #961: the old brain skipped full
+## nodes, so once the crew topped one it was sabotage-immune and the crew
+## coasted to a win uncontested.
 func _sabotage(me: Vector2, nodes: Array, cut_cd: float) -> Dictionary:
-	var target := _pick_node(nodes, true)
+	var target := _fullest_node(me, nodes)
 	if target == Vector2.INF:
 		return {}
 	var intent := move_toward_point(me, target, FaultyWiring.NODE_RADIUS * 0.5)
 	if cut_cd <= 0.0 and me.distance_to(target) <= FaultyWiring.NODE_RADIUS:
 		intent["cut"] = true
 	return intent
+
+
+## The highest-value node of all four (full nodes included), nearest to `me` on
+## a tie — the saboteur's ideal cut target. INF only if there are no nodes.
+func _fullest_node(me: Vector2, nodes: Array) -> Vector2:
+	var best := Vector2.INF
+	var best_value := -1.0
+	var best_dist := INF
+	for node: Array in nodes:
+		var value := float(node[FaultyWiring.ND_VALUE])
+		var at := Vector2(float(node[FaultyWiring.ND_X]), float(node[FaultyWiring.ND_Y]))
+		var dist := me.distance_to(at)
+		if value > best_value or (is_equal_approx(value, best_value) and dist < best_dist):
+			best_value = value
+			best_dist = dist
+			best = at
+	return best
 
 
 ## Head to an unfinished node and park on it (repair is passive proximity).
