@@ -268,6 +268,25 @@ func test_faulty_wiring_brain_saboteur_cuts_the_best_node_off_cooldown() -> void
 	assert_true(bool(intent.get("cut", false)), "cuts the highest-value node it stands on")
 
 
+## #961: the crew wins the instant all four nodes read full, so a completed
+## node is the saboteur's juiciest target — re-cutting it denies the win. The
+## old brain skipped full nodes, so once the crew topped one it was
+## sabotage-immune; the saboteur must now cut a full node it stands on.
+func test_faulty_wiring_brain_saboteur_recuts_a_full_node_to_deny_the_win() -> void:
+	var brain := BotBrains.brain_for(&"faulty_wiring", 0, 1)
+	var game := {
+		"phase": FaultyWiring.Phase.WORK,
+		"players": {0: [5.0, 5.0]},
+		# The node it stands on is full; another is only partway. The fullest
+		# (the full one, denying the win) is the pick — not the partial one.
+		"nodes": [[5.0, 5.0, 1.0, 0], [-5.0, -5.0, 0.4, 0]],
+	}
+	var intent := brain.think(
+		_play_state("faulty_wiring", game), {"role": "saboteur", "cut_cd": 0.0}
+	)
+	assert_true(bool(intent.get("cut", false)), "re-cuts the full node to deny the crew's win")
+
+
 func test_faulty_wiring_brain_saboteur_holds_cut_on_cooldown() -> void:
 	var brain := BotBrains.brain_for(&"faulty_wiring", 0, 1)
 	var game := {
