@@ -87,6 +87,11 @@ func _floor_tile_scene() -> PackedScene:
 	return preload("res://assets/environment/kenney_platformer_kit/block-grass.glb")
 
 
+## formula-twin — must mirror SnakeChain._setup (arena_half_for =
+## MinigameScaling.arena_half). The sim derives arena_half = arena_half_for(
+## slots.size()); this view re-derives from the same helper. If the scaling
+## formula changes in the sim but not here, the rendered floor/camera will
+## mismatch the sim's play area.
 func _arena_half() -> float:
 	# Frame the scaled arena (ADR 003) — `names` is set before setup runs.
 	return SnakeChain.arena_half_for(names.size())

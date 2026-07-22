@@ -66,6 +66,10 @@ func _floor_tint() -> Color:
 	return Color(0.82, 0.95, 1.0)
 
 
+## formula-twin — must mirror FishFrenzy._setup (scaled _play_half). The sim
+## derives _play_half = MinigameScaling.arena_half(BASE_ARENA_HALF, slots.size());
+## this view re-derives the same value. If the scaling formula changes in the
+## sim but not here, the rendered floor/camera will mismatch the sim's arena.
 func _arena_half() -> float:
 	return MinigameScaling.arena_half(BASE_ARENA_HALF, names.size())
 

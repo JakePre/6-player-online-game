@@ -99,6 +99,11 @@ func _physics_process(_delta: float) -> void:
 ## shrink stage, replacing the #813 square field + faint ring. Now textured
 ## with ember-rock and ringed by a lava glow (#1146). Own floor, no tiled base
 ## (the thin_ice/memory_match pattern; no super call).
+## formula-twin — must mirror MeteorShower._setup (scaled _play_half). The
+## sim derives _play_half / _zone_start / _zone_min from MinigameScaling.arena_half;
+## this view re-derives all three from the same formula. If the scaling
+## formula changes in the sim but not here, the rendered platform, camera
+## framing, and shrink-telegraph thresholds will all diverge from the sim.
 func _build_floor() -> void:
 	var start_radius := MinigameScaling.arena_half(MeteorShower.ZONE_START_RADIUS, names.size())
 	_last_radius = start_radius
@@ -156,6 +161,10 @@ func _build_floor() -> void:
 	arena.add_child(_shrink_telegraph)
 
 
+## formula-twin — must mirror MeteorShower._setup (scaled _play_half). See
+## _build_floor for the sibling twin — _arena_half, _build_floor's start_radius,
+## and _update_shrink_telegraph's zone_start/zone_min all re-derive the same
+## three scaled values from consts instead of the snapshot.
 func _arena_half() -> float:
 	# Sim and view derive the same play size from the lobby count via the
 	# shared base const, so the rendered floor/camera match the scaled arena.
@@ -399,6 +408,10 @@ func _update_platform() -> void:
 ## #583 band telegraph: the strip between the current rim and the next stage's
 ## radius reddens for SHRINK_WARN_SEC before it sheds, alpha rising with
 ## urgency (steady under reduced motion; _process adds the pulse otherwise).
+## formula-twin — must mirror MeteorShower._setup. zone_start and zone_min
+## re-derived from consts via MinigameScaling.arena_half every render tick;
+## if the sim's scaling formula changes, the telegraph thresholds diverge.
+## Ideally these would come from the snapshot (bucket-3 candidate).
 func _update_shrink_telegraph() -> void:
 	if _shrink_telegraph == null or zone.size() != MeteorShower.ZN_COUNT:
 		return
