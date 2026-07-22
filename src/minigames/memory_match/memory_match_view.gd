@@ -33,6 +33,18 @@ const FALL_SPEED := 7.0
 const TILE_DROP_SPEED := 5.0
 const FALL_HIDE_Y := -6.0
 const TILE_HOME_Y := -TILE_THICKNESS / 2.0
+## #1144 GFX: a safe-tile icon, rising pit mist, a pit-edge border, a dark/pit
+## mood + floor tint, and a blackout puff on the SHOW -> DARK transition.
+## The icon is a drawn 4-point sparkle (crossed bars), not a Unicode glyph —
+## a font's symbol coverage isn't guaranteed across platforms/renderers, so
+## this follows the same "drawn primitive over font glyph" rule as
+## loadout_duel's per-kind glyphs.
+const SAFE_ICON_COLOR := Color(0.1, 0.35, 0.18)
+const SAFE_ICON_BAR_SIZE := Vector3(0.5, 0.03, 0.12)
+const PIT_MIST_COLOR := Color(0.4, 0.55, 0.7, 0.35)
+const PIT_BORDER_COLOR := Color(0.5, 0.45, 0.6, 0.8)
+const PIT_BORDER_THICKNESS := 0.12
+const BLACKOUT_PUFF_COLOR := Color(0.08, 0.08, 0.12)
 
 ## Latest replicated state, straight from MemoryMatch.get_snapshot().
 var players := {}
@@ -42,6 +54,8 @@ var fallen: Array = []
 var round_number := 0
 
 var _tile_nodes: Array[MeshInstance3D] = []
+## #1144 GFX: a per-tile star icon, shown only while that tile is lit safe.
+var _tile_icons: Array[Node3D] = []
 var _safe_material: StandardMaterial3D
 var _dark_material: StandardMaterial3D
 var _cracked_material: StandardMaterial3D
@@ -60,6 +74,10 @@ var _rings := {}
 ## dropping into the pit (reset when the floor reforms each round).
 var _falling := {}
 var _dropping := {}
+## #1144 GFX: the last non-empty safe_tiles seen — the sim blanks safe_tiles
+## to [] on the wire during DARK (#586, no peeking), so the blackout puff
+## needs the SHOW snapshot's set, not the current (empty) one.
+var _last_safe_tiles: Array = []
 
 
 func _physics_process(_delta: float) -> void:
@@ -100,6 +118,18 @@ func _arena_half() -> float:
 	return MemoryMatch.HALF_EXTENT
 
 
+## Dark/pit tint (#1144) — this game builds its own floor (below), so this
+## only feeds the derived _mood() default; the explicit override right after
+## makes the dark theme definite rather than implicit.
+func _floor_tint() -> Color:
+	return Color(0.5, 0.55, 0.7)
+
+
+## A deliberately dark, void-like mood for the pit theme (#1144).
+func _mood() -> Color:
+	return Color(0.08, 0.08, 0.14)
+
+
 ## The tile grid IS the floor: a dark pit plane below, one box per tile.
 func _build_floor() -> void:
 	var pit_mesh := PlaneMesh.new()
@@ -112,6 +142,8 @@ func _build_floor() -> void:
 	pit.mesh = pit_mesh
 	pit.position.y = -0.45
 	arena.add_child(pit)
+	_build_pit_border(pit.position.y)
+	_build_pit_mist(pit.position.y)
 
 	_safe_material = StandardMaterial3D.new()
 	_safe_material.albedo_color = TILE_SAFE_COLOR
@@ -138,6 +170,83 @@ func _build_floor() -> void:
 			)
 			arena.add_child(node)
 			_tile_nodes.append(node)
+			# Safe-tile icon (#1144): a sparkle that only shows while this
+			# tile is lit safe, reinforcing "stand here" beyond just the color.
+			var icon := _build_safe_icon()
+			node.add_child(icon)
+			_tile_icons.append(icon)
+
+
+## A 4-point sparkle (two crossed bars) marking a safe tile (#1144) — a drawn
+## primitive rather than a font glyph, so it renders identically regardless of
+## the platform's font glyph coverage.
+func _build_safe_icon() -> Node3D:
+	var icon := Node3D.new()
+	icon.name = "Icon"
+	icon.position = Vector3(0.0, TILE_THICKNESS / 2.0 + 0.02, 0.0)
+	icon.visible = false
+	var material := StandardMaterial3D.new()
+	material.albedo_color = SAFE_ICON_COLOR
+	for angle_degrees in [0.0, 90.0]:
+		var bar := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = SAFE_ICON_BAR_SIZE
+		box.material = material
+		bar.mesh = box
+		bar.rotation_degrees.y = angle_degrees
+		icon.add_child(bar)
+	return icon
+
+
+## A TorusMesh ring around the pit's edge (#1144) — the tile grid reads as a
+## contained arena, not an infinite void.
+func _build_pit_border(pit_y: float) -> void:
+	var border := MeshInstance3D.new()
+	border.name = "PitBorder"
+	var torus := TorusMesh.new()
+	var radius := MemoryMatch.HALF_EXTENT * 1.25
+	torus.inner_radius = radius - PIT_BORDER_THICKNESS
+	torus.outer_radius = radius + PIT_BORDER_THICKNESS
+	var material := StandardMaterial3D.new()
+	material.albedo_color = PIT_BORDER_COLOR
+	torus.material = material
+	border.mesh = torus
+	border.position.y = pit_y
+	arena.add_child(border)
+
+
+## Gentle rising mist from the pit (#1144) — a continuous, low-key ambient
+## particle system (not a one-shot ArenaFX effect) giving the void depth.
+func _build_pit_mist(pit_y: float) -> void:
+	var mist := CPUParticles3D.new()
+	mist.name = "PitMist"
+	mist.amount = 24
+	mist.lifetime = 4.0
+	mist.emitting = not ArenaFX.reduced_motion
+	mist.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	mist.emission_box_extents = Vector3.ONE * MemoryMatch.HALF_EXTENT
+	mist.direction = Vector3.UP
+	mist.spread = 15.0
+	mist.gravity = Vector3(0.0, 0.35, 0.0)
+	mist.initial_velocity_min = 0.15
+	mist.initial_velocity_max = 0.35
+	mist.scale_amount_min = 3.0
+	mist.scale_amount_max = 5.0
+	mist.color = PIT_MIST_COLOR
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2.ONE * 0.5
+	var mist_material := StandardMaterial3D.new()
+	mist_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mist_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mist_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	# Without this the mesh renders in its own opaque white albedo — the
+	# particle system's per-instance `color` (set below) only tints the mesh
+	# once vertex color is read as albedo.
+	mist_material.vertex_color_use_as_albedo = true
+	mesh.material = mist_material
+	mist.mesh = mesh
+	mist.position.y = pit_y
+	arena.add_child(mist)
 
 
 func _setup_3d() -> void:
@@ -151,6 +260,8 @@ func _render_3d(game: Dictionary) -> void:
 	players = game.get("players", {})
 	phase = int(game.get("phase", MemoryMatch.Phase.SHOW))
 	safe_tiles = game.get("safe_tiles", [])
+	if not safe_tiles.is_empty():
+		_last_safe_tiles = safe_tiles.duplicate()
 	fallen = game.get("fallen", [])
 	round_number = int(game.get("round", round_number))
 	# The floor reforms for the survivors when a new round shows (#784) — any
@@ -199,6 +310,10 @@ func _reveal_wave_fx() -> void:
 		# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): the lights
 		# going out is the danger telegraph — go now.
 		play_sfx(&"alarm")
+		# Blackout transition (#1144): a dark puff where the safe tiles just
+		# were, so the SHOW -> DARK flip reads as an event, not an instant cut.
+		for index in _last_safe_tiles:
+			fx_burst(_tile_world(int(index)), BLACKOUT_PUFF_COLOR, 0.4)
 	_phase_seen = phase
 
 
@@ -217,9 +332,10 @@ func _update_tiles() -> void:
 		# A dropping tile keeps its cracked look and sunk position until it reforms.
 		if _dropping.has(i):
 			continue
-		_tile_nodes[i].material_override = (
-			_safe_material if lit and i in safe_tiles else _dark_material
-		)
+		var is_safe_and_lit := lit and i in safe_tiles
+		_tile_nodes[i].material_override = _safe_material if is_safe_and_lit else _dark_material
+		# Safe-tile icon (#1144): only while that tile actually reads safe.
+		_tile_icons[i].visible = is_safe_and_lit
 
 
 func _update_players() -> void:

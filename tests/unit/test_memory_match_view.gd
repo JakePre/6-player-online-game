@@ -27,6 +27,27 @@ func test_grid_replaces_the_default_floor() -> void:
 	assert_null(view.arena.get_node_or_null("Floor"), "default kit floor replaced by the grid")
 
 
+## #1144 GFX: the pit reads as a contained arena — an edge border and a
+## continuous rising mist, not just an empty void.
+func test_pit_has_a_border_and_mist() -> void:
+	assert_not_null(view.arena.get_node("PitBorder"))
+	assert_not_null(view.arena.get_node("PitMist"))
+
+
+## #1144 GFX: a safe tile carries a star icon while lit; it hides the instant
+## the tile reads dark again.
+func test_safe_tile_shows_an_icon_only_while_lit() -> void:
+	view.render(
+		{"players": {}, "phase": MemoryMatch.Phase.SHOW, "safe_tiles": [0, 7], "fallen": []}
+	)
+	var lit_icon: Node3D = view.arena.get_node("Tile_0_0/Icon")
+	var unlit_icon: Node3D = view.arena.get_node("Tile_1_0/Icon")
+	assert_true(lit_icon.visible, "a lit safe tile shows its icon")
+	assert_false(unlit_icon.visible, "a dark tile shows no icon")
+	view.render({"players": {}, "phase": MemoryMatch.Phase.DARK, "safe_tiles": [], "fallen": []})
+	assert_false(lit_icon.visible, "the icon hides once the tile goes dark")
+
+
 func test_safe_tiles_light_up_only_while_showing() -> void:
 	view.render(
 		{"players": {}, "phase": MemoryMatch.Phase.SHOW, "safe_tiles": [0, 7], "fallen": []}
@@ -72,17 +93,22 @@ func test_render_tolerates_missing_keys() -> void:
 
 
 ## M13-12: the pattern landing sparkles over every safe tile; drops splash.
+## #1144: SHOW -> DARK is no longer quiet either — a blackout puff fires once
+## per tile that WAS safe (the wire blanks safe_tiles to [] once dark, #586
+## no peeking, so the puff must use the last-known safe set, not the current
+## empty one).
 func test_reveal_wave_sparkles_on_dark_to_show() -> void:
 	view.render(
 		{"players": {}, "phase": MemoryMatch.Phase.SHOW, "safe_tiles": [0, 1], "fallen": []}
 	)
 	var before: int = view.arena.get_child_count()
 	view.render({"players": {}, "phase": MemoryMatch.Phase.DARK, "safe_tiles": [], "fallen": []})
-	assert_eq(view.arena.get_child_count(), before, "going dark is quiet")
+	assert_eq(view.arena.get_child_count(), before + 2, "one blackout puff per tile going dark")
+	var after_dark: int = view.arena.get_child_count()
 	view.render(
 		{"players": {}, "phase": MemoryMatch.Phase.SHOW, "safe_tiles": [3, 8, 12], "fallen": []}
 	)
-	assert_eq(view.arena.get_child_count(), before + 3, "one sparkle per safe tile on reveal")
+	assert_eq(view.arena.get_child_count(), after_dark + 3, "one sparkle per safe tile on reveal")
 
 
 func test_drop_splashes_into_the_pit() -> void:
