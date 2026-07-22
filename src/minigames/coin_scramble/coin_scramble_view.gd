@@ -100,6 +100,8 @@ static func _ease_out_back(t: float) -> float:
 ## Warm gold floor to match the coin-grab theme (#589).
 func _floor_tint() -> Color:
 	return Color(1.0, 0.94, 0.78)
+
+
 ## Warm amber/gold mood for the party-stadium shell (#1130): pushes the
 ## dusk base toward the coin-gold theme so the backdrop, ring, and crowd
 ## all read as a warm plaza evening.
@@ -107,11 +109,11 @@ func _mood() -> Color:
 	return Color(0.2, 0.15, 0.12).lerp(COIN_COLOR, 0.35)
 
 
-
 func _arena_half() -> float:
 	# Sim and view derive the same play size from the lobby count via the shared
 	# base const, so the rendered floor/camera match the scaled arena (M15).
 	return MinigameScaling.arena_half(CoinScramble.ARENA_HALF, names.size())
+
 
 ## Stone-pavers floor texture (#1130): replaces the default grey platform tint
 ## with a warm stone plaza feel, matching the market-plaza coin-scramble theme.
@@ -146,6 +148,8 @@ func _setup_3d() -> void:
 	# Ring the plaza with barrels, crates, and flowers (#1130) — themed
 	# rim props for the coin-scramble market-plaza feel.
 	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
+
+
 ## Periodic coin burst from the treasure chest (#1130): gold coins erupt
 ## from the center chest, creating spectacle and reinforcing the coin theme.
 func _on_chest_burst() -> void:
