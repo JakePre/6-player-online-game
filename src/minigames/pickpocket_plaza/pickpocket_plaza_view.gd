@@ -22,6 +22,19 @@ const ALARM_COLOR := Color(0.95, 0.3, 0.25)
 const GUARD_MARK := Color(0.3, 0.8, 0.95)
 const GRID_STEP := 2.0
 const NAME_OFFSET := 14.0
+const SHADOW_COLOR := Color(0.0, 0.0, 0.0, 0.2)
+const HAT_COLOR := Color(0.8, 0.5, 0.2, 0.9)
+const HAT_TIP_COLOR := Color(0.9, 0.6, 0.3)
+const BUILDING_WALL := Color(0.28, 0.24, 0.18)
+const BUILDING_ROOF := Color(0.35, 0.3, 0.22)
+const BUILDING_DOOR := Color(0.5, 0.35, 0.2)
+const BUILDING_WINDOW := Color(0.6, 0.7, 0.8, 0.4)
+const LIFT_INDICATOR_COLOR := Color(0.98, 0.78, 0.2, 0.6)
+const LIFT_INDICATOR_EMPTY := Color(0.98, 0.78, 0.2, 0.15)
+const PUFF_COLOR := Color(0.7, 0.65, 0.6, 0.5)
+const CROWD_VARIATION := 0.08
+const JITTER_AMPLITUDE := 0.08
+const JITTER_HZ := 1.2
 
 ## Latest replicated state, straight from PickpocketPlaza.get_snapshot().
 var crowd: Array = []
@@ -38,6 +51,10 @@ var _pulses: Array = []
 var _alarm_seen := false
 var _revealed := false
 var _my_loot_seen := -1
+var _anim_clock := 0.0
+var _puffs: Array = []
+var _crowd_phases: Array = []
+var _last_crowd_size := 0
 
 
 func _physics_process(_delta: float) -> void:
@@ -45,13 +62,20 @@ func _physics_process(_delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	_anim_clock += delta
 	var alive: Array = []
 	for pulse: Dictionary in _pulses:
 		pulse.age += delta
 		if pulse.age < 1.0:
 			alive.append(pulse)
 	_pulses = alive
-	if not _pulses.is_empty():
+	var puff_alive: Array = []
+	for puff: Dictionary in _puffs:
+		puff.age += delta
+		if puff.age < 0.6:
+			puff_alive.append(puff)
+	_puffs = puff_alive
+	if not _pulses.is_empty() or not _puffs.is_empty() or not crowd.is_empty():
 		queue_redraw()
 
 
@@ -63,15 +87,24 @@ func _render(game: Dictionary) -> void:
 	alarm = bool(game.get("alarm", false))
 	time_left = float(game.get("time_left", 0.0))
 	reveal = game.get("reveal", {})
-	# An arrest is a public commotion (rising edge): a ring where the guard is.
+	# An arrest is a public commotion (rising edge): a ring where the guard is,
+	# plus a puff of smoke at the arrest location.
 	if alarm and not _alarm_seen:
 		var body := _guard_body_index()
 		if body >= 0 and body < crowd.size():
-			_pulses.append({"pos": _vec(crowd[body]), "age": 0.0})
+			var arrest_pos := _vec(crowd[body])
+			_pulses.append({"pos": arrest_pos, "age": 0.0})
+			_puffs.append({"pos": arrest_pos, "age": 0.0})
 		# Signature cue (#728): an arrest is exposure/suspicion — exactly
 		# docs/AUDIO_GUIDE.md's shared `alarm` meaning, not a generic error.
 		play_sfx(&"alarm")
 	_alarm_seen = alarm
+	# Seed crowd animation phases when size changes.
+	if crowd.size() != _last_crowd_size:
+		_crowd_phases.clear()
+		for i in crowd.size():
+			_crowd_phases.append(randf() * TAU)
+		_last_crowd_size = crowd.size()
 	# A successful lift is heard only by the thief who made it (M12-02).
 	var my_loot := int(scores.get(my_slot, -1))
 	if my_slot != guard and _my_loot_seen >= 0 and my_loot > _my_loot_seen:
@@ -98,15 +131,8 @@ func _draw() -> void:
 	var px := _pixels_per_unit()
 	var arena := _arena_rect(px)
 	draw_rect(arena, ARENA_COLOR)
-	var step := GRID_STEP * px
-	var gx := arena.position.x
-	while gx <= arena.end.x + 0.5:
-		draw_line(Vector2(gx, arena.position.y), Vector2(gx, arena.end.y), COBBLE_GRID, 1.0)
-		gx += step
-	var gy := arena.position.y
-	while gy <= arena.end.y + 0.5:
-		draw_line(Vector2(arena.position.x, gy), Vector2(arena.end.x, gy), COBBLE_GRID, 1.0)
-		gy += step
+	_draw_cobblestone_detail(arena, px)
+	_draw_buildings(arena, px)
 	draw_rect(arena, PLAZA_LINE, false, 2.0)
 
 	var font := get_theme_default_font()
@@ -126,13 +152,37 @@ func _draw() -> void:
 			2.0 + 3.0 * (1.0 - progress)
 		)
 
-	# The crowd — every villager identical. The one exception is purely local:
-	# the guard's own client rings the body it controls (or the reveal marks it
-	# for everyone at the end). Nothing about this rides the shared snapshot.
+	# Arrest puff (expanding smoke cloud).
+	for puff: Dictionary in _puffs:
+		var t: float = puff.age / 0.6
+		var puff_radius := (0.3 + t * 1.2) * px
+		var puff_alpha := (1.0 - t) * 0.5
+		draw_circle(puff.pos, puff_radius, Color(PUFF_COLOR, puff_alpha))
+		draw_circle(
+			puff.pos + Vector2(0.15, -0.1) * px,
+			puff_radius * 0.7,
+			Color(PUFF_COLOR, puff_alpha * 0.6)
+		)
+
+	# Character shadows under every figure.
 	for i in crowd.size():
-		var pos := _to_px(_vec(crowd[i]), px)
-		draw_circle(pos, 0.42 * px, VILLAGER_BODY)
-		draw_circle(pos, 0.24 * px, VILLAGER_HEAD)
+		var pos := _crowd_pos(i, px)
+		_draw_shadow(pos, 0.42 * px)
+	for slot_key: Variant in thieves:
+		var state: Array = thieves[slot_key]
+		var pos := _to_px(
+			Vector2(float(state[PickpocketPlaza.TH_X]), float(state[PickpocketPlaza.TH_Y])), px
+		)
+		_draw_shadow(pos, PickpocketPlaza.PLAYER_RADIUS * px)
+
+	# The crowd — villagers with slight color variation, animated jitter, and hats.
+	for i in crowd.size():
+		var pos := _crowd_pos(i, px)
+		var body_color := _crowd_body_color(i)
+		var head_color := _crowd_head_color(i)
+		draw_circle(pos, 0.42 * px, body_color)
+		draw_circle(pos, 0.24 * px, head_color)
+		_draw_villager_hat(pos, px)
 		draw_circle(pos, 0.42 * px, Color(0.2, 0.17, 0.13), false, 1.5)
 		if i == my_body:
 			var mark := GUARD_MARK if reveal.is_empty() else ALARM_COLOR
@@ -140,8 +190,7 @@ func _draw() -> void:
 			var tag := "YOU" if reveal.is_empty() else "GUARD"
 			_label(font, font_size, pos + Vector2(0.0, -0.9 * px), tag, mark)
 
-	# The thieves — colored blips, suspects flagged (a thief on the hook glows),
-	# the stunned slumped and dimmed.
+	# The thieves — colored blips, suspects flagged, with lift progress indicator.
 	for slot_key: Variant in thieves:
 		var slot := int(slot_key)
 		var state: Array = thieves[slot_key]
@@ -153,12 +202,14 @@ func _draw() -> void:
 		var color := player_color(slot)
 		if stunned:
 			color = color.darkened(0.5)
+		# Lift progress indicator: a ring around the thief when near a villager.
+		if not stunned and slot != guard:
+			_draw_lift_indicator(pos, px)
 		if suspect and not stunned:
 			draw_arc(pos, 0.62 * px, 0.0, TAU, 28, SUSPECT_COLOR, 2.5)
 		draw_circle(pos, PickpocketPlaza.PLAYER_RADIUS * px, color)
 		draw_circle(pos, PickpocketPlaza.PLAYER_RADIUS * px, Color(0, 0, 0, 0.55), false, 1.5)
 		if stunned:
-			# A little X for "caught".
 			var r := 0.3 * px
 			draw_line(pos - Vector2(r, r), pos + Vector2(r, r), Color(0, 0, 0, 0.8), 2.0)
 			draw_line(pos - Vector2(r, -r), pos + Vector2(r, -r), Color(0, 0, 0, 0.8), 2.0)
@@ -227,3 +278,184 @@ func _to_px(world: Vector2, px_per_unit: float) -> Vector2:
 
 func _vec(pair: Array) -> Vector2:
 	return Vector2(float(pair[PickpocketPlaza.CR_X]), float(pair[PickpocketPlaza.CR_Y]))
+
+
+func _crowd_pos(index: int, px: float) -> Vector2:
+	## Villager screen position with per-frame jitter for animated crowd wander.
+	var base := _to_px(_vec(crowd[index]), px)
+	if index < _crowd_phases.size():
+		var phase: float = _crowd_phases[index]
+		var jx := sin(_anim_clock * TAU * JITTER_HZ + phase) * JITTER_AMPLITUDE * px
+		var jy := cos(_anim_clock * TAU * JITTER_HZ * 0.7 + phase * 1.3) * JITTER_AMPLITUDE * px
+		return base + Vector2(jx, jy)
+	return base
+
+
+func _crowd_body_color(index: int) -> Color:
+	## Slight color variation per villager so the crowd doesn't read as clones.
+	if index < _crowd_phases.size():
+		var phase: float = _crowd_phases[index]
+		var shift := CROWD_VARIATION * sin(phase * 2.0)
+		return Color(
+			clampf(VILLAGER_BODY.r + shift, 0.0, 1.0),
+			clampf(VILLAGER_BODY.g + shift * 0.5, 0.0, 1.0),
+			clampf(VILLAGER_BODY.b - shift * 0.3, 0.0, 1.0)
+		)
+	return VILLAGER_BODY
+
+
+func _crowd_head_color(index: int) -> Color:
+	## Slight color variation for the head, matching the body shift.
+	if index < _crowd_phases.size():
+		var phase: float = _crowd_phases[index]
+		var shift := CROWD_VARIATION * sin(phase * 2.0 + 1.0)
+		return Color(
+			clampf(VILLAGER_HEAD.r + shift, 0.0, 1.0),
+			clampf(VILLAGER_HEAD.g + shift * 0.3, 0.0, 1.0),
+			clampf(VILLAGER_HEAD.b - shift * 0.2, 0.0, 1.0)
+		)
+	return VILLAGER_HEAD
+
+
+func _draw_villager_hat(pos: Vector2, px: float) -> void:
+	## Small triangle hat on top of the head.
+	var tip := pos + Vector2(0.0, -0.42 * px)
+	var left := pos + Vector2(-0.15 * px, -0.28 * px)
+	var right := pos + Vector2(0.15 * px, -0.28 * px)
+	var hat := PackedVector2Array([tip, left, right])
+	draw_colored_polygon(hat, HAT_COLOR)
+	# Tiny pom-pom at the tip.
+	draw_circle(tip, 0.04 * px, HAT_TIP_COLOR)
+
+
+func _draw_shadow(pos: Vector2, radius: float) -> void:
+	## Small dark ellipse under the figure, offset slightly down-right.
+	var shadow_pos := pos + Vector2(0.06 * radius, 0.08 * radius)
+	draw_circle(shadow_pos, radius * 0.85, SHADOW_COLOR)
+
+
+func _draw_cobblestone_detail(arena: Rect2, px: float) -> void:
+	## Enhanced cobblestone pattern: larger primary stones with smaller infill.
+	var step := GRID_STEP * px
+	# Vertical lines — main grid lines.
+	var gx := arena.position.x
+	while gx <= arena.end.x + 0.5:
+		draw_line(Vector2(gx, arena.position.y), Vector2(gx, arena.end.y), COBBLE_GRID, 1.0)
+		gx += step
+	# Horizontal lines — main grid lines.
+	var gy := arena.position.y
+	while gy <= arena.end.y + 0.5:
+		draw_line(Vector2(arena.position.x, gy), Vector2(arena.end.x, gy), COBBLE_GRID, 1.0)
+		gy += step
+	# Detail: diagonal hatches in alternating tiles for a stone-block look.
+	var half_step := step * 0.5
+	var detail_color := Color(COBBLE_GRID, COBBLE_GRID.a * 0.5)
+	gx = arena.position.x
+	while gx < arena.end.x:
+		gy = arena.position.y
+		while gy < arena.end.y:
+			var col := int((gx - arena.position.x) / step)
+			var row := int((gy - arena.position.y) / step)
+			if (col + row) % 2 == 0:
+				var cx := gx + half_step
+				var cy := gy + half_step
+				draw_line(
+					Vector2(cx - half_step * 0.3, cy - half_step * 0.3),
+					Vector2(cx + half_step * 0.3, cy + half_step * 0.3),
+					detail_color,
+					1.0
+				)
+				draw_line(
+					Vector2(cx + half_step * 0.3, cy - half_step * 0.3),
+					Vector2(cx - half_step * 0.3, cy + half_step * 0.3),
+					detail_color,
+					1.0
+				)
+			gy += step
+		gx += step
+
+
+func _draw_buildings(arena: Rect2, px: float) -> void:
+	## Building footprints around the plaza perimeter: simple rectangles with
+	## door markers and windows, grounding the plaza setting.
+	var half := PickpocketPlaza.ARENA_HALF * px
+	var margin := 0.3 * px
+	var bld_w := 1.0 * px
+	var bld_d := 0.6 * px
+	# Four buildings: one on each side of the plaza arena.
+	var configs := [
+		# Top building (north)
+		{
+			"x": arena.position.x - bld_w,
+			"y": arena.position.y - bld_d - margin,
+			"w": bld_w,
+			"h": bld_d,
+		},
+		# Bottom building (south)
+		{
+			"x": arena.end.x,
+			"y": arena.end.y + margin,
+			"w": bld_w,
+			"h": bld_d,
+		},
+		# Left building (west)
+		{
+			"x": arena.position.x - bld_d - margin,
+			"y": arena.position.y,
+			"w": bld_d,
+			"h": bld_w * 0.8,
+		},
+		# Right building (east)
+		{
+			"x": arena.end.x + margin,
+			"y": arena.position.y,
+			"w": bld_d,
+			"h": bld_w * 0.8,
+		},
+	]
+	for cfg: Dictionary in configs:
+		var rect := Rect2(cfg.x, cfg.y, cfg.w, cfg.h)
+		draw_rect(rect, BUILDING_WALL)
+		draw_rect(rect, BUILDING_ROOF, false, 2.0)
+		# Door marker: a small rectangle in the center-bottom of the building face.
+		var door_w := rect.size.x * 0.3
+		var door_h := rect.size.y * 0.5
+		var door_rect := Rect2(
+			rect.position.x + (rect.size.x - door_w) / 2.0,
+			rect.position.y + rect.size.y - door_h,
+			door_w,
+			door_h
+		)
+		draw_rect(door_rect, BUILDING_DOOR)
+		# Window: a small square above the door.
+		var win_sz := rect.size.x * 0.2
+		var win_rect := Rect2(
+			rect.position.x + (rect.size.x - win_sz) / 2.0,
+			rect.position.y + rect.size.y * 0.2,
+			win_sz,
+			win_sz
+		)
+		draw_rect(win_rect, BUILDING_WINDOW)
+
+
+func _draw_lift_indicator(pos: Vector2, px: float) -> void:
+	## Progress ring around a thief who is near a liftable villager.
+	## Checks proximity to each crowd body; shows a pulsing ring if in range.
+	var in_range := false
+	for i in crowd.size():
+		var cpos := _crowd_pos(i, px)
+		if pos.distance_to(cpos) <= PickpocketPlaza.PICKPOCKET_RADIUS * px:
+			in_range = true
+			break
+	if not in_range:
+		return
+	# Pulsing ring: the arc angle grows with the animation clock to suggest
+	# progress over time.
+	var pulse := 0.5 + 0.5 * sin(_anim_clock * TAU * 1.5)
+	var radius := PickpocketPlaza.PLAYER_RADIUS * px * 1.8
+	var thickness := 2.0 + pulse * 2.0
+	var fill_color := LIFT_INDICATOR_COLOR
+	fill_color.a = LIFT_INDICATOR_COLOR.a * (0.3 + 0.7 * pulse)
+	draw_arc(pos, radius, 0.0, TAU, 24, fill_color, thickness)
+	# Inner subtle ring as a backing.
+	draw_arc(pos, radius, 0.0, TAU, 24, LIFT_INDICATOR_EMPTY, 1.5)
