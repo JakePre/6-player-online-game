@@ -41,6 +41,17 @@ func test_setup_builds_four_dark_nodes() -> void:
 	assert_lt((view.arena.get_node("KeyLight") as DirectionalLight3D).light_energy, 0.5)
 
 
+## #1132 GFX: the floor wears the metal-deck texture, each pylon has a repair
+## panel, and crates/barrels ring the arena.
+func test_gfx_floor_panels_and_rim_props() -> void:
+	var mat := (view.arena.get_node("Floor") as MultiMeshInstance3D).material_override
+	assert_eq((mat as StandardMaterial3D).albedo_texture, view.FLOOR_TEXTURE)
+	assert_not_null(view.arena.get_node("Panel0"))
+	assert_not_null(view.arena.get_node("PanelLabel0"))
+	var props: Node = view.arena.get_node("RimProps")
+	assert_eq(props.get_child_count(), view.RIM_PROP_COUNT)
+
+
 func test_nodes_glow_from_red_to_green_with_repair() -> void:
 	var pos := FaultyWiring.NODE_POSITIONS
 	(
@@ -63,6 +74,9 @@ func test_nodes_glow_from_red_to_green_with_repair() -> void:
 	var fixed: OmniLight3D = view.arena.get_node("NodeLight1")
 	assert_gt(fixed.light_energy, broken.light_energy, "a repaired node shines brighter")
 	assert_gt(fixed.light_color.g, broken.light_color.g, "and reads greener")
+	# #1132 GFX: the per-pylon panel label tracks the live repair percentage.
+	assert_eq(view.arena.get_node("PanelLabel0").text, "0%")
+	assert_eq(view.arena.get_node("PanelLabel1").text, "100%")
 
 
 func test_a_fresh_cut_spark_bursts_unattributed() -> void:
