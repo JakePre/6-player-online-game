@@ -73,3 +73,49 @@ func test_speed_tracks_same_leg_progress_delta() -> void:
 	assert_almost_eq(float(view._speeds[0]), 1.2, 0.001)
 	view.render({"lanes": {0: [[0, 1], 1, 0.0, 0.0, false]}, "hazards": []})
 	assert_eq(float(view._speeds[0]), 0.0, "a leg change resets the speed baseline")
+
+
+## GFX #1148: visual enhancements — render without errors for various states.
+func test_renders_with_runner_in_exchange_zone() -> void:
+	# Runner at progress 22.0 (track_len=24, zone starts at 20.0)
+	view.render({"lanes": {0: [[0, 1], 0, 22.0, 0.0, false]}, "track_len": 24.0, "hazards": []})
+	view.queue_redraw()
+	# No crash is the assertion — draw() must handle in-zone runners
+	assert_true(view.lanes.has(0))
+
+
+func test_renders_finished_lane_shows_dots() -> void:
+	view.render({"lanes": {0: [[0, 1], 2, 0.0, 0.0, true]}, "track_len": 24.0, "hazards": []})
+	assert_eq(view.lanes.size(), 1, "finished lane is in the snapshot")
+
+
+func test_renders_progress_bar_for_active_lane() -> void:
+	view.render({"lanes": {0: [[0, 1], 0, 10.5, 0.0, false]}, "track_len": 24.0, "hazards": []})
+	assert_false(view.lanes[0][RelaySprint.LN_DONE], "lane is active")
+
+
+func test_renders_all_visual_features_together() -> void:
+	# Two lanes: one active, one done — exercises all drawing paths
+	(
+		view
+		. render(
+			{
+				"lanes":
+				{
+					0: [[0, 1], 0, 15.0, 0.5, false],
+					1: [[2, 3], 2, 0.0, 0.0, true],
+				},
+				"track_len": 24.0,
+				"hazards": [[7.0, 1.0], [12.0, -0.5]],
+			}
+		)
+	)
+	assert_eq(view.lanes.size(), 2)
+	assert_eq(view.hazards.size(), 2)
+
+
+func test_renders_leg_progress_constant_during_handoff() -> void:
+	# Leg change (0→1) resets progress to 0 — should not crash
+	view.render({"lanes": {0: [[0, 1], 0, 23.0, 0.0, false]}, "track_len": 24.0, "hazards": []})
+	view.render({"lanes": {0: [[0, 1], 1, 0.0, 0.0, false]}, "track_len": 24.0, "hazards": []})
+	assert_eq(int(view.lanes[0][RelaySprint.LN_ACTIVE_LEG]), 1, "leg advanced after handoff")

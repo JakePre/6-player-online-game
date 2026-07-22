@@ -18,6 +18,16 @@ const HAZARD_WARN_COLOR := Color(1.0, 0.75, 0.2)
 const SPEED_LINE_COLOR := Color(1.0, 1.0, 1.0, 0.35)
 const BATON_FLASH_COLOR := Color(1.0, 0.9, 0.4)
 const FLASH_DURATION := 0.5
+## GFX pass (#1148): visual upgrades for Relay Sprint — baton, zone markers,
+## team borders, start line, directional indicator, finished runners, progress.
+const EXCHANGE_ZONE_START_OFFSET := 4.0  # last N units before finish = exchange zone
+const START_LINE_COLOR := Color(1.0, 1.0, 1.0, 0.6)
+const DIRECTION_COLOR := Color(1.0, 1.0, 1.0, 0.25)
+const BATON_SIZE := Vector2(8.0, 4.0)
+const BATON_COLOR := Color(1.0, 0.85, 0.3)
+const FINISHED_DOT_RADIUS := 4.0
+const FINISHED_LABEL_COLOR := Color(0.6, 0.9, 0.6, 0.7)
+const LEG_PROGRESS_COLOR := Color(1.0, 1.0, 1.0, 0.3)
 
 ## Latest replicated state, straight from RelaySprint.get_snapshot().
 var lanes := {}
@@ -101,17 +111,40 @@ func _draw() -> void:
 		var state: Array = lanes[lane_index]
 		var lane_top := top + row * (lane_height + lane_gap)
 		var rect := Rect2(left, lane_top, width, lane_height)
+		var team: Array = state[RelaySprint.LN_ROSTER]
+		var team_color := player_color(team[0])
+		# Lane background
 		draw_rect(rect, LANE_COLOR)
-		draw_rect(rect, LANE_BORDER, false, 2.0)
+		# Team-colored lane border (GFX #1148)
+		draw_rect(rect, team_color, false, 2.0)
+		# Start line (GFX #1148): dashed vertical at x=0
+		var start_x := left
+		var dash_count := 6
+		var dash_len := lane_height / (dash_count * 2.0)
+		for d in dash_count:
+			var dy := lane_top + d * 2.0 * dash_len
+			draw_rect(Rect2(start_x - 1.0, dy, 2.0, dash_len), START_LINE_COLOR)
+		# Finish line
 		draw_line(
 			Vector2(left + width, lane_top),
 			Vector2(left + width, lane_top + lane_height),
 			FINISH_COLOR,
 			3.0
 		)
+		# Exchange zone markers (GFX #1148): dashed vertical lines where handoff happens
+		var ez_start_sim := track_len - EXCHANGE_ZONE_START_OFFSET
+		var ez_start_px := left + ez_start_sim * px_per_unit
+		var ez_end_px := left + width
+		for dz in 2:
+			var dz_x := ez_start_px if dz == 0 else ez_end_px
+			var dz_dash_count := 4
+			var dz_dash_len := lane_height / (dz_dash_count * 2.0)
+			for d in dz_dash_count:
+				var dy := lane_top + d * 2.0 * dz_dash_len
+				draw_rect(Rect2(dz_x - 1.0, dy, 2.0, dz_dash_len), team_color * 1.5)
+		# Handoff zone highlight (GFX #1148): tint exchange zone when runner is in it
 		var mid_y := lane_top + lane_height / 2.0
 		var lat_scale := (lane_height / 2.0 - 8.0 * fit) / RelaySprint.LANE_HALF
-		var team: Array = state[RelaySprint.LN_ROSTER]
 		var leg := int(state[RelaySprint.LN_ACTIVE_LEG])
 		var done: bool = state[RelaySprint.LN_DONE]
 		var runner := -1
@@ -119,6 +152,30 @@ func _draw() -> void:
 		if not done:
 			runner = team[mini(leg, team.size() - 1)]
 			runner_y = mid_y + float(state[RelaySprint.LN_LATERAL]) * lat_scale
+			var progress := float(state[RelaySprint.LN_PROGRESS])
+			if progress >= ez_start_sim:
+				var zone_rect := Rect2(ez_start_px, lane_top, ez_end_px - ez_start_px, lane_height)
+				var zone_tint := team_color
+				zone_tint.a = 0.15
+				draw_rect(zone_rect, zone_tint)
+		# Directional indicator (GFX #1148): small chevrons pointing right
+		var chev_x := left + 16.0 * fit
+		var chev_y := mid_y
+		for c in 3:
+			var cx := chev_x + float(c) * 8.0 * fit
+			var cy_offset := 6.0 * fit - float(c) * 2.0 * fit
+			draw_line(
+				Vector2(cx - 4.0 * fit, chev_y + cy_offset),
+				Vector2(cx, chev_y),
+				DIRECTION_COLOR,
+				1.5
+			)
+			draw_line(
+				Vector2(cx - 4.0 * fit, chev_y - cy_offset),
+				Vector2(cx, chev_y),
+				DIRECTION_COLOR,
+				1.5
+			)
 		for hazard: Array in hazards:
 			var hx := left + float(hazard[RelaySprint.HZ_X]) * px_per_unit
 			var hy := mid_y + float(hazard[RelaySprint.HZ_LATERAL]) * lat_scale
@@ -146,6 +203,16 @@ func _draw() -> void:
 						streak,
 						1.5
 					)
+			# Baton (GFX #1148): small rectangle visible in the runner's hand,
+			# drawn ahead of the runner (in front of their position).
+			var baton_rect := Rect2(
+				rx + RelaySprint.RUNNER_RADIUS * px_per_unit * 1.4 - BATON_SIZE.x * 0.5,
+				runner_y - BATON_SIZE.y * 0.5,
+				BATON_SIZE.x,
+				BATON_SIZE.y
+			)
+			draw_rect(baton_rect, BATON_COLOR)
+			draw_rect(baton_rect, Color.BLACK, false, 1.0)
 			# Baton flash (M13-22): an expanding ring where the exchange landed.
 			for flash: Dictionary in _flashes:
 				if int(flash.lane) != lane_index:
@@ -177,6 +244,15 @@ func _draw() -> void:
 				font_size,
 				color
 			)
+		else:
+			# Finished runners (GFX #1148): show small dots at the finish line
+			var fin_x := left + width - 8.0
+			var total_team := team.size()
+			for ti in total_team:
+				var dot_y := mid_y - (total_team - 1) * 6.0 * 0.5 + float(ti) * 6.0
+				draw_circle(
+					Vector2(fin_x, dot_y), FINISHED_DOT_RADIUS * fit, player_color(team[ti])
+				)
 		# Roster + status in the gutter, one line per teammate, active bolded
 		# by color; never drawn over the lane (#213).
 		for i in team.size():
@@ -193,13 +269,35 @@ func _draw() -> void:
 				font_size,
 				player_color(slot)
 			)
-		var status := "done!" if done else "leg %d" % (leg + 1)
-		draw_string(
-			font,
-			Vector2(8.0, lane_top + lane_height - 8.0 * fit),
-			status,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			GUTTER_WIDTH - 16.0,
-			font_size,
-			FINISH_COLOR if done else LANE_BORDER
-		)
+		var total_legs := team.size()
+		if done:
+			var status := "done!"
+			draw_string(
+				font,
+				Vector2(8.0, lane_top + lane_height - 8.0 * fit),
+				status,
+				HORIZONTAL_ALIGNMENT_LEFT,
+				GUTTER_WIDTH - 16.0,
+				font_size,
+				FINISH_COLOR
+			)
+		else:
+			# Progress indicator (GFX #1148): show leg X of Y
+			var status := "leg %d/%d" % [leg + 1, total_legs]
+			draw_string(
+				font,
+				Vector2(8.0, lane_top + lane_height - 8.0 * fit),
+				status,
+				HORIZONTAL_ALIGNMENT_LEFT,
+				GUTTER_WIDTH - 16.0,
+				font_size,
+				LEG_PROGRESS_COLOR
+			)
+			# Leg progress bar (GFX #1148): thin bar under the status
+			var bar_top := lane_top + lane_height - 4.0 * fit
+			var bar_w := GUTTER_WIDTH - 16.0
+			var bar_h := 3.0 * fit
+			var prog_frac := clampf(float(state[RelaySprint.LN_PROGRESS]) / track_len, 0.0, 1.0)
+			draw_rect(Rect2(8.0, bar_top, bar_w, bar_h), Color.WHITE * 0.15)
+			if prog_frac > 0.01:
+				draw_rect(Rect2(8.0, bar_top, bar_w * prog_frac, bar_h), team_color)
