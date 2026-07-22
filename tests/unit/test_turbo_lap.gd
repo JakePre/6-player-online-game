@@ -215,8 +215,11 @@ func test_shell_hunts_the_kart_ahead() -> void:
 	ahead.pos = TurboLap.waypoints()[4]
 	var firer: Dictionary = game.karts[0]
 	firer.item = TurboLap.ITEM_SHELL
+	# Held item now (#956): press trails the shell, release fires it forward.
 	game.handle_input(0, {"use": true})
-	assert_eq(game.shells.size(), 1, "the shell launches")
+	assert_eq(game.shells.size(), 0, "the press only trails the shell as a shield")
+	game.handle_input(0, {"use": false})
+	assert_eq(game.shells.size(), 1, "releasing launches it")
 	assert_eq(int(game.shells[0].target), 1, "hunting the kart directly ahead")
 	for _i in 60:
 		game.tick(TICK)
@@ -232,9 +235,97 @@ func test_leaders_shell_fizzles() -> void:
 	leader.captured = 4
 	leader.next_wp = 5
 	leader.item = TurboLap.ITEM_SHELL
+	# Trail then release to fire (#956) — a leader has no one to hunt.
 	game.handle_input(0, {"use": true})
+	game.handle_input(0, {"use": false})
 	assert_eq(game.shells.size(), 0, "no one ahead — nothing to hunt")
 	assert_eq(int(leader.item), TurboLap.ITEM_NONE, "the item is still spent")
+
+
+## #956: holding the item trails the shell as a shield — an incoming shell dies
+## against it (both destroyed) before it can reach and spin the kart.
+func test_a_trailed_shell_shields_against_an_incoming_shell() -> void:
+	var game := _game()
+	var defender: Dictionary = game.karts[0]
+	defender.item = TurboLap.ITEM_SHELL
+	defender.speed = 0.0
+	game.handle_input(0, {"use": true})
+	assert_true(bool(defender.trailing), "holding trails the shell as a shield")
+	# An incoming shell arrives right at the shield's trail position.
+	game.shells.append({"pos": game._trail_pos(defender), "target": 0, "until": 999.0})
+	game.tick(TICK)
+	assert_eq(game.shells.size(), 0, "the incoming shell dies against the shield")
+	assert_eq(float(defender.spin_left), 0.0, "the shielded kart never spins")
+	assert_false(bool(defender.trailing), "the shield is spent absorbing the hit")
+
+
+## #956: the shortcut is a genuine off-track cut, not just the racing line — its
+## chord leaves the ribbon and is shorter than the arc it skips. Guards the
+## chosen ENTRY/EXIT waypoints against silently degrading into a trivial cut.
+func test_the_shortcut_is_a_genuine_offtrack_cut() -> void:
+	var game := _game()
+	var seg := TurboLap.shortcut_segment()
+	var mid: Vector2 = (seg[0] + seg[1]) / 2.0
+	assert_false(game._on_track(mid), "the cut leaves the ribbon (a real shortcut)")
+	assert_true(game._in_mud(mid), "the cut's midpoint sits in the mud corridor")
+	var points := TurboLap.waypoints()
+	var chord := seg[0].distance_to(seg[1])
+	var arc := 0.0
+	for i in range(TurboLap.SHORTCUT_ENTRY_WP, TurboLap.SHORTCUT_EXIT_WP):
+		arc += points[i].distance_to(points[i + 1])
+	assert_lt(chord, arc, "the straight cut is shorter than the arc it skips")
+
+
+## #956: the mud caps speed to a crawl UNLESS a boost is powering through — the
+## risk/reward that makes the cut only pay with a mini-turbo banked.
+func test_the_shortcut_mud_crawls_unless_a_boost_powers_through() -> void:
+	var game := _game()
+	var seg := TurboLap.shortcut_segment()
+	var mid: Vector2 = (seg[0] + seg[1]) / 2.0
+	var kart: Dictionary = game.karts[0]
+	kart.heading = (seg[1] - seg[0]).angle()
+	for _i in 45:
+		kart.pos = mid  # pin it in the mud each tick
+		game.handle_input(0, {"mx": 0.0, "my": -1.0})
+		game.tick(TICK)
+	assert_lte(
+		float(kart.speed),
+		TurboLap.MAX_SPEED * TurboLap.MUD_SPEED_MULT + 0.1,
+		"the mud caps the throttle to a crawl"
+	)
+	# A banked boost powers cleanly through, well past the mud cap.
+	for _i in 20:
+		kart.pos = mid
+		kart.boost_left = 2.0
+		game.handle_input(0, {"mx": 0.0, "my": -1.0})
+		game.tick(TICK)
+	assert_gt(
+		float(kart.speed),
+		TurboLap.MAX_SPEED * TurboLap.MUD_SPEED_MULT + 0.5,
+		"a boost powers through the mud"
+	)
+
+
+## #956: driving the mud from the entry and reaching the exit waypoint banks
+## every checkpoint the cut skipped, all at once.
+func test_driving_the_mud_cut_captures_the_skipped_checkpoints() -> void:
+	var game := _game()
+	var kart: Dictionary = game.karts[0]
+	var points := TurboLap.waypoints()
+	# Just into the cut: the next checkpoint is the one after the entry.
+	kart.captured = TurboLap.SHORTCUT_ENTRY_WP + 1
+	kart.next_wp = TurboLap.SHORTCUT_ENTRY_WP + 1
+	kart.speed = 0.0
+	# Arrive at the exit waypoint through the mud (the chord's far endpoint).
+	kart.pos = points[TurboLap.SHORTCUT_EXIT_WP]
+	assert_true(game._in_mud(kart.pos), "the exit sits in the mud corridor")
+	game.tick(TICK)
+	assert_eq(
+		int(kart.captured),
+		TurboLap.SHORTCUT_EXIT_WP + 1,
+		"reaching the exit through the mud banks every skipped checkpoint"
+	)
+	assert_eq(int(kart.next_wp), TurboLap.SHORTCUT_EXIT_WP + 1)
 
 
 func test_grass_is_slower_than_track() -> void:

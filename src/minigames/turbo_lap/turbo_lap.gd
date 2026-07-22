@@ -74,6 +74,26 @@ const ITEM_SHELL := 1
 const ITEM_OIL := 2
 const ITEM_BOOST := 3
 
+## Item shielding (#956): hold the item button with a shell to TRAIL it behind
+## the kart as a blocker — an incoming shell that reaches the trailed shell
+## destroys both. Release to fire it forward as normal (a quick tap trails then
+## fires the same tick, so tap = attack, hold = defend). Mario Kart's held-shell
+## meta. The trailed shell rides this far behind the kart's tail.
+const TRAIL_DISTANCE := 1.2
+const TRAIL_BLOCK_RADIUS := 0.6
+
+## Shortcut gate (#956): one muddy cut across the tight left-hand end of the
+## course — the straight from SHORTCUT_ENTRY_WP to SHORTCUT_EXIT_WP chords off
+## the sharp bend, skipping the checkpoints between them (~3.4u shorter than the
+## arc). The chord bows ~1.8u into the infield past the ribbon edge, so it is
+## genuinely off-track: the mud caps speed to a crawl UNLESS a boost is powering
+## you through, so it only pays entering with a mini-turbo or pad banked. The
+## risk math the leaders do every lap. Chosen mid-course, clear of the start line.
+const SHORTCUT_ENTRY_WP := 11
+const SHORTCUT_EXIT_WP := 18
+const MUD_HALF_WIDTH := 1.6
+const MUD_SPEED_MULT := 0.35
+
 ## get_snapshot() wire shapes (#708): named indices for the positional arrays
 ## the view and brain read. Array SHAPE on the wire is unchanged — additive.
 const PS_X := 0
@@ -139,7 +159,12 @@ static func make_meta() -> MinigameMeta:
 					{"verb": "Steer", "input": InputGlyphs.CLUSTER_MOVE_LR},
 					{"verb": "Gas", "input": &"action_primary", "modifier": "hold"},
 					{"verb": "Drift", "input": InputGlyphs.CLUSTER_MOVE_LR, "alt": "hard turn"},
-					{"verb": "Item", "input": &"action_secondary"},
+					{
+						"verb": "Item / Shield",
+						"input": &"action_secondary",
+						"modifier": "hold",
+						"note": "hold a shell to trail it as a blocker",
+					},
 				],
 				"name": "Turbo Lap",
 				"category": MinigameMeta.Category.SKILL,
@@ -148,8 +173,14 @@ static func make_meta() -> MinigameMeta:
 				"duration_sec": 90.0,
 				"rules":
 				# Stale "One lap" text (#961): the race has been LAP_COUNT laps
-				# since the #785 course rebuild — off the constant so it can't drift.
-				"%d laps, winner takes it! Drift to charge a boost, grab item pads." % LAP_COUNT,
+				(
+					# since the #785 course rebuild — off the constant so it can't drift.
+					(
+						"%d laps, winner takes it! Drift to charge a boost, grab item pads, "
+						+ "hold a shell to shield, and cut the mud only with boost."
+					)
+					% LAP_COUNT
+				),
 			}
 		)
 	)
@@ -202,6 +233,13 @@ static func item_pad_positions() -> Array[Vector2]:
 	return [points[2], points[12], points[23]]
 
 
+## The muddy shortcut cut (#956): the straight [entry, exit] the view draws and
+## the sim checks against. Skips the checkpoints between the two waypoints.
+static func shortcut_segment() -> Array[Vector2]:
+	var points := waypoints()
+	return [points[SHORTCUT_ENTRY_WP], points[SHORTCUT_EXIT_WP]]
+
+
 func _setup() -> void:
 	for pad_pos in item_pad_positions():
 		item_pads.append({"pos": pad_pos, "taken_until": 0.0})
@@ -226,6 +264,7 @@ func _setup() -> void:
 			"spin_left": 0.0,
 			"oil_grace": 0.0,
 			"item": ITEM_NONE,
+			"trailing": false,
 			"next_wp": 1,
 			"captured": 0,
 			"finished": false,
@@ -251,8 +290,14 @@ func _handle_input(slot: int, data: Dictionary) -> void:
 		kart.throttle = 1.0 if bool(kart.gas) else stick
 	if data.has("drift"):
 		kart.drift_held = bool(data.drift)
-	if data.get("use", false):
-		_use_item(slot, kart)
+	# Item is a held button now (#956): press trails a shell as a shield (or
+	# fires oil/boost outright); release fires the trailed shell forward. A quick
+	# tap = trail-then-release = an ordinary forward shot; a sustained hold shields.
+	if data.has("use"):
+		if bool(data.use):
+			_press_item(slot, kart)
+		else:
+			_release_item(slot, kart)
 
 
 func _tick(delta: float) -> void:
@@ -281,6 +326,8 @@ func get_snapshot() -> Dictionary:
 			bits |= 4
 		if bool(kart.finished):
 			bits |= 8
+		if bool(kart.trailing):
+			bits |= 16  # shielding: a shell trails behind (#956)
 		players[slot] = [
 			snappedf(pos.x, 0.01),
 			snappedf(pos.y, 0.01),
@@ -414,8 +461,15 @@ func _release_drift(kart: Dictionary) -> void:
 
 func _throttle(kart: Dictionary, delta: float) -> void:
 	var top := MAX_SPEED
-	if not _on_track(kart.pos):
+	var offtrack := not _on_track(kart.pos)
+	if offtrack:
 		top *= OFFTRACK_GRIP
+	# Shortcut mud (#956): a crawl unless a boost is powering you through — that's
+	# what makes the cut only pay when you enter carrying speed. Only bites when
+	# actually off the ribbon in the cut, so a racing line grazing the corridor is
+	# untouched; checked before the boost override so boost cleanly beats the mud.
+	if offtrack and _in_mud(kart.pos) and float(kart.boost_left) <= 0.0:
+		top = MAX_SPEED * MUD_SPEED_MULT
 	if float(kart.boost_left) > 0.0:
 		top = MAX_SPEED * BOOST_MULT
 	var throttle := float(kart.throttle)
@@ -448,8 +502,12 @@ func _integrate(kart: Dictionary, delta: float) -> void:
 
 ## Push a kart back onto the track ribbon if it has crossed the ±TRACK_HALF_WIDTH
 ## wall around the centerline (#1041), projecting it to the nearest boundary point.
+## The shortcut mud is a sanctioned way off the ribbon (#956), so a kart inside
+## the mud corridor is exempt — otherwise the wall would fence off the cut.
 func _confine_to_track(kart: Dictionary) -> void:
 	var pos: Vector2 = kart.pos
+	if _in_mud(pos):
+		return
 	var nearest := SimGeometry.nearest_point_on_polyline(pos, waypoints(), true)
 	var offset := pos - nearest
 	var dist := offset.length()
@@ -457,6 +515,15 @@ func _confine_to_track(kart: Dictionary) -> void:
 		return
 	var normal := offset / dist if dist > 0.0001 else Vector2.RIGHT
 	kart.pos = nearest + normal * TRACK_HALF_WIDTH
+
+
+## True when `pos` is inside the shortcut mud corridor — within MUD_HALF_WIDTH of
+## the straight cut between the entry and exit waypoints (#956).
+func _in_mud(pos: Vector2) -> bool:
+	var seg := shortcut_segment()
+	var ab: Vector2 = seg[1] - seg[0]
+	var t := clampf((pos - seg[0]).dot(ab) / maxf(ab.length_squared(), 0.0001), 0.0, 1.0)
+	return pos.distance_to(seg[0] + ab * t) <= MUD_HALF_WIDTH
 
 
 ## Steers a finished kart toward its pit slot and eases to a stop there,
@@ -503,14 +570,40 @@ func _on_track(pos: Vector2) -> bool:
 
 
 func _capture_waypoints(slot: int, kart: Dictionary) -> void:
+	if _try_shortcut(slot, kart):
+		return
 	var points := waypoints()
 	var target: Vector2 = points[int(kart.next_wp) % WAYPOINT_COUNT]
 	if (kart.pos as Vector2).distance_to(target) > CAPTURE_RADIUS:
 		return
-	kart.captured = int(kart.captured) + 1
-	kart.next_wp = int(kart.next_wp) + 1
-	# Finished after LAP_COUNT full laps around the waypoint loop (#785).
-	if int(kart.captured) >= WAYPOINT_COUNT * LAP_COUNT:
+	_advance_capture(slot, kart, 1)
+
+
+## The shortcut cut (#956): a kart that drives the mud from the entry and reaches
+## the exit waypoint captures every checkpoint it skipped at once. Sequential
+## capture self-gates it — a kart that drove the normal way already advanced
+## next_wp past the skipped range, so it only ever fires for a real cut (next_wp
+## still mid-skip while the kart is at the exit through the mud). Returns whether
+## it fired.
+func _try_shortcut(slot: int, kart: Dictionary) -> bool:
+	if not _in_mud(kart.pos):
+		return false
+	var nw := int(kart.next_wp) % WAYPOINT_COUNT
+	if nw <= SHORTCUT_ENTRY_WP or nw > SHORTCUT_EXIT_WP:
+		return false  # not mid-skip: already past the exit, or not into the cut yet
+	var exit_pos := waypoints()[SHORTCUT_EXIT_WP]
+	if (kart.pos as Vector2).distance_to(exit_pos) > CAPTURE_RADIUS:
+		return false
+	_advance_capture(slot, kart, SHORTCUT_EXIT_WP - nw + 1)
+	return true
+
+
+## Advance a kart's checkpoint count by `count`, finishing it after LAP_COUNT full
+## laps. Shared by normal capture and the shortcut skip.
+func _advance_capture(slot: int, kart: Dictionary, count: int) -> void:
+	kart.captured = int(kart.captured) + count
+	kart.next_wp = int(kart.next_wp) + count
+	if int(kart.captured) >= WAYPOINT_COUNT * LAP_COUNT and not bool(kart.finished):
 		kart.finished = true
 		_finished_this_tick.append(slot)
 
@@ -531,9 +624,33 @@ func _touch_pads(kart: Dictionary) -> void:
 			return
 
 
+## Item-button press (#956): a shell starts trailing (the shield); oil and boost
+## fire outright. A no-op with no item.
+func _press_item(slot: int, kart: Dictionary) -> void:
+	match int(kart.item):
+		ITEM_SHELL:
+			kart.trailing = true
+		ITEM_OIL, ITEM_BOOST:
+			_use_item(slot, kart)
+
+
+## Item-button release (#956): a trailed shell fires forward as normal. Nothing
+## trailing (or a non-shell already spent on press) — nothing to do.
+func _release_item(slot: int, kart: Dictionary) -> void:
+	if bool(kart.trailing):
+		kart.trailing = false
+		_use_item(slot, kart)
+
+
+## World position of a kart's trailed shell — one TRAIL_DISTANCE off its tail.
+func _trail_pos(kart: Dictionary) -> Vector2:
+	return (kart.pos as Vector2) - Vector2.from_angle(float(kart.heading)) * TRAIL_DISTANCE
+
+
 func _use_item(slot: int, kart: Dictionary) -> void:
 	var item := int(kart.item)
 	kart.item = ITEM_NONE
+	kart.trailing = false
 	match item:
 		ITEM_BOOST:
 			kart.boost_left = maxf(float(kart.boost_left), BOOST_BIG_SEC)
@@ -567,6 +684,18 @@ func _tick_shells(delta: float) -> void:
 	for shell in shells:
 		var target: Dictionary = karts.get(int(shell.target), {})
 		if target.is_empty() or elapsed >= float(shell.until):
+			continue
+		# Item shield (#956): if the target is trailing a shell, the incoming shell
+		# dies against it — both destroyed — before it can reach the kart.
+		if (
+			bool(target.get("trailing", false))
+			and (
+				(shell.pos as Vector2).distance_to(_trail_pos(target))
+				<= SHELL_HIT_RADIUS + TRAIL_BLOCK_RADIUS
+			)
+		):
+			target.trailing = false
+			target.item = ITEM_NONE
 			continue
 		var to_target := (target.pos as Vector2) - (shell.pos as Vector2)
 		if to_target.length() <= SHELL_HIT_RADIUS:
