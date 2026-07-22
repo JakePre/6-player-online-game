@@ -22,6 +22,14 @@ const NAME_OFFSET := 14.0
 const ALARM_COLOR := Color(0.95, 0.3, 0.3)
 const SCAN_PERIOD_SEC := 6.0
 const PULSE_DURATION := 0.7
+## Radiating scan lines (#1134): a few faint spokes from arena center, slowly
+## rotating, alongside the existing horizontal scanline sweep.
+const RADIAL_SCAN_COUNT := 4
+const RADIAL_SCAN_SPEED := 0.15
+const RADIAL_SCAN_COLOR := Color(0.35, 0.75, 0.95, 0.1)
+## Vault door wedge (#1134): while a robbery pulse plays, an arc "door" swings
+## open across the vault's own outline instead of just the alarm ring.
+const VAULT_DOOR_COLOR := Color(0.95, 0.3, 0.3, 0.8)
 ## #930: the board used to center on the full viewport, so its top vaults
 ## clipped under the match-chrome header. Reuses the 3D views' named chrome
 ## clearance (#924) even though this view is 2D — it's the same header.
@@ -117,7 +125,23 @@ func _draw() -> void:
 				Color(BLUEPRINT_LINE, alpha),
 				2.0 if i == 0 else 1.0
 			)
-	# Steal pulses (M13-27): an expanding alarm ring on the robbed vault.
+			# Radiating scan spokes (#1134): a few faint lines from center,
+			# slowly rotating — a second read on "this feed is live" beyond
+			# the horizontal sweep.
+			var spoke_center := arena.position + arena.size / 2.0
+			var reach := arena.size.length() / 2.0
+			for r in RADIAL_SCAN_COUNT:
+				var angle := (
+					TAU * float(r) / float(RADIAL_SCAN_COUNT) + _scan_clock * RADIAL_SCAN_SPEED
+				)
+				draw_line(
+					spoke_center,
+					spoke_center + Vector2(cos(angle), sin(angle)) * reach,
+					RADIAL_SCAN_COLOR,
+					1.0
+				)
+	# Steal pulses (M13-27): an expanding alarm ring, plus a door wedge
+	# swinging open across the vault outline (#1134).
 	for pulse: Dictionary in _pulses:
 		if not vaults.has(pulse.slot):
 			continue
@@ -129,6 +153,16 @@ func _draw() -> void:
 		var ring_radius := HeistNight.VAULT_RADIUS * px_per_unit * (1.0 + progress)
 		var ring_color := Color(ALARM_COLOR, 1.0 - progress)
 		draw_arc(center, ring_radius, 0.0, TAU, 32, ring_color, 1.0 + 2.0 * (1.0 - progress))
+		var door_sweep := progress * PI * 0.6
+		draw_arc(
+			center,
+			HeistNight.VAULT_RADIUS * px_per_unit * 0.82,
+			-door_sweep / 2.0,
+			door_sweep / 2.0,
+			16,
+			Color(VAULT_DOOR_COLOR, VAULT_DOOR_COLOR.a * (1.0 - progress)),
+			3.0
+		)
 	var font := get_theme_default_font()
 	var font_size := get_theme_default_font_size()
 	for slot: int in vaults:
