@@ -1,10 +1,12 @@
 extends MinigameView3D
 ## Nom Arena client view (M14-10): the blob is the avatar, so the humanoid
 ## rigs are hidden and each player renders as a flat, player-colored disc
-## scaled by its mass, with a name+mass label. Dense dots, the closing
+## scaled by its mass, with a name+mass label. Dense dots (Kenney Food Kit
+## models — the single biggest visual upgrade in the repo), the closing
 ## seeded maze walls (#1027), a lunge streak, an eaten-puff — and the #954 Power Pellet
 ## (pulsing MDL-017 model; the eater's disc glows gold, rivals tint
-## frightened-blue with a fear icon). Renders get_snapshot() only.
+## frightened-blue with a fear icon), plus an eating-particle burst, a food trail
+## behind moving blobs, and food-themed rim props. Renders get_snapshot() only.
 
 const DISC_HEIGHT := 0.25
 const DOT_COLOR := Color(0.95, 0.85, 0.4)
@@ -23,17 +25,74 @@ const PELLET_PULSE_AMOUNT := 0.14
 const FRENZY_GLOW_COLOR := Color(1.0, 0.85, 0.3)
 const FRIGHTENED_COLOR := Color(0.35, 0.5, 0.95)
 const FEAR_ICON := "😱"
+## Food model dot pool (#1145): Kenney Food Kit models for the 42 dots.
+const FOOD_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_food_kit/apple.glb"),
+	preload("res://assets/environment/kenney_food_kit/banana.glb"),
+	preload("res://assets/environment/kenney_food_kit/bread.glb"),
+	preload("res://assets/environment/kenney_food_kit/broccoli.glb"),
+	preload("res://assets/environment/kenney_food_kit/carrot.glb"),
+	preload("res://assets/environment/kenney_food_kit/cheese.glb"),
+	preload("res://assets/environment/kenney_food_kit/cherries.glb"),
+	preload("res://assets/environment/kenney_food_kit/cookie.glb"),
+	preload("res://assets/environment/kenney_food_kit/croissant.glb"),
+	preload("res://assets/environment/kenney_food_kit/donut.glb"),
+	preload("res://assets/environment/kenney_food_kit/egg.glb"),
+	preload("res://assets/environment/kenney_food_kit/grapes.glb"),
+	preload("res://assets/environment/kenney_food_kit/lemon.glb"),
+	preload("res://assets/environment/kenney_food_kit/muffin.glb"),
+	preload("res://assets/environment/kenney_food_kit/orange.glb"),
+	preload("res://assets/environment/kenney_food_kit/pancakes.glb"),
+	preload("res://assets/environment/kenney_food_kit/strawberry.glb"),
+	preload("res://assets/environment/kenney_food_kit/taco.glb"),
+	preload("res://assets/environment/kenney_food_kit/waffle.glb"),
+	preload("res://assets/environment/kenney_food_kit/watermelon.glb"),
+]
+## Food trail (#1145): how many trailing particles per blob, how far apart.
+const TRAIL_COUNT := 3
+const TRAIL_SPACING := 0.5
+const TRAIL_ALPHA := 0.35
+## Eating burst (#1145): mass increase threshold that triggers a food-crumb burst.
+const EAT_MASS_THRESHOLD := 0.4
+## Rim props (#1145): food-themed decorations around the arena perimeter.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_food_kit/bowl.glb"),
+	preload("res://assets/environment/kenney_food_kit/plate-dinner.glb"),
+	preload("res://assets/environment/kenney_food_kit/plate-deep.glb"),
+	preload("res://assets/environment/kenney_food_kit/cup.glb"),
+	preload("res://assets/environment/kenney_food_kit/glass.glb"),
+	preload("res://assets/environment/kenney_food_kit/soda-can.glb"),
+	preload("res://assets/environment/kenney_food_kit/bottle-ketchup.glb"),
+	preload("res://assets/environment/kenney_food_kit/barrel.glb"),
+	preload("res://assets/environment/kenney_food_kit/can.glb"),
+	preload("res://assets/environment/kenney_food_kit/utensil-fork.glb"),
+	preload("res://assets/environment/kenney_food_kit/utensil-knife.glb"),
+	preload("res://assets/environment/kenney_food_kit/utensil-spoon.glb"),
+]
+const RIM_PROP_COUNT := 20
+const RIM_PROP_SEED := 1145
+## Food-crumb burst (#1145): small colored spheres used as "crumbs" on eat.
+const CRUMB_COUNT := 8
+const CRUMB_SPEED := 3.0
+const CRUMB_LIFETIME := 0.6
+const CRUMB_SIZE := 0.08
 
 var players := {}
 
 var _blobs := {}  # slot -> MeshInstance3D (scaled disc)
 var _labels := {}  # slot -> Label3D
-var _dot_pool: Array[MeshInstance3D] = []
+var _dot_pool: Array[Node3D] = []
 var _walls_built := false
 var _pellet: Node3D
 var _mass_seen := {}
 var _lunge_seen := {}
 var _my_frenzy_seen := false
+## Food trail (#1145): slot -> [Vector2, ...] previous positions for trail.
+var _trail_positions := {}
+## Food trail (#1145): slot -> [Node3D, ...] trail particle nodes.
+var _trail_particles := {}
+## RNG for random food model selection per dot.
+var _rng := RandomNumberGenerator.new()
 
 
 func _physics_process(_delta: float) -> void:
@@ -61,11 +120,16 @@ func _setup_3d() -> void:
 			rig.visible = false  # the blob is the avatar
 		_blobs[slot] = _build_blob(slot)
 		_labels[slot] = _build_label()
+		# Food trail (#1145): init empty position and particle arrays per slot.
+		_trail_positions[slot] = []
+		_trail_particles[slot] = []
 	_build_dots()
 	_pellet = PELLET_SCENE.instantiate() as Node3D
 	_pellet.name = "PowerPellet"
 	_pellet.visible = false
 	arena.add_child(_pellet)
+	# Rim props (#1145): food-themed bowls, plates, utensils around the perimeter.
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -148,18 +212,14 @@ func _build_label() -> Label3D:
 
 
 func _build_dots() -> void:
+	_rng.randomize()
 	for i in NomArena.DOT_COUNT:
-		var mesh := SphereMesh.new()
-		mesh.radius = 0.18
-		mesh.height = 0.36
-		var material := StandardMaterial3D.new()
-		material.albedo_color = DOT_COLOR
-		material.emission_enabled = true
-		material.emission = DOT_COLOR
-		material.emission_energy_multiplier = 0.5
-		mesh.material = material
-		var node := MeshInstance3D.new()
-		node.mesh = mesh
+		var scene := FOOD_SCENES[_rng.randi() % FOOD_SCENES.size()]
+		var node := scene.instantiate() as Node3D
+		if node == null:
+			continue
+		# Scale food models to match the ~0.36u sphere size.
+		node.scale = Vector3.ONE * 0.35
 		node.visible = false
 		arena.add_child(node)
 		_dot_pool.append(node)
@@ -236,6 +296,10 @@ func _update_blob(slot: int, frenzied_slot: int) -> void:
 		# Signature cue (#728): heard only by the swallowed blob.
 		if slot == my_slot:
 			play_sfx(&"powerdown")
+	# Eating particle effect (#1145): a sharp mass increase means this blob
+	# just ate another blob or a dot — spawn a food-crumb burst.
+	if mass > last_mass + EAT_MASS_THRESHOLD:
+		_spawn_crumb_burst(pos, player_color(slot))
 	_mass_seen[slot] = mass
 	# Lunge onset sparkles.
 	var lunging := int(state[NomArena.PS_LUNGING]) == 1
@@ -245,3 +309,104 @@ func _update_blob(slot: int, frenzied_slot: int) -> void:
 		if slot == my_slot:
 			play_sfx(&"dash")
 	_lunge_seen[slot] = lunging
+	# Food trail (#1145): track position history and spawn trail particles.
+	_update_trail(slot, pos, radius)
+
+
+## Food-crumb burst (#1145): spawn CRUMB_COUNT small colored spheres that fly
+## outward from the eating position, fading and shrinking over CRUMB_LIFETIME.
+func _spawn_crumb_burst(pos: Vector2, color: Color) -> void:
+	if ArenaFX.reduced_motion:
+		return
+	for i in CRUMB_COUNT:
+		var mesh := SphereMesh.new()
+		mesh.radius = CRUMB_SIZE
+		mesh.height = CRUMB_SIZE * 2.0
+		var material := StandardMaterial3D.new()
+		var crumb_color := Color(
+			color.r * (0.6 + randf() * 0.4),
+			color.g * (0.6 + randf() * 0.4),
+			color.b * (0.6 + randf() * 0.4),
+			1.0
+		)
+		material.albedo_color = crumb_color
+		material.emission_enabled = true
+		material.emission = crumb_color
+		material.emission_energy_multiplier = 0.5
+		mesh.material = material
+		var node := MeshInstance3D.new()
+		node.mesh = mesh
+		var angle := randf() * TAU
+		var speed := CRUMB_SPEED * (0.5 + randf() * 0.5)
+		var velocity := Vector3(cos(angle), 0.5, sin(angle)) * speed
+		node.position = to_arena(pos, 0.3)
+		arena.add_child(node)
+		# Tween the crumb: fly outward, fade, shrink, then free.
+		var tween := create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(node, "position", node.position + velocity, CRUMB_LIFETIME)
+		tween.tween_property(node, "scale", Vector3.ZERO, CRUMB_LIFETIME)
+		tween.tween_property(
+			node.mesh.material,
+			"albedo_color",
+			Color(crumb_color.r, crumb_color.g, crumb_color.b, 0.0),
+			CRUMB_LIFETIME
+		)
+		tween.finished.connect(node.queue_free)
+
+
+## Food trail (#1145): maintain TRAIL_COUNT small particles behind each moving
+## blob. A new trail particle spawns when the blob has moved TRAIL_SPACING from
+## the last recorded position.
+func _update_trail(slot: int, pos: Vector2, radius: float) -> void:
+	if ArenaFX.reduced_motion:
+		return
+	var positions: Array = _trail_positions.get(slot, [])
+	positions.append(pos)
+	# Only keep one position beyond TRAIL_COUNT so we can detect new movement.
+	if positions.size() > TRAIL_COUNT + 1:
+		positions.pop_front()
+	_trail_positions[slot] = positions
+	# Check if we have enough history and the blob moved enough to spawn a trail.
+	if positions.size() < 2:
+		return
+	var prev := positions[-2] as Vector2
+	if prev.distance_to(pos) < TRAIL_SPACING:
+		return
+	# Spawn a trail particle at the previous position.
+	var particles: Array = _trail_particles.get(slot, [])
+	var trail := _build_trail_particle(slot, prev, radius)
+	particles.append(trail)
+	# Garbage-collect old trail particles beyond TRAIL_COUNT.
+	while particles.size() > TRAIL_COUNT:
+		var old := particles.pop_front() as Node3D
+		if is_instance_valid(old):
+			old.queue_free()
+	_trail_particles[slot] = particles
+
+
+## A single trail particle: a small semi-transparent sphere at the given
+## position, which fades out over ~0.5 s.
+func _build_trail_particle(slot: int, pos: Vector2, radius: float) -> Node3D:
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.06
+	mesh.height = 0.12
+	var material := StandardMaterial3D.new()
+	var color := player_color(slot)
+	color.a = TRAIL_ALPHA
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = player_color(slot)
+	material.emission_energy_multiplier = 0.6
+	mesh.material = material
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = to_arena(pos, 0.1)
+	arena.add_child(node)
+	# Fade out and free.
+	var tween := create_tween()
+	tween.tween_property(
+		node.mesh.material, "albedo_color", Color(color.r, color.g, color.b, 0.0), 0.5
+	)
+	tween.finished.connect(node.queue_free)
+	return node
