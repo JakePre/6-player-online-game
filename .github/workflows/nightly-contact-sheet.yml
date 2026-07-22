@@ -50,7 +50,15 @@ jobs:
         game: ${{ fromJSON(needs.list.outputs.games) }}
     steps:
       - uses: actions/checkout@v4
+      # #1121: cache the Godot binary so it isn't re-downloaded every run.
+      - name: Cache Godot binary
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: godot-bin
+          key: godot-bin-linux-${{ env.GODOT_VERSION }}
       - name: Download Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
         run: |
           curl -sSL -o godot.zip \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
