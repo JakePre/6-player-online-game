@@ -6,6 +6,7 @@ extends GutTest
 
 const DODGEBALL_SCENE := preload("res://src/minigames/dodgeball/dodgeball_view.tscn")
 const LASER_LIMBO_SCENE := preload("res://src/minigames/laser_limbo/laser_limbo_view.tscn")
+const TURBO_LAP_SCENE := preload("res://src/minigames/turbo_lap/turbo_lap_view.tscn")
 
 
 func _view_with_actions(actions: Dictionary) -> MinigameView:
@@ -96,3 +97,19 @@ func test_laser_limbo_held_duck_maps_through_the_real_const() -> void:
 	assert_eq(view.input_sends_for_event(_press(&"action_primary")), [{"jump": true}])
 	assert_eq(view.input_sends_for_event(_press(&"action_secondary")), [{"duck": true}])
 	assert_eq(view.input_sends_for_event(_release(&"action_secondary")), [{"duck": false}])
+
+
+## #947 batch 5 (the final row, unblocked by #1041 closing): gas is a held
+## action (press/release pair), the item button is momentary.
+func test_turbo_lap_held_gas_and_item_use_map_through_the_real_const() -> void:
+	var view: MinigameView = TURBO_LAP_SCENE.instantiate()
+	add_child_autofree(view)
+	view.setup({0: "Alice"}, 0)
+	assert_eq(view.input_sends_for_event(_press(&"action_primary")), [{"gas": true}])
+	assert_eq(view.input_sends_for_event(_release(&"action_primary")), [{"gas": false}])
+	assert_eq(view.input_sends_for_event(_press(&"action_secondary")), [{"use": true}])
+	assert_eq(
+		view.input_sends_for_event(_release(&"action_secondary")),
+		[],
+		"the item button is momentary, not held"
+	)
