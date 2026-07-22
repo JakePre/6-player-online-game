@@ -35,6 +35,14 @@ const KIND_LABELS := {
 const LABEL_SIZE := 13
 const GLYPH_COLOR := Color(0.1, 0.1, 0.13)
 const KO_MODULATE := Color(0.4, 0.4, 0.45, 0.75)
+## #1142 GFX: arena wall panels behind the stage, a shield-edge shimmer, and a
+## spawn-platform glow pulse when a fighter respawns at the top of a round.
+const WALL_PANEL_COLOR := Color(0.16, 0.17, 0.22)
+const WALL_TRIM_COLOR := Color(0.4, 0.8, 1.0, 0.55)
+const WALL_PANEL_COUNT := 7
+const SHIELD_SHIMMER_COUNT := 5
+const SPAWN_GLOW_DURATION := 0.6
+const SPAWN_GLOW_COLOR := Color(0.4, 0.85, 1.0, 0.7)
 
 var players := {}
 var shots: Array = []
@@ -49,10 +57,23 @@ var _alive_seen := {}
 ## fire and its resolution, so a size increase is a fresh shot.
 var _shots_seen := 0
 var _seen_snapshot := false
+## #1142 GFX: in-flight spawn glow pulses ({slot, age}), fired the moment a new
+## sub_round begins (everyone respawns together at that instant).
+var _spawn_glows: Array = []
+var _sub_round_edges := EdgeTracker.new()
+var _wall_layer: Control
 
 
 func _ready() -> void:
 	super()
+	# Arena wall panels (#1142) sit behind the stage: right after the shared
+	# parallax backdrop, before the platform/rig layers draw over them.
+	_wall_layer = Control.new()
+	_wall_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_wall_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_wall_layer.draw.connect(_draw_walls)
+	add_child(_wall_layer)
+	move_child(_wall_layer, _backdrop.get_index() + 1)
 	_fx_layer = Control.new()
 	_fx_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fx_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -60,6 +81,7 @@ func _ready() -> void:
 	add_child(_fx_layer)
 	# HUD below the match chrome via the shared helper (#925 clip fix).
 	_hud = make_sidescroll_hud()
+	resized.connect(_wall_layer.queue_redraw)
 
 
 func _setup() -> void:
@@ -74,6 +96,17 @@ func _physics_process(_delta: float) -> void:
 	NetManager.send_match_input({"mx": Input.get_axis(&"move_left", &"move_right")})
 
 
+func _process(delta: float) -> void:
+	var alive: Array = []
+	for glow: Dictionary in _spawn_glows:
+		glow.age += delta
+		if glow.age < SPAWN_GLOW_DURATION:
+			alive.append(glow)
+	_spawn_glows = alive
+	if not _spawn_glows.is_empty() and _fx_layer != null:
+		_fx_layer.queue_redraw()
+
+
 func _render(game: Dictionary) -> void:
 	players = game.get("players", {})
 	shots = game.get("shots", [])
@@ -85,6 +118,11 @@ func _render(game: Dictionary) -> void:
 	if _seen_snapshot and shots.size() > _shots_seen:
 		play_sfx(&"laser")
 	_shots_seen = shots.size()
+	# Spawn glow (#1142): a new sub_round respawns everyone at once, so the
+	# edge alone is enough to seed a pulse at each fighter's fresh position.
+	if _sub_round_edges.changed(&"sub_round", sub_round):
+		for slot: int in players:
+			_spawn_glows.append({"slot": slot, "age": 0.0})
 	render_side_scroll(players)
 	for slot: int in players:
 		_render_fighter(slot, players[slot])
@@ -168,15 +206,24 @@ func _draw_fx() -> void:
 		else:
 			_fx_layer.draw_circle(at, 4.0, PartyTheme.ACCENT_BRIGHT)
 	for slot: int in players:
-		_draw_fighter_markers(players[slot])
+		_draw_fighter_markers(slot, players[slot])
 
 
-func _draw_fighter_markers(state: Array) -> void:
-	if state.size() < LoadoutDuel.PS_COUNT or int(state[LoadoutDuel.PS_FLAGS]) & 1 == 0:
+func _draw_fighter_markers(slot: int, state: Array) -> void:
+	if state.size() < LoadoutDuel.PS_COUNT:
 		return
 	var center := world_to_screen(
 		Vector2(float(state[LoadoutDuel.PS_X]), float(state[LoadoutDuel.PS_Y]))
 	)
+	for glow: Dictionary in _spawn_glows:
+		if int(glow.slot) != slot:
+			continue
+		var glow_t: float = float(glow.age) / SPAWN_GLOW_DURATION
+		var ring_color := SPAWN_GLOW_COLOR
+		ring_color.a *= 1.0 - glow_t
+		_fx_layer.draw_arc(center, 14.0 + 20.0 * glow_t, 0.0, TAU, 24, ring_color, 3.0)
+	if int(state[LoadoutDuel.PS_FLAGS]) & 1 == 0:
+		return
 	var facing := int(state[LoadoutDuel.PS_FACING])
 	var held := int(state[LoadoutDuel.PS_HELD])
 	if held != LoadoutDuel.Kind.NONE:
@@ -187,6 +234,32 @@ func _draw_fighter_markers(state: Array) -> void:
 		_draw_kind_name(center - Vector2(0.0, 34.0), held, KIND_COLORS.get(held, PartyTheme.TEXT))
 	if int(state[LoadoutDuel.PS_FLAGS]) & 2 > 0:
 		_fx_layer.draw_arc(center, 22.0, 0.0, TAU, 20, KIND_COLORS[LoadoutDuel.Kind.SHIELD], 3.0)
+		_draw_shield_shimmer(center, 22.0, KIND_COLORS[LoadoutDuel.Kind.SHIELD])
+
+
+## Shield shimmer (#1142): a handful of bright points sweep around the shield
+## ring, purely time-driven — no extra replicated state needed.
+func _draw_shield_shimmer(center: Vector2, radius: float, color: Color) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	for i in SHIELD_SHIMMER_COUNT:
+		var angle := t * 2.2 + TAU * float(i) / SHIELD_SHIMMER_COUNT
+		var point := center + Vector2.from_angle(angle) * radius
+		_fx_layer.draw_circle(point, 2.5, Color(color, 0.9))
+
+
+## Arena wall panels (#1142): vertical support panels with neon trim behind
+## the stage, reading as an arena rather than an empty backdrop.
+func _draw_walls() -> void:
+	var panel_width := size.x / WALL_PANEL_COUNT
+	for i in WALL_PANEL_COUNT:
+		var x := i * panel_width
+		_wall_layer.draw_rect(Rect2(x, 0.0, panel_width * 0.82, size.y), WALL_PANEL_COLOR)
+		_wall_layer.draw_line(
+			Vector2(x + panel_width * 0.82, 0.0),
+			Vector2(x + panel_width * 0.82, size.y),
+			WALL_TRIM_COLOR,
+			2.0
+		)
 
 
 ## The pickup's name, centered at `pos`.
