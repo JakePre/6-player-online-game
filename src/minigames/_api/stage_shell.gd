@@ -1,21 +1,25 @@
 class_name StageShell
 extends RefCounted
-## The party-stadium shell (#939): one shared 3D environment every
-## MinigameView3D arena sits inside, replacing the bare grey void with a
+## The party-stadium shell (#939, redesigned #1184): one shared 3D environment
+## every MinigameView3D arena sits inside, replacing the bare grey void with a
 ## framed "game show" backdrop. Primitive-first (owner-approved concept): a
-## warm gradient sky dome, a distant low bleacher ring, silhouette crowd
-## billboards, and slow emissive spotlight cones — all tinted from the game's
-## mood color. Pure presentation: no snapshot/sim impact, zero per-game code
-## (MinigameView3D mounts it with hook defaults that cover every game).
+## distant low bleacher ring, silhouette crowd billboards, and slow emissive
+## spotlight cones — all tinted from the game's mood color. Pure presentation:
+## no snapshot/sim impact, zero per-game code (MinigameView3D mounts it with
+## hook defaults that cover every game).
 ##
-## Occlusion-safe by construction: the dome is far behind, and the ring +
-## crowd sit low (top below rig-head height) and outside the arena, so nothing
-## here ever draws in front of the players. Sized off the arena extent so it
-## clears every game's ARENA_HALF including M15 head-count scaling.
+## Occlusion-safe by construction (#1184): the near-field ring + crowd sit low
+## (top below rig-head height) and outside the arena, so nothing here ever
+## draws in front of the players. The sky is NOT a mesh — the shared
+## transparent-bg MenuBackdrop shows through behind the arena, so there is no
+## giant enclosing dome to trap the orthographic camera (the #1119 occlusion).
+## The bleacher ring is a CAP-LESS tube: a capped CylinderMesh's top cap is a
+## disc that floats over and occludes the whole floor (the #1184 darkening) —
+## cap_top/cap_bottom are off so only the wall remains. Sized off the arena
+## extent so it clears every game's ARENA_HALF including M15 head-count scaling.
 
-## Multipliers on the arena extent: the dome wraps far behind, the ring frames
-## just outside the play field, the crowd rides the ring.
-const DOME_RADIUS_MULT := 4.5
+## Multipliers on the arena extent: the ring frames just outside the play
+## field, the crowd rides the ring.
 const RING_RADIUS_MULT := 1.7
 const RING_HEIGHT := 1.0
 ## The ring top sits at this world-y — below a standing rig's head (~2u) so it
@@ -40,7 +44,6 @@ func build(arena: Node3D, extent: float, mood: Color) -> void:
 	_root = Node3D.new()
 	_root.name = "StageShell"
 	arena.add_child(_root)
-	_build_dome(extent, mood)
 	_build_ring(extent, mood)
 	_build_crowd(extent, mood)
 	_build_spotlights(extent, mood)
@@ -62,42 +65,19 @@ func root() -> Node3D:
 	return _root
 
 
-## The sky: a big inverted sphere in a warm dark tone, with a brighter horizon
-## band cylinder for a cheap gradient read. Unshaded + cull-disabled so we see
-## its inner face behind the arena.
-func _build_dome(extent: float, mood: Color) -> void:
-	var radius := extent * DOME_RADIUS_MULT
-	var sphere := SphereMesh.new()
-	sphere.radius = radius
-	sphere.height = radius * 2.0
-	sphere.radial_segments = 24
-	sphere.rings = 12
-	sphere.material = _unshaded(_dome_top(mood), true)
-	var dome := MeshInstance3D.new()
-	dome.name = "SkyDome"
-	dome.mesh = sphere
-	_root.add_child(dome)
-	# A brighter horizon band just above the ground line for the gradient read.
-	var band := CylinderMesh.new()
-	band.top_radius = radius * 0.98
-	band.bottom_radius = radius * 0.98
-	band.height = extent * 1.5
-	band.material = _unshaded(_dome_horizon(mood), true)
-	var band_node := MeshInstance3D.new()
-	band_node.name = "HorizonBand"
-	band_node.mesh = band
-	band_node.position.y = extent * 0.4
-	_root.add_child(band_node)
-
-
-## The bleacher wall: a short cylinder ring just outside the arena, its top
-## kept at RING_TOP_Y so it frames from behind without occluding the players.
+## The bleacher wall: a short cap-less cylinder ring just outside the arena,
+## its top kept at RING_TOP_Y so it frames from behind without occluding the
+## players. The caps are disabled (#1184): a capped CylinderMesh's top face is
+## a full-radius disc that floats above and occludes the entire floor — only
+## the tube wall itself should read as the bleacher.
 func _build_ring(extent: float, mood: Color) -> void:
 	var radius := extent * RING_RADIUS_MULT
 	var wall := CylinderMesh.new()
 	wall.top_radius = radius
 	wall.bottom_radius = radius
 	wall.height = RING_HEIGHT
+	wall.cap_top = false
+	wall.cap_bottom = false
 	wall.material = _unshaded(mood.darkened(0.55), true)
 	var node := MeshInstance3D.new()
 	node.name = "BleacherRing"
@@ -156,16 +136,6 @@ func _build_spotlights(extent: float, mood: Color) -> void:
 		pivot.add_child(beam)
 		_root.add_child(pivot)
 		_spotlights.append(pivot)
-
-
-## A warm-dark top tone for the dome, derived from the mood.
-func _dome_top(mood: Color) -> Color:
-	return mood.darkened(0.72)
-
-
-## A slightly warmer/brighter horizon tone.
-func _dome_horizon(mood: Color) -> Color:
-	return mood.darkened(0.5).lerp(Color(0.9, 0.6, 0.4), 0.25)
 
 
 func _unshaded(color: Color, double_sided: bool) -> StandardMaterial3D:
