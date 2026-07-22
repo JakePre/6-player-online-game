@@ -22,6 +22,25 @@ const KIND_COLORS := {
 	TargetRange.Kind.SMALL: Color(0.3, 0.6, 0.95),
 	TargetRange.Kind.GOLD: Color(0.95, 0.8, 0.2),
 }
+## GFX enhancements (#1158): sand-packed floor texture, desert backdrop wall,
+## target stands, hit marker decals, and desert rim props.
+const SAND_FLOOR := preload("res://assets/generated/textures/sand-packed.png")
+const BACKDROP_WALL_TEXTURE := preload("res://assets/generated/textures/castle-stone.png")
+const BACKDROP_WALL_HEIGHT := 6.0
+const BACKDROP_WALL_Y := -7.0
+const TARGET_POLE_RADIUS := 0.04
+const HIT_MARKER_FADE_SEC := 0.25
+## Desert backdrop rim props (#1158): cacti, rocks, and barrels
+## scattered around the arena perimeter.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/cactus_short.glb"),
+	preload("res://assets/environment/kenney_nature_kit/cactus_tall.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallB.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/barrel.glb"),
+]
+const RIM_PROP_COUNT := 16
+const RIM_PROP_SEED := 0xBEEF
 
 var _aim := Vector2.ZERO
 var _scores := {}
@@ -35,6 +54,49 @@ var _target_nodes := {}  # id (int) -> MeshInstance3D
 var _target_colors := {}  # id (int) -> Color (kind tint, for the break burst)
 var _crosshairs := {}  # slot (int) -> MeshInstance3D
 var _aim_beams := {}  # slot (int) -> MeshInstance3D (#214 aim lines)
+
+
+## Desert shooting range floor (#1158): sand-packed texture instead of default tiles.
+func _build_floor() -> void:
+	var half := _arena_half()
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(half * 2.0, half * 2.0)
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = SAND_FLOOR
+	material.albedo_color = Color(1.0, 0.9, 0.74)
+	material.metallic = 0.0
+	material.roughness = 0.85
+	mesh.material = material
+	var floor_node := MeshInstance3D.new()
+	floor_node.name = "SandFloor"
+	floor_node.mesh = mesh
+	floor_node.position.y = -0.01
+	arena.add_child(floor_node)
+
+
+## Warm desert shooting range mood (#1158).
+func _mood() -> Color:
+	return Color(0.18, 0.12, 0.06).lerp(Color(0.8, 0.7, 0.5), 0.25)
+
+
+## Tall stone backdrop wall at the far end of the gallery (#1158), so the
+## shooting range has a visual end behind the drifting targets.
+func _build_backdrop_wall() -> void:
+	var half := _half
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(half * 2.0, BACKDROP_WALL_HEIGHT, 0.3)
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = BACKDROP_WALL_TEXTURE
+	material.albedo_color = Color(1.0, 0.9, 0.74)
+	material.metallic = 0.0
+	material.roughness = 0.9
+	material.uv1_scale = Vector3(half * 2.0 / 3.0, BACKDROP_WALL_HEIGHT / 3.0, 1.0)
+	mesh.material = material
+	var wall := MeshInstance3D.new()
+	wall.name = "BackdropWall"
+	wall.mesh = mesh
+	wall.position = Vector3(0.0, BACKDROP_WALL_HEIGHT / 2.0, BACKDROP_WALL_Y)
+	arena.add_child(wall)
 
 
 ## Desert range floor (#589).
@@ -51,6 +113,8 @@ func _setup_3d() -> void:
 	_line_up_rigs()
 	for slot: int in names:
 		_crosshairs[slot] = _build_crosshair(slot)
+	_build_backdrop_wall()
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 func _physics_process(delta: float) -> void:
@@ -154,9 +218,41 @@ func _update_targets(target_list: Array) -> void:
 			if absf(node.position.x) <= _half:
 				var tint: Color = _target_colors.get(id, KIND_COLORS[TargetRange.Kind.STANDARD])
 				fx_burst(Vector2(node.position.x, node.position.z), tint, node.position.y)
+				_spawn_hit_marker(Vector2(node.position.x, node.position.z), node.position.y)
 			node.queue_free()
 			_target_nodes.erase(id)
-			_target_colors.erase(id)
+
+
+## Crosshair-pattern hit marker decal at the impact point (#1158): two thin
+## white BoxMesh strips crossing at right angles, visible briefly, then fading
+## out and freeing themselves. Fire-and-forget.
+func _spawn_hit_marker(world_pos: Vector2, height: float) -> void:
+	if ArenaFX.reduced_motion:
+		return
+	var arm_length := 0.15
+	var arm_width := 0.03
+	var cross := Node3D.new()
+	cross.name = "HitMarker"
+	cross.position = to_arena(world_pos, height + 0.05)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color.WHITE
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for angle: float in [0.0, PI / 2.0]:
+		var arm := BoxMesh.new()
+		arm.size = Vector3(arm_length, arm_width, arm_width)
+		if angle > 0.0:
+			arm.size = Vector3(arm_width, arm_width, arm_length)
+		arm.material = mat
+		var arm_node := MeshInstance3D.new()
+		arm_node.name = "Arm%d" % int(angle * 2.0 / PI)
+		arm_node.mesh = arm
+		arm_node.rotation.y = angle
+		cross.add_child(arm_node)
+	arena.add_child(cross)
+	var tween := create_tween()
+	tween.tween_property(mat, "albedo_color:a", 0.0, HIT_MARKER_FADE_SEC)
+	tween.tween_callback(cross.queue_free)
 
 
 func _update_crosshairs(aim_list: Dictionary) -> void:
@@ -204,6 +300,20 @@ func _build_target(id: int, radius: float, kind: int) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.name = "Target%d" % id
 	node.mesh = mesh
+	# Target stand pole (#1158): thin cylinder from floor to sphere center,
+	# tinted the target kind color so it reads as one unit.
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = TARGET_POLE_RADIUS
+	pole_mesh.bottom_radius = TARGET_POLE_RADIUS
+	pole_mesh.height = radius
+	var pole_mat := StandardMaterial3D.new()
+	pole_mat.albedo_color = color.darkened(0.3)
+	pole_mesh.material = pole_mat
+	var pole := MeshInstance3D.new()
+	pole.name = "Pole%d" % id
+	pole.mesh = pole_mesh
+	pole.position = Vector3(0.0, -radius / 2.0, 0.0)
+	node.add_child(pole)
 	# Worth is invisible from color alone (#214): float the point value over
 	# every target, tinted to its kind.
 	var value := Label3D.new()
