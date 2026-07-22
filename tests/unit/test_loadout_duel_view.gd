@@ -192,3 +192,24 @@ func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
 	assert_eq(view.shots, [])
+
+
+## #1142 GFX: a fresh sub_round respawns everyone at once, so a spawn glow
+## pulses per fighter — seeded so the opening sub_round doesn't phantom-fire.
+func test_new_sub_round_pulses_a_spawn_glow_that_expires() -> void:
+	var base := {
+		"players": {0: _fighter(0.0, 0.5, 1, 1, 0)},
+		"shots": [],
+		"daises": [],
+		"phase": LoadoutDuel.Phase.COUNTDOWN,
+		"sub_round": 0,
+		"scores": {}
+	}
+	view.render(base)
+	assert_eq(view._spawn_glows.size(), 0, "the opening sub_round seeds silently")
+	base["sub_round"] = 1
+	view.render(base)
+	assert_eq(view._spawn_glows.size(), 1, "a new sub_round pulses a glow")
+	assert_eq(int(view._spawn_glows[0].slot), 0)
+	view._process(view.SPAWN_GLOW_DURATION + 0.05)
+	assert_true(view._spawn_glows.is_empty(), "the glow expires")

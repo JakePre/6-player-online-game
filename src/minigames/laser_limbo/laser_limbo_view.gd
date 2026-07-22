@@ -44,6 +44,20 @@ const BEAM_RADIUS := 0.13
 const POST_HEIGHT := 2.1
 const POST_RADIUS := 0.09
 const POST_COLOR := Color(0.6, 0.55, 0.62, 0.9)
+## Emitter post color pulse (#1139): slow cyan-violet shimmer matching the
+## beam throb, so the posts read as live emitters rather than static poles.
+const POST_PULSE_A := Color(0.3, 0.82, 1.0)
+const POST_PULSE_B := Color(0.85, 0.3, 0.95)
+## Metal-deck floor (#1139): cyberpunk industrial texture under the beams.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/metal-deck.png")
+const FLOOR_TEXTURE_TILES := 6.0
+## Rim rubble (#1139): the issue's flagged "no scatter_rim_props()" gap.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallC.glb"),
+]
+const RIM_PROP_COUNT := 14
+const RIM_PROP_SEED := 0x1A5E12
 const WALL_TALL := 2.2
 const JUMP_HEIGHT := 1.0
 const DUCK_SCALE := 0.6
@@ -73,6 +87,16 @@ func _physics_process(_delta: float) -> void:
 ## Neon violet floor under the sweeping lasers (#589).
 func _floor_tint() -> Color:
 	return Color(0.92, 0.82, 1.0)
+
+
+## Metal-deck floor (#1139): cyberpunk industrial texture under the beams.
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = FLOOR_TEXTURE
+			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
 
 
 func _arena_half() -> float:
@@ -125,6 +149,7 @@ func _setup_3d() -> void:
 		root.add_child(stripe)
 		arena.add_child(root)
 		_wall_pool.append(root)
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 ## A horizontal emissive cylinder beam spanning the play depth at `beam_y`,
@@ -201,6 +226,10 @@ func _render_3d(game: Dictionary) -> void:
 	var glow := 1.2 + 0.4 * sin(_pulse_ticks * TAU / 10.0)
 	for material: StandardMaterial3D in _beam_materials.values():
 		material.emission_energy_multiplier = glow
+	# Emitter post color pulse (#1139): a slower cyan-violet shimmer, distinct
+	# cadence from the beam glow so the posts read as their own live thing.
+	var post_mix := 0.5 + 0.5 * sin(_pulse_ticks * TAU / 24.0)
+	_post_material.emission = POST_PULSE_A.lerp(POST_PULSE_B, post_mix)
 
 
 func _update_players() -> void:

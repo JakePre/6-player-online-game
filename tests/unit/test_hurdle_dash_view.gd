@@ -70,3 +70,27 @@ func test_speed_tracks_progress_delta() -> void:
 	assert_almost_eq(float(view._speeds[0]), 1.5, 0.001)
 	view.render({"players": {0: [3.5, 0, 0.0, false]}, "hurdles": []})
 	assert_eq(float(view._speeds[0]), 0.0, "standing still has no speed lines")
+
+
+## #1141 GFX: landing after a jump puffs dust; the airborne edge is seeded so
+## a rejoiner already mid-air on their first snapshot doesn't fire it.
+func test_landing_spawns_dust_that_expires() -> void:
+	view.render({"players": {0: [5.0, 1, 0.0, false]}, "hurdles": []})
+	assert_eq(view._dust.size(), 0, "first sighting seeds silently")
+	view.render({"players": {0: [5.0, 0, 0.0, false]}, "hurdles": []})
+	assert_eq(view._dust.size(), 1, "airborne -> grounded puffs dust")
+	assert_eq(int(view._dust[0].slot), 0)
+	view._process(view.DUST_DURATION + 0.05)
+	assert_true(view._dust.is_empty(), "dust puffs expire")
+
+
+## #1141 GFX: while airborne the runner leaves a trail of fading points;
+## it stops growing once grounded and fades out over TRAIL_LIFE_SEC.
+func test_airborne_leaves_a_trail_that_fades() -> void:
+	view.render({"players": {0: [5.0, 1, 0.0, false]}, "hurdles": []})
+	view.render({"players": {0: [5.5, 1, 0.0, false]}, "hurdles": []})
+	assert_eq(view._trails[0].size(), 2, "each airborne snapshot adds a trail point")
+	view.render({"players": {0: [6.0, 0, 0.0, false]}, "hurdles": []})
+	assert_eq(view._trails[0].size(), 2, "landing stops adding new points")
+	view._process(view.TRAIL_LIFE_SEC + 0.05)
+	assert_true(view._trails[0].is_empty(), "trail points fade out")

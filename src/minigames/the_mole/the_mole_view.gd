@@ -5,6 +5,10 @@ extends MinigameView3D
 ## secret role arrives via private_state (#254) — only this client ever
 ## renders "you are the MOLE".
 ##
+## Visual enhancements (#1160): machine detail (gears, pipes, display screen),
+## Kenney crate fuel cells, metal-deck textured floor, progress light ring,
+## voting pedestals, rim props, dark industrial mood, and floor edge barriers.
+##
 ## Voting (#801): the action button cycles the suspect you're accusing, shown
 ## by a floating marker over that player in the arena; a check over each rig
 ## tracks who has voted (participation only — never who they voted for). The
@@ -38,6 +42,39 @@ const BLACKOUT_EDGE := Color(0.0, 0.0, 0.02, 0.9)
 ## your own rig stays lit — the rest goes black.
 const BLACKOUT_HOLE_INNER := 0.06
 const BLACKOUT_HOLE_OUTER := 0.15
+## Preloads for visual enhancements (#1160): metal-deck floor texture,
+## Kenney crate model for fuel cells, and rim props for arena dressing.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/metal-deck.png")
+const CRATE_SCENE := preload("res://assets/environment/kenney_platformer_kit/crate.glb")
+const FLOOR_TILES := 5.0
+## Machine detail constants (#1160).
+const GEAR_COUNT := 4
+const GEAR_RADIUS := 0.35
+const GEAR_INNER := 0.2
+const GEAR_HEIGHT := 0.08
+const PIPE_COUNT := 4
+const PIPE_RADIUS := 0.06
+const SCREEN_COLOR := Color(0.15, 0.9, 0.3)
+## Progress light ring (#1160): ring of small lights around the machine base.
+const PROGRESS_LIGHT_COUNT := 12
+const PROGRESS_LIGHT_RADIUS := 0.15
+const PROGRESS_LIGHT_RING_RADIUS := 2.0
+## Voting pedestal (#1160): small disc that elevates slightly during VOTE.
+const PEDESTAL_HEIGHT := 0.08
+const PEDESTAL_RADIUS := 0.5
+const PEDESTAL_ELEVATION := 0.3
+## Rim scenery (#1160): industrial props ring the arena edge.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_platformer_kit/barrel.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/pipe.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/rocks.glb"),
+]
+const RIM_PROP_COUNT := 16
+const RIM_PROP_SEED := 0x1160
+## Floor edge barrier (#1160): thin walls around the arena perimeter.
+const EDGE_HEIGHT := 0.4
+const EDGE_THICKNESS := 0.15
+const EDGE_COLOR := Color(0.25, 0.28, 0.32)
 
 ## Latest replicated state, straight from TheMole.get_snapshot().
 var phase := TheMole.Phase.WORK
@@ -55,9 +92,12 @@ var reveal := {}
 var _blackout_overlay: TextureRect
 
 var _machine_material: StandardMaterial3D
+var _screen_material: StandardMaterial3D
+var _machine_node: Node3D
 # Pooled (#709): reused across snapshots, hiding surplus instead of freeing.
-var _cell_mesh: BoxMesh
-var _cell_nodes: Array[MeshInstance3D] = []
+var _cell_nodes: Array[Node3D] = []
+var _progress_lights: Array[MeshInstance3D] = []
+var _pedestal_nodes: Array[MeshInstance3D] = []
 var _banner: Label
 ## Index into the votable slot list this client is currently aiming at.
 var _vote_index := -1
@@ -120,11 +160,47 @@ func _floor_tint() -> Color:
 	return Color(0.85, 0.88, 0.94)
 
 
+## Dark industrial mood for the party-stadium shell (#1160): pushes the
+## dusk base toward a blue-grey industrial underground feel, matching the
+## metal-deck floor and the secret-facility theme.
+func _mood() -> Color:
+	return Color(0.12, 0.14, 0.18)
+
+
 func _arena_half() -> float:
 	return TheMole.ARENA_HALF + 1.0
 
 
 func _setup_3d() -> void:
+	_build_machine()
+	_build_machine_detail()
+	_build_progress_lights()
+	_banner = make_banner(&"Phase", 26)
+	_build_aim_marker()
+	_build_blackout_overlay()
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
+	_build_floor_edge()
+	_build_pedestal_pool()
+
+
+## Metal-deck floor texture (#1160): replaces the flat tint with an
+## industrial underground facility feel.
+func _build_floor() -> void:
+	var half := _arena_half()
+	var surface_mesh := PlaneMesh.new()
+	surface_mesh.size = Vector2(half * 2.0, half * 2.0)
+	var surface_material := StandardMaterial3D.new()
+	surface_material.albedo_texture = FLOOR_TEXTURE
+	surface_material.uv1_scale = Vector3(FLOOR_TILES, FLOOR_TILES, 1.0)
+	surface_mesh.material = surface_material
+	var surface := MeshInstance3D.new()
+	surface.name = "Floor"
+	surface.mesh = surface_mesh
+	surface.position = to_arena(Vector2.ZERO, 0.01)
+	arena.add_child(surface)
+
+
+func _build_machine() -> void:
 	var pillar := CylinderMesh.new()
 	pillar.top_radius = TheMole.MACHINE_RADIUS * 0.6
 	pillar.bottom_radius = TheMole.MACHINE_RADIUS * 0.8
@@ -135,22 +211,146 @@ func _setup_3d() -> void:
 	_machine_material.emission = MACHINE_COLOR
 	_machine_material.emission_energy_multiplier = 0.1
 	pillar.material = _machine_material
-	var machine := MeshInstance3D.new()
-	machine.name = "Machine"
-	machine.mesh = pillar
-	machine.position = to_arena(TheMole.MACHINE_POS, MACHINE_HEIGHT / 2.0)
-	arena.add_child(machine)
-	_banner = make_banner(&"Phase", 26)
-	_cell_mesh = BoxMesh.new()
-	_cell_mesh.size = Vector3(CELL_SIZE, CELL_SIZE, CELL_SIZE)
-	var cell_material := StandardMaterial3D.new()
-	cell_material.albedo_color = CELL_COLOR
-	cell_material.emission_enabled = true
-	cell_material.emission = CELL_COLOR
-	cell_material.emission_energy_multiplier = 0.3
-	_cell_mesh.material = cell_material
-	_build_aim_marker()
-	_build_blackout_overlay()
+	_machine_node = MeshInstance3D.new()
+	_machine_node.name = "Machine"
+	_machine_node.mesh = pillar
+	_machine_node.position = to_arena(TheMole.MACHINE_POS, MACHINE_HEIGHT / 2.0)
+	arena.add_child(_machine_node)
+
+
+## Machine detail (#1160): gears, pipes, and a display screen on the
+## central machine for an industrial underground facility feel.
+func _build_machine_detail() -> void:
+	# Gears (TorusMesh segments) around the machine at varying heights.
+	var gear_mat := StandardMaterial3D.new()
+	gear_mat.albedo_color = Color(0.5, 0.5, 0.55)
+	gear_mat.metallic = 0.6
+	gear_mat.roughness = 0.4
+	for i in GEAR_COUNT:
+		var gear := TorusMesh.new()
+		gear.inner_radius = GEAR_INNER
+		gear.outer_radius = GEAR_RADIUS
+		gear.material = gear_mat
+		var node := MeshInstance3D.new()
+		node.name = "Gear%d" % i
+		node.mesh = gear
+		var angle := TAU * i / GEAR_COUNT
+		var radius := TheMole.MACHINE_RADIUS * 0.8
+		node.position = to_arena(
+			TheMole.MACHINE_POS + Vector2(cos(angle), sin(angle)) * radius,
+			MACHINE_HEIGHT * (0.2 + 0.6 * i / GEAR_COUNT)
+		)
+		node.rotation.x = PI / 2.0
+		arena.add_child(node)
+	# Pipes (CylinderMesh) running up the machine sides.
+	var pipe_mat := StandardMaterial3D.new()
+	pipe_mat.albedo_color = Color(0.35, 0.38, 0.42)
+	pipe_mat.metallic = 0.5
+	pipe_mat.roughness = 0.5
+	for i in PIPE_COUNT:
+		var pipe := CylinderMesh.new()
+		pipe.top_radius = PIPE_RADIUS
+		pipe.bottom_radius = PIPE_RADIUS * 1.3
+		pipe.height = MACHINE_HEIGHT * 0.85
+		pipe.material = pipe_mat
+		var node := MeshInstance3D.new()
+		node.name = "Pipe%d" % i
+		node.mesh = pipe
+		var angle := TAU * i / PIPE_COUNT + TAU / 8.0
+		var radius := TheMole.MACHINE_RADIUS * 0.5
+		node.position = to_arena(
+			TheMole.MACHINE_POS + Vector2(cos(angle), sin(angle)) * radius, MACHINE_HEIGHT * 0.5
+		)
+		arena.add_child(node)
+	# Display screen (BoxMesh) on the machine face with emissive green.
+	_screen_material = StandardMaterial3D.new()
+	_screen_material.albedo_color = SCREEN_COLOR
+	_screen_material.emission_enabled = true
+	_screen_material.emission = SCREEN_COLOR
+	_screen_material.emission_energy_multiplier = 0.3
+	var screen := BoxMesh.new()
+	screen.size = Vector3(0.6, 0.4, 0.05)
+	screen.material = _screen_material
+	var screen_node := MeshInstance3D.new()
+	screen_node.name = "DisplayScreen"
+	screen_node.mesh = screen
+	screen_node.position = to_arena(
+		TheMole.MACHINE_POS + Vector2(0.0, TheMole.MACHINE_RADIUS * 0.5), MACHINE_HEIGHT * 0.65
+	)
+	arena.add_child(screen_node)
+
+
+## Progress light ring (#1160): ring of small SphereMeshes around the machine
+## base that light up in sequence as fuel is delivered.
+func _build_progress_lights() -> void:
+	var light_mat := StandardMaterial3D.new()
+	light_mat.albedo_color = CELL_COLOR
+	light_mat.emission_enabled = true
+	light_mat.emission = CELL_COLOR
+	light_mat.emission_energy_multiplier = 0.0
+	for i in PROGRESS_LIGHT_COUNT:
+		var sphere := SphereMesh.new()
+		sphere.radius = PROGRESS_LIGHT_RADIUS
+		sphere.height = PROGRESS_LIGHT_RADIUS * 2.0
+		sphere.material = light_mat.duplicate()
+		var node := MeshInstance3D.new()
+		node.name = "ProgressLight%d" % i
+		node.mesh = sphere
+		var angle := TAU * i / PROGRESS_LIGHT_COUNT
+		node.position = to_arena(
+			TheMole.MACHINE_POS + Vector2(cos(angle), sin(angle)) * PROGRESS_LIGHT_RING_RADIUS, 0.05
+		)
+		arena.add_child(node)
+		_progress_lights.append(node)
+
+
+## Floor edge barrier (#1160): thin walls around the arena perimeter so the
+## play area reads as a contained industrial facility.
+func _build_floor_edge() -> void:
+	var half := _arena_half()
+	var edge_mat := StandardMaterial3D.new()
+	edge_mat.albedo_color = EDGE_COLOR
+	var edge_segments := [
+		[Vector2(-half, 0.0), Vector2(1.0, 0.0)],  # bottom
+		[Vector2(half, 0.0), Vector2(-1.0, 0.0)],  # top
+		[Vector2(0.0, -half), Vector2(0.0, 1.0)],  # left
+		[Vector2(0.0, half), Vector2(0.0, -1.0)],  # right
+	]
+	for seg in edge_segments:
+		var pos := seg[0] as Vector2
+		var dir := seg[1] as Vector2
+		var wall := BoxMesh.new()
+		wall.size = Vector3(half * 2.0, EDGE_HEIGHT, EDGE_THICKNESS)
+		wall.material = edge_mat
+		var node := MeshInstance3D.new()
+		node.name = "FloorEdge"
+		node.mesh = wall
+		node.position = to_arena(pos, EDGE_HEIGHT / 2.0)
+		if dir.x == 0.0:
+			node.rotation.y = PI / 2.0
+		arena.add_child(node)
+
+
+## Voting pedestal pool (#1160): pre-build colored discs for each player slot
+## so VOTE phase can show them instantly. Hidden until _update_players().
+func _build_pedestal_pool() -> void:
+	for slot: int in names:
+		var disc := CylinderMesh.new()
+		disc.top_radius = PEDESTAL_RADIUS
+		disc.bottom_radius = PEDESTAL_RADIUS
+		disc.height = PEDESTAL_HEIGHT
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = PlayerPalette.color_for_slot(slot)
+		mat.emission_enabled = true
+		mat.emission = PlayerPalette.color_for_slot(slot)
+		mat.emission_energy_multiplier = 0.2
+		disc.material = mat
+		var node := MeshInstance3D.new()
+		node.name = "Pedestal%d" % slot
+		node.mesh = disc
+		arena.add_child(node)
+		_pedestal_nodes.append(node)
+		node.visible = false
 
 
 ## The lights-out vignette (#958): a radial dark whose transparent center is the
@@ -241,6 +441,7 @@ func _update_blackout() -> void:
 
 
 func _update_players() -> void:
+	_update_pedestals()
 	var mole_slot := int(reveal.get("mole", -1))
 	var reveal_votes: Dictionary = reveal.get("votes", {})
 	for slot: int in players:
@@ -275,13 +476,31 @@ func _update_players() -> void:
 				rig.player_color = PlayerPalette.color_for_slot(slot)
 
 
+## Voting pedestals (#1160): during VOTE phase, each player stands on a small
+## colored disc that elevates slightly, so the jury circle reads clearly.
+## Hidden during other phases.
+func _update_pedestals() -> void:
+	var show := phase == TheMole.Phase.VOTE
+	for i in _pedestal_nodes.size():
+		var node: MeshInstance3D = _pedestal_nodes[i]
+		if show and i < players.size():
+			var slot: int = players.keys()[i]
+			var state: Array = players[slot]
+			node.visible = true
+			node.position = to_arena(
+				Vector2(float(state[TheMole.PS_X]), float(state[TheMole.PS_Y])), PEDESTAL_ELEVATION
+			)
+		else:
+			node.visible = false
+
+
 func _update_cells() -> void:
 	sync_pool(_cell_nodes, cells.size(), _make_cell, _place_cell)
 
 
 func _make_cell() -> Node3D:
-	var node := MeshInstance3D.new()
-	node.mesh = _cell_mesh
+	var node := CRATE_SCENE.instantiate() as Node3D
+	node.scale = Vector3(CELL_SIZE, CELL_SIZE, CELL_SIZE) * 0.8
 	return node
 
 
@@ -315,6 +534,20 @@ func _update_machine() -> void:
 		fx_sparkle(TheMole.MACHINE_POS, CELL_COLOR, 1.2)
 		play_sfx(&"coin")
 	_progress_seen = progress
+	# Display screen (#1160): emissive green intensity scales with progress.
+	if _screen_material != null:
+		_screen_material.emission_energy_multiplier = 0.2 + fill * 1.5
+	# Progress light ring (#1160): lights up in sequence as fuel is delivered.
+	var lit_count := int(fill * PROGRESS_LIGHT_COUNT)
+	for i in PROGRESS_LIGHT_COUNT:
+		if i < _progress_lights.size():
+			var node: MeshInstance3D = _progress_lights[i]
+			var mat := node.mesh.material as StandardMaterial3D
+			if mat != null:
+				if i < lit_count:
+					mat.emission_energy_multiplier = 1.0
+				else:
+					mat.emission_energy_multiplier = 0.0
 
 
 ## Floats the aim chevron over the suspect the local player is accusing, so
