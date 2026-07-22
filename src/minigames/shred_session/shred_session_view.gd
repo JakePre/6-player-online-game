@@ -42,6 +42,35 @@ const JUDGMENT_HOLD_SEC := 0.55
 ## Star Power (#957): the lane highway floods this gold while the local player's
 ## 2x window runs — a flat tint under reduced motion, a gentle flare otherwise.
 const STAR_GOLD := Color(1.0, 0.84, 0.2)
+## Concert-stage mood: warm purple-amber atmosphere (#1154).
+const STAGE_MOOD := Color(0.18, 0.12, 0.2)
+## Stage platform sits just behind the hit line, filling the front area.
+const STAGE_W := 8.0
+const STAGE_D := 3.0
+const STAGE_H := 0.3
+## Spotlight count and spread for the beat-driven stage lights (#1154).
+const STAGE_SPOTLIGHT_COUNT := 4
+const STAGE_SPOTLIGHT_POSITIONS: Array[Vector2] = [
+	Vector2(-3.5, -2.0),
+	Vector2(3.5, -2.0),
+	Vector2(-3.5, 7.0),
+	Vector2(3.5, 7.0),
+]
+## Note trail extrusion length (#1154): a glowing bar behind each note.
+const NOTE_TRAIL_LEN := 1.2
+## Rim props: concert gear scattered around the stage perimeter (#1154).
+const RIM_PROP_COUNT := 12
+const RIM_PROP_SEED := 2254
+## Concert gear rim props (#1154): crates, barrels, and poles from the
+## platformer kit, scattered around the stage perimeter.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_platformer_kit/crate.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/barrel.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/poles.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/sign.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/plant.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/rocks.glb"),
+]
 
 var _clock := 0.0
 var _snapshot_at := 0.0
@@ -66,6 +95,10 @@ var _star_seen := false
 ## Screen-space lane-header glyph labels (#585): the device-aware bound input
 ## per lane, refreshed live on InputGlyphs.device_changed.
 var _lane_glyph_labels: Array[Label] = []
+## Stage spotlight beam nodes (#1154).
+var _stage_spotlights: Array[MeshInstance3D] = []
+## Stage spotlight material instances for beat-driven color pulses (#1154).
+var _stage_spotlight_mats: Array[StandardMaterial3D] = []
 ## One AudioStreamPlayer per lane, preloaded with that lane's drum (#585).
 var _lane_players: Array[AudioStreamPlayer] = []
 
@@ -75,6 +108,11 @@ func _floor_tint() -> Color:
 	return Color(0.88, 0.85, 1.0)
 
 
+## Warm concert-theatre mood (#1154): purple-amber atmosphere for the stage shell.
+func _mood() -> Color:
+	return STAGE_MOOD.lerp(_floor_tint(), 0.2)
+
+
 func _arena_half() -> float:
 	return 8.0
 
@@ -82,6 +120,9 @@ func _arena_half() -> float:
 func _setup_3d() -> void:
 	_build_lanes()
 	_build_hitline()
+	_build_concert_stage()
+	_build_stage_spotlights()
+	_build_rim_props()
 	_build_rig_row()
 	_build_hud()
 	_build_lane_headers()
@@ -94,6 +135,7 @@ func _process(_delta: float) -> void:
 	var clock := _clock + (_now_sec() - _snapshot_at)
 	_position_notes(clock)
 	_update_flashes()
+	_update_stage_spotlights(clock)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -244,6 +286,128 @@ func _build_drums() -> void:
 		_lane_players.append(player)
 
 
+## Concert stage (#1154): a raised platform filling the front of the arena,
+## with speaker stacks and a drum kit made from Kenney Food Kit props.
+func _build_concert_stage() -> void:
+	# Raised platform — a wide shallow box sitting just behind the hit line.
+	var platform := MeshInstance3D.new()
+	platform.name = "ConcertStage"
+	var stage_mesh := BoxMesh.new()
+	stage_mesh.size = Vector3(STAGE_W, STAGE_H, STAGE_D)
+	var stage_mat := StandardMaterial3D.new()
+	stage_mat.albedo_color = Color(0.08, 0.06, 0.1)
+	stage_mat.emission_enabled = true
+	stage_mat.emission = Color(0.15, 0.1, 0.2)
+	stage_mat.emission_energy_multiplier = 0.4
+	stage_mesh.material = stage_mat
+	platform.mesh = stage_mesh
+	platform.position = to_arena(Vector2(0.0, HIT_Z - STAGE_D / 2.0), STAGE_H / 2.0)
+	arena.add_child(platform)
+
+	# Speaker stacks at stage corners (BoxMesh columns).
+	var speaker_positions := [
+		Vector2(-STAGE_W / 2.0 + 0.4, HIT_Z - 0.3),
+		Vector2(STAGE_W / 2.0 - 0.4, HIT_Z - 0.3),
+		Vector2(-STAGE_W / 2.0 + 0.4, HIT_Z - STAGE_D + 0.3),
+		Vector2(STAGE_W / 2.0 - 0.4, HIT_Z - STAGE_D + 0.3),
+	]
+	for pos: Vector2 in speaker_positions:
+		var stack := Node3D.new()
+		stack.name = "SpeakerStack"
+		for j in 3:
+			var speaker := MeshInstance3D.new()
+			speaker.name = "Speaker%d" % j
+			var sm := BoxMesh.new()
+			sm.size = Vector3(0.5, 0.4, 0.5)
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(0.05, 0.05, 0.05)
+			mat.emission_enabled = true
+			mat.emission = Color(0.08, 0.08, 0.12)
+			mat.emission_energy_multiplier = 0.15
+			sm.material = mat
+			speaker.mesh = sm
+			speaker.position.y = float(j) * 0.4 + 0.2
+			stack.add_child(speaker)
+		stack.position = to_arena(pos, 0.0)
+		arena.add_child(stack)
+
+	# Drum kit from Kenney Food Kit pots/pans, placed across the stage front.
+	var drum_positions := [
+		Vector2(-2.0, HIT_Z - 0.8),
+		Vector2(-0.7, HIT_Z - 0.6),
+		Vector2(0.7, HIT_Z - 0.6),
+		Vector2(2.0, HIT_Z - 0.8),
+	]
+	var drum_scenes: Array[PackedScene] = [
+		preload("res://assets/environment/kenney_food_kit/pot-lid.glb"),
+		preload("res://assets/environment/kenney_food_kit/pot-stew-lid.glb"),
+		preload("res://assets/environment/kenney_food_kit/plate-dinner.glb"),
+		preload("res://assets/environment/kenney_food_kit/plate-deep.glb"),
+	]
+	for i in drum_positions.size():
+		var drum := drum_scenes[i % drum_scenes.size()].instantiate() as Node3D
+		if drum == null:
+			continue
+		drum.name = "DrumKit%d" % i
+		drum.position = to_arena(drum_positions[i], 0.0)
+		drum.scale = Vector3(0.8, 0.8, 0.8)
+		arena.add_child(drum)
+
+
+## Stage spotlights (#1154): emissive cones from above the stage, driven by the
+## replicated clock so they pulse with the beat (one sweep per measure).
+func _build_stage_spotlights() -> void:
+	for i in STAGE_SPOTLIGHT_COUNT:
+		var pos := STAGE_SPOTLIGHT_POSITIONS[i]
+		var pivot := Node3D.new()
+		pivot.name = "StageSpotlight%d" % i
+		pivot.position = to_arena(pos, 4.0)
+		pivot.look_at(to_arena(pos, 0.0), Vector3(0.0, 0.0, -1.0))
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.05
+		cone.bottom_radius = 2.0
+		cone.height = 4.5
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = LANE_COLORS[i % LANE_COLORS.size()]
+		mat.albedo_color.a = 0.08
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		cone.material = mat
+		var beam := MeshInstance3D.new()
+		beam.name = "Beam"
+		beam.mesh = cone
+		beam.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+		beam.position = Vector3(0.0, 0.0, -cone.height / 2.0)
+		pivot.add_child(beam)
+		arena.add_child(pivot)
+		_stage_spotlights.append(beam)
+		_stage_spotlight_mats.append(mat)
+
+
+## Rim props (#1154): concert gear (crates, barrels, poles) scattered around
+## the stage perimeter via the shared scatter_rim_props helper.
+func _build_rim_props() -> void:
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
+
+
+## Beat-driven spotlight update (#1154): the replicated clock drives color
+## pulses and a gentle sway, matching the 4/4 rhythm of the song.
+func _update_stage_spotlights(clock: float) -> void:
+	var beat := clock * 2.0  # approximate beat count (2 beats per second at 120 BPM)
+	for i in _stage_spotlight_mats.size():
+		var mat: StandardMaterial3D = _stage_spotlight_mats[i]
+		var color: Color = LANE_COLORS[i % LANE_COLORS.size()]
+		# Pulse on the beat: each spotlight brightens on its own beat phase.
+		var phase := fmod(beat + float(i) * 0.5, 4.0) / 4.0
+		var pulse := 0.3 + 0.7 * pow(1.0 - phase, 4.0) if phase < 0.6 else 0.3
+		mat.albedo_color = color
+		mat.albedo_color.a = 0.04 * pulse
+		# Gentle sway.
+		var sway := sin(beat * 0.5 + float(i) * 1.57) * 0.15
+		_stage_spotlights[i].get_parent().rotation.z = sway
+
+
 func _on_device_changed(_device: InputGlyphs.Device) -> void:
 	_refresh_lane_glyphs()
 
@@ -279,7 +443,10 @@ func _reconcile_notes() -> void:
 			)
 	for key: String in _note_nodes.keys():
 		if not wanted.has(key):
-			(_note_nodes[key].node as MeshInstance3D).queue_free()
+			var entry: Dictionary = _note_nodes[key]
+			(entry.node as MeshInstance3D).queue_free()
+			if entry.has("trail"):
+				(entry.trail as MeshInstance3D).queue_free()
 			_note_nodes.erase(key)
 
 
@@ -297,7 +464,23 @@ func _make_note(note_time: float, lane: int) -> Dictionary:
 	node.add_to_group(&"shred_notes")
 	node.mesh = mesh
 	arena.add_child(node)
-	return {"node": node, "time": note_time, "lane": lane}
+	# Glowing trail behind the note (#1154): a thin emissive bar trailing
+	# backward from the note along the lane direction.
+	var trail_mesh := BoxMesh.new()
+	trail_mesh.size = Vector3(LANE_W * 0.5, NOTE_H * 0.3, NOTE_TRAIL_LEN)
+	var trail_mat := StandardMaterial3D.new()
+	trail_mat.albedo_color = LANE_COLORS[lane]
+	trail_mat.emission_enabled = true
+	trail_mat.emission = LANE_COLORS[lane]
+	trail_mat.emission_energy_multiplier = 0.3
+	trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	trail_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	trail_mesh.material = trail_mat
+	var trail := MeshInstance3D.new()
+	trail.name = "NoteTrail"
+	trail.mesh = trail_mesh
+	node.add_child(trail)
+	return {"node": node, "trail": trail, "time": note_time, "lane": lane}
 
 
 ## A note sits at the hit line the instant the clock reaches its time; earlier it
@@ -374,6 +557,8 @@ func _pop_judged_note(lane: int) -> void:
 	var entry: Dictionary = _note_nodes[closest_key]
 	var node: MeshInstance3D = entry.node
 	fx_sparkle(Vector2(node.position.x, node.position.z), LANE_COLORS[lane], node.position.y)
+	if entry.has("trail"):
+		(entry.trail as MeshInstance3D).queue_free()
 	node.queue_free()
 	_note_nodes.erase(closest_key)
 
@@ -440,8 +625,8 @@ func _local_star_active() -> bool:
 	return me.size() > ShredSession.PS_STAR_ACTIVE and int(me[ShredSession.PS_STAR_ACTIVE]) == 1
 
 
-## Local player just lit Star Power (#957): a gold call-out plus a cue. Purely a
-## text/audio flash — no motion, so reduced motion is unaffected.
+## Local player just lit Star Power (#957): a gold call-out plus a cue, and
+## stage-edge pyrotechnic bursts (#1154).
 func _announce_star() -> void:
 	if _judgment_label != null:
 		_judgment_label.text = "STAR POWER!"
@@ -449,6 +634,49 @@ func _announce_star() -> void:
 		_judgment_label.visible = true
 		_judgment_until = _now_sec() + JUDGMENT_HOLD_SEC
 	play_sfx(&"bell")
+	_burst_pyro()
+
+
+## Pyrotechnics burst (#1154): gold and white CPUParticles3D bursts from stage
+## edges on star power activation. Reuses the pyrotechnic nodes so repeated
+## star activations trigger fresh bursts.
+func _burst_pyro() -> void:
+	if ArenaFX.reduced_motion:
+		return
+	var positions := [
+		Vector2(-STAGE_W / 2.0 + 0.5, HIT_Z - 0.3),
+		Vector2(STAGE_W / 2.0 - 0.5, HIT_Z - 0.3),
+		Vector2(-STAGE_W / 2.0 + 0.5, HIT_Z - STAGE_D + 0.3),
+		Vector2(STAGE_W / 2.0 - 0.5, HIT_Z - STAGE_D + 0.3),
+	]
+	for pos: Vector2 in positions:
+		var particles := CPUParticles3D.new()
+		particles.one_shot = true
+		particles.explosiveness = 1.0
+		particles.amount = 20
+		particles.lifetime = 0.7
+		particles.color = STAR_GOLD if (positions.find(pos) % 2 == 0) else Color(1.0, 1.0, 1.0, 0.9)
+		var mesh := SphereMesh.new()
+		mesh.radius = 0.05
+		mesh.height = 0.1
+		particles.mesh = mesh
+		particles.direction = Vector3.UP
+		particles.spread = 160.0
+		particles.initial_velocity_min = 2.0
+		particles.initial_velocity_max = 6.0
+		particles.gravity = Vector3(0.0, -6.0, 0.0)
+		particles.position = to_arena(pos, 0.5)
+		arena.add_child(particles)
+		particles.emitting = true
+		particles.finished.connect(particles.queue_free)
+
+
+## Round-end celebration (#1154): hide the highway labels, let the base cheer
+## play through.
+func _celebrate(placements: Array) -> void:
+	_streak_label.visible = false
+	_judgment_label.visible = false
+	super(placements)
 
 
 # --- Scoreboard & rigs --------------------------------------------------------
