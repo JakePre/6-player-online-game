@@ -131,6 +131,15 @@ func test_ko_tumbles_from_its_last_pose_instead_of_teleporting_to_origin() -> vo
 	assert_false(rig.visible, "the tumble finishes by hiding the rig for good")
 
 
+## #1140 GFX: a KO scatters debris shards that expire after DEBRIS_LIFE_SEC.
+func test_ko_spawns_debris_that_expires() -> void:
+	view.render({"players": {0: _fighter(4.0, 0.5, 1, 1, 80, 0)}, "phase": KnockOff.Phase.FIGHT})
+	view.render({"players": {0: _fighter(0.0, 0.0, 1, 0, 80, 0)}, "phase": KnockOff.Phase.FIGHT})
+	assert_eq(view._debris.size(), view.DEBRIS_PER_KO, "a KO scatters shards")
+	view._process(view.DEBRIS_LIFE_SEC + 0.01)
+	assert_true(view._debris.is_empty(), "shards expire")
+
+
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
 	assert_eq(view.players.size(), 0)
