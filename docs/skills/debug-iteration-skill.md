@@ -21,12 +21,12 @@ feedback → edit → relaunch.
 SETUP → [ LAUNCH → PLAY → FEEDBACK → EDIT → RELAUNCH ]* → DONE
 ```
 
-- **SETUP**: resolve the minigame id, confirm the Godot binary exists.
+- **SETUP**: resolve the minigame id, confirm the Godot binary exists, create or verify the `usertest-<minigame_id>` branch.
 - **LAUNCH/RELAUNCH**: start/restart the debug-server and debug-client processes.
 - **PLAY**: user plays the round. Agent waits.
 - **FEEDBACK**: user reports what's wrong or what to change.
 - **EDIT**: agent makes the requested changes.
-- **DONE**: user says stop (or `/loop stop` if inside loop mode).
+- **DONE**: user says stop (or `/loop stop` if inside loop mode). Agent commits, pushes, and creates a PR.
 
 ## Prerequisites
 
@@ -41,6 +41,25 @@ The user and agent agree on one minigame id. The agent **must** verify the id
 against the catalog before launching — `--debug-minigame=typo` fails silently.
 If unsure, grep `MinigameCatalog.register_builtins` or the directory listing at
 `src/minigames/` (each subdir name is the id, e.g. `coin_scramble`).
+
+## Branch management
+
+On SETUP, the agent manages a branch named `usertest-<minigame_id>`:
+
+1. Check if `usertest-<minigame_id>` exists locally or on `origin`.
+2. **Does not exist** — create it from `main`:
+   ```
+   git checkout main
+   git checkout -b usertest-<minigame_id>
+   ```
+3. **Exists** — switch to it and ensure it's caught up to `main`:
+   ```
+   git checkout usertest-<minigame_id>
+   git merge main
+   ```
+   If the merge fails (conflicts), **do not proceed**. Error out and ask the user
+   what to do — the branch has diverged from `main` and needs manual resolution.
+4. All edits during the session happen on this branch.
 
 ## Process ownership
 
@@ -77,6 +96,14 @@ The agent **owns** exactly two `hub` processes:
    Bot count: 5 bots for a full 6-player round (1 human + 5 bots). Adjust if
    the minigame supports fewer — check `MinigameMeta.max_players` for the id.
 4. Print `[debug-iteration] launched <minigame_id> — play the round and report back`.
+5. Start a background watcher that monitors the `debug-client` process. When the
+   client exits (user closes the window, crash, or any reason), the watcher
+   automatically stops the `debug-server`:
+   ```
+   task name=debug-watcher
+     task: "Run `hub wait name=debug-client` then `hub stop name=debug-server`."
+   ```
+   This ensures the server is never left orphaned after the client terminates.
 
 ### Relaunch sequence
 
@@ -98,6 +125,10 @@ After editing a minigame (`.gd` scenes, scripts, or assets):
   for the error, fix, then relaunch.
 - If the client window doesn't appear or the user reports a blank screen, check
   `hub logs name=debug-client`.
+- The `debug-watcher` subagent handles automatic server cleanup when the client
+  exits. The main agent does **not** need to manually stop the server after a
+  client exit — the watcher handles it. The watcher is automatically killed when
+  its parent task ends.
 
 ## Workflow commands
 
@@ -134,6 +165,24 @@ Break into sub-phases.
 If the user runs this inside `/loop start "debug-iterate"`, the skill follows
 loop conventions: every turn is one edit or one launch, `LOOP_DONE` fires when
 the user says "looks good", and `PROGRESS.md` tracks what changed each cycle.
+
+## Auto-PR on done
+
+When the user says "done" (or `/loop stop`):
+
+1. **Commit** all changes on the `usertest-<minigame_id>` branch with a descriptive
+   message summarising the changes made during the session.
+2. **Push** the branch to `origin`:
+   ```
+   git push origin usertest-<minigame_id>
+   ```
+3. **Create a PR** using `gh pr create`:
+   ```
+   gh pr create --base main --head usertest-<minigame_id> \
+     --title "debug-iteration: <minigame_id> changes" \
+     --body "Iterative changes from a debug-iteration session on <minigame_id>."
+   ```
+4. Print the PR URL.
 
 ## Error handling
 
