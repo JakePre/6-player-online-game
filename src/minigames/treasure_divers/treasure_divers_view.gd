@@ -42,6 +42,18 @@ const COIN_HOVER := 0.4
 const BUBBLE_COLOR := Color(0.75, 0.9, 1.0)
 const BUBBLE_EVERY_SEC := 0.5
 
+## GFX enhancements (#1166): water texture, seaweed, chest, coral, light rays.
+const WATER_TEXTURE := preload("res://assets/generated/textures/water-pool.png")
+const PLANT_SCENE := preload("res://assets/environment/kenney_platformer_kit/plant.glb")
+const CHEST_SCENE := preload("res://assets/environment/kenney_platformer_kit/chest.glb")
+const SEAWEED_COUNT := 8
+const CORAL_CLUSTERS := 6
+const LIGHT_RAY_COUNT := 5
+const RAY_TILT := 0.15
+## Chest sits at center; bobbing amplitude / speed.
+const CHEST_BOB_AMPLITUDE := 0.06
+const CHEST_BOB_SPEED := 1.2
+
 ## Latest replicated state, straight from TreasureDivers.get_snapshot().
 var players := {}
 var treasure: Array = []
@@ -59,6 +71,11 @@ var _diving_seen := {}
 var _bubble_left := {}
 # slot -> latest replicated coin count, to spot fresh pickups (M12-02).
 var _coins_seen := {}
+
+## Light-ray cone meshes to rotate in _process (#1166).
+var _light_rays: Array[MeshInstance3D] = []
+## Chest node for bobbing animation (#1166).
+var _chest: Node3D
 
 
 func _physics_process(_delta: float) -> void:
@@ -83,6 +100,17 @@ func _process(_delta: float) -> void:
 	for i in _coin_pool.size():
 		if _coin_pool[i].visible:
 			_coin_pool[i].rotation = Vector3(PI / 2.0, now * TAU * 0.8 + i, 0.0)
+	# Light rays rotate slowly around Y, with a gentle tilt wobble.
+	var ray_speed := 0.15
+	for i in _light_rays.size():
+		var ray := _light_rays[i]
+		var angle := now * ray_speed + float(i) * TAU / float(_light_rays.size())
+		ray.position.x = cos(angle) * RAY_TILT * _arena_half()
+		ray.position.z = sin(angle) * RAY_TILT * _arena_half()
+		ray.rotation.y = -angle
+	# Chest bobs gently at the pool center.
+	if _chest != null:
+		_chest.position.y = sin(now * CHEST_BOB_SPEED) * CHEST_BOB_AMPLITUDE
 
 
 ## Deep-sea blue floor (#589).
@@ -106,6 +134,7 @@ func _setup_3d() -> void:
 	var water_material := StandardMaterial3D.new()
 	water_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	water_material.albedo_color = WATER_COLOR
+	water_material.albedo_texture = WATER_TEXTURE
 	water_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	# Draw the water before the surfaced rigs' own transparent passes so a
 	# swimmer standing at the surface isn't tinted as if submerged (#782).
@@ -116,6 +145,11 @@ func _setup_3d() -> void:
 	water.mesh = water_mesh
 	water.position.y = SURFACE_HEIGHT
 	arena.add_child(water)
+
+	_build_seaweed()
+	_build_chest()
+	_build_coral()
+	_build_light_rays()
 
 	var coin_mesh := CylinderMesh.new()
 	coin_mesh.top_radius = COIN_RADIUS
@@ -297,3 +331,95 @@ func _update_treasure() -> void:
 			node.position = to_arena(
 				Vector2(state[TreasureDivers.TR_X], state[TreasureDivers.TR_Y]), COIN_HOVER
 			)
+
+
+## Scatter seaweed plants on the seabed (#1166).
+func _build_seaweed() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1166
+	var half := _arena_half() * 0.8
+	for i in SEAWEED_COUNT:
+		var plant := PLANT_SCENE.instantiate()
+		plant.position = Vector3(rng.randf_range(-half, half), 0.02, rng.randf_range(-half, half))
+		var s := rng.randf_range(0.6, 1.2)
+		plant.scale = Vector3(s, s, s)
+		plant.rotation.y = rng.randf() * TAU
+		arena.add_child(plant)
+
+
+## Place a treasure chest at the pool center (#1166).
+func _build_chest() -> void:
+	var chest := CHEST_SCENE.instantiate()
+	chest.name = "Chest"
+	chest.position = Vector3(0.0, 0.02, 0.0)
+	var s := 0.6
+	chest.scale = Vector3(s, s, s)
+	arena.add_child(chest)
+	_chest = chest
+
+
+## Build coral clusters on the seabed (#1166): small colored SphereMesh
+## rock formations in pink/orange tones.
+func _build_coral() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1167
+	var half := _arena_half() * 0.7
+	var coral_colors := [
+		Color(1.0, 0.5, 0.6),
+		Color(1.0, 0.7, 0.3),
+		Color(0.9, 0.3, 0.5),
+		Color(1.0, 0.6, 0.4),
+		Color(0.95, 0.4, 0.7),
+	]
+	for _i in CORAL_CLUSTERS:
+		var cluster := Node3D.new()
+		cluster.name = "Coral%d" % _i
+		var cx := rng.randf_range(-half, half)
+		var cz := rng.randf_range(-half, half)
+		cluster.position = Vector3(cx, 0.02, cz)
+		var color: Color = coral_colors[rng.randi() % coral_colors.size()]
+		# 3–5 spheres per cluster.
+		var count := rng.randi_range(3, 5)
+		for j in count:
+			var sphere := MeshInstance3D.new()
+			sphere.name = "CoralPiece%d" % j
+			var mesh := SphereMesh.new()
+			mesh.radius = rng.randf_range(0.08, 0.18)
+			mesh.height = mesh.radius * 2.0
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = color
+			mat.metallic = 0.1
+			mat.roughness = 0.7
+			sphere.mesh = mesh
+			sphere.material_override = mat
+			sphere.position = Vector3(
+				rng.randf_range(-0.25, 0.25), mesh.radius, rng.randf_range(-0.25, 0.25)
+			)
+			cluster.add_child(sphere)
+		arena.add_child(cluster)
+
+
+## Build translucent light-ray cones descending from the water surface (#1166).
+## Rotated slowly in _process.
+func _build_light_rays() -> void:
+	var ray_material := StandardMaterial3D.new()
+	ray_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ray_material.albedo_color = Color(1.0, 1.0, 0.95, 0.06)
+	ray_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	ray_material.render_priority = -2
+	var half := _arena_half() * 0.35
+	for i in LIGHT_RAY_COUNT:
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = 0.02
+		mesh.bottom_radius = half * 0.4
+		mesh.height = SURFACE_HEIGHT
+		mesh.material = ray_material
+		var ray := MeshInstance3D.new()
+		ray.name = "LightRay%d" % i
+		ray.mesh = mesh
+		ray.position = Vector3(0.0, SURFACE_HEIGHT, 0.0)
+		var angle := float(i) * TAU / float(LIGHT_RAY_COUNT)
+		ray.rotation.z = PI / 2.0
+		ray.rotation.y = angle
+		arena.add_child(ray)
+		_light_rays.append(ray)
