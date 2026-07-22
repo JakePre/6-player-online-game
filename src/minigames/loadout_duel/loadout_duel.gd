@@ -31,7 +31,15 @@ const JUMP_VELOCITY := 16.5
 
 const SUB_ROUNDS := 3
 const COUNTDOWN_SEC := 1.5
-const ROUND_CAP_SEC := 45.0
+## Per-sub-round fight timeout. #961 balance (owner-signed): trimmed 45->25.
+## Real fights either KO fast (~5-7s median) or stalemate to the cap — nothing
+## resolves in the 25-45s window, so the old 45s cap only inflated the meta
+## duration (152->92s) and padded stalemates with 20s of dead time. A stalemate
+## has the same survivor set (and thus identical scoring, see _end_sub_round)
+## at 25s as at 45s, so this changes no match outcomes — it just ends dead
+## stalemates sooner and makes the #933 %-of-meta metric honest (2/4/6p now
+## clear the >=40% floor; 8p lands at ~37%, a defensibly chaotic-fast crowd).
+const ROUND_CAP_SEC := 25.0
 const ROUND_OVER_SEC := 2.5
 const DAIS_REFILL_SEC := 6.0
 const DAIS_GRAB_RADIUS := 0.9

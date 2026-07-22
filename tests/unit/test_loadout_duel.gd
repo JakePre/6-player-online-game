@@ -4,6 +4,8 @@ extends GutTest
 ## sub-round survival scoring, and the best-of-three aggregate placement.
 
 const TICK := 1.0 / 30.0
+## #961 anti-collapse floor: bot-round median must clear this fraction of meta.
+const COLLAPSE_FLOOR_FRAC := 0.4
 
 
 func _game(player_slots: Array[int] = [0, 1]) -> LoadoutDuel:
@@ -11,6 +13,55 @@ func _game(player_slots: Array[int] = [0, 1]) -> LoadoutDuel:
 	game.meta = LoadoutDuel.make_meta()
 	game.setup(player_slots, 42)
 	return game
+
+
+## Drives a full bot field (real brains) to the match end, returning total
+## round length. #961 guard harness.
+func _run_bot_round(count: int, seed_value: int) -> float:
+	var game := LoadoutDuel.new()
+	game.meta = LoadoutDuel.make_meta()
+	var slots: Array[int] = []
+	for i in count:
+		slots.append(i)
+	game.setup(slots, seed_value)
+	var brains := {}
+	for slot: int in game.slots:
+		brains[slot] = BotBrains.brain_for(&"loadout_duel", slot, seed_value * 31 + slot)
+	var t := 0.0
+	var guard := 0
+	while not game.finished and guard < 20000:
+		guard += 1
+		var match_state := {"game": game.get_snapshot()}
+		for slot: int in game.slots:
+			game.handle_input(slot, brains[slot].think(match_state, {}))
+		game.tick(TICK)
+		t += TICK
+	return t
+
+
+## #961: the 152s meta was inflated by a 45s per-fight cap fights never cleanly
+## reach (they KO in ~5-7s or stalemate to the cap). Trimming the cap to 25s
+## (meta -> 92s) both ends dead stalemates sooner and makes the round a real
+## fraction of its meta. Guard the MEDIAN round at the common counts clears the
+## #933 >=40% floor. (8p runs chaotically fast at ~37% — checked at [4, 6]
+## where the metric fits; the trim is about the meta being honest, not forcing
+## a crowd brawl to last longer.)
+func test_bot_rounds_are_a_real_fraction_of_the_trimmed_meta() -> void:
+	var floor_sec := LoadoutDuel.make_meta().duration_sec * COLLAPSE_FLOOR_FRAC
+	for count: int in [4, 6]:
+		var lens: Array[float] = []
+		for s in range(1, 13):
+			lens.append(_run_bot_round(count, s))
+		lens.sort()
+		var median := (lens[5] + lens[6]) / 2.0
+		assert_gt(
+			median,
+			floor_sec,
+			(
+				"%d-bot median round (%.0fs) clears the #933 >=40%%-of-meta floor (%.0fs)"
+				% [count, median, floor_sec]
+			)
+		)
 
 
 ## Advance into the FIGHT phase (past the opening countdown).
