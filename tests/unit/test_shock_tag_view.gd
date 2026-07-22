@@ -93,7 +93,7 @@ func test_tag_fires_bursts_and_beam_on_handoff() -> void:
 	var before: int = view.arena.get_child_count()
 	view.render({"players": {0: [0.0, 0.0, 0], 1: [3.0, 0.0, 0]}, "zapped": 1})
 	# 2 CPUParticles3D bursts + 1 beam MeshInstance3D + 1 Timer = 4 new children.
-	var added := view.arena.get_child_count() - before
+	var added: int = view.arena.get_child_count() - before
 	assert_eq(added, 4, "2 bursts + 1 beam + 1 timer on hand-off")
 
 
@@ -118,7 +118,7 @@ func test_buzz_ring_buzzes_independently() -> void:
 
 func test_mood_returns_dark_electric() -> void:
 	# The view overrides _mood to return a dark blue-grey for the electric arena.
-	var mood := view._mood()
+	var mood: Color = view._mood()
 	assert_lt(mood.r, 0.2, "dark red channel")
 	assert_lt(mood.g, 0.2, "dark green channel")
 	assert_gt(mood.b, 0.15, "blue-ish channel")
