@@ -28,6 +28,19 @@ func test_setup_builds_a_lane_target_and_ball_per_player() -> void:
 	assert_false(view.arena.get_node("Ball0").visible, "no flight yet")
 
 
+## #1128 GFX: the lane wears the wood-court grain (opaque, not the old
+## translucent tint), flanked by a gutter rail on each side, and rocks ring
+## the alley perimeter.
+func test_gfx_lane_texture_gutters_and_rim_props() -> void:
+	var lane: MeshInstance3D = view.arena.get_node("Lane0")
+	var lane_mat := lane.mesh.material as StandardMaterial3D
+	assert_eq(lane_mat.albedo_texture, view.LANE_TEXTURE)
+	assert_not_null(view.arena.get_node("Gutter0L"))
+	assert_not_null(view.arena.get_node("Gutter0R"))
+	var props: Node = view.arena.get_node("RimProps")
+	assert_eq(props.get_child_count(), view.RIM_PROP_COUNT)
+
+
 ## #588: adjacent targets otherwise blend into one board at iso distance —
 ## odd lanes swap to an alternate ring palette for separation.
 func test_adjacent_lanes_alternate_ring_palettes() -> void:
