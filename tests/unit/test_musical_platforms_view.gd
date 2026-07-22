@@ -185,6 +185,37 @@ func test_celebrate_resumes_the_music() -> void:
 	assert_false(AudioManager.music_paused, "the results resume the music")
 
 
+## #1143 GFX: floating music notes drift up only during the MUSIC phase — the
+## STOP scramble stays note-free so the phases still read distinctly.
+func test_music_phase_spawns_floating_notes() -> void:
+	view.render({"players": {}, "phase": MusicalPlatforms.Phase.MUSIC, "platforms": []})
+	var before: int = view.arena.get_child_count()
+	view._process(view.NOTE_INTERVAL_SEC + 0.01)
+	assert_gt(view.arena.get_child_count(), before, "MUSIC phase spawns a floating note")
+
+
+func test_stop_phase_spawns_no_notes() -> void:
+	view.render({"players": {}, "phase": MusicalPlatforms.Phase.STOP, "platforms": []})
+	var before: int = view.arena.get_child_count()
+	view._process(view.NOTE_INTERVAL_SEC + 0.01)
+	assert_eq(view.arena.get_child_count(), before, "STOP phase spawns no notes")
+
+
+## #1143 GFX: an eliminated fighter leaves a flat ghost ring behind at their
+## drop spot, marking the elimination for the rest of the round.
+func test_downed_player_leaves_a_ghost_ring() -> void:
+	view.render(
+		{"players": {0: [0.0, 0.0], 1: [1.0, 1.0]}, "phase": 0, "platforms": [], "fallen": []}
+	)
+	view.render({"players": {0: [0.0, 0.0]}, "phase": 0, "platforms": [], "fallen": [[1]]})
+	var found_ring := false
+	for child in view.arena.get_children():
+		if child.name == "GhostRing":
+			found_ring = true
+			break
+	assert_true(found_ring, "a KO leaves a ghost ring behind")
+
+
 func test_claim_sparkles_in_the_claimants_color() -> void:
 	view.render(
 		{
