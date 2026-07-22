@@ -57,6 +57,28 @@ const PRESS_SHAKE := 3.0
 ## invisible and stacked at the arena origin — right where the pad diamond is).
 const ROW_Z := 4.5
 const ROW_SPREAD := 4.0
+## Metal-deck floor texture (IMG-057, #1155): game-show stage floor replacing
+## the flat tint, tiled for a production-studio feel.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/metal-deck.png")
+const FLOOR_TEXTURE_TILES := 5.0
+## Game-show rim props (#1155): crates, barrels, and poles scattered around
+## the arena perimeter via the shared scatter_rim_props helper.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_platformer_kit/barrel.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/crate.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/poles.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/plant.glb"),
+]
+const RIM_PROP_COUNT := 14
+const RIM_PROP_SEED := 0x1155
+## Backdrop panel dimensions (#1155): a vertical board behind the pads with
+## the game title, game-show style.
+const BACKDROP_W := 4.0
+const BACKDROP_H := 2.8
+const BACKDROP_Z := -5.0
+## Follow-spotlight (#1155): tracks the currently lit pad during SHOW.
+const SPOTLIGHT_HEIGHT := 8.0
+const SPOTLIGHT_ANGLE := 15.0
 
 var _phase: int = SimonStomp.Phase.SHOW
 var _round := 0
@@ -70,6 +92,7 @@ var _round_failed := {}
 
 var _pad_materials: Array[StandardMaterial3D] = []
 var _pad_nodes: Array[MeshInstance3D] = []
+var _pad_rims: Array[MeshInstance3D] = []
 var _phase_label: Label
 var _round_label: Label
 ## Big pre-flash countdown (#1044): mirrors the match-level countdown's punch-in
@@ -86,11 +109,34 @@ var _last_lit := -1
 var _lit_at := -10.0
 var _was_cleared := false
 var _was_failed := false
+## Follow-spotlight node (#1155): tracks the currently lit pad.
+var _spotlight: SpotLight3D
+## Game-show backdrop panel (#1155).
+var _backdrop: Node3D
+## Sequence position indicator (#1155): shows the current flash step.
+var _sequence_label: Label3D
 
 
 ## Rhythmic blue-violet floor for the stomp panels (#589).
 func _floor_tint() -> Color:
 	return Color(0.85, 0.88, 1.0)
+
+
+## Game-show dark studio mood (#1155): deep blue-violet backdrop behind the
+## brightly lit pads, making the flashing pads pop against the stage.
+func _mood() -> Color:
+	return Color(0.12, 0.08, 0.18).lerp(Color(0.25, 0.18, 0.35), 0.3)
+
+
+## Metal-deck game-show floor (#1155): textured plane replacing the default
+## tinted tile, tiled for a production-studio feel.
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = FLOOR_TEXTURE
+			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
 
 
 func _arena_half() -> float:
@@ -119,6 +165,9 @@ func _process(delta: float) -> void:
 func _setup_3d() -> void:
 	_build_pads()
 	_build_labels()
+	_build_backdrop()
+	_build_spotlight()
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -159,8 +208,14 @@ func _pad_position(pad: int) -> Vector2:
 
 func _build_pads() -> void:
 	for pad in PAD_COLORS.size():
+		# Pad group: parent node for the pad + rim so they move together.
+		var group := Node3D.new()
+		group.name = "PadGroup%d" % pad
+		group.position = to_arena(_pad_position(pad), 0.0)
+		arena.add_child(group)
+		# Main pad panel: slightly thicker for a physical platform feel (#1155).
 		var mesh := BoxMesh.new()
-		mesh.size = Vector3(PAD_SIZE, 0.2, PAD_SIZE)
+		mesh.size = Vector3(PAD_SIZE, 0.25, PAD_SIZE)
 		var material := StandardMaterial3D.new()
 		material.emission_enabled = true
 		mesh.material = material
@@ -168,9 +223,23 @@ func _build_pads() -> void:
 		var node := MeshInstance3D.new()
 		node.name = "Pad%d" % pad
 		node.mesh = mesh
-		node.position = to_arena(_pad_position(pad), 0.1)
-		arena.add_child(node)
+		node.position.y = 0.125
+		group.add_child(node)
 		_pad_nodes.append(node)
+		# Beveled TorusMesh rim around the pad edge (#1155): a frame that
+		# makes the pad read as a physical platform, not a flat panel.
+		var rim_size := PAD_SIZE + 0.12
+		var rim := TorusMesh.new()
+		rim.inner_radius = rim_size / 2.0 - 0.06
+		rim.outer_radius = rim_size / 2.0
+		rim.material = material  # same material, tinted by the emission
+		var rim_node := MeshInstance3D.new()
+		rim_node.name = "PadRim%d" % pad
+		rim_node.mesh = rim
+		rim_node.rotation.x = PI / 2.0
+		rim_node.position.y = 0.125
+		group.add_child(rim_node)
+		_pad_rims.append(rim_node)
 		# Direction + key + color on every pad, through-wall readable (#261).
 		var tag := Label3D.new()
 		tag.name = "PadLabel%d" % pad
@@ -184,6 +253,106 @@ func _build_pads() -> void:
 		tag.modulate = PAD_COLORS[pad].lightened(0.35)
 		tag.position = to_arena(_pad_position(pad), 1.1)
 		arena.add_child(tag)
+
+
+## Game-show backdrop panel (#1155): a vertical board behind the pads with
+## the game title, game-show style.
+func _build_backdrop() -> void:
+	var panel := Node3D.new()
+	panel.name = "Backdrop"
+	# Main board
+	var board := BoxMesh.new()
+	board.size = Vector3(BACKDROP_W, BACKDROP_H, 0.08)
+	var board_mat := StandardMaterial3D.new()
+	board_mat.albedo_color = Color(0.15, 0.1, 0.22)
+	board_mat.metallic = 0.0
+	board_mat.roughness = 0.5
+	board.material = board_mat
+	var board_node := MeshInstance3D.new()
+	board_node.name = "BackdropBoard"
+	board_node.mesh = board
+	board_node.position.y = BACKDROP_H / 2.0
+	panel.add_child(board_node)
+	# Glowing border strip at top
+	var trim := BoxMesh.new()
+	trim.size = Vector3(BACKDROP_W + 0.2, 0.06, 0.12)
+	var trim_mat := StandardMaterial3D.new()
+	trim_mat.albedo_color = Color(0.85, 0.5, 0.15)
+	trim_mat.emission_enabled = true
+	trim_mat.emission = Color(0.85, 0.5, 0.15)
+	trim_mat.emission_energy_multiplier = 0.8
+	trim.material = trim_mat
+	var trim_node := MeshInstance3D.new()
+	trim_node.name = "BackdropTrim"
+	trim_node.mesh = trim
+	trim_node.position.y = BACKDROP_H + 0.04
+	panel.add_child(trim_node)
+	# Title label: "SIMON STOMP" in game-show style
+	var title := Label3D.new()
+	title.name = "BackdropTitle"
+	title.text = "SIMON STOMP"
+	title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	title.no_depth_test = true
+	title.fixed_size = true
+	title.pixel_size = 0.004
+	title.font_size = 60
+	title.outline_size = 8
+	title.modulate = Color(0.95, 0.85, 0.6)
+	title.add_theme_color_override(&"font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
+	title.position = Vector3(0.0, BACKDROP_H * 0.65, 0.05)
+	panel.add_child(title)
+	# Sequence position indicator (#1155): shows the current flash step on
+	# the backdrop panel so players can track the pattern length.
+	var seq := Label3D.new()
+	seq.name = "SequenceLabel"
+	seq.text = ""
+	seq.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	seq.no_depth_test = true
+	seq.fixed_size = true
+	seq.pixel_size = 0.0025
+	seq.font_size = 36
+	seq.outline_size = 6
+	seq.modulate = Color(0.8, 0.75, 0.9)
+	seq.add_theme_color_override(&"font_outline_color", Color(0.0, 0.0, 0.0, 0.7))
+	seq.position = Vector3(0.0, BACKDROP_H * 0.25, 0.05)
+	panel.add_child(seq)
+	_sequence_label = seq
+	# Position behind the pads
+	panel.position = to_arena(Vector2(0.0, BACKDROP_Z))
+	arena.add_child(panel)
+	_backdrop = panel
+
+
+## Follow-spotlight (#1155): a spotlight angled at the arena floor, tracking
+## the currently lit pad during SHOW. Hidden during INPUT.
+func _build_spotlight() -> void:
+	var spot := SpotLight3D.new()
+	spot.name = "FollowSpot"
+	spot.spot_angle = SPOTLIGHT_ANGLE
+	spot.spot_attenuation = 0.5
+	spot.light_color = Color(1.0, 0.95, 0.85)
+	spot.light_energy = 3.0
+	spot.light_indirect_energy = 0.3
+	spot.shadow_enabled = false
+	spot.position = to_arena(Vector2(0.0, 0.0), SPOTLIGHT_HEIGHT)
+	spot.rotation.x = deg_to_rad(-90.0)
+	arena.add_child(spot)
+	_spotlight = spot
+
+
+## Track the follow-spotlight to the currently lit pad (#1155). During SHOW
+## the spotlight sweeps to the lit pad; during INPUT it stays centered on the
+## arena to light the whole stage.
+func _update_spotlight(lit_pad: int) -> void:
+	if _spotlight == null:
+		return
+	if lit_pad >= 0 and _phase == SimonStomp.Phase.SHOW:
+		var target := _pad_position(lit_pad)
+		_spotlight.position.x = lerpf(_spotlight.position.x, target.x, 0.15)
+		_spotlight.position.z = lerpf(_spotlight.position.z, target.y, 0.15)
+	elif _phase == SimonStomp.Phase.INPUT:
+		_spotlight.position.x = lerpf(_spotlight.position.x, 0.0, 0.1)
+		_spotlight.position.z = lerpf(_spotlight.position.z, 0.0, 0.1)
 
 
 func _build_labels() -> void:
@@ -287,6 +456,12 @@ func _update_pads() -> void:
 		_pad_materials[pad].emission = base
 		_pad_materials[pad].emission_energy_multiplier = energy
 		_pad_nodes[pad].position.y = 0.1 + (_flash_bounce(now) if pad == lit_pad else 0.0)
+	# Follow-spotlight tracks the lit pad (#1155).
+	_update_spotlight(lit_pad)
+	# Sequence position indicator (#1155): show current step of the flash pattern.
+	if lit_pad >= 0 and _sequence_label != null:
+		var flash_step := int(maxf(0.0, flash_time) / SimonStomp.SHOW_PER_PAD_SEC)
+		_sequence_label.text = "Step %d / %d" % [min(flash_step + 1, _length), _length]
 
 
 ## The lit pad's beat-synced hop (#588, M13-18 pattern): a small arc that decays

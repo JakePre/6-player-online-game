@@ -22,7 +22,7 @@ func test_pads_carry_readable_labels() -> void:
 
 func test_render_tolerates_missing_keys() -> void:
 	view.render({})
-	assert_not_null(view.arena.get_node("Pad0"))
+	assert_not_null(view.arena.get_node("PadGroup0/Pad0"))
 
 
 func _ripple_count() -> int:
