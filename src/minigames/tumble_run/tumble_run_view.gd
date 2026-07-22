@@ -19,7 +19,12 @@ const SUMMIT_COLOR := Color(0.96, 0.79, 0.2)
 const CRUMBLE_COLOR := Color(0.7, 0.45, 0.3)
 const STUN_MODULATE := Color(1.0, 0.7, 0.5, 0.85)
 const SUMMIT_MODULATE := Color(1.0, 1.0, 0.7)
-const BOULDER_POOL := 10
+const BOULDER_CRACK_COLOR := Color(0.25, 0.18, 0.14)
+## Rope ladder rung lines on stable ledges.
+const RUNG_COLOR := Color(0.5, 0.35, 0.2)
+## Summit flag colors.
+const FLAG_POLE_COLOR := Color(0.7, 0.7, 0.7)
+const FLAG_COLOR := Color(0.96, 0.79, 0.2)
 
 var players := {}
 var crumble: Array = []
@@ -36,6 +41,8 @@ var _summit_seen := {}
 ## slot -> was stunned last render, for the boulder-hit cue (#728).
 var _stun_seen := {}
 var _seen_snapshot := false
+## True once any climber reaches the summit — gates the flag animation.
+var _any_summited := false
 
 
 func _ready() -> void:
@@ -115,6 +122,13 @@ func _render(game: Dictionary) -> void:
 		var solid: bool = index < crumble.size() and bool(crumble[index])
 		_crumble_nodes[index].visible = solid
 	_update_hud()
+	# Track summit flag: any player with the summit bit set.
+	_any_summited = false
+	for slot: int in players:
+		var state: Array = players[slot]
+		if state.size() >= TumbleRun.PS_COUNT and int(state[TumbleRun.PS_FLAGS]) & 2 > 0:
+			_any_summited = true
+			break
 	_fx_layer.queue_redraw()
 	_seen_snapshot = true
 
@@ -172,6 +186,8 @@ func _draw_fx() -> void:
 	var left := world_to_screen(Vector2(_world.position.x, TumbleRun.GOAL_HEIGHT))
 	var right := world_to_screen(Vector2(_world.end.x, TumbleRun.GOAL_HEIGHT))
 	_fx_layer.draw_line(left, right, Color(SUMMIT_COLOR, 0.6), 3.0)
+	# Rope ladder rungs on non-crumble climbable ledges.
+	_draw_ladder_rungs()
 	for boulder: Array in boulders:
 		var at := world_to_screen(
 			Vector2(float(boulder[TumbleRun.BL_X]), float(boulder[TumbleRun.BL_Y]))
@@ -182,3 +198,60 @@ func _draw_fx() -> void:
 		_fx_layer.draw_circle(at, r * 1.5, BOULDER_GLOW)
 		_fx_layer.draw_circle(at, r + 2.0, BOULDER_RIM)
 		_fx_layer.draw_circle(at, r, BOULDER_COLOR)
+		_draw_boulder_cracks(at, r)
+	# Summit flag — animates when any climber reaches the goal.
+	if _any_summited:
+		_draw_summit_flag()
+
+
+## Rock texture detail: 2–3 crack lines seeded from the boulder's screen
+## position so they stay stable across frames.
+func _draw_boulder_cracks(at: Vector2, r: float) -> void:
+	var seed_val := int(at.x * 100.0) ^ int(at.y * 100.0)
+	var crack_count := 2 + (seed_val % 2)
+	for i in crack_count:
+		var angle := fmod(float(seed_val * (i + 1) * 53) * 0.001, TAU)
+		var crack_len := r * (0.3 + float(seed_val * (i + 2) * 29 % 100) * 0.005)
+		var start_off := r * 0.2
+		var s := at + Vector2(cos(angle), sin(angle)) * start_off
+		var e := at + Vector2(cos(angle), sin(angle)) * (start_off + crack_len)
+		_fx_layer.draw_line(s, e, BOULDER_CRACK_COLOR, 1.5)
+
+
+## Small vertical rung marks on stable non-crumble ledges, selling them
+## as rope ladders rather than bare textured rectangles.
+func _draw_ladder_rungs() -> void:
+	var crumble_set := {}
+	for idx in TumbleRun._crumble_indices():
+		crumble_set[idx] = true
+	var ledges := TumbleRun.ledges()
+	for i in ledges.size():
+		if crumble_set.has(i):
+			continue
+		var rect: Rect2 = ledges[i]
+		var rung_spacing := 0.48  # world units between rungs
+		var rung_count := int(rect.size.x / rung_spacing)
+		for j in rung_count:
+			var x := rect.position.x + (float(j) + 0.5) * rung_spacing
+			var top := world_to_screen(Vector2(x, rect.position.y + rect.size.y))
+			var bot := world_to_screen(Vector2(x, rect.position.y))
+			_fx_layer.draw_line(top, bot, RUNG_COLOR, 1.5)
+
+
+## Summit flag pole and animated flag — draws only after first climber summits.
+func _draw_summit_flag() -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	# Pole at the center of the summit platform.
+	var pole_base := world_to_screen(Vector2(0.0, TumbleRun.GOAL_HEIGHT + 0.5))
+	var pole_top := world_to_screen(Vector2(0.0, TumbleRun.GOAL_HEIGHT + 1.8))
+	_fx_layer.draw_line(pole_base, pole_top, FLAG_POLE_COLOR, 2.0)
+	# Flag triangle with a sine-wave flutter.
+	var wave := sin(t * 5.0) * 2.0
+	var flag_pts := PackedVector2Array(
+		[
+			pole_top,
+			Vector2(pole_top.x + 6.0 + wave, pole_top.y - 5.0),
+			Vector2(pole_top.x + wave, pole_top.y),
+		]
+	)
+	_fx_layer.draw_colored_polygon(flag_pts, FLAG_COLOR)
