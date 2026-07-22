@@ -103,6 +103,20 @@ func test_beams_shimmer_across_snapshots() -> void:
 	assert_ne(low_material.emission_energy_multiplier, glow_a, "the hum advances")
 
 
+## #1139 GFX: the emitter posts pulse color across snapshots (a slower
+## cadence than the beam glow), the floor wears the metal-deck texture, and
+## rocks ring the arena.
+func test_gfx_post_pulse_floor_texture_and_rim_props() -> void:
+	view.render({"players": {}, "walls": [], "fallen": []})
+	var color_a: Color = view._post_material.emission
+	view.render({"players": {}, "walls": [], "fallen": []})
+	assert_ne(view._post_material.emission, color_a, "the posts pulse across snapshots")
+	var mat := (view.arena.get_node("Floor") as MultiMeshInstance3D).material_override
+	assert_eq((mat as StandardMaterial3D).albedo_texture, view.FLOOR_TEXTURE)
+	var props: Node = view.arena.get_node("RimProps")
+	assert_eq(props.get_child_count(), view.RIM_PROP_COUNT)
+
+
 ## #779: each wall kind reads in its own color — the core "can't tell high vs
 ## low" fix — so a LOW (jump) and a HIGH (duck) beam are never the same hue.
 func test_wall_kinds_are_color_coded() -> void:
