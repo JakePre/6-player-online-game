@@ -37,6 +37,14 @@ const BOMB_BLOOM_LIFETIME := 0.6
 ## stage actually ends.
 const RIM_GLOW_COLOR := Color(0.78, 0.68, 0.95)
 const RIM_RING_THICKNESS := 0.4
+## Ballroom floor (#1126): wood-court grain under the dark overlay — the
+## overlay's alpha (0.78) still lets the grain read faintly through it.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/wood-court.png")
+const FLOOR_TEXTURE_TILES := 6.0
+## Turret scanning beam (#1126): a slow rotating emissive wedge sweeping the
+## floor from the turret, selling "this thing is watching the whole arena."
+const SCAN_BEAM_COLOR := Color(0.85, 0.72, 1.0, 0.16)
+const SCAN_BEAM_SPEED := 0.6
 
 ## Latest replicated state, straight from BulletWaltz.get_snapshot().
 var players := {}
@@ -56,15 +64,37 @@ var _turret: Node3D
 ## starts a fresh one at the origin) and shrink one at a time as they expire
 ## or hit, so a rise here reliably means "a volley just fired."
 var _last_bullet_count := 0
+## Pivot at the turret (arena origin) for the scanning beam (#1126); rotating
+## the pivot sweeps the beam mesh (offset outward as its child) around the
+## turret, rather than spinning the mesh in place around its own off-center
+## position.
+var _scan_pivot: Node3D
 
 
 func _physics_process(_delta: float) -> void:
 	send_move_intent()
 
 
+func _process(delta: float) -> void:
+	if _scan_pivot != null and not ArenaFX.reduced_motion:
+		_scan_pivot.rotation.y += delta * SCAN_BEAM_SPEED
+
+
 ## Elegant violet floor for the bullet-hell weave (#589).
 func _floor_tint() -> Color:
 	return Color(0.9, 0.85, 1.0)
+
+
+## Ballroom floor (#1126): the default tile floor gets the wood-court grain,
+## still tinted violet (above) — the dark overlay dims it, letting it read
+## faintly rather than vanish, per the issue's proposal.
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = FLOOR_TEXTURE
+			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
 
 
 func _arena_half() -> float:
@@ -92,6 +122,7 @@ func _setup_3d() -> void:
 	arena.add_child(_turret)
 
 	_build_rim_glow()
+	_build_scan_beam()
 
 	var bullet_mesh := SphereMesh.new()
 	bullet_mesh.radius = BULLET_VIEW_RADIUS
@@ -129,6 +160,32 @@ func _build_rim_glow() -> void:
 	node.rotation.x = PI / 2.0
 	node.position.y = 0.03
 	arena.add_child(node)
+
+
+## A slow-sweeping emissive wedge from the turret (#1126): a flat beam mesh
+## offset outward as a child of a pivot at the turret's position, so rotating
+## the pivot each frame (_process) sweeps the beam around the arena like a
+## searchlight — without needing a real spotlight/shadow pass.
+func _build_scan_beam() -> void:
+	var half := _arena_half()
+	_scan_pivot = Node3D.new()
+	_scan_pivot.name = "ScanPivot"
+	arena.add_child(_scan_pivot)
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(half, 0.02, half * 0.5)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = SCAN_BEAM_COLOR
+	material.emission_enabled = true
+	material.emission = Color(SCAN_BEAM_COLOR.r, SCAN_BEAM_COLOR.g, SCAN_BEAM_COLOR.b)
+	material.emission_energy_multiplier = 0.8
+	mesh.material = material
+	var beam := MeshInstance3D.new()
+	beam.name = "ScanBeam"
+	beam.mesh = mesh
+	beam.position = Vector3(half * 0.5, 0.05, 0.0)
+	_scan_pivot.add_child(beam)
 
 
 ## A visible punch + flash the instant a volley fires (#1036): the model's
