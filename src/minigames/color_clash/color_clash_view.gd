@@ -22,6 +22,23 @@ const SHIMMER_STRENGTH := 0.12
 ## already emits nothing under reduced motion (design: reduced-motion = none).
 const SURF_FX_EVERY := 4
 const MIN_SURF_MOVE := 0.12
+## Floor texture under the tiles (#1127): stone pavers show through the thin
+## gaps between paint tiles, so the grid reads as a painted surface.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/stone-pavers.png")
+const FLOOR_TEXTURE_TILES := 8.0
+## Central score monument (#1127): a pillar at the arena center with one
+## color band per faction (in team order) and a live tile-count readout.
+const MONUMENT_RADIUS := 0.35
+const MONUMENT_BAND_HEIGHT := 0.4
+## Rim rubble (#1127): stone rocks ringing the paint grid — the issue's
+## flagged "no scatter_rim_props() call" gap.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallB.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallFlatA.glb"),
+]
+const RIM_PROP_COUNT := 16
+const RIM_PROP_SEED := 0xC01A
 
 ## Latest replicated state, straight from ColorClash.get_snapshot().
 var players := {}
@@ -46,6 +63,12 @@ var _pulse_ticks := 0
 var _leading_seen := ColorClash.UNPAINTED
 ## Last-snapshot positions per slot, for the surf-FX movement/boost check (#955).
 var _prev_player_pos := {}
+## Central score monument (#1127): built lazily once `teams` is known (its
+## band count depends on faction count), plus the per-faction band nodes and
+## the live-count label.
+var _monument: Node3D
+var _monument_bands: Array[MeshInstance3D] = []
+var _monument_label: Label3D
 
 
 func _physics_process(_delta: float) -> void:
@@ -57,6 +80,17 @@ func _floor_tint() -> Color:
 	return Color(0.92, 0.94, 0.98)
 
 
+## Stone-paver floor under the paint grid (#1127): shows through the thin
+## gaps between tiles, so the grid reads as a painted surface, not a void.
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = FLOOR_TEXTURE
+			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
+
+
 func _arena_half() -> float:
 	return ColorClash.arena_half_for(names.size()) + 1.0
 
@@ -66,6 +100,7 @@ func _setup_3d() -> void:
 	# corrects it on the first render if a held-but-disconnected member skewed
 	# the estimate across a grid_dim_for boundary (#662).
 	_build_tile_grid(ColorClash.grid_dim_for(names.size()), ColorClash.arena_half_for(names.size()))
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 ## Builds (or rebuilds) the `dim`x`dim` paint-tile MultiMesh over an arena of
@@ -145,15 +180,77 @@ func _render_3d(game: Dictionary) -> void:
 	teams = game.get("teams", [])
 	_counts = game.get("counts", {})
 	_pulse_ticks += 1
+	_ensure_monument()
 	_update_tiles()
 	_update_players()
 	_update_surf_fx()
+	_update_monument()
 	# Signature cue (#728, docs/AUDIO_GUIDE.md — Tiles & ice): taking the lead
 	# is a positive checkpoint, same spirit as musical_platforms' claim bell.
 	var leading := leading_faction()
 	if leading != _leading_seen and leading != ColorClash.UNPAINTED and leading == _my_faction():
 		play_sfx(&"bell")
 	_leading_seen = leading
+
+
+## The faction ids to show on the monument, sorted for a stable band/label
+## order. Keyed off `_counts` (populated in BOTH team_mode and FFA — unlike
+## `teams`, which stays empty in FFA, one faction per slot) rather than
+## `teams.size()`, so the monument builds correctly in either mode.
+func _monument_factions() -> Array:
+	var factions := _counts.keys()
+	factions.sort()
+	return factions
+
+
+## Builds the central monument once any tile has a faction (#1127) — its band
+## count depends on faction count, unknown at _setup_3d time.
+func _ensure_monument() -> void:
+	if _monument != null or _counts.is_empty():
+		return
+	var factions := _monument_factions()
+	_monument = Node3D.new()
+	_monument.name = "ScoreMonument"
+	_monument.position = to_arena(Vector2.ZERO, 0.0)
+	arena.add_child(_monument)
+	for i in factions.size():
+		var faction: int = factions[i]
+		var band := MeshInstance3D.new()
+		band.name = "Band%d" % faction
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = MONUMENT_RADIUS
+		mesh.bottom_radius = MONUMENT_RADIUS
+		mesh.height = MONUMENT_BAND_HEIGHT
+		var color := _faction_color(faction)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = color
+		mat.emission_enabled = true
+		mat.emission = color
+		mat.emission_energy_multiplier = 0.3
+		mesh.material = mat
+		band.mesh = mesh
+		band.position.y = MONUMENT_BAND_HEIGHT * (float(i) + 0.5)
+		_monument.add_child(band)
+		_monument_bands.append(band)
+	_monument_label = Label3D.new()
+	_monument_label.name = "MonumentLabel"
+	_monument_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_monument_label.pixel_size = 0.01
+	_monument_label.font_size = 72
+	_monument_label.outline_size = 10
+	_monument_label.position.y = MONUMENT_BAND_HEIGHT * factions.size() + 0.4
+	_monument.add_child(_monument_label)
+
+
+## Live tile-count readout on the monument (#1127), one number per faction
+## (sorted by id) — "12 : 9 : 5" reads at a glance who's ahead.
+func _update_monument() -> void:
+	if _monument_label == null:
+		return
+	var parts: Array[String] = []
+	for faction in _monument_factions():
+		parts.append(str(int(_counts.get(faction, 0))))
+	_monument_label.text = " : ".join(parts)
 
 
 func _update_tiles() -> void:
