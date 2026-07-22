@@ -33,6 +33,22 @@ const CONDUIT_DARK := Color(0.04, 0.05, 0.08)
 ## Live-current cyan-green: distinct from the red↔green pylon so the wire's
 ## *length* (not its hue) carries the progress reading.
 const WIRE_LIVE_COLOR := Color(0.3, 0.95, 0.9)
+## Metal-deck floor (#1132): industrial diamond-plate under the dark room —
+## still barely lit (the dark-room mechanic), but reads as a real floor
+## wherever a lamp catches it.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/metal-deck.png")
+const FLOOR_TEXTURE_TILES := 6.0
+## Per-pylon repair panel (#1132): a small screen readout above each node
+## showing its live repair percentage.
+const PANEL_COLOR := Color(0.05, 0.06, 0.08)
+const PANEL_SIZE := Vector2(0.7, 0.4)
+## Rim rubble (#1132): the issue's flagged "no scatter_rim_props()" gap.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_platformer_kit/crate.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/barrel.glb"),
+]
+const RIM_PROP_COUNT := 12
+const RIM_PROP_SEED := 0xF00713
 
 var phase: int = FaultyWiring.Phase.WORK
 var players := {}
@@ -43,6 +59,8 @@ var outcome := ""
 var _node_pylons: Array[MeshInstance3D] = []
 var _node_materials: Array[StandardMaterial3D] = []
 var _node_lights: Array[OmniLight3D] = []
+## Per-pylon repair-percentage panel labels (#1132).
+var _node_panel_labels: Array[Label3D] = []
 var _spark_seen: Array[int] = []
 ## Per-node "already fully repaired" flag, for the completion cue (#728).
 var _fixed_seen: Array[bool] = []
@@ -63,6 +81,17 @@ func _floor_tint() -> Color:
 	return Color(0.8, 0.95, 0.98)
 
 
+## Metal-deck floor (#1132): industrial diamond-plate, still dim under the
+## dark-room lighting but reads as a real surface wherever a lamp catches it.
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = FLOOR_TEXTURE
+			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
+
+
 func _arena_half() -> float:
 	return FaultyWiring.ARENA_HALF
 
@@ -77,6 +106,7 @@ func _setup_3d() -> void:
 	_build_nodes()
 	_attach_player_lamps()
 	_build_labels()
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 func _render_3d(game: Dictionary) -> void:
@@ -131,6 +161,36 @@ func _build_nodes() -> void:
 		_node_lights.append(light)
 		_spark_seen.append(0)
 		_fixed_seen.append(false)
+		_node_panel_labels.append(_build_node_panel(i))
+
+
+## A small screen panel above a pylon (#1132) showing its live repair
+## percentage — an electrical-panel readout, distinct from the pylon's
+## color/light which already read progress at a glance.
+func _build_node_panel(index: int) -> Label3D:
+	var panel := MeshInstance3D.new()
+	panel.name = "Panel%d" % index
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(PANEL_SIZE.x, PANEL_SIZE.y, 0.05)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = PANEL_COLOR
+	mesh.material = material
+	panel.mesh = mesh
+	panel.position = to_arena(FaultyWiring.NODE_POSITIONS[index], NODE_HEIGHT + 0.4)
+	arena.add_child(panel)
+	var label := Label3D.new()
+	label.name = "PanelLabel%d" % index
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.fixed_size = true
+	label.pixel_size = 0.0015
+	label.font_size = 32
+	label.outline_size = 10
+	label.modulate = WIRE_LIVE_COLOR
+	label.text = "0%"
+	label.position = to_arena(FaultyWiring.NODE_POSITIONS[index], NODE_HEIGHT + 0.41)
+	arena.add_child(label)
+	return label
 
 
 ## The central power core plus a dark base conduit out to each corner node
@@ -270,6 +330,7 @@ func _update_nodes() -> void:
 	for i in mini(nodes.size(), _node_pylons.size()):
 		var state: Array = nodes[i]
 		var progress := float(state[FaultyWiring.ND_VALUE])
+		_node_panel_labels[i].text = "%d%%" % int(round(progress * 100.0))
 		var color := BROKEN_COLOR.lerp(FIXED_COLOR, progress)
 		_node_materials[i].albedo_color = color
 		_node_materials[i].emission = color
