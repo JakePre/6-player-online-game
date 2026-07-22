@@ -36,7 +36,7 @@ const SFX := {
 	&"confirm": "res://assets/audio/kenney_interface_sounds/confirm.ogg",
 	&"error": "res://assets/audio/kenney_interface_sounds/error.ogg",
 	&"tick": "res://assets/audio/kenney_interface_sounds/tick.ogg",
-	&"coin": "res://assets/audio/kenney_interface_sounds/coin.ogg",
+	&"coin": "res://assets/audio/generated/pickup.ogg",  # pipeline-generated (Stable Audio)
 	&"round_start": "res://assets/audio/kenney_music_jingles/round_start.ogg",
 	&"round_win": "res://assets/audio/kenney_music_jingles/round_win.ogg",
 	&"round_lose": "res://assets/audio/kenney_music_jingles/round_lose.ogg",
@@ -44,7 +44,7 @@ const SFX := {
 	&"podium": "res://assets/audio/kenney_music_jingles/podium.ogg",
 	# --- gameplay vocabulary (M20-01, #711 — see docs/AUDIO_GUIDE.md) ----------
 	# Impacts / combat.
-	&"hit": "res://assets/audio/kenney_impact_sounds/hit.ogg",
+	&"hit": "res://assets/audio/generated/hit.ogg",  # pipeline-generated (Stable Audio)
 	&"hit_heavy": "res://assets/audio/kenney_impact_sounds/hit_heavy.ogg",
 	&"ko": "res://assets/audio/kenney_impact_sounds/ko.ogg",
 	&"thud": "res://assets/audio/kenney_impact_sounds/thud.ogg",
@@ -58,7 +58,7 @@ const SFX := {
 	&"explosion": "res://assets/audio/party_rush_synth/explosion.wav",
 	&"splash": "res://assets/audio/party_rush_synth/splash.wav",
 	# Movement.
-	&"jump": "res://assets/audio/kenney_digital_audio/jump.ogg",
+	&"jump": "res://assets/audio/generated/jump.ogg",  # pipeline-generated (Stable Audio)
 	&"dash": "res://assets/audio/kenney_digital_audio/dash.ogg",
 	# Energy / state.
 	&"zap": "res://assets/audio/kenney_digital_audio/zap.ogg",
