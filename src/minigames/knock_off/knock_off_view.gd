@@ -27,6 +27,14 @@ const SWING_LIFE := 0.18
 const KO_TUMBLE_SEC := 0.7
 const KO_SPIN_SPEED := 9.0
 const KO_DRIFT := Vector2(3.5, -3.0)
+## KO tumble debris (#1140): a few small drawn shards scatter and fall from
+## the ring-out point, left behind as the fighter tumbles off.
+const DEBRIS_PER_KO := 5
+const DEBRIS_LIFE_SEC := 0.6
+const DEBRIS_COLOR := Color(0.75, 0.72, 0.68)
+## Platform edge glow (#1140): a warm line right at the ring-out edges so the
+## danger line reads clearly against the stage.
+const EDGE_GLOW_COLOR := Color(1.0, 0.55, 0.2, 0.6)
 
 ## A lunge on your own swing, layered on top of the base pose/interpolation. The
 ## flinch flash on a landed hit now comes from the shared SideScrollView.play_hit
@@ -50,6 +58,8 @@ var _last_alive_pos := {}
 var _last_alive_facing := {}
 ## slot -> {origin, dir, age}, active while a KO'd rig is tumbling off.
 var _tumbles := {}
+## Transient KO debris shards: {pos, vel, age} (#1140).
+var _debris: Array[Dictionary] = []
 ## slot -> {facing, age}, active while an attack lunge is playing.
 var _swing_pose := {}
 
@@ -84,6 +94,16 @@ func _process(delta: float) -> void:
 			if float(swing.age) < SWING_LIFE:
 				alive.append(swing)
 		_swings = alive
+		_fx_layer.queue_redraw()
+	if not _debris.is_empty():
+		var alive_debris: Array[Dictionary] = []
+		for shard in _debris:
+			shard.age = float(shard.age) + delta
+			shard.pos = (shard.pos as Vector2) + (shard.vel as Vector2) * delta
+			shard.vel = (shard.vel as Vector2) + Vector2(0.0, 6.0) * delta
+			if float(shard.age) < DEBRIS_LIFE_SEC:
+				alive_debris.append(shard)
+		_debris = alive_debris
 		_fx_layer.queue_redraw()
 	if not _tumbles.is_empty():
 		_advance_tumbles(delta)
@@ -143,6 +163,19 @@ func _start_tumble(slot: int) -> void:
 	var facing: int = int(_last_alive_facing.get(slot, 1))
 	var dir := signf(origin.x) if not is_zero_approx(origin.x) else float(facing)
 	_tumbles[slot] = {"origin": origin, "dir": dir, "age": 0.0}
+	_spawn_ko_debris(origin)
+
+
+## A few small shards scatter from the ring-out point and fall (#1140),
+## left behind as the fighter tumbles off — a quick physical "something broke"
+## read distinct from the tumbling rig itself.
+func _spawn_ko_debris(origin: Vector2) -> void:
+	for i in DEBRIS_PER_KO:
+		var angle := randf_range(0.0, TAU)
+		var speed := randf_range(1.5, 3.5)
+		_debris.append(
+			{"pos": origin, "vel": Vector2(cos(angle), sin(angle) - 0.5) * speed, "age": 0.0}
+		)
 
 
 func _render(game: Dictionary) -> void:
@@ -237,6 +270,7 @@ func _update_hud() -> void:
 
 
 func _draw_fx() -> void:
+	_draw_edge_glow()
 	for swing in _swings:
 		var center := world_to_screen(swing.pos)
 		var reach := _attack_arc_px()
@@ -247,6 +281,21 @@ func _draw_fx() -> void:
 		var from := -0.5 * facing
 		var to := 0.6 * facing
 		_fx_layer.draw_arc(center + Vector2(facing * 6.0, 0.0), reach, from, to, 10, color, 4.0)
+	for shard: Dictionary in _debris:
+		var pos := world_to_screen(shard.pos)
+		var fade := 1.0 - float(shard.age) / DEBRIS_LIFE_SEC
+		_fx_layer.draw_rect(
+			Rect2(pos - Vector2(2.0, 2.0), Vector2(4.0, 4.0)), Color(DEBRIS_COLOR, fade)
+		)
+
+
+## A warm glow line at each ring-out edge (#1140), so the danger line reads
+## clearly against the stage platform.
+func _draw_edge_glow() -> void:
+	for platform: Rect2 in KnockOff.solid_platforms():
+		var top_left := world_to_screen(Vector2(platform.position.x, platform.position.y))
+		var top_right := world_to_screen(Vector2(platform.end.x, platform.position.y))
+		_fx_layer.draw_line(top_left, top_right, EDGE_GLOW_COLOR, 3.0)
 
 
 func _attack_arc_px() -> float:
