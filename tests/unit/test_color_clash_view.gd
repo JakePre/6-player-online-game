@@ -31,6 +31,38 @@ func test_setup_builds_iso_arena_with_paint_tiles() -> void:
 	assert_eq(tiles.multimesh.instance_count, ColorClash.GRID_SIZE * ColorClash.GRID_SIZE)
 
 
+## #1127 GFX: the floor wears the stone-paver texture, and rocks ring the grid.
+func test_gfx_floor_texture_and_rim_props() -> void:
+	var mat := (view.arena.get_node("Floor") as MultiMeshInstance3D).material_override
+	assert_eq((mat as StandardMaterial3D).albedo_texture, view.FLOOR_TEXTURE)
+	var props := view.arena.get_node("RimProps")
+	assert_eq(props.get_child_count(), view.RIM_PROP_COUNT)
+
+
+## #1127: the score monument builds lazily once any tile has a faction, one
+## band per faction, and its label tracks the live tile counts — in
+## team_mode.
+func test_gfx_monument_builds_lazily_and_tracks_counts() -> void:
+	assert_null(view.arena.get_node_or_null("ScoreMonument"), "no monument before any paint")
+	view.render({"players": {}, "grid": [], "teams": [[0], [1]], "counts": {0: 12, 1: 9}})
+	var monument := view.arena.get_node("ScoreMonument")
+	assert_not_null(monument)
+	assert_not_null(monument.get_node("Band0"))
+	assert_not_null(monument.get_node("Band1"))
+	assert_eq((monument.get_node("MonumentLabel") as Label3D).text, "12 : 9")
+
+
+## #1127: `teams` stays empty in FFA (team_count_for returns 0, #178) — the
+## monument must still build from `counts` alone, one band per slot-faction.
+func test_gfx_monument_builds_in_ffa_mode_with_no_teams() -> void:
+	view.render({"players": {}, "grid": [], "teams": [], "counts": {0: 4, 2: 7}})
+	var monument := view.arena.get_node("ScoreMonument")
+	assert_not_null(monument, "FFA still builds the monument from counts")
+	assert_not_null(monument.get_node("Band0"))
+	assert_not_null(monument.get_node("Band2"))
+	assert_eq((monument.get_node("MonumentLabel") as Label3D).text, "4 : 7")
+
+
 ## M15 → 24: the tile mesh sizes to the scaled grid the sim will paint, from
 ## the head count alone (no snapshot needed), so both stay in lockstep.
 func test_paint_mesh_scales_with_lobby() -> void:
@@ -89,10 +121,13 @@ func _full_grid(fill: int = ColorClash.UNPAINTED) -> Array:
 
 
 ## M13-21: the first grid sighting seeds the splat diff silently.
+## +1 below in every case is the #1127 score monument: it builds lazily, once,
+## the first time `counts` arrives non-empty — the same render each of these
+## triggers it on.
 func test_first_snapshot_seeds_without_splats() -> void:
 	var before: int = view.arena.get_child_count()
 	view.render({"players": {}, "grid": _full_grid(0), "teams": [], "counts": {0: 144}})
-	assert_eq(view.arena.get_child_count(), before, "first sighting seeds silently")
+	assert_eq(view.arena.get_child_count(), before + 1, "first sighting seeds silently")
 
 
 func test_fresh_paint_splats() -> void:
@@ -102,7 +137,7 @@ func test_fresh_paint_splats() -> void:
 	grid_data = grid_data.duplicate()
 	grid_data[5] = 0
 	view.render({"players": {}, "grid": grid_data, "teams": [], "counts": {0: 1}})
-	assert_eq(view.arena.get_child_count(), before + 1, "a repainted tile = one splat")
+	assert_eq(view.arena.get_child_count(), before + 2, "a repainted tile = one splat + monument")
 
 
 func test_mass_repaint_splats_are_capped() -> void:
@@ -110,7 +145,9 @@ func test_mass_repaint_splats_are_capped() -> void:
 	var before: int = view.arena.get_child_count()
 	view.render({"players": {}, "grid": _full_grid(0), "teams": [], "counts": {0: 144}})
 	var cap: int = view.MAX_SPLATS_PER_SNAPSHOT
-	assert_eq(view.arena.get_child_count(), before + cap, "mass repaint splats are capped")
+	assert_eq(
+		view.arena.get_child_count(), before + cap + 1, "mass repaint splats are capped + monument"
+	)
 
 
 ## M13-21: coverage shimmer follows the leading faction and advances each
