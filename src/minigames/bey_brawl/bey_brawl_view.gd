@@ -29,6 +29,26 @@ const BOWL_THICKNESS := 1.0
 const STEP_DEPTH := 0.09
 ## Spin meter pips on the nameplate.
 const SPIN_PIPS := 5
+## Metal-deck arena floor (#1124): the industrial plate ringing the pit —
+## the ~2u of floor visible outside the bowl reads as a stadium deck.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/metal-deck.png")
+const FLOOR_TEXTURE_TILES := 5.0
+## Glowing edge rings tracing each stepped disc (#1124), so the concave bowl
+## reads as a real pit rather than flat discs. A cool blue to contrast the
+## warm gold ring-out rim.
+const STEP_HIGHLIGHT_COLOR := Color(0.45, 0.72, 1.0)
+const STEP_HIGHLIGHT_WIDTH := 0.12
+## Arena-edge rubble (#1124): rocks + barrels + crates ring the metal pit, so
+## the stadium sits in a rugged arena instead of a bare floor.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallB.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_tallA.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/barrel.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/crate.glb"),
+]
+const RIM_PROP_COUNT := 20
+const RIM_PROP_SEED := 0xBEE7
 
 ## Latest replicated state, straight from BeyBrawl.get_snapshot().
 var players := {}
@@ -50,12 +70,26 @@ func _floor_tint() -> Color:
 	return Color(0.85, 0.88, 0.95)
 
 
+## Metal-deck floor (#1124): swap the default grey platform for the IMG-057
+## diamond-plate texture so the ring of floor outside the bowl reads as an
+## industrial stadium deck (blast_grid's floor-texture idiom).
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = FLOOR_TEXTURE
+			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
+
+
 func _arena_half() -> float:
 	return BeyBrawl.BOWL_RADIUS + 2.0
 
 
 func _setup_3d() -> void:
 	_build_bowl()
+	# Rugged arena edge (#1124): rocks/barrels/crates ring the metal pit.
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 	var axe_source: Node = (load(AXE_SOURCE_SCENE) as PackedScene).instantiate()
 	var axe_nodes := axe_source.find_children(AXE_MESH_NAME, "MeshInstance3D", true, false)
 	if not axe_nodes.is_empty():
@@ -76,6 +110,10 @@ func _build_bowl() -> void:
 			BOWL_STEP_COLORS[i],
 			BOWL_THICKNESS - STEP_DEPTH * (i + 1)
 		)
+		# Concentric glowing rings on the bowl surface (#1124) — arena lane
+		# markings at each step radius. (Sat ON the lip top, not the sunken step
+		# height, since the full-radius lip disc buries the inner discs.)
+		_add_step_highlight("BowlStepEdge%d" % i, BeyBrawl.BOWL_RADIUS * fraction, BOWL_THICKNESS)
 	var mesh := TorusMesh.new()
 	mesh.inner_radius = BeyBrawl.BOWL_RADIUS - RIM_WIDTH
 	mesh.outer_radius = BeyBrawl.BOWL_RADIUS
@@ -90,6 +128,24 @@ func _build_bowl() -> void:
 	rim.mesh = mesh
 	rim.position = Vector3(0.0, BOWL_THICKNESS + 0.02, 0.0)
 	arena.add_child(rim)
+
+
+## A thin emissive ring on a step's top edge (#1124), tracing the concave slope.
+func _add_step_highlight(node_name: String, radius: float, top_y: float) -> void:
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = maxf(0.05, radius - STEP_HIGHLIGHT_WIDTH)
+	mesh.outer_radius = radius
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = STEP_HIGHLIGHT_COLOR
+	mat.emission_enabled = true
+	mat.emission = STEP_HIGHLIGHT_COLOR
+	mat.emission_energy_multiplier = 0.6
+	mesh.material = mat
+	var ring := MeshInstance3D.new()
+	ring.name = node_name
+	ring.mesh = mesh
+	ring.position = Vector3(0.0, top_y + 0.02, 0.0)
+	arena.add_child(ring)
 
 
 func _add_disc(disc_name: String, radius: float, color: Color, height: float) -> void:

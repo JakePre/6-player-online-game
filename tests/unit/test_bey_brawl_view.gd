@@ -45,6 +45,24 @@ func test_setup_builds_the_stepped_bowl_with_a_lip_ring() -> void:
 	)
 
 
+## #1124 GFX: a glowing edge ring traces every stepped disc, and rocks/barrels
+## ring the pit via scatter_rim_props.
+func test_gfx_adds_step_highlights_and_rim_props() -> void:
+	var edge: MeshInstance3D = view.arena.get_node("BowlStepEdge0")
+	assert_not_null(edge, "a glowing ring on the first step edge")
+	var mat := (edge.mesh as TorusMesh).material as StandardMaterial3D
+	assert_true(mat.emission_enabled, "the step edge glows")
+	var props := view.arena.get_node("RimProps")
+	assert_not_null(props, "the pit is ringed with rubble")
+	assert_eq(props.get_child_count(), view.RIM_PROP_COUNT, "one node per requested prop")
+
+
+## #1124: the floor outside the bowl wears the metal-deck texture.
+func test_gfx_floor_wears_the_metal_deck_texture() -> void:
+	var mat := (view.arena.get_node("Floor") as MultiMeshInstance3D).material_override
+	assert_eq((mat as StandardMaterial3D).albedo_texture, view.FLOOR_TEXTURE)
+
+
 func test_spinners_whirlwind_with_the_axe_in_hand() -> void:
 	view.render(_snapshot({0: [1.0, 0.0, 1.0, 0], 1: [-1.0, 0.0, 1.0, 0]}))
 	var rig := view.rig_for_slot(0)
