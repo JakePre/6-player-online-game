@@ -5,13 +5,38 @@ extends MinigameView3D
 ## change (no lock-in, #799). COUNT! / STAND ON THE ANSWER! call-outs flip with
 ## the phase.
 
-const SWARM_COLOR := Color(0.96, 0.79, 0.2)
 const SWARM_RADIUS := 0.22
 const SWARM_POOL := 24
 const PAD_COLOR := Color(0.4, 0.6, 0.9, 0.6)
 const PAD_DISC_HEIGHT := 0.05
 const FLASH_TEXT := "COUNT THE SWARM!"
 const ANSWER_TEXT := "STAND ON THE ANSWER!"
+## Critter swarm (#1131 Tier 1): the Kenney platformer-kit character props
+## replace the plain gold spheres — cycled round-robin across the pool so
+## adjacent critters in the swarm read as distinct little guys, not a repeat.
+const CRITTER_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_platformer_kit/character-oobi.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/character-oodi.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/character-ooli.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/character-oopi.glb"),
+	preload("res://assets/environment/kenney_platformer_kit/character-oozi.glb"),
+]
+const CRITTER_SCALE := 0.45
+## Raised beveled pads (#1131): a torus rim + a slight lift so the answer
+## discs read as small platforms, not flat decals.
+const PAD_RIM_COLOR := Color(0.55, 0.75, 1.0)
+const PAD_RIM_THICKNESS := 0.06
+const PAD_LIFT := 0.1
+## Stone-pavers floor (#1131): replaces the flat tint under the swarm/pads.
+const FLOOR_TEXTURE := preload("res://assets/generated/textures/stone-pavers.png")
+const FLOOR_TEXTURE_TILES := 6.0
+## Rim rubble (#1131): the issue's flagged "no scatter_rim_props()" gap.
+const RIM_PROP_SCENES: Array[PackedScene] = [
+	preload("res://assets/environment/kenney_nature_kit/rock_smallA.glb"),
+	preload("res://assets/environment/kenney_nature_kit/rock_smallB.glb"),
+]
+const RIM_PROP_COUNT := 14
+const RIM_PROP_SEED := 0xC0117
 
 ## Latest replicated state, straight from CountQuick.get_snapshot().
 var players := {}
@@ -19,7 +44,7 @@ var phase: int = CountQuick.Phase.FLASH
 var swarm: Array = []
 var pads: Array = []
 
-var _swarm_pool: Array[MeshInstance3D] = []
+var _swarm_pool: Array[Node3D] = []
 # Critter wiggle counter (M13-15; #799: a pick is now the pad value under the
 # player, -1 for none, and can still change).
 var _wiggle_ticks := 0
@@ -39,25 +64,30 @@ func _floor_tint() -> Color:
 	return Color(0.95, 1.0, 0.82)
 
 
+## Stone-paver floor (#1131) under the swarm and pads, replacing the flat tint.
+func _build_floor() -> void:
+	var floor_node := _dresser.build_floor(_floor_tile_scene(), _floor_tint(), _arena_half())
+	if floor_node != null:
+		var mat := floor_node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_texture = FLOOR_TEXTURE
+			mat.uv1_scale = Vector3(FLOOR_TEXTURE_TILES, FLOOR_TEXTURE_TILES, 1.0)
+
+
 func _arena_half() -> float:
 	return CountQuick.ARENA_HALF
 
 
 func _setup_3d() -> void:
-	var swarm_mesh := SphereMesh.new()
-	swarm_mesh.radius = SWARM_RADIUS
-	swarm_mesh.height = SWARM_RADIUS * 2.0
-	var swarm_material := StandardMaterial3D.new()
-	swarm_material.albedo_color = SWARM_COLOR
-	swarm_material.metallic = 0.5
-	swarm_mesh.material = swarm_material
 	for i in SWARM_POOL:
-		var node := MeshInstance3D.new()
-		node.name = "Swarm%d" % i
-		node.mesh = swarm_mesh
-		node.visible = false
-		arena.add_child(node)
-		_swarm_pool.append(node)
+		# Round-robin the 5 critter models (#1131 Tier 1) so the swarm reads as
+		# distinct little guys rather than a repeated prop.
+		var critter := CRITTER_SCENES[i % CRITTER_SCENES.size()].instantiate() as Node3D
+		critter.name = "Swarm%d" % i
+		critter.scale = Vector3.ONE * CRITTER_SCALE
+		critter.visible = false
+		arena.add_child(critter)
+		_swarm_pool.append(critter)
 
 	for i in 4:
 		var pad := Node3D.new()
@@ -73,7 +103,25 @@ func _setup_3d() -> void:
 		material.albedo_color = PAD_COLOR
 		mesh.material = material
 		disc.mesh = mesh
+		disc.position.y = PAD_LIFT
 		pad.add_child(disc)
+		# Beveled rim (#1131 Tier 2): a torus at the disc's edge sells "raised
+		# platform" instead of a flat decal.
+		var rim := MeshInstance3D.new()
+		rim.name = "Rim"
+		var rim_mesh := TorusMesh.new()
+		rim_mesh.inner_radius = CountQuick.PAD_RADIUS - PAD_RIM_THICKNESS
+		rim_mesh.outer_radius = CountQuick.PAD_RADIUS
+		var rim_material := StandardMaterial3D.new()
+		rim_material.albedo_color = PAD_RIM_COLOR
+		rim_material.emission_enabled = true
+		rim_material.emission = PAD_RIM_COLOR
+		rim_material.emission_energy_multiplier = 0.4
+		rim_mesh.material = rim_material
+		rim.mesh = rim_mesh
+		rim.rotation.x = PI / 2.0
+		rim.position.y = PAD_LIFT + PAD_DISC_HEIGHT / 2.0
+		pad.add_child(rim)
 		var label := Label3D.new()
 		label.name = "Value"
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -92,6 +140,7 @@ func _setup_3d() -> void:
 		_pad_labels.append(label)
 
 	_phase_label = make_status_label(&"PhaseLabel")
+	scatter_rim_props(RIM_PROP_SCENES, RIM_PROP_COUNT, RIM_PROP_SEED)
 
 
 func _render_3d(game: Dictionary) -> void:

@@ -21,6 +21,22 @@ func test_view_scene_lives_at_catalog_path() -> void:
 	)
 
 
+## #1131 GFX: the swarm is Kenney critter models (not plain spheres), pads
+## have a raised beveled rim, the floor wears stone pavers, and rocks ring
+## the arena.
+func test_gfx_critters_raised_pads_floor_and_rim_props() -> void:
+	var critter: Node3D = view.arena.get_node("Swarm0")
+	assert_gt(critter.get_child_count(), 0, "a critter GLB has real child geometry")
+	var pad: Node3D = view.arena.get_node("Pad0")
+	assert_not_null(pad.get_node("Rim"), "a beveled rim sells the raised pad")
+	var disc: MeshInstance3D = pad.get_node("Disc")
+	assert_almost_eq(disc.position.y, view.PAD_LIFT, 0.001, "the disc sits raised off the floor")
+	var mat := (view.arena.get_node("Floor") as MultiMeshInstance3D).material_override
+	assert_eq((mat as StandardMaterial3D).albedo_texture, view.FLOOR_TEXTURE)
+	var props: Node = view.arena.get_node("RimProps")
+	assert_eq(props.get_child_count(), view.RIM_PROP_COUNT)
+
+
 func test_swarm_shows_during_flash_and_clears() -> void:
 	view.render(
 		{
@@ -79,7 +95,7 @@ func test_render_tolerates_missing_keys() -> void:
 ## M13-15: the swarm wiggles like living critters; picks flash.
 func test_swarm_wiggles_across_snapshots() -> void:
 	view.render({"players": {}, "phase": CountQuick.Phase.FLASH, "swarm": [[2.0, 2.0]], "pads": []})
-	var node: MeshInstance3D = view.arena.get_node("Swarm0")
+	var node: Node3D = view.arena.get_node("Swarm0")
 	var pos_a: Vector3 = node.position
 	view.render({"players": {}, "phase": CountQuick.Phase.FLASH, "swarm": [[2.0, 2.0]], "pads": []})
 	assert_ne(node.position, pos_a, "same replicated spot, living wiggle")
