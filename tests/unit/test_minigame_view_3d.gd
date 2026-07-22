@@ -64,13 +64,12 @@ func test_ambient_lighting_is_unaffected() -> void:
 	assert_almost_eq(world_env.environment.ambient_light_energy, 0.6, 0.001)
 
 
-## #1119: the #939 party-stadium shell is disabled by default — its giant
-## dome/band enclosed the shared orthographic camera and occluded the arena
-## (invisible characters, missing floor). The hook is off and no shell mounts,
-## until the shell is redesigned to frame without wrapping the ortho camera.
-func test_stage_shell_is_disabled_by_default() -> void:
-	assert_false(view.call(&"_stage_shell_enabled"), "the occluding shell is off (#1119)")
-	assert_null(view.arena.get_node_or_null("StageShell"), "so nothing mounts to occlude")
+## #1184: the #939 party-stadium shell is re-enabled after its redesign — the
+## occluding dome/band are gone and the bleacher ring is cap-less, so the shell
+## frames the arena without drawing in front of the floor or characters.
+func test_stage_shell_is_enabled_and_mounts() -> void:
+	assert_true(view.call(&"_stage_shell_enabled"), "the redesigned shell is on (#1184)")
+	assert_not_null(view.arena.get_node_or_null("StageShell"), "and mounts under the arena")
 
 
 ## #939: the mood defaults from the game's floor tint, so every arena gets a

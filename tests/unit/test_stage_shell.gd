@@ -1,7 +1,8 @@
 extends GutTest
-## The party-stadium shell (#939): a shared 3D backdrop every MinigameView3D
-## arena sits inside. These cover the builder in isolation — nodes built,
-## occlusion-safe placement, mood tinting, and the reduced-motion-gated sweep.
+## The party-stadium shell (#939, redesigned #1184): a shared 3D backdrop every
+## MinigameView3D arena sits inside. These cover the builder in isolation —
+## nodes built, occlusion-safe placement (no enclosing sky mesh, cap-less
+## bleacher ring), mood tinting, and the reduced-motion-gated sweep.
 
 var arena: Node3D
 var shell: StageShell
@@ -17,9 +18,26 @@ func before_each() -> void:
 func test_build_mounts_a_single_shell_root() -> void:
 	assert_not_null(shell.root(), "the shell has a root node")
 	assert_eq(shell.root().get_parent(), arena, "mounted under the arena")
-	assert_not_null(shell.root().get_node("SkyDome"))
 	assert_not_null(shell.root().get_node("BleacherRing"))
 	assert_not_null(shell.root().get_node("Spotlight0"))
+
+
+## #1184: the sky is no longer a giant enclosing mesh (it trapped the ortho
+## camera and occluded every arena). The dome/band are gone; the transparent-bg
+## MenuBackdrop is the sky.
+func test_no_occluding_sky_mesh() -> void:
+	assert_null(shell.root().get_node_or_null("SkyDome"), "no dome encloses the camera")
+	assert_null(shell.root().get_node_or_null("HorizonBand"), "no horizon band either")
+
+
+## #1184: the bleacher ring is a cap-less tube. A capped CylinderMesh's top
+## face is a full-radius disc that floats above and occludes the whole floor —
+## the core darkening bug. Both caps must stay off.
+func test_bleacher_ring_has_no_caps_so_it_never_occludes_the_floor() -> void:
+	var ring := shell.root().get_node("BleacherRing") as MeshInstance3D
+	var mesh := ring.mesh as CylinderMesh
+	assert_false(mesh.cap_top, "the ring top cap is off (it would occlude the floor)")
+	assert_false(mesh.cap_bottom, "the ring bottom cap is off too")
 
 
 func test_build_is_idempotent() -> void:
@@ -27,13 +45,6 @@ func test_build_is_idempotent() -> void:
 	shell.build(arena, 10.0, Color.WHITE)
 	assert_eq(shell.root(), root, "a second build is a no-op")
 	assert_eq(arena.get_child_count(), 1, "only one shell root under the arena")
-
-
-## The dome wraps far outside the arena extent so it never clips the play field.
-func test_dome_sits_well_outside_the_arena() -> void:
-	var dome := shell.root().get_node("SkyDome") as MeshInstance3D
-	var radius := (dome.mesh as SphereMesh).radius
-	assert_gt(radius, 10.0 * 3.0, "the dome is far behind the arena")
 
 
 ## Occlusion-safety invariant (#939): the ring + crowd stay below rig-head
